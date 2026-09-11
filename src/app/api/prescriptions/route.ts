@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     const patientId = String(body.patientId || "");
     const medicines = String(body.medicines || "").trim();
     const advice = String(body.advice || "");
+    const encounterId = body.encounterId ? String(body.encounterId) : null;
     if (!patientId || !medicines) {
       return NextResponse.json({ success: false, error: "Patient and medicines required" }, { status: 400 });
     }
@@ -45,11 +46,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
     }
 
+    if (encounterId) {
+      const enc = await prisma.encounter.findFirst({
+        where: { id: encounterId, doctorId: session.doctorId, patientId },
+      });
+      if (!enc) {
+        return NextResponse.json({ success: false, error: "Encounter not found" }, { status: 404 });
+      }
+    }
+
     const rx = await prisma.prescription.create({
       data: {
         doctorId: session.doctorId,
         patientId,
         patientName: patient.name,
+        encounterId,
         medicines,
         advice,
       },
