@@ -20,33 +20,43 @@ export default function DashboardPage() {
   const [apptCount, setApptCount] = useState(0);
   const [pendingAmt, setPendingAmt] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", notes: "" });
+  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "" });
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const reload = () => {
+    setPatients(getMyPatients());
+    setApptCount(getMyAppointments().filter((a) => a.status === "Scheduled").length);
+    setPendingAmt(getMyInvoices().filter((i) => i.status !== "Paid").reduce((s, i) => s + i.amount, 0));
+  };
 
   useEffect(() => {
     const d = getCurrentDoctor();
     if (!d) { router.replace("/login"); return; }
     setDoctor(d);
-    setPatients(getMyPatients());
-    setApptCount(getMyAppointments().filter(a => a.status === "Scheduled").length);
-    setPendingAmt(getMyInvoices().filter(i => i.status !== "Paid").reduce((s, i) => s + i.amount, 0));
+    reload();
   }, [router]);
 
   const handleAddPatient = (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     const result = addPatient({
-      name: form.name,
+      name: form.name.trim(),
       age: parseInt(form.age) || 0,
       gender: form.gender,
-      phone: form.phone,
-      notes: form.notes,
+      phone: form.phone.trim(),
+      bp: form.bp.trim(),
+      allergies: form.allergies.trim(),
+      notes: form.notes.trim(),
     });
     if (result.success) {
-      setPatients(getMyPatients());
+      reload();
       setShowAdd(false);
-      setForm({ name: "", age: "", gender: "Male", phone: "", notes: "" });
-      setMessage("Patient added");
+      setForm({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "" });
+      setMessage("Patient added successfully");
       setTimeout(() => setMessage(""), 2500);
+    } else {
+      setError(result.error || "Failed to add patient");
     }
   };
 
@@ -61,7 +71,7 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold">Dashboard</h2>
           <p className="text-xs text-gray-500">Welcome, {doctor.name}</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">
+        <button type="button" onClick={() => { setError(""); setShowAdd(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">
           + Patient
         </button>
       </div>
@@ -69,36 +79,27 @@ export default function DashboardPage() {
       {message && <div className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{message}</div>}
 
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-white rounded-xl p-3 shadow-sm border">
-          <p className="text-xs text-gray-500">Patients</p>
-          <p className="text-xl font-bold text-[#c2183a] mt-1">{patients.length}</p>
-        </div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border">
-          <p className="text-xs text-gray-500">Upcoming Appts</p>
-          <p className="text-xl font-bold mt-1">{apptCount}</p>
-        </div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border">
-          <p className="text-xs text-gray-500">Pending Bills</p>
-          <p className="text-xl font-bold mt-1">₹{pendingAmt}</p>
-        </div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border">
-          <p className="text-xs text-gray-500">Isolation</p>
-          <p className="text-sm font-semibold mt-1 text-green-600">Active</p>
-        </div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Patients</p><p className="text-xl font-bold text-[#c2183a] mt-1">{patients.length}</p></div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Upcoming Appts</p><p className="text-xl font-bold mt-1">{apptCount}</p></div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Pending Bills</p><p className="text-xl font-bold mt-1">₹{pendingAmt}</p></div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Isolation</p><p className="text-sm font-semibold mt-1 text-green-600">Active</p></div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="px-3 py-2 border-b">
-          <h3 className="font-semibold text-sm">My Patients</h3>
-        </div>
+        <div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">My Patients</h3></div>
         {patients.length === 0 ? (
-          <div className="p-6 text-center text-gray-500 text-sm">No patients yet. Tap + Patient.</div>
+          <div className="p-6 text-center text-gray-500 text-sm">No patients yet. Tap <b>+ Patient</b> to add one.</div>
         ) : (
           <div className="divide-y">
             {patients.map((p) => (
               <div key={p.id} className="px-3 py-2.5">
                 <p className="font-medium text-sm">{p.name}</p>
                 <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
+                {(p.bp || p.allergies) && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {p.bp ? `BP: ${p.bp}` : ""}{p.bp && p.allergies ? " · " : ""}{p.allergies ? `Allergies: ${p.allergies}` : ""}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -106,21 +107,25 @@ export default function DashboardPage() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-3">
-          <div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-3">
+          <div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-semibold mb-3">Add Patient</h3>
+            {error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
             <form onSubmit={handleAddPatient} className="space-y-2.5">
-              <input required placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" />
+              <input required placeholder="Full name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
               <div className="grid grid-cols-2 gap-2">
-                <input type="number" required placeholder="Age" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" />
-                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm">
+                <input type="number" required placeholder="Age *" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
+                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm">
                   <option>Male</option><option>Female</option><option>Other</option>
                 </select>
               </div>
-              <input required placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" />
+              <input required placeholder="Phone *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
+              <input placeholder="Blood Pressure (e.g. 120/80)" value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
+              <input placeholder="Allergies (e.g. Penicillin)" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
+              <textarea placeholder="Clinical notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm" rows={2} />
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 h-10 rounded-lg border text-sm">Cancel</button>
-                <button type="submit" className="flex-1 h-10 rounded-lg bg-[#c2183a] text-white text-sm">Save</button>
+                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
+                <button type="submit" className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium">Save Patient</button>
               </div>
             </form>
           </div>
