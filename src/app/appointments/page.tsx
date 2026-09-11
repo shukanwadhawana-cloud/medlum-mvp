@@ -31,6 +31,13 @@ export default function AppointmentsPage() {
     return sorted;
   }, [appts, filter]);
 
+  const todayAppts = useMemo(() => appts.filter((a) => a.date === today()), [appts]);
+  const waitingCount = todayAppts.filter((a) => a.status === "Waiting").length;
+  const completedCount = todayAppts.filter((a) => a.status === "Completed").length;
+  const nextPatient = useMemo(() => todayAppts
+    .filter((a) => a.status === "Waiting")
+    .sort((a, b) => a.time.localeCompare(b.time))[0], [todayAppts]);
+
   const updateStatus = async (id: string, status: string) => { const r = await apiUpdateAppointmentStatus(id, status); if (r.success) await refresh(); else setError(r.error || "Could not update appointment"); };
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault(); setError(""); const p = patients.find((x) => x.id === form.patientId); if (!p) { setError("Select a patient"); return; } setSaving(true);
@@ -44,6 +51,31 @@ export default function AppointmentsPage() {
     <div className="flex items-center justify-between mb-4 gap-2"><div><h2 className="text-lg font-semibold">Appointments</h2><p className="text-xs text-gray-500">OPD schedule and queue</p></div><button type="button" onClick={() => { setError(""); setShowAdd(true); }} disabled={patients.length === 0} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-40">+ Book</button></div>
     {patients.length === 0 && !dataLoading && <div className="mb-3 bg-amber-50 text-amber-800 text-xs px-3 py-2 rounded-lg">Add a patient on Home first.</div>}
     {error && !showAdd && <div className="mb-3 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+
+    {/* Care-inspired encounter workspace: make the current OPD state visible before the list. */}
+    {!dataLoading && filter === "today" && (
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <button type="button" onClick={() => setFilter("waiting")} className="text-left bg-amber-50 border border-amber-100 rounded-xl p-3">
+          <p className="text-[11px] uppercase tracking-wide text-amber-700">Waiting</p><p className="text-xl font-semibold text-amber-900">{waitingCount}</p>
+        </button>
+        <button type="button" onClick={() => setFilter("completed")} className="text-left bg-green-50 border border-green-100 rounded-xl p-3">
+          <p className="text-[11px] uppercase tracking-wide text-green-700">Completed</p><p className="text-xl font-semibold text-green-900">{completedCount}</p>
+        </button>
+        <div className="bg-white border rounded-xl p-3">
+          <p className="text-[11px] uppercase tracking-wide text-gray-500">Today</p><p className="text-xl font-semibold">{todayAppts.length}</p>
+        </div>
+      </div>
+    )}
+
+    {nextPatient && filter === "today" && (
+      <div className="bg-white rounded-xl shadow-sm border p-3 mb-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0"><p className="text-[11px] uppercase tracking-wide text-gray-400">Next patient</p><p className="font-semibold text-sm truncate">{nextPatient.patientName}</p><p className="text-xs text-gray-500">{nextPatient.time} · {nextPatient.type}</p></div>
+          <div className="flex gap-2 shrink-0"><Link href={`/patients/${nextPatient.patientId}?appointmentId=${nextPatient.id}`} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium flex items-center">Start Consult</Link><button type="button" onClick={() => updateStatus(nextPatient.id, "Completed")} className="h-9 px-3 rounded-lg border text-xs">Complete</button></div>
+        </div>
+      </div>
+    )}
+
     <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">{tabs.map(([key, label]) => <button key={key} type="button" onClick={() => setFilter(key)} className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap border ${filter === key ? "bg-[#c2183a] text-white border-[#c2183a]" : "bg-white text-gray-600"}`}>{label}</button>)}</div>
     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
       {dataLoading ? <div className="p-6 text-center text-gray-400 text-sm">Loading…</div> : visible.length === 0 ? <div className="p-6 text-center text-gray-500 text-sm">No appointments in this view.</div> : <div className="divide-y">{visible.map((a) => <div key={a.id} className="px-3 py-3 flex justify-between gap-3 items-start"><div className="min-w-0"><p className="font-medium text-sm truncate">{a.patientName}</p><p className="text-xs text-gray-500">{a.date} · {a.time} · {a.type}</p><span className={`inline-block mt-1 text-[11px] ${a.status === "Waiting" ? "text-amber-700" : a.status === "Completed" ? "text-green-600" : a.status === "Cancelled" ? "text-red-600" : "text-gray-600"}`}>{a.status}</span></div><div className="text-right shrink-0 flex flex-col items-end gap-1">{(a.status === "Scheduled" || a.status === "Waiting") && <Link href={`/patients/${a.patientId}?appointmentId=${a.id}`} className="text-xs text-[#c2183a] font-medium">Start Consult</Link>}{a.status === "Completed" && <Link href={`/patients/${a.patientId}`} className="text-xs text-gray-600">View Consultation</Link>}{a.status === "Scheduled" && <button type="button" onClick={() => updateStatus(a.id, "Waiting")} className="text-xs text-amber-700">Check in</button>}{(a.status === "Scheduled" || a.status === "Waiting") && <button type="button" onClick={() => updateStatus(a.id, "Cancelled")} className="text-xs text-red-600">Cancel</button>}</div></div>)}</div>}
