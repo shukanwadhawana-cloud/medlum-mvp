@@ -45,6 +45,15 @@ export default function PatientDetailPage() {
     return (w / (m * m)).toFixed(1);
   })();
 
+  const lastEncounter = data?.encounters?.[0];
+  const lastVitals = lastEncounter && [
+    lastEncounter.bp && `BP ${lastEncounter.bp}`,
+    lastEncounter.pulse && `P ${lastEncounter.pulse}`,
+    lastEncounter.temperature && `T ${lastEncounter.temperature}`,
+    lastEncounter.spo2 && `SpO₂ ${lastEncounter.spo2}`,
+    lastEncounter.weight && `Wt ${lastEncounter.weight}kg`,
+  ].filter(Boolean).join(" · ");
+
   const handleSaveConsult = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -92,18 +101,31 @@ export default function PatientDetailPage() {
         <div className="p-6 text-center text-gray-400 text-sm">{loading ? "Loading…" : "Patient not found"}</div>
       ) : (
         <>
-          <div className="flex items-start justify-between gap-2 mb-4">
+          <div className="flex items-start justify-between gap-2 mb-3">
             <div>
               <h2 className="text-lg font-semibold">{p.name}</h2>
               <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
-              {(p.allergies || p.bp) && (
-                <p className="text-xs text-amber-700 mt-1">
-                  {p.allergies ? `Allergies: ${p.allergies}` : ""}{p.allergies && p.bp ? " · " : ""}{p.bp ? `Baseline BP: ${p.bp}` : ""}
-                </p>
-              )}
             </div>
             <button type="button" onClick={() => { setError(""); setShowConsult(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">Start Consult</button>
           </div>
+
+          {/* Eka Care-style encounter summary: important patient context before the clinical record. */}
+          <div className="bg-white rounded-xl shadow-sm border p-3 mb-3">
+            <div className="flex flex-wrap gap-2 mb-2">
+              {p.allergies ? <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 text-xs">⚠ Allergy: {p.allergies}</span> : <span className="px-2 py-1 rounded-full bg-gray-50 text-gray-500 text-xs">No allergy recorded</span>}
+              {p.bp && <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs">Baseline BP: {p.bp}</span>}
+            </div>
+            {lastEncounter ? (
+              <div className="border-t pt-2">
+                <p className="text-[11px] uppercase tracking-wide text-gray-400">Latest clinical context · {lastEncounter.date}</p>
+                {lastEncounter.chiefComplaint && <p className="text-sm mt-1"><b>Complaint:</b> {lastEncounter.chiefComplaint}</p>}
+                {lastEncounter.diagnosis && <p className="text-sm"><b>Diagnosis:</b> {lastEncounter.diagnosis}</p>}
+                {lastVitals && <p className="text-xs text-gray-500 mt-1">Vitals: {lastVitals}</p>}
+                {lastEncounter.followUpDate && <p className="text-xs text-[#c2183a] mt-1">Follow-up: {lastEncounter.followUpDate}</p>}
+              </div>
+            ) : <p className="text-xs text-gray-400">No previous consultation recorded.</p>}
+          </div>
+
           {msg && <div className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{msg}</div>}
           <div className="space-y-3">
             <Sec title="Consultations">
@@ -153,7 +175,7 @@ export default function PatientDetailPage() {
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-3">
           <div className="bg-white rounded-2xl w-full max-w-lg p-4 shadow-xl max-h-[92vh] overflow-y-auto">
             <h3 className="text-base font-semibold mb-1">Consultation — {p.name}</h3>
-            <p className="text-xs text-gray-500 mb-3">Complaint → Vitals → Diagnosis → Rx → Bill</p>
+            <p className="text-xs text-gray-500 mb-3">Complaint → Vitals → Diagnosis → Rx → Follow-up → Bill</p>
             {error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
             <form onSubmit={handleSaveConsult} className="space-y-2.5">
               <textarea required rows={2} placeholder="Chief complaint *" value={form.chiefComplaint} onChange={(e) => setForm({ ...form, chiefComplaint: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm" />
