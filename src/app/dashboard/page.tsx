@@ -1,125 +1,88 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
-import {
-  apiMe,
-  apiGetPatients,
-  apiGetAppointments,
-  apiGetInvoices,
-  apiAddPatient,
-  ApiDoctor,
-} from "@/lib/api";
+import { useDoctor } from "@/components/DoctorProvider";
+import { apiGetPatients, apiGetAppointments, apiGetInvoices, apiAddPatient } from "@/lib/api";
 
-type Patient = {
-  id: string;
-  doctorId: string;
-  name: string;
-  age: number;
-  gender: string;
-  phone: string;
-  bp?: string;
-  allergies?: string;
-  notes?: string;
-  createdAt: string;
-};
+type Patient = { id: string; name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string; notes?: string };
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [doctor, setDoctor] = useState<ApiDoctor | null>(null);
+  const { doctor, loading: authLoading } = useDoctor();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [apptCount, setApptCount] = useState(0);
   const [pendingAmt, setPendingAmt] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({
-    name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "",
-  });
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "" });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  const reload = async () => {
-    const [pts, appts, invs] = await Promise.all([
-      apiGetPatients(), apiGetAppointments(), apiGetInvoices(),
-    ]);
+  const reload = useCallback(async () => {
+    const [pts, appts, invs] = await Promise.all([apiGetPatients(), apiGetAppointments(), apiGetInvoices()]);
     setPatients(pts as Patient[]);
     setApptCount((appts as any[]).filter((a) => a.status === "Scheduled").length);
-    setPendingAmt(
-      (invs as any[]).filter((i) => i.status !== "Paid").reduce((s, i) => s + (i.amount || 0), 0)
-    );
-  };
+    setPendingAmt((invs as any[]).filter((i) => i.status !== "Paid").reduce((s, i) => s + (Number(i.amount) || 0), 0));
+    setDataLoading(false);
+  }, []);
 
   useEffect(() => {
-    (async () => {
-      const me = await apiMe();
-      if (!me.success || !me.doctor) { router.replace("/login"); return; }
-      setDoctor(me.doctor);
-      await reload();
-      setLoading(false);
-    })();
-  }, [router]);
+    if (authLoading) return;
+    if (!doctor) { router.replace("/login"); return; }
+    reload();
+  }, [doctor, authLoading, router, reload]);
 
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const result = await apiAddPatient({
-      name: form.name.trim(),
-      age: parseInt(form.age) || 0,
-      gender: form.gender,
-      phone: form.phone.trim(),
-      bp: form.bp.trim(),
-      allergies: form.allergies.trim(),
-      notes: form.notes.trim(),
-    });
-    if (result.success) {
-      await reload();
-      setShowAdd(false);
-      setForm({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "" });
-      setMessage("Patient added successfully");
-      setTimeout(() => setMessage(""), 2500);
-    } else {
-      setError(result.error || "Failed to add patient");
-    }
+    setSaving(true);
+    try {
+      const result = await apiAddPatient({
+        name: form.name.trim(), age: parseInt(form.age, 10) || 0, gender: form.gender,
+        phone: form.phone.trim(), bp: form.bp.trim(), allergies: form.allergies.trim(), notes: form.notes.trim(),
+      });
+      if (result.success) {
+        await reload();
+        setShowAdd(false);
+        setForm({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "" });
+        setMessage("Patient saved");
+        setTimeout(() => setMessage(""), 2500);
+      } else setError(result.error || "Could not save patient");
+    } catch { setError("Network error — try again"); }
+    finally { setSaving(false); }
   };
 
-  if (loading || !doctor) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white">Loading...</div>;
+  if (authLoading || !doctor) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading...</div>;
   }
 
   return (
-    <AppShell doctor={doctor}>
+    <AppShell>
       <div className="flex items-center justify-between mb-4 gap-2">
-        <div>
-          <h2 className="text-lg font-semibold">Dashboard</h2>
-          <p className="text-xs text-gray-500">Welcome, {doctor.name}</p>
-        </div>
-        <button type="button" onClick={() => { setError(""); setShowAdd(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">
-          + Patient
-        </button>
+        <div><h2 className="text-lg font-semibold">Dashboard</h2><p className="text-xs text-gray-500">Welcome, {doctor.name}</p></div>
+        <button type="button" onClick={() => { setError(""); setShowAdd(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">+ Patient</button>
       </div>
       {message && <div className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{message}</div>}
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Patients</p><p className="text-xl font-bold text-[#c2183a] mt-1">{patients.length}</p></div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Upcoming Appts</p><p className="text-xl font-bold mt-1">{apptCount}</p></div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Pending Bills</p><p className="text-xl font-bold mt-1">₹{pendingAmt}</p></div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Isolation</p><p className="text-sm font-semibold mt-1 text-green-600">Server</p></div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Patients</p><p className="text-xl font-bold text-[#c2183a] mt-1">{dataLoading ? "…" : patients.length}</p></div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Upcoming Appts</p><p className="text-xl font-bold mt-1">{dataLoading ? "…" : apptCount}</p></div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Pending Bills</p><p className="text-xl font-bold mt-1">{dataLoading ? "…" : `₹${pendingAmt}`}</p></div>
+        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Data</p><p className="text-sm font-semibold mt-1 text-green-600">PostgreSQL</p></div>
       </div>
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">My Patients</h3></div>
-        {patients.length === 0 ? (
-          <div className="p-6 text-center text-gray-500 text-sm">No patients yet. Tap <b>+ Patient</b> to add one.</div>
-        ) : (
-          <div className="divide-y">{patients.map((p) => (
+        {dataLoading ? <div className="p-6 text-center text-gray-400 text-sm">Loading patients…</div>
+          : patients.length === 0 ? <div className="p-6 text-center text-gray-500 text-sm">No patients yet. Tap <b>+ Patient</b>.</div>
+          : <div className="divide-y">{patients.map((p) => (
             <div key={p.id} className="px-3 py-2.5">
               <p className="font-medium text-sm">{p.name}</p>
               <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
-              {(p.bp || p.allergies) && (
-                <p className="text-xs text-gray-500 mt-0.5">{p.bp ? `BP: ${p.bp}` : ""}{p.bp && p.allergies ? " · " : ""}{p.allergies ? `Allergies: ${p.allergies}` : ""}</p>
-              )}
+              {(p.bp || p.allergies) && <p className="text-xs text-gray-500 mt-0.5">{p.bp ? `BP: ${p.bp}` : ""}{p.bp && p.allergies ? " · " : ""}{p.allergies ? `Allergies: ${p.allergies}` : ""}</p>}
             </div>
-          ))}</div>
-        )}
+          ))}</div>}
       </div>
       {showAdd && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-3">
@@ -133,12 +96,12 @@ export default function DashboardPage() {
                 <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"><option>Male</option><option>Female</option><option>Other</option></select>
               </div>
               <input required placeholder="Phone *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
-              <input placeholder="Blood Pressure (e.g. 120/80)" value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
+              <input placeholder="BP (e.g. 120/80)" value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
               <input placeholder="Allergies" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
-              <textarea placeholder="Clinical notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm" rows={2} />
+              <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm" rows={2} />
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
-                <button type="submit" className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium">Save Patient</button>
+                <button type="button" disabled={saving} onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
+                <button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Save Patient"}</button>
               </div>
             </form>
           </div>
