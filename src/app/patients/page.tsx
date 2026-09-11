@@ -10,12 +10,6 @@ import { apiGetEncounters, apiGetPatients } from "@/lib/api";
 type Patient = { id: string; name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string };
 type Encounter = { id: string; patientId: string; date: string; chiefComplaint?: string; diagnosis?: string; followUpDate?: string | null };
 
-const quickTemplates = [
-  { label: "Fever / URTI", complaint: "Fever / upper respiratory symptoms", notes: "Duration: \nAssociated symptoms: \nExamination: ", diagnosis: "", plan: "Hydration, symptomatic treatment, review if worsening." },
-  { label: "Follow-up", complaint: "Follow-up visit", notes: "Response to previous treatment: \nNew symptoms: \nExamination: ", diagnosis: "", plan: "Continue / modify treatment as clinically indicated." },
-  { label: "Hypertension", complaint: "Blood pressure follow-up", notes: "Home BP readings: \nMedication adherence: \nSymptoms: ", diagnosis: "Hypertension", plan: "Review BP log and continue or adjust treatment as clinically indicated." },
-];
-
 export default function PatientsPage() {
   const router = useRouter();
   const { doctor, loading: authLoading } = useDoctor();
@@ -54,18 +48,19 @@ export default function PatientsPage() {
 
   return (
     <AppShell>
-      <div className="mb-4"><h2 className="text-lg font-semibold">Patients</h2><p className="text-xs text-gray-500">Search, open and start a focused clinical workflow</p></div>
-      <div className="bg-white rounded-xl shadow-sm border p-3 mb-3">
+      <div className="mb-4"><h2 className="text-lg font-semibold">Patients</h2><p className="text-xs text-gray-500">Search, review context, and start the next clinical action</p></div>
+      <div className="bg-white rounded-xl shadow-sm border p-3 mb-3 sticky top-[60px] z-20">
         <label htmlFor="patient-search" className="sr-only">Search patients</label>
         <input id="patient-search" autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by patient name or phone" className="w-full h-11 px-3 rounded-lg border text-sm outline-none focus:ring-2 focus:ring-[#c2183a]/20" />
         <p className="text-[11px] text-gray-400 mt-2">{search ? `${filtered.length} matching patient${filtered.length === 1 ? "" : "s"}` : `${patients.length} patient${patients.length === 1 ? "" : "s"}`}</p>
       </div>
       <div className="bg-white rounded-xl shadow-sm border p-3 mb-3">
-        <div className="flex items-center justify-between gap-2"><div><p className="text-sm font-semibold">Quick clinical workflows</p><p className="text-[11px] text-gray-500">Templates guide documentation; review and edit before saving.</p></div><span className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500">D3</span></div>
-        <div className="flex gap-2 overflow-x-auto mt-3 pb-1">
-          {quickTemplates.map((t) => <button key={t.label} type="button" onClick={() => router.push(`/patients/new?template=${encodeURIComponent(t.label)}`)} className="shrink-0 px-3 py-2 rounded-lg border text-xs font-medium hover:bg-gray-50">{t.label}</button>)}
+        <p className="text-sm font-semibold">Quick clinical actions</p>
+        <p className="text-[11px] text-gray-500 mt-0.5">Choose the patient first, then continue directly into the clinical record.</p>
+        <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+          <span className="rounded-lg bg-gray-50 border px-3 py-2">New consultation</span>
+          <span className="rounded-lg bg-gray-50 border px-3 py-2">Review history</span>
         </div>
-        <p className="text-[10px] text-gray-400 mt-2">Select a patient first to apply a template. This screen does not create clinical records.</p>
       </div>
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {loading ? <div className="p-6 text-center text-gray-400 text-sm">Loading patients…</div> : filtered.length === 0 ? <div className="p-8 text-center text-gray-500 text-sm">{search ? "No matching patient." : "No patients yet."}</div> : (
@@ -82,6 +77,10 @@ export default function PatientsPage() {
                 {latest?.diagnosis ? <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-[11px]">Dx: {latest.diagnosis}</span> : null}
               </div>
               {latest ? <div className="mt-2 text-xs text-gray-500"><span>Last visit: {latest.date}</span>{latest.chiefComplaint ? <span> · {latest.chiefComplaint}</span> : null}{latest.followUpDate ? <span className="text-[#c2183a]"> · Follow-up {latest.followUpDate}</span> : null}</div> : <p className="mt-2 text-xs text-gray-400">No consultation recorded</p>}
+              <div className="mt-2 flex gap-2">
+                <Link href={`/patients/${p.id}`} className="px-2.5 py-1.5 rounded-lg border text-[11px] font-medium">Review history</Link>
+                <Link href={`/patients/${p.id}`} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px] font-medium">New consultation</Link>
+              </div>
             </div>;
           })}</div>
         )}
