@@ -1,4 +1,4 @@
-// MedLum — PostgreSQL schema (Phase C clinical encounters)
+// MedLum — PostgreSQL schema (clinical encounters, labs and pharmacy)
 
 generator client {
   provider = "prisma-client-js"
@@ -25,6 +25,8 @@ model Doctor {
   invoices       Invoice[]
   encounters     Encounter[]
   labOrders      LabOrder[]
+  pharmacyItems  PharmacyItem[]
+  dispensings    Dispensing[]
   auditLogs      AuditLog[]
 }
 
@@ -47,6 +49,7 @@ model Patient {
   invoices       Invoice[]
   encounters     Encounter[]
   labOrders      LabOrder[]
+  dispensings    Dispensing[]
 
   @@index([doctorId])
 }
@@ -114,9 +117,10 @@ model Prescription {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  doctor    Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter   Encounter?   @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  dispensings Dispensing[]
 
   @@index([doctorId])
   @@index([patientId])
@@ -156,13 +160,55 @@ model LabOrder {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor    Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
   encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   @@index([doctorId])
   @@index([patientId])
   @@index([encounterId])
+  @@index([status])
+}
+
+model PharmacyItem {
+  id           String   @id @default(cuid())
+  doctorId     String
+  name         String
+  genericName  String   @default("")
+  form         String   @default("")
+  batchNumber  String   @default("")
+  expiryDate   String   @default("")
+  quantity     Int      @default(0)
+  reorderLevel Int      @default(0)
+  unit         String   @default("units")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@index([name])
+}
+
+model Dispensing {
+  id             String       @id @default(cuid())
+  doctorId       String
+  patientId      String
+  prescriptionId String
+  patientName    String
+  medicines      String
+  status         String       @default("Pending")
+  dispensedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  doctor       Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@index([patientId])
+  @@index([prescriptionId])
   @@index([status])
 }
 
