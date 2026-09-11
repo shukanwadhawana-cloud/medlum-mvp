@@ -4,100 +4,22 @@ export type ApiDoctor = { id: string; name: string; email: string; clinicName: s
 
 const opts: RequestInit = { credentials: "include", headers: { "Content-Type": "application/json" } };
 
-async function json<T>(res: Response): Promise<T> {
-  return (await res.json().catch(() => ({}))) as T;
-}
-
-export async function apiSignup(data: { name: string; email: string; password: string; clinicName: string; phone: string }) {
-  const res = await fetch("/api/auth/signup", { ...opts, method: "POST", body: JSON.stringify(data) });
-  return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res);
-}
-export async function apiLogin(email: string, password: string) {
-  const res = await fetch("/api/auth/login", { ...opts, method: "POST", body: JSON.stringify({ email, password }) });
-  return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res);
-}
-export async function apiLogout() {
-  await fetch("/api/auth/logout", { ...opts, method: "POST" });
-}
-export async function apiMe() {
-  try {
-    const res = await fetch("/api/auth/me", { credentials: "include" });
-    if (!res.ok) return { success: false as const, doctor: null };
-    return json<{ success: boolean; doctor: ApiDoctor | null }>(res);
-  } catch {
-    return { success: false as const, doctor: null };
-  }
-}
-export async function apiGetPatients() {
-  try {
-    const res = await fetch("/api/patients", { credentials: "include" });
-    if (!res.ok) return [];
-    return (await json<{ patients: any[] }>(res)).patients || [];
-  } catch { return []; }
-}
-export async function apiAddPatient(data: { name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string; notes?: string }) {
-  const res = await fetch("/api/patients", { ...opts, method: "POST", body: JSON.stringify(data) });
-  return json<{ success: boolean; error?: string; patient?: any }>(res);
-}
-export async function apiGetAppointments() {
-  try {
-    const res = await fetch("/api/appointments", { credentials: "include" });
-    if (!res.ok) return [];
-    return (await json<{ appointments: any[] }>(res)).appointments || [];
-  } catch { return []; }
-}
-export async function apiAddAppointment(data: { patientId: string; patientName: string; date: string; time: string; type: string }) {
-  const res = await fetch("/api/appointments", { ...opts, method: "POST", body: JSON.stringify(data) });
-  return json<{ success: boolean; error?: string }>(res);
-}
-export async function apiUpdateAppointmentStatus(id: string, status: string) {
-  const res = await fetch("/api/appointments", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) });
-  return json<{ success: boolean; error?: string }>(res);
-}
-export async function apiGetPrescriptions() {
-  try {
-    const res = await fetch("/api/prescriptions", { credentials: "include" });
-    if (!res.ok) return [];
-    return (await json<{ prescriptions: any[] }>(res)).prescriptions || [];
-  } catch { return []; }
-}
-export async function apiAddPrescription(data: { patientId: string; patientName: string; medicines: string; advice: string }) {
-  const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) });
-  return json<{ success: boolean; error?: string }>(res);
-}
-export async function apiGetInvoices() {
-  try {
-    const res = await fetch("/api/invoices", { credentials: "include" });
-    if (!res.ok) return [];
-    return (await json<{ invoices: any[] }>(res)).invoices || [];
-  } catch { return []; }
-}
-export async function apiAddInvoice(data: { patientId: string; patientName: string; amount: number; note?: string }) {
-  const res = await fetch("/api/invoices", { ...opts, method: "POST", body: JSON.stringify(data) });
-  return json<{ success: boolean; error?: string }>(res);
-}
-export async function apiUpdateInvoiceStatus(id: string, status: string) {
-  const res = await fetch("/api/invoices", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) });
-  return json<{ success: boolean; error?: string }>(res);
-}
-export async function apiGetPatientDetail(id: string) {
-  const res = await fetch(`/api/patients/${id}`, { credentials: "include" });
-  if (!res.ok) return null;
-  return json<any>(res);
-}
-export async function apiGetEncounters(patientId?: string) {
-  const q = patientId ? `?patientId=${encodeURIComponent(patientId)}` : "";
-  const res = await fetch(`/api/encounters${q}`, { credentials: "include" });
-  if (!res.ok) return [];
-  return (await json<{ encounters: any[] }>(res)).encounters || [];
-}
-export async function apiCreateEncounter(data: Record<string, unknown>) {
-  const res = await fetch("/api/encounters", { ...opts, method: "POST", body: JSON.stringify(data) });
-  return json<{ success: boolean; error?: string; encounter?: any }>(res);
-}
-export async function apiAddPrescriptionWithEncounter(data: {
-  patientId: string; patientName: string; medicines: string; advice: string; encounterId?: string;
-}) {
-  const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) });
-  return json<{ success: boolean; error?: string }>(res);
-}
+async function json<T>(res: Response): Promise<T> { return (await res.json().catch(() => ({}))) as T; }
+export async function apiSignup(data: { name: string; email: string; password: string; clinicName: string; phone: string }) { const res = await fetch("/api/auth/signup", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res); }
+export async function apiLogin(email: string, password: string) { const res = await fetch("/api/auth/login", { ...opts, method: "POST", body: JSON.stringify({ email, password }) }); return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res); }
+export async function apiLogout() { await fetch("/api/auth/logout", { ...opts, method: "POST" }); }
+export async function apiMe() { try { const res = await fetch("/api/auth/me", { credentials: "include" }); if (!res.ok) return { success: false as const, doctor: null }; return json<{ success: boolean; doctor: ApiDoctor | null }>(res); } catch { return { success: false as const, doctor: null }; } }
+export async function apiGetPatients() { try { const res = await fetch("/api/patients", { credentials: "include" }); if (!res.ok) return []; return (await json<{ patients: any[] }>(res)).patients || []; } catch { return []; } }
+export async function apiAddPatient(data: { name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string; notes?: string }) { const res = await fetch("/api/patients", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; patient?: any }>(res); }
+export async function apiGetAppointments() { try { const res = await fetch("/api/appointments", { credentials: "include" }); if (!res.ok) return []; return (await json<{ appointments: any[] }>(res)).appointments || []; } catch { return []; } }
+export async function apiAddAppointment(data: { patientId: string; patientName: string; date: string; time: string; type: string }) { const res = await fetch("/api/appointments", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
+export async function apiUpdateAppointmentStatus(id: string, status: string) { const res = await fetch("/api/appointments", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) }); return json<{ success: boolean; error?: string }>(res); }
+export async function apiGetPrescriptions() { try { const res = await fetch("/api/prescriptions", { credentials: "include" }); if (!res.ok) return []; return (await json<{ prescriptions: any[] }>(res)).prescriptions || []; } catch { return []; } }
+export async function apiAddPrescription(data: { patientId: string; patientName: string; medicines: string; advice: string }) { const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
+export async function apiGetInvoices() { try { const res = await fetch("/api/invoices", { credentials: "include" }); if (!res.ok) return []; return (await json<{ invoices: any[] }>(res)).invoices || []; } catch { return []; } }
+export async function apiAddInvoice(data: { patientId: string; patientName: string; amount: number; note?: string }) { const res = await fetch("/api/invoices", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
+export async function apiUpdateInvoiceStatus(id: string, status: string) { const res = await fetch("/api/invoices", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) }); return json<{ success: boolean; error?: string }>(res); }
+export async function apiGetPatientDetail(id: string) { const res = await fetch(`/api/patients/${id}`, { credentials: "include" }); if (!res.ok) return null; return json<any>(res); }
+export async function apiGetEncounters(patientId?: string) { const q = patientId ? `?patientId=${encodeURIComponent(patientId)}` : ""; const res = await fetch(`/api/encounters${q}`, { credentials: "include" }); if (!res.ok) return []; return (await json<{ encounters: any[] }>(res)).encounters || []; }
+export async function apiCreateEncounter(data: Record<string, unknown>) { const res = await fetch("/api/encounters", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; encounter?: any }>(res); }
+export async function apiAddPrescriptionWithEncounter(data: { patientId: string; patientName: string; medicines: string; advice: string; encounterId?: string }) { const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
