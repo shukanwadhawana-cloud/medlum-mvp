@@ -18,7 +18,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const [appointments, encounters, prescriptions, invoices] = await Promise.all([
+  const [appointments, encounters, prescriptions, invoices, labOrders] = await Promise.all([
     prisma.appointment.findMany({
       where: { doctorId: session.doctorId, patientId: id },
       orderBy: { createdAt: "desc" },
@@ -38,6 +38,11 @@ export async function GET(
       where: { doctorId: session.doctorId, patientId: id },
       orderBy: { createdAt: "desc" },
       take: 30,
+    }),
+    prisma.labOrder.findMany({
+      where: { doctorId: session.doctorId, patientId: id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
     }),
   ]);
 
@@ -91,6 +96,20 @@ export async function GET(
       status: i.status,
       note: i.note,
       createdAt: i.createdAt.toISOString(),
+    })),
+    labOrders: labOrders.map((l) => ({
+      id: l.id,
+      encounterId: l.encounterId,
+      patientName: l.patientName,
+      testName: l.testName,
+      category: l.category,
+      status: l.status,
+      result: l.result,
+      notes: l.notes,
+      orderedAt: l.orderedAt.toISOString(),
+      resultedAt: l.resultedAt?.toISOString() || null,
+      createdAt: l.createdAt.toISOString(),
+      updatedAt: l.updatedAt.toISOString(),
     })),
   });
 }
