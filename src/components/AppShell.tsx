@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Doctor, logout } from "@/lib/auth";
+import { apiLogout, ApiDoctor } from "@/lib/api";
 
 const nav = [
   { href: "/dashboard", label: "Home" },
@@ -11,7 +11,13 @@ const nav = [
   { href: "/billing", label: "Billing" },
 ];
 
-export default function AppShell({ doctor, children }: { doctor: Doctor; children: React.ReactNode }) {
+export default function AppShell({
+  doctor,
+  children,
+}: {
+  doctor: ApiDoctor | { id: string; name: string; clinicName?: string };
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -34,8 +40,8 @@ export default function AppShell({ doctor, children }: { doctor: Doctor; childre
             ))}
           </div>
           <button
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              await apiLogout();
               router.replace("/login");
             }}
             className="text-xs text-red-300 shrink-0"
