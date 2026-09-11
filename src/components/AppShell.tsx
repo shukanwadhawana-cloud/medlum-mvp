@@ -6,6 +6,7 @@ import { useDoctor } from "./DoctorProvider";
 
 const nav = [
   { href: "/dashboard", label: "Home" },
+  { href: "/patients", label: "Patients" },
   { href: "/appointments", label: "Appts" },
   { href: "/prescriptions", label: "Rx" },
   { href: "/billing", label: "Billing" },
@@ -27,7 +28,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 prefetch={true}
                 className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap ${
-                  pathname === item.href ? "bg-[#c2183a] font-medium" : "text-white/70"
+                  pathname === item.href || (item.href === "/patients" && pathname.startsWith("/patients/")) ? "bg-[#c2183a] font-medium" : "text-white/70"
                 }`}
               >
                 {item.label}
