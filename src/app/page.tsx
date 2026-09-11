@@ -2,19 +2,20 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { apiMe } from "@/lib/api";
+import { useDoctor } from "@/components/DoctorProvider";
 
 export default function Home() {
   const router = useRouter();
+  const { doctor, loading } = useDoctor();
+
   useEffect(() => {
-    (async () => {
-      const me = await apiMe();
-      if (me.success && me.doctor) router.replace("/dashboard");
-      else router.replace("/login");
-    })();
-  }, [router]);
+    if (loading) return;
+    if (doctor) router.replace("/dashboard");
+    else router.replace("/login");
+  }, [doctor, loading, router]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white">
+    <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">
       Loading MedLum...
     </div>
   );

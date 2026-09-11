@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiSignup } from "@/lib/api";
+import { useDoctor } from "@/components/DoctorProvider";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { setDoctor } = useDoctor();
   const [form, setForm] = useState({ name: "", email: "", password: "", clinicName: "", phone: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,10 +23,14 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const result = await apiSignup(form);
-      if (result.success) router.push("/dashboard");
-      else setError(result.error || "Signup failed");
+      if (result.success && result.doctor) {
+        setDoctor(result.doctor);
+        router.push("/dashboard");
+      } else {
+        setError(result.error || "Signup failed");
+      }
     } catch {
-      setError("Unable to reach server. Ensure DATABASE_URL is configured.");
+      setError("Unable to reach server. Database may not be configured.");
     } finally {
       setLoading(false);
     }
@@ -46,8 +52,8 @@ export default function SignupPage() {
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
             <input name="name" required value={form.name} onChange={handleChange} className="w-full h-11 px-4 rounded-xl border" placeholder="Full Name" />
-            <input name="email" type="email" required value={form.email} onChange={handleChange} className="w-full h-11 px-4 rounded-xl border" placeholder="Email" />
-            <input name="password" type="password" required minLength={8} value={form.password} onChange={handleChange} className="w-full h-11 px-4 rounded-xl border" placeholder="Password (min 8)" />
+            <input name="email" type="email" required value={form.email} onChange={handleChange} className="w-full h-11 px-4 rounded-xl border" placeholder="Email" autoComplete="email" />
+            <input name="password" type="password" required minLength={8} value={form.password} onChange={handleChange} className="w-full h-11 px-4 rounded-xl border" placeholder="Password (min 8)" autoComplete="new-password" />
             <input name="clinicName" required value={form.clinicName} onChange={handleChange} className="w-full h-11 px-4 rounded-xl border" placeholder="Clinic Name" />
             <input name="phone" required value={form.phone} onChange={handleChange} className="w-full h-11 px-4 rounded-xl border" placeholder="Phone" />
             <button type="submit" disabled={loading} className="w-full h-12 rounded-xl bg-[#c2183a] text-white font-semibold disabled:opacity-60">
