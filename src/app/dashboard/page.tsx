@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
 import { apiGetPatients, apiGetAppointments, apiGetInvoices, apiAddPatient } from "@/lib/api";
 
-type Patient = { id: string; name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string; notes?: string };
+type Patient = { id: string; name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string };
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -77,11 +78,11 @@ export default function DashboardPage() {
         {dataLoading ? <div className="p-6 text-center text-gray-400 text-sm">Loading patients…</div>
           : patients.length === 0 ? <div className="p-6 text-center text-gray-500 text-sm">No patients yet. Tap <b>+ Patient</b>.</div>
           : <div className="divide-y">{patients.map((p) => (
-            <div key={p.id} className="px-3 py-2.5">
-              <p className="font-medium text-sm">{p.name}</p>
+            <Link key={p.id} href={`/patients/${p.id}`} className="px-3 py-2.5 block hover:bg-gray-50">
+              <p className="font-medium text-sm text-[#1a1a1f]">{p.name}</p>
               <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
               {(p.bp || p.allergies) && <p className="text-xs text-gray-500 mt-0.5">{p.bp ? `BP: ${p.bp}` : ""}{p.bp && p.allergies ? " · " : ""}{p.allergies ? `Allergies: ${p.allergies}` : ""}</p>}
-            </div>
+            </Link>
           ))}</div>}
       </div>
       {showAdd && (
@@ -96,9 +97,8 @@ export default function DashboardPage() {
                 <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"><option>Male</option><option>Female</option><option>Other</option></select>
               </div>
               <input required placeholder="Phone *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
-              <input placeholder="BP (e.g. 120/80)" value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
+              <input placeholder="BP" value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
               <input placeholder="Allergies" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" />
-              <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm" rows={2} />
               <div className="flex gap-2 pt-1">
                 <button type="button" disabled={saving} onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
                 <button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Save Patient"}</button>
