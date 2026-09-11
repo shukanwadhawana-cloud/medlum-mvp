@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
 import { apiGetPatients, apiGetAppointments, apiAddAppointment, apiUpdateAppointmentStatus } from "@/lib/api";
@@ -65,9 +66,12 @@ export default function AppointmentsPage() {
               <div className="text-right shrink-0">
                 <span className="text-xs">{a.status}</span>
                 {a.status === "Scheduled" && (
-                  <div className="flex gap-2 mt-1 justify-end">
-                    <button type="button" onClick={async () => { await apiUpdateAppointmentStatus(a.id, "Completed"); await refresh(); }} className="text-xs text-green-600">Done</button>
-                    <button type="button" onClick={async () => { await apiUpdateAppointmentStatus(a.id, "Cancelled"); await refresh(); }} className="text-xs text-red-600">Cancel</button>
+                  <div className="flex flex-col gap-1 mt-1 items-end">
+                    <Link href={`/patients/${a.patientId}?appointmentId=${a.id}`} className="text-xs text-[#c2183a] font-medium">Start Consult</Link>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={async () => { await apiUpdateAppointmentStatus(a.id, "Completed"); await refresh(); }} className="text-xs text-green-600">Done</button>
+                      <button type="button" onClick={async () => { await apiUpdateAppointmentStatus(a.id, "Cancelled"); await refresh(); }} className="text-xs text-red-600">Cancel</button>
+                    </div>
                   </div>
                 )}
               </div>
