@@ -5,9 +5,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment } from "@/lib/api";
+import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment, apiCreateLabOrder } from "@/lib/api";
 
 type TimelineItem = { date: string; kind: string; title: string; detail?: string; sort: number };
+
+const COMMON_LAB_TESTS = ["CBC", "LFT", "KFT", "Lipid Profile", "HbA1c", "TSH", "Urine Routine", "Blood Sugar"];
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +31,7 @@ export default function PatientDetailPage() {
     chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "",
     bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "",
   });
+  const [selectedLabs, setSelectedLabs] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -58,6 +61,7 @@ export default function PatientDetailPage() {
     const items: TimelineItem[] = [];
     (data.encounters || []).forEach((e: any) => items.push({ date: e.date, kind: "Consultation", title: e.chiefComplaint || e.diagnosis || "Clinical encounter", detail: [e.diagnosis && `Dx: ${e.diagnosis}`, e.plan && `Plan: ${e.plan}`].filter(Boolean).join(" · "), sort: new Date(e.createdAt || e.date).getTime() }));
     (data.prescriptions || []).forEach((r: any) => items.push({ date: new Date(r.createdAt).toLocaleDateString(), kind: "Prescription", title: "Prescription issued", detail: r.medicines, sort: new Date(r.createdAt).getTime() }));
+    (data.labOrders || []).forEach((l: any) => items.push({ date: new Date(l.orderedAt || l.createdAt).toLocaleDateString(), kind: "Lab", title: `${l.testName} · ${l.status}`, detail: [l.category, l.status === "Resulted" && l.result ? `Result: ${l.result}` : null, l.notes].filter(Boolean).join(" · "), sort: new Date(l.resultedAt || l.orderedAt || l.createdAt).getTime() }));
     (data.appointments || []).forEach((a: any) => items.push({ date: a.date, kind: "Appointment", title: `${a.type || "Appointment"} · ${a.status}`, detail: a.time, sort: new Date(`${a.date}T${a.time || "00:00"}`).getTime() }));
     (data.invoices || []).forEach((i: any) => items.push({ date: new Date(i.createdAt).toLocaleDateString(), kind: "Billing", title: `₹${i.amount}`, detail: i.note || "Fee", sort: new Date(i.createdAt).getTime() }));
     return items.sort((a, b) => b.sort - a.sort);
@@ -68,10 +72,16 @@ export default function PatientDetailPage() {
     try {
       const enc = await apiCreateEncounter({ patientId: id, appointmentId, chiefComplaint: form.chiefComplaint, clinicalNotes: form.clinicalNotes, diagnosis: form.diagnosis, assessment: form.assessment, plan: form.plan, followUpDate: form.followUpDate || undefined, bp: form.bp, pulse: form.pulse, temperature: form.temperature, spo2: form.spo2, weight: form.weight, height: form.height });
       if (!enc.success || !enc.encounter) { setError(enc.error || "Could not save consultation"); return; }
+      if (selectedLabs.length) {
+        const labResults = await Promise.all(selectedLabs.map((testName) => apiCreateLabOrder({ patientId: id, testName, category: "Laboratory", encounterId: enc.encounter.id })));
+        const failedLab = labResults.find((r) => !r.success);
+        if (failedLab) { setError(failedLab.error || "Consultation saved, but one or more lab orders could not be created"); return; }
+      }
       if (form.medicines.trim()) await apiAddPrescriptionWithEncounter({ patientId: id, patientName: data?.patient?.name || "", medicines: form.medicines.trim(), advice: form.advice.trim(), encounterId: enc.encounter.id });
       const amt = parseFloat(form.billAmount);
       if (amt > 0) await apiAddInvoice({ patientId: id, patientName: data?.patient?.name || "", amount: amt, note: form.diagnosis ? `Consultation: ${form.diagnosis}` : "Consultation fee" });
-      setShowConsult(false); setMsg("Consultation saved"); setTimeout(() => setMsg(""), 2500);
+      setShowConsult(false); setMsg(selectedLabs.length ? `Consultation saved · ${selectedLabs.length} lab order${selectedLabs.length > 1 ? "s" : ""} created` : "Consultation saved"); setTimeout(() => setMsg(""), 2500);
+      setSelectedLabs([]);
       setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
       await load();
     } catch { setError("Network error"); } finally { setSaving(false); }
@@ -94,7 +104,7 @@ export default function PatientDetailPage() {
       {loading || !p ? <div className="p-6 text-center text-gray-400 text-sm">{loading ? "Loading…" : "Patient not found"}</div> : <>
         <div className="flex items-start justify-between gap-2 mb-3 print:hidden">
           <div><h2 className="text-lg font-semibold">{p.name}</h2><p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p></div>
-          <div className="flex gap-2 shrink-0"><button type="button" onClick={() => window.print()} className="h-9 px-3 rounded-lg border text-sm">Print Rx</button><button type="button" onClick={() => { setError(""); setShowConsult(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium">Start Consult</button></div>
+          <div className="flex gap-2 shrink-0"><button type="button" onClick={() => window.print()} className="h-9 px-3 rounded-lg border text-sm">Print Rx</button><button type="button" onClick={() => { setError(""); setSelectedLabs([]); setShowConsult(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium">Start Consult</button></div>
         </div>
 
         <div id="medlum-print-area" className="bg-white rounded-xl shadow-sm border p-3 mb-3 print:shadow-none print:border-0">
@@ -118,6 +128,10 @@ export default function PatientDetailPage() {
             {!data.encounters?.length ? <Empty text="No consultations yet." /> : data.encounters.map((e: any) => <div key={e.id} className="px-3 py-2.5 border-b last:border-0"><p className="text-xs text-gray-400">{e.date}</p>{e.chiefComplaint && <p className="text-sm mt-0.5"><b>Complaint:</b> {e.chiefComplaint}</p>}{e.diagnosis && <p className="text-sm"><b>Dx:</b> {e.diagnosis}</p>}{e.assessment && <p className="text-xs text-gray-600"><b>Assessment:</b> {e.assessment}</p>}{e.plan && <p className="text-xs text-gray-600"><b>Plan:</b> {e.plan}</p>}{e.clinicalNotes && <p className="text-xs text-gray-600 mt-0.5">{e.clinicalNotes}</p>}{(e.bp || e.pulse || e.temperature || e.spo2 || e.weight) && <p className="text-xs text-gray-500 mt-0.5">Vitals: {[e.bp && `BP ${e.bp}`, e.pulse && `P ${e.pulse}`, e.temperature && `T ${e.temperature}`, e.spo2 && `SpO2 ${e.spo2}`, e.weight && `Wt ${e.weight}kg`].filter(Boolean).join(" · ")}</p>}{e.followUpDate && <p className="text-xs text-[#c2183a] mt-0.5">Follow-up: {e.followUpDate}</p>}</div>)}
           </Sec>
 
+          <Sec title="Lab Orders & Results">
+            {!data.labOrders?.length ? <Empty text="No lab orders yet." /> : data.labOrders.map((l: any) => <div key={l.id} className="px-3 py-2.5 border-b last:border-0"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium">{l.testName}</p><p className="text-xs text-gray-500">{l.category} · Ordered {new Date(l.orderedAt || l.createdAt).toLocaleDateString()}</p></div><span className="text-xs">{l.status}</span></div>{l.result && <p className="text-sm mt-1"><b>Result:</b> {l.result}</p>}{l.notes && <p className="text-xs text-gray-500 mt-0.5">{l.notes}</p>}</div>)}
+          </Sec>
+
           <Sec title="Prescriptions">
             <div className="px-3 py-2 border-b flex justify-end"><button type="button" onClick={() => window.print()} className="text-xs px-3 py-1.5 rounded-lg border">Print current record</button></div>
             {!data.prescriptions?.length ? <Empty text="No prescriptions." /> : data.prescriptions.map((r: any) => <div key={r.id} className="px-3 py-2.5 border-b last:border-0"><p className="text-xs text-gray-400">{new Date(r.createdAt).toLocaleDateString()}</p><p className="text-sm whitespace-pre-wrap mt-0.5">{r.medicines}</p>{r.advice && <p className="text-xs text-gray-500">Advice: {r.advice}</p>}</div>)}
@@ -134,7 +148,7 @@ export default function PatientDetailPage() {
         </div>
 
         {showConsult && p && <Modal title={`Consultation — ${p.name}`} onClose={() => setShowConsult(false)}>
-          <p className="text-xs text-gray-500 mb-3">Complaint → Vitals → Diagnosis → Rx → Follow-up → Bill</p>
+          <p className="text-xs text-gray-500 mb-3">Complaint → Vitals → Diagnosis → Labs → Rx → Follow-up → Bill</p>
           {error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
           <form onSubmit={handleSaveConsult} className="space-y-2.5">
             <textarea required rows={2} placeholder="Chief complaint *" value={form.chiefComplaint} onChange={e => setForm({ ...form, chiefComplaint: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm" />
@@ -144,6 +158,11 @@ export default function PatientDetailPage() {
             <p className="text-xs font-medium text-gray-600 pt-1">Vitals</p>
             <div className="grid grid-cols-3 gap-2">{([["bp","BP"],["pulse","Pulse"],["temperature","Temp °C"],["spo2","SpO2 %"],["weight","Weight kg"],["height","Height cm"]] as const).map(([k, ph]) => <input key={k} placeholder={ph} value={form[k]} onChange={e => setForm({ ...form, [k]: e.target.value })} className="h-10 px-2 rounded-lg border text-sm" />)}</div>
             {bmi && <p className="text-xs text-gray-500">BMI: {bmi}</p>}
+            <div className="border rounded-lg p-3 bg-gray-50">
+              <div className="flex items-center justify-between gap-2 mb-2"><p className="text-xs font-medium text-gray-700">Order laboratory tests</p>{selectedLabs.length > 0 && <span className="text-[11px] text-[#c2183a]">{selectedLabs.length} selected</span>}</div>
+              <div className="grid grid-cols-2 gap-2">{COMMON_LAB_TESTS.map((test) => <label key={test} className="flex items-center gap-2 text-xs text-gray-700"><input type="checkbox" checked={selectedLabs.includes(test)} onChange={(e) => setSelectedLabs(e.target.checked ? [...selectedLabs, test] : selectedLabs.filter((x) => x !== test))} />{test}</label>)}</div>
+              <p className="text-[11px] text-gray-400 mt-2">Orders are linked to this consultation and appear in the patient timeline.</p>
+            </div>
             <p className="text-xs font-medium text-gray-600 pt-1">Prescription (optional)</p>
             <textarea rows={3} placeholder="Medicines (one per line)" value={form.medicines} onChange={e => setForm({ ...form, medicines: e.target.value })} className="w-full px-3 py-2 rounded-lg border text-sm" />
             <input placeholder="Advice" value={form.advice} onChange={e => setForm({ ...form, advice: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" />
