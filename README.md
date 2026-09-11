@@ -1,21 +1,37 @@
 # MedLum MVP
 
-Multi-doctor clinical operations platform - Phase 1 (Login + Data Isolation)
+Multi-doctor clinical platform for OPD workflows.
 
-## Features
-- Doctor Signup & Login
-- Complete data isolation (each doctor only sees their own patients)
-- Premium medical design
-- Dashboard + Add Patient
+## Phase A — Backend foundation
 
-## Run locally
+- PostgreSQL via Prisma (any host: set `DATABASE_URL`)
+- Secure auth: bcrypt password hashing + HTTP-only JWT session cookie
+- API routes for Doctor, Patient, Appointment, Prescription, Invoice
+- Server-side doctor isolation (never trust client-supplied doctorId)
+- AuditLog foundation
+
+### Setup
+
 ```bash
+cp .env.example .env
+# Edit DATABASE_URL and SESSION_SECRET
+
 npm install
+npx prisma db push
 npm run dev
 ```
 
-## Test isolation
-1. Create Doctor A → add a patient
-2. Logout
-3. Create Doctor B
-4. Confirm Doctor B cannot see Doctor A patients
+### API
+
+| Method | Path | Auth |
+|--------|------|------|
+| POST | /api/auth/signup | public |
+| POST | /api/auth/login | public |
+| POST | /api/auth/logout | session |
+| GET | /api/auth/me | session |
+| GET/POST | /api/patients | session |
+| GET/POST/PATCH | /api/appointments | session |
+| GET/POST | /api/prescriptions | session |
+| GET/POST/PATCH | /api/invoices | session |
+
+Frontend still includes localStorage helpers during progressive migration.

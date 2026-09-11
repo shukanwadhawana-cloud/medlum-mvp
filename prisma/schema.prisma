@@ -1,0 +1,116 @@
+// MedLum Phase A — PostgreSQL schema
+// DATABASE_URL can point to any Postgres (Neon, Supabase, Vercel Postgres, self-hosted)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Doctor {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  clinicName   String
+  phone        String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patients       Patient[]
+  appointments   Appointment[]
+  prescriptions  Prescription[]
+  invoices       Invoice[]
+  auditLogs      AuditLog[]
+}
+
+model Patient {
+  id        String   @id @default(cuid())
+  doctorId  String
+  name      String
+  age       Int
+  gender    String
+  phone     String
+  bp        String   @default("")
+  allergies String   @default("")
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor         Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointments   Appointment[]
+  prescriptions  Prescription[]
+  invoices       Invoice[]
+
+  @@index([doctorId])
+}
+
+model Appointment {
+  id          String   @id @default(cuid())
+  doctorId    String
+  patientId   String
+  patientName String
+  date        String
+  time        String
+  type        String
+  status      String   @default("Scheduled")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@index([patientId])
+}
+
+model Prescription {
+  id          String   @id @default(cuid())
+  doctorId    String
+  patientId   String
+  patientName String
+  medicines   String
+  advice      String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  doctorId    String
+  patientId   String
+  patientName String
+  amount      Float
+  status      String   @default("Pending")
+  note        String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  doctorId  String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      String   @default("{}")
+  createdAt DateTime @default(now())
+
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  @@index([doctorId])
+  @@index([createdAt])
+}
