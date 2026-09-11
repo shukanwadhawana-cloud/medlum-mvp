@@ -9,6 +9,7 @@ const nav = [
   { href: "/patients", label: "Patients" },
   { href: "/appointments", label: "Appts" },
   { href: "/labs", label: "Labs" },
+  { href: "/pharmacy", label: "Pharmacy" },
   { href: "/prescriptions", label: "Rx" },
   { href: "/billing", label: "Billing" },
 ];
