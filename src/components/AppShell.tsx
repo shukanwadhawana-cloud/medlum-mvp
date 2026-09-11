@@ -11,59 +11,40 @@ const nav = [
   { href: "/billing", label: "Billing" },
 ];
 
-export default function AppShell({
-  doctor,
-  children,
-}: {
-  doctor: Doctor;
-  children: React.ReactNode;
-}) {
+export default function AppShell({ doctor, children }: { doctor: Doctor; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex flex-col">
       <header className="bg-[#140a1f] text-white sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-6 min-w-0">
-            <div className="shrink-0">
-              <span className="font-bold text-lg tracking-tight">MedLum</span>
-            </div>
-            <nav className="flex items-center gap-1 overflow-x-auto">
-              {nav.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition ${
-                      active ? "bg-[#c2183a] font-medium" : "text-white/70 hover:bg-white/10"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
+        <div className="px-3 h-12 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 overflow-x-auto">
+            <span className="font-bold text-base shrink-0">MedLum</span>
+            {nav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap ${
+                  pathname === item.href ? "bg-[#c2183a] font-medium" : "text-white/70"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <span className="text-xs text-white/60 hidden sm:inline truncate max-w-[120px]">
-              {doctor.name}
-            </span>
-            <button
-              onClick={() => {
-                logout();
-                router.replace("/login");
-              }}
-              className="text-xs text-red-300 hover:text-red-200"
-            >
-              Logout
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              logout();
+              router.replace("/login");
+            }}
+            className="text-xs text-red-300 shrink-0"
+          >
+            Logout
+          </button>
         </div>
       </header>
-
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-5">{children}</main>
+      <main className="flex-1 px-3 py-4">{children}</main>
     </div>
   );
 }
