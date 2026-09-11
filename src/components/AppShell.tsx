@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { apiLogout, ApiDoctor } from "@/lib/api";
+import { usePathname } from "next/navigation";
+import { useDoctor } from "./DoctorProvider";
 
 const nav = [
   { href: "/dashboard", label: "Home" },
@@ -11,15 +11,9 @@ const nav = [
   { href: "/billing", label: "Billing" },
 ];
 
-export default function AppShell({
-  doctor,
-  children,
-}: {
-  doctor: ApiDoctor | { id: string; name: string; clinicName?: string };
-  children: React.ReactNode;
-}) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const { logout } = useDoctor();
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex flex-col">
@@ -31,6 +25,7 @@ export default function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap ${
                   pathname === item.href ? "bg-[#c2183a] font-medium" : "text-white/70"
                 }`}
@@ -39,18 +34,12 @@ export default function AppShell({
               </Link>
             ))}
           </div>
-          <button
-            onClick={async () => {
-              await apiLogout();
-              router.replace("/login");
-            }}
-            className="text-xs text-red-300 shrink-0"
-          >
+          <button type="button" onClick={() => logout()} className="text-xs text-red-300 shrink-0 px-1">
             Logout
           </button>
         </div>
       </header>
-      <main className="flex-1 px-3 py-4">{children}</main>
+      <main className="flex-1 px-3 py-4 max-w-3xl w-full mx-auto">{children}</main>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
- * API client for MedLum backend.
- * Progressive migration: UI calls these; localStorage remains in auth.ts as fallback until verified.
+ * MedLum API client — production path is PostgreSQL via /api/*
+ * Always sends cookies (HTTP-only session).
  */
 
 export type ApiDoctor = {
@@ -10,6 +10,11 @@ export type ApiDoctor = {
   clinicName: string;
   phone: string;
   createdAt: string;
+};
+
+const opts: RequestInit = {
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
 };
 
 async function json<T>(res: Response): Promise<T> {
@@ -24,38 +29,42 @@ export async function apiSignup(data: {
   clinicName: string;
   phone: string;
 }) {
-  const res = await fetch("/api/auth/signup", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  const res = await fetch("/api/auth/signup", { ...opts, method: "POST", body: JSON.stringify(data) });
   return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res);
 }
 
 export async function apiLogin(email: string, password: string) {
   const res = await fetch("/api/auth/login", {
+    ...opts,
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
   return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res);
 }
 
 export async function apiLogout() {
-  await fetch("/api/auth/logout", { method: "POST" });
+  await fetch("/api/auth/logout", { ...opts, method: "POST" });
 }
 
 export async function apiMe() {
-  const res = await fetch("/api/auth/me");
-  if (!res.ok) return { success: false as const, doctor: null };
-  return json<{ success: boolean; doctor: ApiDoctor | null }>(res);
+  try {
+    const res = await fetch("/api/auth/me", { credentials: "include" });
+    if (!res.ok) return { success: false as const, doctor: null };
+    return json<{ success: boolean; doctor: ApiDoctor | null }>(res);
+  } catch {
+    return { success: false as const, doctor: null };
+  }
 }
 
 export async function apiGetPatients() {
-  const res = await fetch("/api/patients");
-  if (!res.ok) return [];
-  const data = await json<{ patients: any[] }>(res);
-  return data.patients || [];
+  try {
+    const res = await fetch("/api/patients", { credentials: "include" });
+    if (!res.ok) return [];
+    const data = await json<{ patients: any[] }>(res);
+    return data.patients || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function apiAddPatient(data: {
@@ -67,19 +76,19 @@ export async function apiAddPatient(data: {
   allergies?: string;
   notes?: string;
 }) {
-  const res = await fetch("/api/patients", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  const res = await fetch("/api/patients", { ...opts, method: "POST", body: JSON.stringify(data) });
   return json<{ success: boolean; error?: string; patient?: any }>(res);
 }
 
 export async function apiGetAppointments() {
-  const res = await fetch("/api/appointments");
-  if (!res.ok) return [];
-  const data = await json<{ appointments: any[] }>(res);
-  return data.appointments || [];
+  try {
+    const res = await fetch("/api/appointments", { credentials: "include" });
+    if (!res.ok) return [];
+    const data = await json<{ appointments: any[] }>(res);
+    return data.appointments || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function apiAddAppointment(data: {
@@ -89,28 +98,24 @@ export async function apiAddAppointment(data: {
   time: string;
   type: string;
 }) {
-  const res = await fetch("/api/appointments", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  const res = await fetch("/api/appointments", { ...opts, method: "POST", body: JSON.stringify(data) });
   return json<{ success: boolean; error?: string }>(res);
 }
 
 export async function apiUpdateAppointmentStatus(id: string, status: string) {
-  const res = await fetch("/api/appointments", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status }),
-  });
-  return json<{ success: boolean }>(res);
+  const res = await fetch("/api/appointments", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) });
+  return json<{ success: boolean; error?: string }>(res);
 }
 
 export async function apiGetPrescriptions() {
-  const res = await fetch("/api/prescriptions");
-  if (!res.ok) return [];
-  const data = await json<{ prescriptions: any[] }>(res);
-  return data.prescriptions || [];
+  try {
+    const res = await fetch("/api/prescriptions", { credentials: "include" });
+    if (!res.ok) return [];
+    const data = await json<{ prescriptions: any[] }>(res);
+    return data.prescriptions || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function apiAddPrescription(data: {
@@ -119,19 +124,19 @@ export async function apiAddPrescription(data: {
   medicines: string;
   advice: string;
 }) {
-  const res = await fetch("/api/prescriptions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) });
   return json<{ success: boolean; error?: string }>(res);
 }
 
 export async function apiGetInvoices() {
-  const res = await fetch("/api/invoices");
-  if (!res.ok) return [];
-  const data = await json<{ invoices: any[] }>(res);
-  return data.invoices || [];
+  try {
+    const res = await fetch("/api/invoices", { credentials: "include" });
+    if (!res.ok) return [];
+    const data = await json<{ invoices: any[] }>(res);
+    return data.invoices || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function apiAddInvoice(data: {
@@ -140,19 +145,11 @@ export async function apiAddInvoice(data: {
   amount: number;
   note?: string;
 }) {
-  const res = await fetch("/api/invoices", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  const res = await fetch("/api/invoices", { ...opts, method: "POST", body: JSON.stringify(data) });
   return json<{ success: boolean; error?: string }>(res);
 }
 
 export async function apiUpdateInvoiceStatus(id: string, status: string) {
-  const res = await fetch("/api/invoices", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status }),
-  });
-  return json<{ success: boolean }>(res);
+  const res = await fetch("/api/invoices", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) });
+  return json<{ success: boolean; error?: string }>(res);
 }
