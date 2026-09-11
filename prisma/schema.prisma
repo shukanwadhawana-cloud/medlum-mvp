@@ -1,5 +1,4 @@
-// MedLum Phase A — PostgreSQL schema
-// DATABASE_URL can point to any Postgres (Neon, Supabase, Vercel Postgres, self-hosted)
+// MedLum — PostgreSQL schema (Phase C clinical encounters)
 
 generator client {
   provider = "prisma-client-js"
@@ -24,6 +23,7 @@ model Doctor {
   appointments   Appointment[]
   prescriptions  Prescription[]
   invoices       Invoice[]
+  encounters     Encounter[]
   auditLogs      AuditLog[]
 }
 
@@ -44,6 +44,7 @@ model Patient {
   appointments   Appointment[]
   prescriptions  Prescription[]
   invoices       Invoice[]
+  encounters     Encounter[]
 
   @@index([doctorId])
 }
@@ -60,11 +61,43 @@ model Appointment {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor     Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounters Encounter[]
 
   @@index([doctorId])
   @@index([patientId])
+}
+
+model Encounter {
+  id             String   @id @default(cuid())
+  doctorId       String
+  patientId      String
+  appointmentId  String?
+  date           String
+  chiefComplaint String   @default("")
+  clinicalNotes  String   @default("")
+  diagnosis      String   @default("")
+  assessment     String   @default("")
+  plan           String   @default("")
+  followUpDate   String?
+  bp             String   @default("")
+  pulse          String   @default("")
+  temperature    String   @default("")
+  spo2           String   @default("")
+  weight         String   @default("")
+  height         String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  doctor        Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  prescriptions Prescription[]
+
+  @@index([doctorId])
+  @@index([patientId])
+  @@index([appointmentId])
 }
 
 model Prescription {
@@ -72,15 +105,19 @@ model Prescription {
   doctorId    String
   patientId   String
   patientName String
+  encounterId String?
   medicines   String
   advice      String   @default("")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor    Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
 
   @@index([doctorId])
+  @@index([patientId])
+  @@index([encounterId])
 }
 
 model Invoice {
