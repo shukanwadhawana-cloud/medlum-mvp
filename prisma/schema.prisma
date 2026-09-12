@@ -12,6 +12,8 @@ datasource db {
 model Clinic {
   id        String   @id @default(cuid())
   name      String
+  isActive  Boolean  @default(true)
+  deactivatedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   members   ClinicMember[]
@@ -24,6 +26,7 @@ model Clinic {
   insurancePolicies InsurancePolicy[]
   insuranceClaims InsuranceClaim[]
   @@index([name])
+  @@index([isActive])
 }
 
 model ClinicMember {
@@ -31,6 +34,8 @@ model ClinicMember {
   clinicId String
   doctorId String
   role String @default("Consultant")
+  isActive Boolean @default(true)
+  deactivatedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   clinic Clinic @relation(fields:[clinicId], references:[id], onDelete:Restrict)
@@ -38,6 +43,7 @@ model ClinicMember {
   @@unique([clinicId,doctorId])
   @@index([clinicId])
   @@index([doctorId])
+  @@index([isActive])
 }
 
 model Doctor {
@@ -47,6 +53,8 @@ model Doctor {
   passwordHash String
   clinicName String
   phone String
+  isActive Boolean @default(true)
+  deactivatedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   patients Patient[]
@@ -61,6 +69,7 @@ model Doctor {
   diagnosticOrders DiagnosticOrder[]
   auditLogs AuditLog[]
   clinicMemberships ClinicMember[]
+  @@index([isActive])
 }
 
 model Patient {
