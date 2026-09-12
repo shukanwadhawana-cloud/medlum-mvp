@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "src-tauri/**"
+      - "scripts/verify-desktop-packaging.mjs"
       - "package.json"
       - "package-lock.json"
       - "next.config.ts"
@@ -80,13 +81,14 @@ jobs:
           node - <<'NODE'
           const fs = require('fs');
           const url = process.env.MEDLUM_APP_URL;
+          if (!/^https:\/\//.test(url)) throw new Error('MEDLUM_APP_URL must use HTTPS');
           const config = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
           config.app.windows[0].url = url;
           fs.writeFileSync('src-tauri/tauri.conf.generated.json', JSON.stringify(config, null, 2) + '\n');
           NODE
 
       - name: Build Tauri bundle
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         with:
           projectPath: .
           args: --config src-tauri/tauri.conf.generated.json
