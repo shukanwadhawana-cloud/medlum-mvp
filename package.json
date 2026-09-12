@@ -14,6 +14,7 @@
     "test:api-auth-coverage": "node scripts/verify-api-auth-coverage.mjs",
     "test:telemedicine": "node scripts/verify-telemedicine-foundation.mjs",
     "test:video-consultation": "node scripts/verify-video-consultation.mjs",
+    "test:responsive-ui": "node scripts/verify-responsive-ui.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"
