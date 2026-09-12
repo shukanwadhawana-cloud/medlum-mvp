@@ -1,1 +1,31 @@
-PLACEHOLDER
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/session";
+import { writeAudit } from "@/lib/audit";
+import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
+
+async function getClinicId(doctorId:string){return (await prisma.clinicMember.findFirst({where:{doctorId,isActive:true},select:{clinicId:true}}))?.clinicId||null;}
+function metaOf(log:any){try{return typeof log.meta==="string"?JSON.parse(log.meta||"{}"):log.meta||{}}catch{return{}}}
+function abnormalVitals(v:any){const n=(x:any)=>parseFloat(String(x));const spo=n(v.spo2);return (Number.isFinite(spo)&&spo<94)||(Number.isFinite(n(v.pulse))&&(n(v.pulse)<50||n(v.pulse)>120))||(Number.isFinite(n(v.rr))&&(n(v.rr)<10||n(v.rr)>30))||(Number.isFinite(n(v.temperature))&&(n(v.temperature)<35||n(v.temperature)>38.5))||(String(v.bp||"").includes("/")&&n(String(v.bp).split("/")[0])<90);}
+
+export async function GET(){
+ const session=await getSession();if(!session)return NextResponse.json({error:"Unauthorized"},{status:401});
+ const clinicId=await getClinicId(session.doctorId);const doctorIds=clinicId?(await prisma.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}})).map(x=>x.doctorId):[session.doctorId];
+ const patients=await prisma.patient.findMany({where:{doctorId:{in:doctorIds}},orderBy:{createdAt:"desc"}});const logs=await prisma.auditLog.findMany({where:{doctorId:{in:doctorIds},entity:{in:["HospitalRoom","ClinicalNote","NursingVital"]}},orderBy:{createdAt:"desc"},take:2000});
+ const roomsMap=new Map<string,any>(),notesMap=new Map<string,any[]>(),vitalsMap=new Map<string,any[]>();
+ for(const l of logs){const m=metaOf(l);if(l.entity==="HospitalRoom"&&m.roomNumber&&!roomsMap.has(String(m.roomNumber)))roomsMap.set(String(m.roomNumber),{id:l.entityId||String(m.roomNumber),...m});if(l.entity==="ClinicalNote"&&l.entityId){const a=notesMap.get(l.entityId)||[];a.push({id:l.id,...m,createdAt:l.createdAt.toISOString()});notesMap.set(l.entityId,a)}if(l.entity==="NursingVital"&&l.entityId){const a=vitalsMap.get(l.entityId)||[];a.push({id:l.id,...m,createdAt:l.createdAt.toISOString()});vitalsMap.set(l.entityId,a)}}
+ const ipd=patients.filter(p=>parseCareSetting(p.notes)==="IPD").map(p=>{const profile=parsePatientProfile(p.notes),vs=vitalsMap.get(p.id)||[],latest=vs[0];return {id:p.id,name:p.name,age:p.age,gender:p.gender,phone:p.phone,bp:p.bp,allergies:p.allergies,notes:cleanPatientNotes(p.notes),...profile,vitals:latest?{...latest,abnormal:abnormalVitals(latest)}:null,clinicalNotes:notesMap.get(p.id)||[]}});
+ const rooms=[...roomsMap.values()].map(r=>({...r,occupied:ipd.some(p=>p.roomNumber===r.roomNumber),patientName:ipd.find(p=>p.roomNumber===r.roomNumber)?.name||null}));
+ return NextResponse.json({patients:ipd,rooms},{headers:{"Cache-Control":"no-store"}});
+}
+
+export async function POST(req:Request){
+ const session=await getSession();if(!session)return NextResponse.json({error:"Unauthorized"},{status:401});
+ try{const body=await req.json(),action=String(body.action||""),clinicId=await getClinicId(session.doctorId);
+  if(action==="room"){const roomNumber=String(body.roomNumber||"").trim();if(!roomNumber)return NextResponse.json({success:false,error:"Room number required"},{status:400});await writeAudit({doctorId:session.doctorId,action:"create",entity:"HospitalRoom",entityId:crypto.randomUUID(),meta:{roomNumber,roomCategory:String(body.roomCategory||"General Ward"),unitType:String(body.unitType||"Ward"),clinicId}});return NextResponse.json({success:true});}
+  if(action==="clinical-note"){const patientId=String(body.patientId||"");if(!patientId||!String(body.content||"").trim())return NextResponse.json({success:false,error:"Patient and note content required"},{status:400});await writeAudit({doctorId:session.doctorId,action:"create",entity:"ClinicalNote",entityId:patientId,meta:{noteType:String(body.noteType||"Consultant Note"),content:String(body.content).trim(),authorRole:String(body.noteType||"Consultant Note").split(" ")[0]}});return NextResponse.json({success:true});}
+  if(action==="vitals"){const patientId=String(body.patientId||"");if(!patientId)return NextResponse.json({success:false,error:"Patient required"},{status:400});await writeAudit({doctorId:session.doctorId,action:"create",entity:"NursingVital",entityId:patientId,meta:{bp:String(body.bp||""),pulse:String(body.pulse||""),rr:String(body.rr||""),spo2:String(body.spo2||""),temperature:String(body.temperature||"")}});return NextResponse.json({success:true});}
+  if(action==="register"){const name=String(body.name||"").trim(),phone=String(body.phone||"").trim();if(!name||!phone)return NextResponse.json({success:false,error:"Name and phone required"},{status:400});const careSetting=body.careSetting==="IPD"?"IPD":"OPD";const profile={careSetting,address:String(body.address||""),idType:String(body.idType||""),idNumber:String(body.idNumber||""),mlcNumber:String(body.mlcNumber||""),prdNumber:String(body.prdNumber||""),wardType:String(body.wardType||""),unitType:String(body.unitType||""),roomNumber:String(body.roomNumber||""),chiefComplaint:String(body.chiefComplaint||""),hpi:String(body.hpi||""),pastHistory:String(body.pastHistory||""),surgicalHistory:String(body.surgicalHistory||""),systemicExam:String(body.systemicExam||""),workingDiagnosis:String(body.workingDiagnosis||""),diagnosis:String(body.diagnosis||""),icdCode:String(body.icdCode||""),consultantName:String(body.consultantName||""),consultantSpecialty:String(body.consultantSpecialty||"")};const patient=await prisma.patient.create({data:{doctorId:session.doctorId,clinicId,name,age:parseInt(body.age,10)||0,gender:String(body.gender||"Male"),phone,bp:"",allergies:String(body.allergies||""),notes:encodePatientNotes(String(body.notes||""),careSetting,profile)}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"Patient",entityId:patient.id,meta:{careSetting,ipdRegistration:careSetting==="IPD",mlcNumber:profile.mlcNumber,prdNumber:profile.prdNumber}});return NextResponse.json({success:true,patient:{id:patient.id}});}
+  return NextResponse.json({success:false,error:"Unknown action"},{status:400});
+ }catch(e){console.error("ipd api",e);return NextResponse.json({success:false,error:"Server error"},{status:500});}
+}
