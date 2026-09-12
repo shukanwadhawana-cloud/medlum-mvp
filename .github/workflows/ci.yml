@@ -27,6 +27,9 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Verify production security
+        run: npm run test:production-security
+
       - name: Verify EKA ABDM onboarding
         run: npm run test:eka
 
