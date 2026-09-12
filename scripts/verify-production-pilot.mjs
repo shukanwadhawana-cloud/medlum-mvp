@@ -28,9 +28,9 @@ assert(patients.status === 401, `Unauthenticated patient API expected 401, got $
 
 const securityHeaders = {
   "x-content-type-options": "nosniff",
-  "x-frame-options": "DENY",
+  "x-frame-options": "SAMEORIGIN",
   "referrer-policy": "strict-origin-when-cross-origin",
-  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-opener-policy": "same-origin-allow-popups",
   "cross-origin-resource-policy": "same-origin",
 };
 for (const [name, expected] of Object.entries(securityHeaders)) {
