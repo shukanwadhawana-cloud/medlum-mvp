@@ -11,6 +11,7 @@
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "test:data-retention": "node scripts/verify-data-retention-protection.mjs",
     "test:soft-deactivation": "node scripts/verify-soft-deactivation.mjs",
+    "test:api-auth-coverage": "node scripts/verify-api-auth-coverage.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"
@@ -30,8 +31,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "prisma": "^6.5.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "prisma": "^6.5.0"
   }
 }
