@@ -1,4 +1,4 @@
-// MedLum — PostgreSQL schema (clinical encounters, labs, pharmacy, diagnostics, clinic sharing and revenue)
+// MedLum — PostgreSQL schema (clinical encounters, labs, pharmacy, diagnostics, clinic sharing, revenue, blood bank and insurance)
 
 generator client {
   provider = "prisma-client-js"
@@ -20,6 +20,9 @@ model Clinic {
   bloodInventory BloodInventory[]
   bloodDonors BloodDonor[]
   bloodRequests BloodRequest[]
+  insuranceProviders InsuranceProvider[]
+  insurancePolicies InsurancePolicy[]
+  insuranceClaims InsuranceClaim[]
   @@index([name])
 }
 
@@ -84,6 +87,8 @@ model Patient {
   dispensings Dispensing[]
   diagnosticOrders DiagnosticOrder[]
   bloodRequests BloodRequest[]
+  insurancePolicies InsurancePolicy[]
+  insuranceClaims InsuranceClaim[]
   @@index([doctorId])
   @@index([clinicId])
   @@index([phone])
@@ -178,6 +183,7 @@ model Invoice {
   clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:SetNull)
   items InvoiceItem[]
   payments Payment[]
+  insuranceClaims InsuranceClaim[]
   @@index([doctorId])
   @@index([patientId])
   @@index([clinicId])
@@ -374,6 +380,86 @@ model BloodRequest {
   @@index([inventoryId])
   @@index([status])
   @@index([urgency])
+}
+
+model InsuranceProvider {
+  id String @id @default(cuid())
+  clinicId String
+  name String
+  code String @default("")
+  type String @default("Insurer")
+  phone String @default("")
+  email String @default("")
+  portalUrl String @default("")
+  tpaName String @default("")
+  notes String @default("")
+  status String @default("Active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  policies InsurancePolicy[]
+  @@index([clinicId])
+  @@index([name])
+  @@index([status])
+}
+
+model InsurancePolicy {
+  id String @id @default(cuid())
+  clinicId String
+  patientId String
+  providerId String
+  policyNumber String
+  memberId String @default("")
+  planName String @default("")
+  policyHolderName String @default("")
+  relationship String @default("")
+  validFrom DateTime?
+  validTo DateTime?
+  sumInsured Decimal @db.Decimal(12,2)
+  status String @default("Active")
+  notes String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
+  provider InsuranceProvider @relation(fields:[providerId],references:[id],onDelete:Cascade)
+  claims InsuranceClaim[]
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([providerId])
+  @@index([policyNumber])
+  @@index([status])
+}
+
+model InsuranceClaim {
+  id String @id @default(cuid())
+  clinicId String
+  patientId String
+  policyId String
+  invoiceId String?
+  claimNumber String @default("")
+  preauthNumber String @default("")
+  claimType String @default("OPD")
+  status String @default("Draft")
+  requestedAmount Decimal @db.Decimal(12,2)
+  approvedAmount Decimal @db.Decimal(12,2)
+  settledAmount Decimal @db.Decimal(12,2)
+  submittedAt DateTime?
+  approvedAt DateTime?
+  settledAt DateTime?
+  rejectionReason String @default("")
+  notes String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
+  policy InsurancePolicy @relation(fields:[policyId],references:[id],onDelete:Cascade)
+  invoice Invoice? @relation(fields:[invoiceId],references:[id],onDelete:SetNull)
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([policyId])
+  @@index([invoiceId])
+  @@index([status])
 }
 
 model AuditLog {
