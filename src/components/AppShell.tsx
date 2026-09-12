@@ -6,7 +6,7 @@ import { useDoctor } from "./DoctorProvider";
 const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
   const paths: Record<string, React.ReactNode> = {
-    home: <><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/></>,
+    brand: <><path d="M4 17V7l4 4 4-6 4 6 4-4v10"/><path d="M8 17h8"/></>,
     patients: <><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.2 2.5-5 6-5s6 1.8 6 5"/><path d="M17 11a3 3 0 1 0-1-5.8"/><path d="M17 15c2.5.2 4 1.8 4 5"/></>,
     ai: <><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="5"/><path d="m10 12 1.4 1.5L14.5 10"/></>,
     calendar: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></>,
@@ -23,11 +23,10 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
     clinic: <><path d="M4 21V6l8-3 8 3v15"/><path d="M8 21v-5h8v5M9 9h6M12 7v4M10 9h4"/></>,
     logout: <><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 4h5v16h-5"/></>,
   };
-  return <svg {...common}>{paths[name] ?? paths.home}</svg>;
+  return <svg {...common}>{paths[name] ?? paths.brand}</svg>;
 };
 
 const nav = [
-  { href: "/dashboard", label: "Home", icon: "home" },
   { href: "/patients", label: "Patients", icon: "patients" },
   { href: "/clinical-assist", label: "AI Assist", icon: "ai" },
   { href: "/appointments", label: "Appts", icon: "calendar" },
@@ -54,8 +53,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <header className="bg-[#140a1f] text-white sticky top-0 z-40 shadow-sm">
         <div className="mx-auto w-full max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="h-12 sm:h-14 flex items-center gap-3">
-            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-base sm:text-lg shrink-0" aria-label="MedLum home">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15"><Icon name="clinic" size={17} /></span>
+            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-base sm:text-lg shrink-0" aria-label="MedLum dashboard">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15"><Icon name="brand" size={17} /></span>
               <span>MedLum</span>
             </Link>
             <nav aria-label="Primary navigation" className="hidden md:flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">
@@ -72,7 +71,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 min-w-0 px-3 py-4 sm:px-4 sm:py-5 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 md:pb-6">{children}</main>
       <div className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom">
         <nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-4">
-          {[nav[0], nav[1], nav[3], nav[4]].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
+          {[nav[0], nav[2], nav[3], nav[1]].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
         </nav>
       </div>
     </div>
