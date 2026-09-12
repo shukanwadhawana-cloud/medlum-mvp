@@ -33,3 +33,10 @@ export async function apiUpdateDispensing(id:string,status:string){const res=awa
 export async function apiGetDiagnostics(patientId?:string){try{const q=patientId?`?patientId=${encodeURIComponent(patientId)}`:"";const res=await fetch(`/api/diagnostics${q}`,{credentials:"include"});if(!res.ok)return[];return(await json<{orders:any[]}>(res)).orders||[]}catch{return[]}}
 export async function apiCreateDiagnosticOrder(data:any){const res=await fetch("/api/diagnostics",{...opts,method:"POST",body:JSON.stringify(data)});return json<any>(res)}
 export async function apiUpdateDiagnosticOrder(data:any){const res=await fetch("/api/diagnostics",{...opts,method:"PATCH",body:JSON.stringify(data)});return json<any>(res)}
+export async function apiGetBloodBank(){try{const res=await fetch("/api/blood-bank",{credentials:"include",cache:"no-store"});if(!res.ok)return{inventory:[],donors:[],requests:[]};return json<any>(res)}catch{return{inventory:[],donors:[],requests:[]}}}
+export async function apiCreateBloodInventory(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"POST",body:JSON.stringify({action:"inventory",...data})});return json<any>(res)}
+export async function apiUpdateBloodInventory(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"PATCH",body:JSON.stringify({action:"inventory",...data})});return json<any>(res)}
+export async function apiCreateBloodDonor(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"POST",body:JSON.stringify({action:"donor",...data})});return json<any>(res)}
+export async function apiUpdateBloodDonor(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"PATCH",body:JSON.stringify({action:"donor",...data})});return json<any>(res)}
+export async function apiCreateBloodRequest(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"POST",body:JSON.stringify({action:"request",...data})});return json<any>(res)}
+export async function apiUpdateBloodRequest(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"PATCH",body:JSON.stringify({action:"request",...data})});return json<any>(res)}
