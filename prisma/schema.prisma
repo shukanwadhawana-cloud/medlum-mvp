@@ -17,6 +17,9 @@ model Clinic {
   members   ClinicMember[]
   patients  Patient[]
   invoices  Invoice[]
+  bloodInventory BloodInventory[]
+  bloodDonors BloodDonor[]
+  bloodRequests BloodRequest[]
   @@index([name])
 }
 
@@ -80,6 +83,7 @@ model Patient {
   labOrders LabOrder[]
   dispensings Dispensing[]
   diagnosticOrders DiagnosticOrder[]
+  bloodRequests BloodRequest[]
   @@index([doctorId])
   @@index([clinicId])
   @@index([phone])
@@ -300,6 +304,72 @@ model DiagnosticOrder {
   @@index([encounterId])
   @@index([status])
   @@index([modality])
+}
+
+model BloodInventory {
+  id String @id @default(cuid())
+  clinicId String
+  bloodGroup String
+  component String
+  unitsAvailable Int @default(0)
+  unitsReserved Int @default(0)
+  batchNumber String @default("")
+  expiryDate DateTime?
+  storageLocation String @default("")
+  status String @default("Available")
+  notes String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  @@index([clinicId])
+  @@index([bloodGroup])
+  @@index([component])
+  @@index([expiryDate])
+  @@index([status])
+}
+
+model BloodDonor {
+  id String @id @default(cuid())
+  clinicId String
+  name String
+  bloodGroup String
+  phone String @default("")
+  donorCode String @default("")
+  lastDonationDate DateTime?
+  status String @default("Eligible")
+  notes String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  @@index([clinicId])
+  @@index([bloodGroup])
+  @@index([status])
+  @@index([phone])
+}
+
+model BloodRequest {
+  id String @id @default(cuid())
+  clinicId String
+  patientId String
+  doctorId String
+  bloodGroup String
+  component String
+  unitsRequested Int @default(1)
+  urgency String @default("Routine")
+  status String @default("Requested")
+  crossMatchStatus String @default("Not Started")
+  notes String @default("")
+  requestedAt DateTime @default(now())
+  fulfilledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([urgency])
 }
 
 model AuditLog {
