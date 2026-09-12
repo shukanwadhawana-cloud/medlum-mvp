@@ -18,8 +18,13 @@ async function getContext(allowInactiveClinic = false) {
 }
 
 export async function GET() {
-  const ctx = await getContext();
+  // Owners/Admins must still be able to see the inactive workspace so they
+  // can explicitly reactivate it. Ordinary members cannot enter an inactive clinic.
+  const ctx = await getContext(true);
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!ctx.membership.clinic.isActive && !["Owner", "Admin"].includes(ctx.membership.role)) {
+    return NextResponse.json({ error: "This clinic is deactivated." }, { status: 403 });
+  }
 
   const members = await prisma.clinicMember.findMany({
     where: { clinicId: ctx.membership.clinicId },
@@ -44,9 +49,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!["Owner", "Admin"].includes(ctx.membership.role)) {
-    return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
-  }
+  if (!["Owner", "Admin"].includes(ctx.membership.role)) return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -58,9 +61,7 @@ export async function POST(req: Request) {
   if (!doctor.isActive) return NextResponse.json({ error: "This doctor account is deactivated and cannot be added to a clinic." }, { status: 409 });
   if (doctor.id === ctx.session.doctorId) return NextResponse.json({ error: "You are already a member of this clinic." }, { status: 400 });
 
-  const existing = await prisma.clinicMember.findUnique({
-    where: { clinicId_doctorId: { clinicId: ctx.membership.clinicId, doctorId: doctor.id } },
-  });
+  const existing = await prisma.clinicMember.findUnique({ where: { clinicId_doctorId: { clinicId: ctx.membership.clinicId, doctorId: doctor.id } } });
   if (existing) return NextResponse.json({ error: "This doctor is already a member of the clinic." }, { status: 409 });
 
   const member = await prisma.clinicMember.create({
@@ -68,55 +69,27 @@ export async function POST(req: Request) {
     include: { doctor: { select: { id: true, name: true, email: true, phone: true, clinicName: true, isActive: true, deactivatedAt: true } } },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      doctorId: ctx.session.doctorId,
-      action: "CLINIC_MEMBER_ADDED",
-      entity: "ClinicMember",
-      entityId: member.id,
-      meta: JSON.stringify({ clinicId: ctx.membership.clinicId, addedDoctorId: doctor.id, role }),
-    },
-  });
-
+  await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "CLINIC_MEMBER_ADDED", entity: "ClinicMember", entityId: member.id, meta: JSON.stringify({ clinicId: ctx.membership.clinicId, addedDoctorId: doctor.id, role }) } });
   return NextResponse.json({ success: true, member });
 }
 
 export async function PATCH(req: Request) {
   const body = await req.json().catch(() => ({}));
   const clinicAction = body.action === "deactivate-clinic" || body.action === "reactivate-clinic";
-
-  // Clinic activation/deactivation is allowed to be managed while the clinic
-  // itself is inactive so an authorized administrator can restore access.
   const ctx = await getContext(clinicAction);
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!["Owner", "Admin"].includes(ctx.membership.role)) {
-    return NextResponse.json({ error: "Only clinic owners or admins can manage clinic access." }, { status: 403 });
-  }
+  if (!["Owner", "Admin"].includes(ctx.membership.role)) return NextResponse.json({ error: "Only clinic owners or admins can manage clinic access." }, { status: 403 });
 
   if (clinicAction) {
     const isActive = body.action === "reactivate-clinic";
-    if (ctx.membership.clinic.isActive === isActive) {
-      return NextResponse.json({ success: true, clinic: ctx.membership.clinic });
-    }
-    const clinic = await prisma.clinic.update({
-      where: { id: ctx.membership.clinicId },
-      data: { isActive, deactivatedAt: isActive ? null : new Date() },
-    });
-    await prisma.auditLog.create({
-      data: {
-        doctorId: ctx.session.doctorId,
-        action: isActive ? "CLINIC_REACTIVATED" : "CLINIC_DEACTIVATED",
-        entity: "Clinic",
-        entityId: clinic.id,
-        meta: JSON.stringify({ clinicId: clinic.id }),
-      },
-    });
+    if (ctx.membership.clinic.isActive === isActive) return NextResponse.json({ success: true, clinic: ctx.membership.clinic });
+    const clinic = await prisma.clinic.update({ where: { id: ctx.membership.clinicId }, data: { isActive, deactivatedAt: isActive ? null : new Date() } });
+    await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: isActive ? "CLINIC_REACTIVATED" : "CLINIC_DEACTIVATED", entity: "Clinic", entityId: clinic.id, meta: JSON.stringify({ clinicId: clinic.id }) } });
     return NextResponse.json({ success: true, clinic });
   }
 
   const id = typeof body.id === "string" ? body.id : "";
   if (!id) return NextResponse.json({ error: "Membership id is required." }, { status: 400 });
-
   const target = await prisma.clinicMember.findFirst({ where: { id, clinicId: ctx.membership.clinicId } });
   if (!target) return NextResponse.json({ error: "Clinic member not found." }, { status: 404 });
   if (target.role === "Owner") return NextResponse.json({ error: "The clinic owner cannot be deactivated or have the owner role changed here." }, { status: 400 });
@@ -129,30 +102,16 @@ export async function PATCH(req: Request) {
   }
 
   const isActive = action === "reactivate";
-  const member = await prisma.clinicMember.update({
-    where: { id },
-    data: { isActive, deactivatedAt: isActive ? null : new Date() },
-  });
-  await prisma.auditLog.create({
-    data: {
-      doctorId: ctx.session.doctorId,
-      action: isActive ? "CLINIC_MEMBER_REACTIVATED" : "CLINIC_MEMBER_DEACTIVATED",
-      entity: "ClinicMember",
-      entityId: id,
-      meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId }),
-    },
-  });
+  const member = await prisma.clinicMember.update({ where: { id }, data: { isActive, deactivatedAt: isActive ? null : new Date() } });
+  await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: isActive ? "CLINIC_MEMBER_REACTIVATED" : "CLINIC_MEMBER_DEACTIVATED", entity: "ClinicMember", entityId: id, meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId }) } });
   return NextResponse.json({ success: true, member });
 }
 
 export async function DELETE(req: Request) {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!["Owner", "Admin"].includes(ctx.membership.role)) {
-    return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
-  }
+  if (!["Owner", "Admin"].includes(ctx.membership.role)) return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
 
-  // Preserve the DELETE endpoint for old clients, but make it non-destructive.
   const body = await req.json().catch(() => ({}));
   const id = typeof body.id === "string" ? body.id : "";
   const target = await prisma.clinicMember.findFirst({ where: { id, clinicId: ctx.membership.clinicId } });
@@ -160,14 +119,6 @@ export async function DELETE(req: Request) {
   if (target.role === "Owner") return NextResponse.json({ error: "The clinic owner cannot be removed." }, { status: 400 });
 
   const member = await prisma.clinicMember.update({ where: { id }, data: { isActive: false, deactivatedAt: new Date() } });
-  await prisma.auditLog.create({
-    data: {
-      doctorId: ctx.session.doctorId,
-      action: "CLINIC_MEMBER_DEACTIVATED",
-      entity: "ClinicMember",
-      entityId: id,
-      meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId, legacyDeleteRequest: true }),
-    },
-  });
+  await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "CLINIC_MEMBER_DEACTIVATED", entity: "ClinicMember", entityId: id, meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId, legacyDeleteRequest: true }) } });
   return NextResponse.json({ success: true, deactivated: true, member });
 }
