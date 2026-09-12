@@ -25,6 +25,8 @@ jobs:
         run: npm install --include=dev --ignore-scripts
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: TypeScript typecheck
+        run: npm run typecheck
       - name: Verify production security
         run: npm run test:production-security
       - name: Verify pilot readiness
