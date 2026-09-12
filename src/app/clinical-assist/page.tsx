@@ -7,21 +7,85 @@ import { apiAddPatient, apiAddPrescriptionWithEncounter, apiCreateEncounter, api
 
 type Patient = { id: string; name: string; age: number; gender: string; phone: string; allergies?: string; bp?: string };
 type Field = "chiefComplaint" | "clinicalNotes" | "diagnosis" | "assessment" | "plan" | "medicines" | "advice";
-type SpeechRecognitionInstance = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((event: any) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
+type SpeechRecognitionResultEvent = { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> };
+type SpeechRecognitionInstance = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((event: SpeechRecognitionResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
 
+type ScanResult = { text: string; confidence: number; label: string };
+
 function parseScan(text: string) {
-  const clean = text.replace(/\s+/g, " ").trim();
+  const lines = text.split(/\n+/).map((x) => x.replace(/[|]+/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+  const clean = lines.join(" ");
   const out: Record<string, string> = { clinicalNotes: clean };
-  const name = clean.match(/(?:patient\s*name|name)\s*[:\-]\s*([A-Za-z .'-]{2,60})(?=\s+(?:age|sex|gender|dob|mobile|phone)\b|$)/i)?.[1];
-  const age = clean.match(/(?:age)\s*[:\-]?\s*(\d{1,3})\s*(?:years?|yrs?)?/i)?.[1];
-  const gender = clean.match(/(?:sex|gender)\s*[:\-]?\s*(male|female|other)/i)?.[1];
-  const phone = clean.match(/(?:mobile|phone|contact)\s*[:\-]?\s*([+\d][\d ()-]{6,18})/i)?.[1];
+  const valueAfter = (labels: string[]) => {
+    const re = new RegExp(`(?:${labels.join("|")})\\s*[:\\-]?\\s*([^\\n]+)`, "i");
+    return text.match(re)?.[1]?.trim();
+  };
+  const name = valueAfter(["patient\\s*name", "patient", "name"]);
+  const age = clean.match(/(?:age|years?\s*old)\s*[:\-]?\s*(\d{1,3})/i)?.[1];
+  const gender = clean.match(/(?:sex|gender)\s*[:\-]?\s*(male|female|other|m|f)/i)?.[1];
+  const phone = clean.match(/(?:mobile|phone|contact|telephone)\s*[:\-]?\s*([+\d][\d ()-]{6,18})/i)?.[1];
   const bp = clean.match(/(?:bp|blood pressure)\s*[:\-]?\s*(\d{2,3}\s*\/\s*\d{2,3})/i)?.[1];
-  const diagnosis = clean.match(/(?:diagnosis|impression)\s*[:\-]\s*(.{3,160}?)(?=\s+(?:plan|advice|medication|medicines?)\s*[:\-]|$)/i)?.[1];
-  const medicines = clean.match(/(?:medication|medicines?|rx|treatment)\s*[:\-]\s*(.{3,300}?)(?=\s+(?:advice|plan|follow[- ]?up)\s*[:\-]|$)/i)?.[1];
-  if (name) out.name = name.trim(); if (age) out.age = age; if (gender) out.gender = gender; if (phone) out.phone = phone.trim(); if (bp) out.bp = bp.replace(/\s/g, ""); if (diagnosis) out.diagnosis = diagnosis.trim(); if (medicines) out.medicines = medicines.trim();
+  const diagnosis = valueAfter(["final diagnosis", "discharge diagnosis", "diagnosis", "impression", "assessment"]);
+  const medicines = valueAfter(["discharge medications", "medications", "medicines", "prescription", "rx", "treatment"]);
+  const advice = valueAfter(["discharge advice", "advice", "instructions", "follow[- ]?up"]);
+  if (name && name.length < 80) out.name = name.replace(/^(patient|name)\s*[:\-]?\s*/i, "").trim();
+  if (age) out.age = age;
+  if (gender) out.gender = /^(m|male)$/i.test(gender) ? "Male" : /^(f|female)$/i.test(gender) ? "Female" : "Other";
+  if (phone) out.phone = phone.trim();
+  if (bp) out.bp = bp.replace(/\s/g, "");
+  if (diagnosis) out.diagnosis = diagnosis.replace(/\s+/g, " ").trim();
+  if (medicines) out.medicines = medicines.replace(/\s+/g, " ").trim();
+  if (advice) out.advice = advice.replace(/\s+/g, " ").trim();
   return out;
+}
+
+async function preprocessImage(file: File, variant: "clean" | "contrast" | "threshold") {
+  const bitmap = await createImageBitmap(file);
+  const maxWidth = 2400;
+  const scale = Math.min(1, maxWidth / bitmap.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Canvas is unavailable on this device.");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = image.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    if (variant === "threshold") {
+      const v = gray > 170 ? 255 : gray < 95 ? 0 : Math.round(((gray - 95) / 75) * 255);
+      data[i] = data[i + 1] = data[i + 2] = v;
+    } else if (variant === "contrast") {
+      const v = Math.max(0, Math.min(255, (gray - 128) * 1.45 + 128));
+      data[i] = data[i + 1] = data[i + 2] = v;
+    } else {
+      data[i] = data[i + 1] = data[i + 2] = gray;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare scan.")), "image/png", 1));
+}
+
+async function runOcr(file: File): Promise<ScanResult> {
+  const { createWorker, PSM } = await import("tesseract.js");
+  const variants: Array<"clean" | "contrast" | "threshold"> = ["clean", "contrast", "threshold"];
+  const worker = await createWorker("eng");
+  const results: ScanResult[] = [];
+  for (const variant of variants) {
+    const prepared = await preprocessImage(file, variant);
+    const result = await worker.recognize(prepared, { tessedit_pageseg_mode: variant === "clean" ? PSM.AUTO : variant === "contrast" ? PSM.SPARSE_TEXT : PSM.AUTO }, { text: true });
+    results.push({ text: result.data.text.trim(), confidence: result.data.confidence || 0, label: variant });
+  }
+  await worker.terminate();
+  results.sort((a, b) => b.confidence - a.confidence);
+  const best = results[0];
+  if (!best?.text) throw new Error("No readable text was detected. Try a sharper, better-lit photo.");
+  return best;
 }
 
 export default function ClinicalAssistPage() {
@@ -32,6 +96,7 @@ export default function ClinicalAssistPage() {
   const [scanText, setScanText] = useState("");
   const [scanBusy, setScanBusy] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
+  const [scanConfidence, setScanConfidence] = useState<number | null>(null);
   const [voiceField, setVoiceField] = useState<Field | null>(null);
   const [voiceStatus, setVoiceStatus] = useState("");
   const [saving, setSaving] = useState(false);
@@ -51,23 +116,32 @@ export default function ClinicalAssistPage() {
   function setField(field: string, value: string) { setForm(f => ({ ...f, [field]: value })); }
 
   async function scan(file: File) {
-    setScanBusy(true); setScanStatus("Reading document locally…"); setError("");
+    setScanBusy(true); setScanStatus("Preparing document: correcting contrast and removing camera noise…"); setScanConfidence(null); setError("");
     try {
-      const { createWorker } = await import("tesseract.js"); const worker = await createWorker("eng"); const result = await worker.recognize(file); await worker.terminate();
-      const text = result.data.text.trim(); setScanText(text); const parsed = parseScan(text);
-      setForm(f=>({...f, ...(parsed.name ? {name:parsed.name}:{}), ...(parsed.age ? {age:parsed.age}:{}), ...(parsed.gender ? {gender:parsed.gender}:{}), ...(parsed.phone ? {phone:parsed.phone}:{}), ...(parsed.bp ? {bp:parsed.bp}:{}), ...(parsed.diagnosis ? {diagnosis:parsed.diagnosis}:{}), ...(parsed.medicines ? {medicines:parsed.medicines}:{}), clinicalNotes:text}));
-      setScanStatus("Scan complete. Review every extracted field before saving.");
-    } catch { setError("Document OCR could not complete on this device. You can still use the captured text and voice dictation."); } finally { setScanBusy(false); }
+      const best = await runOcr(file);
+      const text = best.text; setScanText(text); setScanConfidence(best.confidence);
+      const parsed = parseScan(text);
+      setForm(f=>({...f, ...(parsed.name ? {name:parsed.name}:{}), ...(parsed.age ? {age:parsed.age}:{}), ...(parsed.gender ? {gender:parsed.gender}:{}), ...(parsed.phone ? {phone:parsed.phone}:{}), ...(parsed.bp ? {bp:parsed.bp}:{}), ...(parsed.diagnosis ? {diagnosis:parsed.diagnosis}:{}), ...(parsed.medicines ? {medicines:parsed.medicines}:{}), ...(parsed.advice ? {advice:parsed.advice}:{}), clinicalNotes:text}));
+      setScanStatus(best.confidence >= 80 ? "High-confidence OCR completed. Review the extracted fields." : best.confidence >= 55 ? "OCR completed with moderate confidence. Review the text carefully." : "OCR completed with low confidence. Retake the photo if possible.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Document OCR could not complete on this device."); setScanStatus(""); } finally { setScanBusy(false); }
   }
 
   function toggleVoice(field: Field) {
     if (voiceField === field) { recognitionRef.current?.stop(); setVoiceField(null); setVoiceStatus(""); return; }
     const SR = (window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor }).SpeechRecognition || (window as Window & { webkitSpeechRecognition?: SpeechRecognitionCtor }).webkitSpeechRecognition;
     if (!SR) { setVoiceStatus("Voice dictation is not supported by this browser. Try Safari/Chrome on the phone."); return; }
+    recognitionRef.current?.stop();
     const r = new SR(); r.lang = "en-IN"; r.continuous = true; r.interimResults = true;
-    r.onresult = (event:any) => { let text=""; for(let i=event.resultIndex;i<event.results.length;i++) text += event.results[i][0].transcript; setForm(f=>({...f,[field]:`${f[field] ? f[field]+" " : ""}${text}`.trim()})); };
-    r.onerror = () => { setVoiceStatus("Microphone/dictation error. Check microphone permission."); setVoiceField(null); }; r.onend = () => { setVoiceField(null); setVoiceStatus(""); };
-    recognitionRef.current = r; r.start(); setVoiceField(field); setVoiceStatus("Listening… tap the microphone again to stop.");
+    r.onresult = (event) => {
+      let finalText = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) finalText += result[0].transcript;
+      }
+      if (finalText.trim()) setForm(f => ({ ...f, [field]: `${f[field] ? f[field] + " " : ""}${finalText.trim()}`.trim() }));
+    };
+    r.onerror = () => { setVoiceStatus("Microphone/dictation error. Check microphone permission and try again."); setVoiceField(null); }; r.onend = () => { setVoiceField(null); setVoiceStatus(""); };
+    recognitionRef.current = r; r.start(); setVoiceField(field); setVoiceStatus("Listening… only finalized speech is inserted, so interim recognition will not repeat.");
   }
 
   async function save() {
@@ -92,10 +166,10 @@ export default function ClinicalAssistPage() {
       <section className="bg-white border rounded-xl p-3"><div className="flex gap-2"><button onClick={()=>setMode("followup")} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="followup"?"bg-[#c2183a] text-white":""}`}>Existing patient</button><button onClick={()=>{setMode("new");setPatientId("");}} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="new"?"bg-[#c2183a] text-white":""}`}>New patient</button></div>
         {mode==="followup" && <><input value={patientSearch} onChange={e=>setPatientSearch(e.target.value)} placeholder="Search patient by name or phone" className="w-full h-10 border rounded-lg px-3 text-sm mt-3"/><div className="mt-2 space-y-1">{filteredPatients.map(p=><button key={p.id} onClick={()=>{setPatientId(p.id);setPatientSearch("");}} className={`w-full text-left px-3 py-2 rounded-lg border text-xs ${patientId===p.id?"border-[#c2183a] bg-red-50":""}`}>{p.name} · {p.age} yrs · {p.phone}</button>)}</div></>}
       </section>
-      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">📷 Scan previous summary</h3><p className="text-[11px] text-gray-500 mt-1">On a phone, this opens the camera. OCR runs locally in the browser; nothing is automatically trusted or saved.</p><input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f)}} className="mt-3 w-full text-xs"/>{scanBusy&&<p className="text-xs text-gray-500 mt-2">{scanStatus}</p>}{scanStatus&&!scanBusy&&<p className="text-xs text-green-700 mt-2">{scanStatus}</p>}{scanText&&<details className="mt-2"><summary className="text-xs font-medium">View extracted text</summary><textarea value={scanText} onChange={e=>setScanText(e.target.value)} className="w-full mt-2 min-h-28 border rounded-lg p-2 text-xs"/></details>}</section>
+      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">📷 Document scanner + OCR</h3><p className="text-[11px] text-gray-500 mt-1">Take a clear photo of a discharge summary, prescription, referral or report. MedLum preprocesses the image and runs several OCR passes locally before choosing the strongest result.</p><input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f)}} className="mt-3 w-full text-xs"/>{scanBusy&&<p className="text-xs text-gray-500 mt-2">{scanStatus}</p>}{scanStatus&&!scanBusy&&<p className="text-xs text-green-700 mt-2">{scanStatus}{scanConfidence!==null?` OCR confidence: ${Math.round(scanConfidence)}%.`:""}</p>}{scanText&&<details className="mt-2" open><summary className="text-xs font-medium">Review extracted OCR text</summary><textarea value={scanText} onChange={e=>setScanText(e.target.value)} className="w-full mt-2 min-h-36 border rounded-lg p-2 text-xs"/><p className="text-[10px] text-gray-400 mt-1">The extracted text is only a drafting aid. Do not treat OCR confidence as clinical correctness.</p></details>}</section>
       {error&&<div className="bg-red-50 text-red-700 rounded-lg p-3 text-xs">{error}</div>}{message&&<div className="bg-green-50 text-green-700 rounded-lg p-3 text-xs">{message}</div>}
       <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm mb-2">Patient details</h3><div className="grid grid-cols-2 gap-2"><Input label="Name" value={form.name} onChange={v=>setField("name",v)}/><Input label="Mobile" value={form.phone} onChange={v=>setField("phone",v)}/><Input label="Age" value={form.age} onChange={v=>setField("age",v)}/><label className="text-[11px] font-medium">Gender<select value={form.gender} onChange={e=>setField("gender",e.target.value)} className="mt-1 w-full h-10 border rounded-lg px-2 text-sm"><option>Male</option><option>Female</option><option>Other</option></select></label><Input label="BP" value={form.bp} onChange={v=>setField("bp",v)}/><Input label="Allergies" value={form.allergies} onChange={v=>setField("allergies",v)}/></div></section>
-      <section className="bg-white border rounded-xl p-3 space-y-2"><h3 className="font-semibold text-sm">Clinical note</h3>{(["chiefComplaint","clinicalNotes","diagnosis","assessment","plan","medicines","advice"] as Field[]).map(field=><Dictated label={field.replace(/([A-Z])/g," $1")} value={form[field]} active={voiceField===field} onChange={v=>setField(field,v)} onVoice={()=>toggleVoice(field)} />)}{voiceStatus&&<p className="text-xs text-[#c2183a]">{voiceStatus}</p>}</section>
+      <section className="bg-white border rounded-xl p-3 space-y-2"><h3 className="font-semibold text-sm">Clinical note + voice dictation</h3>{(["chiefComplaint","clinicalNotes","diagnosis","assessment","plan","medicines","advice"] as Field[]).map(field=><Dictated label={field.replace(/([A-Z])/g," $1")} value={form[field]} active={voiceField===field} onChange={v=>setField(field,v)} onVoice={()=>toggleVoice(field)} />)}{voiceStatus&&<p className="text-xs text-[#c2183a]">{voiceStatus}</p>}</section>
       <button onClick={save} disabled={saving || scanBusy} className="w-full h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-50">{saving?"Saving…":"Review & save clinical encounter"}</button>
       <p className="text-[10px] text-gray-400 text-center">AI assistant output is a drafting aid. Verify patient identity, extracted text, diagnosis, medicines and doses before saving or acting clinically.</p>
     </div></AppShell>
