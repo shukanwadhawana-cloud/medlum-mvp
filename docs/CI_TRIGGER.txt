@@ -1,0 +1,3 @@
+MedLum CI trigger marker.
+This file exists only to trigger the main-branch CI workflow after the final build-hardening changes.
+It has no application runtime effect and can be removed after verification if desired.
