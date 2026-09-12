@@ -41,7 +41,8 @@ export async function POST(req: Request) {
 
     let appointmentId: string | null = body.appointmentId ? String(body.appointmentId) : null;
     if (appointmentId) {
-      const appt = await prisma.appointment.findFirst({ where: { id: appointmentId, patientId } });
+      // Clinic sharing does not grant write access to another consultant's appointment.
+      const appt = await prisma.appointment.findFirst({ where: { id: appointmentId, patientId, doctorId: session.doctorId } });
       if (!appt) appointmentId = null;
       else if (appt.status === "Scheduled") await prisma.appointment.update({ where: { id: appointmentId }, data: { status: "Completed" } });
     }
