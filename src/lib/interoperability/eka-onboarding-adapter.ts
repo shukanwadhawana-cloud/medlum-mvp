@@ -1,5 +1,5 @@
 import { ekaOnboardFacility } from "./eka";
-import type { AdapterResult, FhirResource } from "./types";
+import type { AdapterResult } from "./types";
 
 type EkaFacilityOnboardResult = {
   hip_code?: string;
