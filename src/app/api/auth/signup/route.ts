@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
 import { createSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { ensurePrimaryClinic } from "@/lib/ensure-clinic";
 
 export async function POST(req: Request) {
   try {
@@ -26,30 +27,11 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await hashPassword(password);
-
-    // Create doctor + primary clinic + Owner membership in one transaction so
-    // invoices, reports, and clinic-scoped patient sharing work immediately.
-    const doctor = await prisma.$transaction(async (tx) => {
-      const d = await tx.doctor.create({
-        data: { name, email, passwordHash, clinicName, phone },
-      });
-      const clinic = await tx.clinic.create({
-        data: {
-          name: clinicName,
-          isActive: true,
-        },
-      });
-      await tx.clinicMember.create({
-        data: {
-          clinicId: clinic.id,
-          doctorId: d.id,
-          role: "Owner",
-          isActive: true,
-        },
-      });
-      return d;
+    const doctor = await prisma.doctor.create({
+      data: { name, email, passwordHash, clinicName, phone },
     });
 
+    await ensurePrimaryClinic(doctor.id, clinicName);
     await createSession({ doctorId: doctor.id, email: doctor.email });
     await writeAudit({
       doctorId: doctor.id,

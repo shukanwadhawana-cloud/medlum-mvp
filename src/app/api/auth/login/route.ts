@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { createSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { ensurePrimaryClinic } from "@/lib/ensure-clinic";
 
 export async function POST(req: Request) {
   try {
@@ -20,9 +21,13 @@ export async function POST(req: Request) {
     }
 
     if (!doctor.isActive) {
-      return NextResponse.json({ success: false, error: "This doctor account is deactivated. Contact a clinic administrator." }, { status: 403 });
+      return NextResponse.json(
+        { success: false, error: "This doctor account is deactivated. Contact a clinic administrator." },
+        { status: 403 }
+      );
     }
 
+    await ensurePrimaryClinic(doctor.id, doctor.clinicName);
     await createSession({ doctorId: doctor.id, email: doctor.email });
     await writeAudit({
       doctorId: doctor.id,
