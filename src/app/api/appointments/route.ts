@@ -18,7 +18,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const clinicId = await getClinicId(session.doctorId);
   const appointments = clinicId
-    ? await prisma.appointment.findMany({ where: { doctor: { clinicMembers: { some: { clinicId } } } }, orderBy: [{ date: "asc" }, { time: "asc" }] })
+    ? await prisma.appointment.findMany({ where: { doctor: { clinicMemberships: { some: { clinicId } } } }, orderBy: [{ date: "asc" }, { time: "asc" }] })
     : await prisma.appointment.findMany({ where: { doctorId: session.doctorId }, orderBy: [{ date: "asc" }, { time: "asc" }] });
   return NextResponse.json({ appointments }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -55,7 +55,7 @@ export async function PATCH(req: Request) {
     if (!id || !status) return NextResponse.json({ success: false, error: "id and status required" }, { status: 400 });
     const clinicId = await getClinicId(session.doctorId);
     const existing = clinicId
-      ? await prisma.appointment.findFirst({ where: { id, doctor: { clinicMembers: { some: { clinicId } } } } })
+      ? await prisma.appointment.findFirst({ where: { id, doctor: { clinicMemberships: { some: { clinicId } } } } })
       : await prisma.appointment.findFirst({ where: { id, doctorId: session.doctorId } });
     if (!existing) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
     const updated = await prisma.appointment.update({ where: { id }, data: { status } });
