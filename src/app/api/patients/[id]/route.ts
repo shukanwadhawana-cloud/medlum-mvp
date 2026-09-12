@@ -15,12 +15,12 @@ export async function GET(
   if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const [appointments, encounters, prescriptions, invoices, labOrders, diagnosticOrders] = await Promise.all([
-    prisma.appointment.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
-    prisma.encounter.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
-    prisma.prescription.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
-    prisma.invoice.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
-    prisma.labOrder.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 100 }),
-    prisma.diagnosticOrder.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.appointment.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" } }),
+    prisma.encounter.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" } }),
+    prisma.prescription.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" } }),
+    prisma.invoice.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" } }),
+    prisma.labOrder.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" } }),
+    prisma.diagnosticOrder.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" } }),
   ]);
 
   return NextResponse.json({
@@ -47,5 +47,5 @@ export async function GET(
       notes: d.notes, orderedAt: d.orderedAt.toISOString(), performedAt: d.performedAt?.toISOString() || null,
       reportedAt: d.reportedAt?.toISOString() || null, createdAt: d.createdAt.toISOString(), updatedAt: d.updatedAt.toISOString(),
     })),
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }
