@@ -45,6 +45,9 @@ jobs:
       - name: Verify telemedicine foundation
         run: npm run test:telemedicine
 
+      - name: Verify video consultation layer
+        run: npm run test:video-consultation
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
