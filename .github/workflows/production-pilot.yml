@@ -1,0 +1,45 @@
+name: MedLum Production Pilot Validation
+
+on:
+  workflow_run:
+    workflows: ["MedLum CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  production-pilot:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout validated commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Wait for Render deployment
+        env:
+          PILOT_BASE_URL: https://medlum-mvp.onrender.com
+        run: |
+          for attempt in $(seq 1 12); do
+            echo "Render readiness attempt ${attempt}/12"
+            if curl -fsS --max-time 15 "$PILOT_BASE_URL/api/health"; then
+              echo
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Render deployment did not become healthy within 6 minutes."
+          exit 1
+
+      - name: Verify production pilot smoke
+        env:
+          PILOT_BASE_URL: https://medlum-mvp.onrender.com
+        run: node scripts/verify-production-pilot.mjs
