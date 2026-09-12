@@ -19,6 +19,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
     }
 
+    if (!doctor.isActive) {
+      return NextResponse.json({ success: false, error: "This doctor account is deactivated. Contact a clinic administrator." }, { status: 403 });
+    }
+
     await createSession({ doctorId: doctor.id, email: doctor.email });
     await writeAudit({
       doctorId: doctor.id,
