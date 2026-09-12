@@ -75,6 +75,7 @@ model Patient {
   appointments Appointment[]
   prescriptions Prescription[]
   invoices Invoice[]
+  payments Payment[]
   encounters Encounter[]
   labOrders LabOrder[]
   dispensings Dispensing[]
