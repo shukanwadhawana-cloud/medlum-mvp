@@ -5,11 +5,18 @@ const COOKIE_NAME = "medlum_session";
 const MAX_AGE = 60 * 60 * 24 * 14; // 14 days
 
 function getSecret() {
-  const secret = process.env.SESSION_SECRET || process.env.NEXTAUTH_SECRET;
-  if (!secret || secret.length < 16) {
-    return new TextEncoder().encode("medlum-dev-secret-change-me-32b");
+  const secret = process.env.SESSION_SECRET;
+  if (secret && secret.length >= 32) {
+    return new TextEncoder().encode(secret);
   }
-  return new TextEncoder().encode(secret);
+
+  // Never allow a predictable fallback in production. A missing/weak
+  // production secret must fail closed rather than making sessions forgeable.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET must be configured with at least 32 characters");
+  }
+
+  return new TextEncoder().encode("medlum-dev-secret-change-me-32b");
 }
 
 export type SessionPayload = {
