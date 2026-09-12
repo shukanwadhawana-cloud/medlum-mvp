@@ -22,7 +22,7 @@ export const LAB_CATALOG: DiagnosticCatalogItem[] = [
   lab("inflammatory", "Inflammatory / Acute Phase Reactants", "Immunology", ["hs-CRP", "ESR", "Procalcitonin", "Serum Ferritin", "D-Dimer"], { isInpatientRoutine: true }),
   lab("diabetic-metabolic", "Diabetic / Metabolic Profile", "Biochemistry", ["Fasting Blood Sugar", "Postprandial Blood Sugar", "HbA1c", "Random Blood Sugar"], { isInpatientRoutine: true }),
   lab("abg-vbg", "Arterial Blood Gas (ABG) / Venous Blood Gas (VBG)", "Biochemistry", ["pH", "pCO2", "pO2", "HCO3-", "Lactate"], { isInpatientRoutine: true }),
-  lab("lipid-profile", "Lipid Profile", "Biochemistry", ["Total Cholesterol", "Triglycerides", "HDL", "LDL", "VLDL"], [], { requiresFasting: true }),
+  lab("lipid-profile", "Lipid Profile", "Biochemistry", ["Total Cholesterol", "Triglycerides", "HDL", "LDL", "VLDL"], { requiresFasting: true }),
   lab("cardiac-markers", "Cardiac Markers", "Biochemistry", ["Troponin-I / Troponin-T", "CK-MB", "NT-proBNP"], { isInpatientRoutine: true }),
   lab("urine-rm", "Urine Routine & Microscopy (Urine R/M)", "Urinalysis", ["pH", "Specific Gravity", "Protein", "Glucose", "Ketones", "Nitrites", "Leukocyte Esterase", "RBCs", "Pus cells", "Epithelial cells", "Casts", "Crystals"]),
   lab("urine-cs", "Urine Culture & Sensitivity (C/S)", "Microbiology"),
@@ -58,11 +58,11 @@ export const RADIOLOGY_CATALOG: DiagnosticCatalogItem[] = [
   imaging("spine-xray", "Spine X-Ray (Cervical / Thoracic / Lumbar AP & Lateral)", "Radiography", "X-ray"),
   imaging("extremity-xray", "Extremity X-Rays (Long Bones / Joints)", "Radiography", "X-ray"),
   imaging("mobile-xray", "Bedside Mobile X-Ray (ICU / IPD Portable Imaging)", "Radiography", "X-ray", { isInpatientRoutine: true }),
-  imaging("usg-abdomen-pelvis", "USG Abdomen & Pelvis (Complete)", "Ultrasonography & Color Doppler", "Ultrasound", { isOutsourced: false }),
+  imaging("usg-abdomen-pelvis", "USG Abdomen & Pelvis (Complete)", "Ultrasonography & Color Doppler", "Ultrasound", { requiresFasting: true }),
   imaging("usg-kub-prostate", "USG KUB & Prostate", "Ultrasonography & Color Doppler", "Ultrasound"),
-  imaging("usg-obgyn", "USG Obstetric / Gynecological", "Ultrasonography & Color Doppler", "Ultrasound", { requiresFasting: false }),
+  imaging("usg-obgyn", "USG Obstetric / Gynecological", "Ultrasonography & Color Doppler", "Ultrasound"),
   imaging("usg-small-parts", "USG Small Parts (Thyroid / Scrotum / Breast / MSK)", "Ultrasonography & Color Doppler", "Ultrasound"),
-  imaging("color-doppler", "Color Doppler Study", "Ultrasonography & Color Doppler", "Ultrasound", { isOutsourced: false }),
+  imaging("color-doppler", "Color Doppler Study", "Ultrasonography & Color Doppler", "Ultrasound"),
   imaging("fast-pocus", "Bedside FAST / POCUS", "Ultrasonography & Color Doppler", "Ultrasound", { isInpatientRoutine: true }),
   imaging("digital-mammography", "Digital Mammography (Bilateral Screening)", "Mammography", "Mammography", { isOutsourced: true }),
   imaging("3d-mammography", "3D Mammography / Breast Tomosynthesis", "Mammography", "Mammography", { isOutsourced: true }),
@@ -97,6 +97,5 @@ export const RADIOLOGY_CATALOG: DiagnosticCatalogItem[] = [
 ];
 
 export const DIAGNOSTIC_CATALOG = [...LAB_CATALOG, ...RADIOLOGY_CATALOG];
-
 export const DIAGNOSTIC_CATEGORIES = [...new Set(DIAGNOSTIC_CATALOG.map((item) => item.category))];
 export const DIAGNOSTIC_MODALITIES = [...new Set(DIAGNOSTIC_CATALOG.map((item) => item.modality))];
