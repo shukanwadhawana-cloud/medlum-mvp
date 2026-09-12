@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { apiAddPatient, apiAddPrescriptionWithEncounter, apiCreateEncounter, apiGetPatientDetail, apiGetPatients } from "@/lib/api";
 
@@ -26,12 +25,10 @@ function parseScan(text: string) {
 }
 
 export default function ClinicalAssistPage() {
-  const searchParams = useSearchParams();
-  const initialPatientId = searchParams.get("patientId") || "";
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [patientId, setPatientId] = useState(initialPatientId);
+  const [patientId, setPatientId] = useState("");
   const [patientSearch, setPatientSearch] = useState("");
-  const [mode, setMode] = useState<"followup" | "new">(initialPatientId ? "followup" : "new");
+  const [mode, setMode] = useState<"followup" | "new">("new");
   const [scanText, setScanText] = useState("");
   const [scanBusy, setScanBusy] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
@@ -43,27 +40,24 @@ export default function ClinicalAssistPage() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", medicines: "", advice: "" });
 
-  useEffect(() => { apiGetPatients().then((x) => setPatients(x as Patient[])); }, []);
+  useEffect(() => {
+    apiGetPatients().then((x) => setPatients(x as Patient[]));
+    const initialPatientId = new URLSearchParams(window.location.search).get("patientId") || "";
+    if (initialPatientId) { setPatientId(initialPatientId); setMode("followup"); }
+  }, []);
   useEffect(() => { if (patientId) apiGetPatientDetail(patientId).then((d) => { const p=d?.patient; const e=d?.encounters?.[0]; if(p) setForm(f=>({...f,name:p.name,age:String(p.age||""),gender:p.gender||"Male",phone:p.phone||"",bp:p.bp||"",allergies:p.allergies||"",clinicalNotes:e?.clinicalNotes||"",diagnosis:e?.diagnosis||"",assessment:e?.assessment||"",plan:e?.plan||"",chiefComplaint:"",medicines:"",advice:""})); }).catch(()=>{}); }, [patientId]);
 
   const filteredPatients = useMemo(() => { const q=patientSearch.toLowerCase().trim(); return q ? patients.filter(p=>p.name.toLowerCase().includes(q)||p.phone.toLowerCase().includes(q)).slice(0,8) : patients.slice(0,8); }, [patients,patientSearch]);
-
   function setField(field: string, value: string) { setForm(f => ({ ...f, [field]: value })); }
 
   async function scan(file: File) {
     setScanBusy(true); setScanStatus("Reading document locally…"); setError("");
     try {
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng");
-      const result = await worker.recognize(file);
-      await worker.terminate();
-      const text = result.data.text.trim();
-      setScanText(text);
-      const parsed = parseScan(text);
+      const { createWorker } = await import("tesseract.js"); const worker = await createWorker("eng"); const result = await worker.recognize(file); await worker.terminate();
+      const text = result.data.text.trim(); setScanText(text); const parsed = parseScan(text);
       setForm(f=>({...f, ...(parsed.name ? {name:parsed.name}:{}), ...(parsed.age ? {age:parsed.age}:{}), ...(parsed.gender ? {gender:parsed.gender}:{}), ...(parsed.phone ? {phone:parsed.phone}:{}), ...(parsed.bp ? {bp:parsed.bp}:{}), ...(parsed.diagnosis ? {diagnosis:parsed.diagnosis}:{}), ...(parsed.medicines ? {medicines:parsed.medicines}:{}), clinicalNotes:text}));
       setScanStatus("Scan complete. Review every extracted field before saving.");
-    } catch { setError("Document OCR could not complete on this device. You can still use the captured text and voice dictation."); }
-    finally { setScanBusy(false); }
+    } catch { setError("Document OCR could not complete on this device. You can still use the captured text and voice dictation."); } finally { setScanBusy(false); }
   }
 
   function toggleVoice(field: Field) {
@@ -72,8 +66,7 @@ export default function ClinicalAssistPage() {
     if (!SR) { setVoiceStatus("Voice dictation is not supported by this browser. Try Safari/Chrome on the phone."); return; }
     const r = new SR(); r.lang = "en-IN"; r.continuous = true; r.interimResults = true;
     r.onresult = (event:any) => { let text=""; for(let i=event.resultIndex;i<event.results.length;i++) text += event.results[i][0].transcript; setForm(f=>({...f,[field]:`${f[field] ? f[field]+" " : ""}${text}`.trim()})); };
-    r.onerror = () => { setVoiceStatus("Microphone/dictation error. Check microphone permission."); setVoiceField(null); };
-    r.onend = () => { setVoiceField(null); setVoiceStatus(""); };
+    r.onerror = () => { setVoiceStatus("Microphone/dictation error. Check microphone permission."); setVoiceField(null); }; r.onend = () => { setVoiceField(null); setVoiceStatus(""); };
     recognitionRef.current = r; r.start(); setVoiceField(field); setVoiceStatus("Listening… tap the microphone again to stop.");
   }
 
@@ -84,17 +77,14 @@ export default function ClinicalAssistPage() {
       if (mode === "new") {
         if (!form.name || !form.phone) throw new Error("New patient needs at least name and mobile number.");
         const created = await apiAddPatient({ name:form.name, age:form.age, gender:form.gender, phone:form.phone, bp:form.bp, allergies:form.allergies, notes:form.clinicalNotes });
-        if (!created.success || !created.patient) throw new Error(created.error || "Could not create patient.");
-        id=created.patient.id; setPatientId(id);
+        if (!created.success || !created.patient) throw new Error(created.error || "Could not create patient."); id=created.patient.id; setPatientId(id);
       }
       if (!id) throw new Error("Select an existing patient or use New patient.");
       const enc = await apiCreateEncounter({ patientId:id, chiefComplaint:form.chiefComplaint, clinicalNotes:form.clinicalNotes, diagnosis:form.diagnosis, assessment:form.assessment, plan:form.plan, bp:form.bp, followUpDate:undefined });
       if (!enc.success || !enc.encounter) throw new Error(enc.error || "Could not save clinical note.");
       if (form.medicines.trim()) await apiAddPrescriptionWithEncounter({ patientId:id, patientName:form.name, medicines:form.medicines.trim(), advice:form.advice.trim(), encounterId:enc.encounter.id });
-      setMessage(mode === "new" ? "New patient + clinical encounter saved." : "Follow-up clinical encounter saved.");
-      setScanText("");
-    } catch(e) { setError(e instanceof Error ? e.message : "Could not save."); }
-    finally { setSaving(false); }
+      setMessage(mode === "new" ? "New patient + clinical encounter saved." : "Follow-up clinical encounter saved."); setScanText("");
+    } catch(e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setSaving(false); }
   }
 
   return <AppShell><div className="mb-3"><Link href="/patients" className="text-xs text-[#c2183a]">← Patients</Link><h2 className="text-lg font-semibold mt-1">Clinical AI Assistant</h2><p className="text-xs text-gray-500">Scan a previous summary or dictate your note, then review before saving.</p></div>
