@@ -27,6 +27,9 @@ jobs:
       - name: Verify EKA ABDM onboarding
         run: npm run test:eka
 
+      - name: Verify MedLum data architecture
+        run: npm run test:data-architecture
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
