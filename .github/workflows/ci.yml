@@ -54,6 +54,9 @@ jobs:
       - name: Verify Android and iOS packaging configuration
         run: npm run test:mobile-packaging
 
+      - name: Verify Windows macOS Linux packaging configuration
+        run: npm run test:desktop-packaging
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
