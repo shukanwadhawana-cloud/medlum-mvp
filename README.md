@@ -50,4 +50,4 @@ npm run dev
 
 Render is the canonical production deployment for this repository. Vercel is not the production target.
 
-urlOpen MedLum production on Renderhttps://medlum-mvp.onrender.com/
+[Open MedLum production on Render](https://medlum-mvp.onrender.com/)
