@@ -1,12 +1,16 @@
 # MedLum deployment: Render + GitHub + Neon
 
-MedLum can run as a standard Next.js Node application without Vercel. The production database remains Neon and is not moved.
+MedLum runs as a standard Next.js Node application on Render. The production database remains Neon and is not moved.
+
+## Canonical production deployment
+
+**Render:** https://medlum-mvp.onrender.com/
+
+GitHub remains the source of truth and Render auto-deploys from `main`.
 
 ## Architecture
 
 Browser → Render (Next.js/Node) → Prisma → Neon PostgreSQL
-
-GitHub remains the source of truth and Render auto-deploys from `main`.
 
 ## Render setup
 
@@ -35,4 +39,4 @@ Do not run `prisma db push` as part of normal application deployment. Database s
 
 ## Vercel
 
-Vercel can remain connected temporarily while Render is validated. Once Render production is confirmed, disable/remove the Vercel Git integration so future commits no longer trigger Vercel deployments.
+Vercel may remain connected temporarily while Render is validated. Once Render production is confirmed, disable/remove the Vercel Git integration so future commits no longer trigger Vercel deployments.
