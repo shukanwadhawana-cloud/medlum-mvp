@@ -9,8 +9,8 @@ const failures = [];
 
 for (const model of ["Doctor", "Clinic", "ClinicMember"]) {
   const block = schema.match(new RegExp(`model\\s+${model}\\s+\\{([\\s\\S]*?)\\n\\}`, "m"))?.[1] ?? "";
-  if (!/isActive\\s+Boolean\\s+@default\\(true\\)/.test(block)) failures.push(`${model} must have isActive defaulting to true`);
-  if (!/deactivatedAt\\s+DateTime\\?/.test(block)) failures.push(`${model} must have nullable deactivatedAt`);
+  if (!/isActive\s+Boolean\s+@default\(true\)/.test(block)) failures.push(`${model} must have isActive defaulting to true`);
+  if (!/deactivatedAt\s+DateTime\?/.test(block)) failures.push(`${model} must have nullable deactivatedAt`);
 }
 
 if (!session.includes("doctor.isActive") || !session.includes("!doctor.isActive")) {
