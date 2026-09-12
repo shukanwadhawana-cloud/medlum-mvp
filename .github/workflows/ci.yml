@@ -36,6 +36,9 @@ jobs:
       - name: Verify soft deactivation protections
         run: npm run test:soft-deactivation
 
+      - name: Verify API authentication coverage
+        run: npm run test:api-auth-coverage
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
