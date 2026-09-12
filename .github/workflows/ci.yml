@@ -33,6 +33,9 @@ jobs:
       - name: Verify data retention protections
         run: npm run test:data-retention
 
+      - name: Verify soft deactivation protections
+        run: npm run test:soft-deactivation
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
