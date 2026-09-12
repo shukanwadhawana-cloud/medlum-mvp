@@ -11,105 +11,41 @@ export async function GET(
 
   const { id } = await ctx.params;
 
-  const patient = await prisma.patient.findFirst({
-    where: { id, doctorId: session.doctorId },
-  });
-  if (!patient) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const patient = await prisma.patient.findFirst({ where: { id, doctorId: session.doctorId } });
+  if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [appointments, encounters, prescriptions, invoices, labOrders] = await Promise.all([
-    prisma.appointment.findMany({
-      where: { doctorId: session.doctorId, patientId: id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-    prisma.encounter.findMany({
-      where: { doctorId: session.doctorId, patientId: id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-    prisma.prescription.findMany({
-      where: { doctorId: session.doctorId, patientId: id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-    prisma.invoice.findMany({
-      where: { doctorId: session.doctorId, patientId: id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-    prisma.labOrder.findMany({
-      where: { doctorId: session.doctorId, patientId: id },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
+  const [appointments, encounters, prescriptions, invoices, labOrders, diagnosticOrders] = await Promise.all([
+    prisma.appointment.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
+    prisma.encounter.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
+    prisma.prescription.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
+    prisma.invoice.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 30 }),
+    prisma.labOrder.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.diagnosticOrder.findMany({ where: { doctorId: session.doctorId, patientId: id }, orderBy: { createdAt: "desc" }, take: 100 }),
   ]);
 
   return NextResponse.json({
     patient: {
-      id: patient.id,
-      name: patient.name,
-      age: patient.age,
-      gender: patient.gender,
-      phone: patient.phone,
-      bp: patient.bp,
-      allergies: patient.allergies,
-      notes: patient.notes,
-      createdAt: patient.createdAt.toISOString(),
+      id: patient.id, name: patient.name, age: patient.age, gender: patient.gender, phone: patient.phone,
+      bp: patient.bp, allergies: patient.allergies, notes: patient.notes, createdAt: patient.createdAt.toISOString(),
     },
-    appointments: appointments.map((a) => ({
-      id: a.id,
-      date: a.date,
-      time: a.time,
-      type: a.type,
-      status: a.status,
-      createdAt: a.createdAt.toISOString(),
-    })),
+    appointments: appointments.map((a) => ({ id: a.id, date: a.date, time: a.time, type: a.type, status: a.status, createdAt: a.createdAt.toISOString() })),
     encounters: encounters.map((e) => ({
-      id: e.id,
-      date: e.date,
-      chiefComplaint: e.chiefComplaint,
-      diagnosis: e.diagnosis,
-      clinicalNotes: e.clinicalNotes,
-      assessment: e.assessment,
-      plan: e.plan,
-      followUpDate: e.followUpDate,
-      bp: e.bp,
-      pulse: e.pulse,
-      temperature: e.temperature,
-      spo2: e.spo2,
-      weight: e.weight,
-      height: e.height,
-      createdAt: e.createdAt.toISOString(),
+      id: e.id, date: e.date, chiefComplaint: e.chiefComplaint, diagnosis: e.diagnosis, clinicalNotes: e.clinicalNotes,
+      assessment: e.assessment, plan: e.plan, followUpDate: e.followUpDate, bp: e.bp, pulse: e.pulse,
+      temperature: e.temperature, spo2: e.spo2, weight: e.weight, height: e.height, createdAt: e.createdAt.toISOString(),
     })),
-    prescriptions: prescriptions.map((r) => ({
-      id: r.id,
-      medicines: r.medicines,
-      advice: r.advice,
-      encounterId: r.encounterId,
-      createdAt: r.createdAt.toISOString(),
-    })),
-    invoices: invoices.map((i) => ({
-      id: i.id,
-      amount: i.amount,
-      status: i.status,
-      note: i.note,
-      createdAt: i.createdAt.toISOString(),
-    })),
+    prescriptions: prescriptions.map((r) => ({ id: r.id, medicines: r.medicines, advice: r.advice, encounterId: r.encounterId, createdAt: r.createdAt.toISOString() })),
+    invoices: invoices.map((i) => ({ id: i.id, amount: i.amount, status: i.status, note: i.note, createdAt: i.createdAt.toISOString() })),
     labOrders: labOrders.map((l) => ({
-      id: l.id,
-      encounterId: l.encounterId,
-      patientName: l.patientName,
-      testName: l.testName,
-      category: l.category,
-      status: l.status,
-      result: l.result,
-      notes: l.notes,
-      orderedAt: l.orderedAt.toISOString(),
-      resultedAt: l.resultedAt?.toISOString() || null,
-      createdAt: l.createdAt.toISOString(),
-      updatedAt: l.updatedAt.toISOString(),
+      id: l.id, encounterId: l.encounterId, patientName: l.patientName, testName: l.testName, category: l.category,
+      status: l.status, result: l.result, notes: l.notes, orderedAt: l.orderedAt.toISOString(),
+      resultedAt: l.resultedAt?.toISOString() || null, createdAt: l.createdAt.toISOString(), updatedAt: l.updatedAt.toISOString(),
+    })),
+    diagnosticOrders: diagnosticOrders.map((d) => ({
+      id: d.id, encounterId: d.encounterId, patientName: d.patientName, studyName: d.studyName, modality: d.modality,
+      bodyPart: d.bodyPart, indication: d.indication, status: d.status, findings: d.findings, impression: d.impression,
+      notes: d.notes, orderedAt: d.orderedAt.toISOString(), performedAt: d.performedAt?.toISOString() || null,
+      reportedAt: d.reportedAt?.toISOString() || null, createdAt: d.createdAt.toISOString(), updatedAt: d.updatedAt.toISOString(),
     })),
   });
 }
