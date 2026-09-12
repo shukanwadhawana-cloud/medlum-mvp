@@ -9,6 +9,7 @@ const nav = [
   { href: "/patients", label: "Patients" },
   { href: "/appointments", label: "Appts" },
   { href: "/labs", label: "Labs" },
+  { href: "/diagnostics", label: "Diagnostics" },
   { href: "/pharmacy", label: "Pharmacy" },
   { href: "/prescriptions", label: "Rx" },
   { href: "/billing", label: "Billing" },
@@ -25,21 +26,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2 min-w-0 overflow-x-auto">
             <span className="font-bold text-base shrink-0">MedLum</span>
             {nav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={true}
-                className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap ${
-                  pathname === item.href || (item.href === "/patients" && pathname.startsWith("/patients/")) ? "bg-[#c2183a] font-medium" : "text-white/70"
-                }`}
-              >
+              <Link key={item.href} href={item.href} prefetch={true} className={`px-2.5 py-1 rounded-md text-xs whitespace-nowrap ${pathname === item.href || (item.href === "/patients" && pathname.startsWith("/patients/")) ? "bg-[#c2183a] font-medium" : "text-white/70"}`}>
                 {item.label}
               </Link>
             ))}
           </div>
-          <button type="button" onClick={() => logout()} className="text-xs text-red-300 shrink-0 px-1">
-            Logout
-          </button>
+          <button type="button" onClick={() => logout()} className="text-xs text-red-300 shrink-0 px-1">Logout</button>
         </div>
       </header>
       <main className="flex-1 px-3 py-4 max-w-3xl w-full mx-auto">{children}</main>
