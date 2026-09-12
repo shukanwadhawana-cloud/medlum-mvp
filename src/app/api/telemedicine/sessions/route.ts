@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { createJoinToken, hashJoinToken } from "@/lib/telemedicine";
+import { createJoinToken, createVideoMeetingUrl, getVideoProvider, hashJoinToken } from "@/lib/telemedicine";
 
 export async function GET() {
   const session = await getSession();
@@ -52,6 +52,8 @@ export async function POST(req: Request) {
     }
 
     const joinToken = createJoinToken();
+    const provider = getVideoProvider();
+    const meetingUrl = createVideoMeetingUrl("pending");
     const created = await prisma.telemedicineSession.create({
       data: {
         doctorId: session.doctorId,
@@ -61,7 +63,8 @@ export async function POST(req: Request) {
         scheduledAt,
         expiresAt,
         status: "Scheduled",
-        provider: "external",
+        provider,
+        meetingUrl,
         joinTokenHash: hashJoinToken(joinToken),
       },
       select: {
@@ -70,6 +73,22 @@ export async function POST(req: Request) {
         startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
       },
     });
+
+    // The meeting URL is generated independently of the database ID so provider
+    // implementations remain replaceable without exposing join credentials.
+    if (provider === "jitsi" && meetingUrl) {
+      const finalMeetingUrl = meetingUrl.replace("medlum-pending-", `medlum-${created.id}-`);
+      const updated = await prisma.telemedicineSession.update({
+        where: { id: created.id },
+        data: { meetingUrl: finalMeetingUrl },
+        select: {
+          id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
+          scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
+          startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
+        },
+      });
+      return NextResponse.json({ success: true, session: updated, patientName: patient.name, joinToken }, { status: 201 });
+    }
 
     return NextResponse.json({ success: true, session: created, patientName: patient.name, joinToken }, { status: 201 });
   } catch (error) {
