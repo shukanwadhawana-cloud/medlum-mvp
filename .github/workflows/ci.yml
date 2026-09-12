@@ -48,6 +48,9 @@ jobs:
       - name: Verify video consultation layer
         run: npm run test:video-consultation
 
+      - name: Verify responsive UI and PWA hardening
+        run: npm run test:responsive-ui
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
