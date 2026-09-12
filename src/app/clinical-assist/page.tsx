@@ -78,7 +78,8 @@ async function runOcr(file: File): Promise<ScanResult> {
   const results: ScanResult[] = [];
   for (const variant of variants) {
     const prepared = await preprocessImage(file, variant);
-    const result = await worker.recognize(prepared, { tessedit_pageseg_mode: variant === "clean" ? PSM.AUTO : variant === "contrast" ? PSM.SPARSE_TEXT : PSM.AUTO }, { text: true });
+    await worker.setParameters({ tessedit_pageseg_mode: variant === "contrast" ? PSM.SPARSE_TEXT : PSM.AUTO });
+    const result = await worker.recognize(prepared);
     results.push({ text: result.data.text.trim(), confidence: result.data.confidence || 0, label: variant });
   }
   await worker.terminate();
