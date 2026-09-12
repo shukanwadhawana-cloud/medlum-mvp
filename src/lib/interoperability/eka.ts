@@ -7,9 +7,9 @@ type EkaAuthResponse = {
 };
 
 type EkaMobileInitResponse = { hint?: string | null; txn_id: string };
-
 type EkaConsentCreateResponse = { consent_init_id?: string };
 type EkaCareContextLinkResponse = Record<string, unknown>;
+type EkaFacilityOnboardResponse = { hip_code?: string; hip_id?: string; hip_name?: string; scan_share_url?: string };
 
 function required(name: string): string {
   const value = process.env[name];
@@ -135,6 +135,18 @@ export async function ekaLinkCareContext(input: {
     oid: input.oid,
     partner_user_id: input.partnerUserId,
   }, { "X-Partner-Pt-Id": input.partnerUserId });
+}
+
+export async function ekaOnboardFacility(input: {
+  hipId: string;
+  name: string;
+  clinicId: string;
+}): Promise<EkaFacilityOnboardResponse> {
+  return ekaFetch<EkaFacilityOnboardResponse>("/abdm/v1/hip/onboard", {
+    hip_id: input.hipId,
+    name: input.name,
+    clinic_id: input.clinicId,
+  });
 }
 
 export function ekaConfigured(): boolean {
