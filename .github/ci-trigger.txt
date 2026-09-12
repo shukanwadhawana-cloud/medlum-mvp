@@ -1,1 +1,0 @@
-Harmless CI verification trigger. No application or database change.
