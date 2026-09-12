@@ -51,6 +51,9 @@ jobs:
       - name: Verify responsive UI and PWA hardening
         run: npm run test:responsive-ui
 
+      - name: Verify Android and iOS packaging configuration
+        run: npm run test:mobile-packaging
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
