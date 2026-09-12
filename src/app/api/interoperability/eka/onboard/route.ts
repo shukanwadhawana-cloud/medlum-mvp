@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/db";
 import { onboardEkaFacility } from "@/lib/interoperability/eka-onboarding-adapter";
 
 export async function POST(req: Request) {
