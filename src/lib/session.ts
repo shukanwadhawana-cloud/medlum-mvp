@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/db";
 
 const COOKIE_NAME = "medlum_session";
 const MAX_AGE = 60 * 60 * 24 * 14; // 14 days
@@ -10,8 +11,6 @@ function getSecret() {
     return new TextEncoder().encode(secret);
   }
 
-  // Never allow a predictable fallback in production. A missing/weak
-  // production secret must fail closed rather than making sessions forgeable.
   if (process.env.NODE_ENV === "production") {
     throw new Error("SESSION_SECRET must be configured with at least 32 characters");
   }
@@ -50,6 +49,15 @@ export async function getSession(): Promise<SessionPayload | null> {
     const doctorId = payload.doctorId as string | undefined;
     const email = payload.email as string | undefined;
     if (!doctorId || !email) return null;
+
+    // Re-check account state on every authenticated request so an existing
+    // session cannot continue operating after the doctor is deactivated.
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: doctorId },
+      select: { isActive: true, email: true },
+    });
+    if (!doctor || !doctor.isActive || doctor.email !== email) return null;
+
     return { doctorId, email };
   } catch {
     return null;
