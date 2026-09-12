@@ -27,7 +27,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const action = String(body.action || "");
-
     if (action === "inventory") {
       const bloodGroup = String(body.bloodGroup || "").trim();
       const component = String(body.component || "").trim();
@@ -37,7 +36,6 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "BLOOD_INVENTORY_CREATED", entity: "BloodInventory", entityId: item.id, meta: JSON.stringify({ clinicId: ctx.clinicId, bloodGroup, component, units }) } });
       return NextResponse.json({ success: true, item });
     }
-
     if (action === "donor") {
       const name = String(body.name || "").trim();
       const bloodGroup = String(body.bloodGroup || "").trim();
@@ -46,7 +44,6 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "BLOOD_DONOR_CREATED", entity: "BloodDonor", entityId: donor.id, meta: JSON.stringify({ clinicId: ctx.clinicId, bloodGroup }) } });
       return NextResponse.json({ success: true, donor });
     }
-
     if (action === "request") {
       const patientId = String(body.patientId || "");
       const bloodGroup = String(body.bloodGroup || "").trim();
@@ -59,12 +56,8 @@ export async function POST(req: Request) {
       await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "BLOOD_REQUEST_CREATED", entity: "BloodRequest", entityId: request.id, meta: JSON.stringify({ clinicId: ctx.clinicId, patientId, bloodGroup, component, unitsRequested }) } });
       return NextResponse.json({ success: true, request });
     }
-
     return NextResponse.json({ success: false, error: "Unknown action" }, { status: 400 });
-  } catch (e) {
-    console.error("blood bank post", e);
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
-  }
+  } catch (e) { console.error("blood bank post", e); return NextResponse.json({ success: false, error: "Server error" }, { status: 500 }); }
 }
 
 export async function PATCH(req: Request) {
@@ -93,17 +86,31 @@ export async function PATCH(req: Request) {
       const status = String(body.status || existing.status);
       const crossMatchStatus = String(body.crossMatchStatus || existing.crossMatchStatus);
       const inventoryId = body.inventoryId === undefined ? existing.inventoryId : (body.inventoryId ? String(body.inventoryId) : null);
-      let fulfilledAt = existing.fulfilledAt;
-      if (status === "Fulfilled" && existing.status !== "Fulfilled") {
-        if (!inventoryId) return NextResponse.json({ success: false, error: "Select an inventory batch before fulfilling the request." }, { status: 400 });
-        const inventory = await prisma.bloodInventory.findFirst({ where: { id: inventoryId, clinicId: ctx.clinicId, bloodGroup: existing.bloodGroup, component: existing.component } });
-        if (!inventory) return NextResponse.json({ success: false, error: "Matching blood inventory batch not found." }, { status: 404 });
-        const freeUnits = inventory.unitsAvailable - inventory.unitsReserved;
-        if (freeUnits < existing.unitsRequested) return NextResponse.json({ success: false, error: "Not enough free units in the selected batch." }, { status: 400 });
-        await prisma.bloodInventory.update({ where: { id: inventory.id }, data: { unitsAvailable: { decrement: existing.unitsRequested }, status: inventory.unitsAvailable - existing.unitsRequested === 0 ? "Depleted" : inventory.status } });
-        fulfilledAt = new Date();
-      }
-      const request = await prisma.bloodRequest.update({ where: { id }, data: { status, crossMatchStatus, inventoryId, fulfilledAt } });
+      const request = await prisma.$transaction(async (tx) => {
+        if (status === "Reserved" && existing.status !== "Reserved" && existing.status !== "Fulfilled" && existing.status !== "Cancelled") {
+          if (!inventoryId) throw new Error("Select a matching inventory batch before reserving the request.");
+          const inventory = await tx.bloodInventory.findFirst({ where: { id: inventoryId, clinicId: ctx.clinicId, bloodGroup: existing.bloodGroup, component: existing.component } });
+          if (!inventory) throw new Error("Matching blood inventory batch not found.");
+          const freeUnits = inventory.unitsAvailable - inventory.unitsReserved;
+          if (freeUnits < existing.unitsRequested) throw new Error("Not enough free units in the selected batch.");
+          await tx.bloodInventory.update({ where: { id: inventory.id }, data: { unitsReserved: { increment: existing.unitsRequested } } });
+        }
+        if (status === "Fulfilled" && existing.status !== "Fulfilled") {
+          if (!inventoryId) throw new Error("Select an inventory batch before fulfilling the request.");
+          const inventory = await tx.bloodInventory.findFirst({ where: { id: inventoryId, clinicId: ctx.clinicId, bloodGroup: existing.bloodGroup, component: existing.component } });
+          if (!inventory) throw new Error("Matching blood inventory batch not found.");
+          const requiredFree = existing.status === "Reserved" ? 0 : existing.unitsRequested;
+          const freeUnits = inventory.unitsAvailable - inventory.unitsReserved;
+          if (existing.status === "Reserved") {
+            if (inventory.unitsReserved < existing.unitsRequested || inventory.unitsAvailable < existing.unitsRequested) throw new Error("Reserved blood units are no longer available in the selected batch.");
+            await tx.bloodInventory.update({ where: { id: inventory.id }, data: { unitsAvailable: { decrement: existing.unitsRequested }, unitsReserved: { decrement: existing.unitsRequested }, status: inventory.unitsAvailable - existing.unitsRequested === 0 ? "Depleted" : inventory.status } });
+          } else {
+            if (freeUnits < requiredFree) throw new Error("Not enough free units in the selected batch.");
+            await tx.bloodInventory.update({ where: { id: inventory.id }, data: { unitsAvailable: { decrement: existing.unitsRequested }, status: inventory.unitsAvailable - existing.unitsRequested === 0 ? "Depleted" : inventory.status } });
+          }
+        }
+        return tx.bloodRequest.update({ where: { id }, data: { status, crossMatchStatus, inventoryId, fulfilledAt: status === "Fulfilled" ? new Date() : existing.fulfilledAt } });
+      }).catch((e) => { throw new Error(e instanceof Error ? e.message : "Could not update blood request."); });
       await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "BLOOD_REQUEST_UPDATED", entity: "BloodRequest", entityId: id, meta: JSON.stringify({ clinicId: ctx.clinicId, status, crossMatchStatus, inventoryId }) } });
       return NextResponse.json({ success: true, request });
     }
@@ -114,10 +121,6 @@ export async function PATCH(req: Request) {
       const donor = await prisma.bloodDonor.update({ where: { id }, data: { status: body.status === undefined ? existing.status : String(body.status), phone: body.phone === undefined ? existing.phone : String(body.phone), notes: body.notes === undefined ? existing.notes : String(body.notes), lastDonationDate: body.lastDonationDate === undefined ? existing.lastDonationDate : (body.lastDonationDate ? new Date(body.lastDonationDate) : null) } });
       return NextResponse.json({ success: true, donor });
     }
-
     return NextResponse.json({ success: false, error: "Unknown action" }, { status: 400 });
-  } catch (e) {
-    console.error("blood bank patch", e);
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
-  }
+  } catch (e) { console.error("blood bank patch", e); return NextResponse.json({ success: false, error: e instanceof Error ? e.message : "Server error" }, { status: 500 }); }
 }
