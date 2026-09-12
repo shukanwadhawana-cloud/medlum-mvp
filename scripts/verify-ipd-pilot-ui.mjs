@@ -24,12 +24,13 @@ for (const token of ["address", "idType", "idNumber", "mlcNumber", "prdNumber", 
 for (const token of ["General Ward", "Twin Sharing", "Single Sharing", "Deluxe Ward", "Super Deluxe", "ICU", "MICU", "SICU", "Transplant ICU", "PICU", "NICU"]) {
   if (!ipdPage.includes(token)) throw new Error(`Missing ward/ICU category: ${token}`);
 }
-for (const token of ["MLC Summary", "DAMA Summary", "LAMA Summary", "Transfer Summary", "Discharge Summary", "Death Summary", "Fitness Note", "Procedure Note", "Case Summary"]) {
+for (const token of ["DAMA Summary", "LAMA Summary", "Transfer Summary", "Discharge Summary", "Death Summary", "Fitness Note", "Procedure Note", "Case Summary"]) {
   if (!ipdPage.includes(token)) throw new Error(`Missing clinical document type: ${token}`);
 }
 for (const token of ["Nursing round vitals", "BP", "Pulse", "RR", "SpO₂", "Temperature", "Consultant Note", "RMO Note", "Nursing Care Note", "bg-blue-50", "bg-amber-50", "bg-green-50"]) {
   if (!ipdPage.includes(token)) throw new Error(`Missing role/vitals contract: ${token}`);
 }
+if (!ipdPage.includes("MLC number (if applicable)")) throw new Error("MLC registration field missing");
 const reportSource = `${reports}\n${reportsApi}`;
 for (const pattern of [/mode\s*===\s*["']OPD["']|setMode\(\s*["']OPD["']\s*\)/, /mode\s*===\s*["']IPD["']|setMode\(\s*["']IPD["']\s*\)/, /Separate OPD clinic reporting from IPD hospital reporting/, /careSetting\.counts/, /careSetting\.revenue/]) {
   if (!pattern.test(reportSource)) throw new Error(`Missing OPD/IPD reports contract: ${pattern}`);
