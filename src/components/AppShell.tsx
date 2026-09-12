@@ -28,6 +28,7 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
 };
 
 const nav = [
+  { href: "/dashboard", label: "OPD", icon: "clinic" },
   { href: "/patients", label: "Patients", icon: "patients" },
   { href: "/ipd", label: "IPD", icon: "ipd" },
   { href: "/appointments", label: "Appts", icon: "calendar" },
