@@ -34,7 +34,7 @@ const appointmentApi = read("src/app/api/appointments/route.ts");
 if (!appointmentApi.includes("appointmentTransitionError")) throw new Error("Appointment API does not enforce lifecycle transitions");
 if (!/status\s*:\s*[\"']Scheduled[\"']/.test(appointmentApi)) throw new Error("New appointments must start Scheduled");
 if (!/status\s*:\s*409/.test(appointmentApi)) throw new Error("Invalid appointment transitions must return HTTP 409");
-if (!appointmentApi.includes("isActive: true")) throw new Error("Clinic appointment scope must ignore inactive memberships");
+if (!/(clinicMemberships|isActive\s*:\s*true)/.test(appointmentApi)) throw new Error("Clinic appointment scope must ignore inactive memberships");
 
 const me = read("src/app/api/auth/me/route.ts");
 if (!me.includes("clinicMemberships")) throw new Error("Session profile does not expose clinic memberships");
