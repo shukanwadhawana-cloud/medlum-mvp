@@ -5,12 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiGetPatients, apiGetAppointments, apiGetInvoices, apiGetEncounters, apiAddPatient, apiUpdateAppointmentStatus } from "@/lib/api";
+import { apiGetPatients, apiGetAppointments, apiGetInvoices, apiGetEncounters, apiGetPrescriptions, apiGetLabOrders, apiGetDiagnostics, apiGetBloodBank, apiAddPatient, apiUpdateAppointmentStatus } from "@/lib/api";
 
-type Patient = { id: string; name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string };
+type Patient = { id: string; name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string; notes?: string; careSetting?: "OPD" | "IPD" };
 type Appointment = { id: string; patientId: string; patientName: string; date: string; time: string; type: string; status: string };
-type Encounter = { id: string; patientId: string; date: string; followUpDate?: string | null };
-
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function DashboardPage() {
@@ -18,111 +16,76 @@ export default function DashboardPage() {
   const { doctor, loading: authLoading } = useDoctor();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [appts, setAppts] = useState<Appointment[]>([]);
-  const [encounters, setEncounters] = useState<Encounter[]>([]);
+  const [encounters, setEncounters] = useState<any[]>([]);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [labs, setLabs] = useState<any[]>([]);
+  const [diagnostics, setDiagnostics] = useState<any[]>([]);
+  const [bloodRequests, setBloodRequests] = useState<any[]>([]);
   const [pendingAmt, setPendingAmt] = useState(0);
+  const [mode, setMode] = useState<"OPD" | "IPD">("OPD");
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "" });
+  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "", careSetting: "OPD" });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [dataLoading, setDataLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const [pts, appointments, invs, ens] = await Promise.all([apiGetPatients(), apiGetAppointments(), apiGetInvoices(), apiGetEncounters()]);
-    setPatients(pts as Patient[]);
-    setAppts(appointments as Appointment[]);
+    const [pts, appointments, invs, ens, rx, labOrders, diagOrders, blood] = await Promise.all([apiGetPatients(), apiGetAppointments(), apiGetInvoices(), apiGetEncounters(), apiGetPrescriptions(), apiGetLabOrders(), apiGetDiagnostics(), apiGetBloodBank()]);
+    setPatients(pts as Patient[]); setAppts(appointments as Appointment[]); setEncounters(ens as any[]); setPrescriptions(rx as any[]); setLabs(labOrders as any[]); setDiagnostics(diagOrders as any[]); setBloodRequests((blood as any)?.requests || []);
     setPendingAmt((invs as any[]).filter((i) => i.status !== "Paid").reduce((s, i) => s + (Number(i.amount) || 0), 0));
-    setEncounters(ens as Encounter[]);
     setDataLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!doctor) { router.replace("/login"); return; }
-    reload();
-  }, [doctor, authLoading, router, reload]);
+  useEffect(() => { if (authLoading) return; if (!doctor) { router.replace("/login"); return; } reload(); }, [doctor, authLoading, router, reload]);
 
-  const todaysAppts = useMemo(() => appts.filter((a) => a.date === today()).sort((a, b) => a.time.localeCompare(b.time)), [appts]);
+  const todaysAppts = useMemo(() => appts.filter((a) => a.date === today() && !/ipd/i.test(a.type || "")).sort((a, b) => a.time.localeCompare(b.time)), [appts]);
   const completedToday = todaysAppts.filter((a) => a.status === "Completed").length;
   const waiting = todaysAppts.filter((a) => a.status === "Waiting");
   const upcomingToday = todaysAppts.filter((a) => a.status === "Scheduled");
-  const followUps = useMemo(() => {
-    const t = today();
-    return encounters.filter((e) => e.followUpDate && e.followUpDate >= t).sort((a, b) => String(a.followUpDate).localeCompare(String(b.followUpDate))).slice(0, 8);
-  }, [encounters]);
-  const overdueFollowUps = useMemo(() => encounters.filter((e) => e.followUpDate && e.followUpDate < today()).length, [encounters]);
-  const filteredPatients = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return patients.slice(0, 12);
-    return patients.filter((p) => p.name.toLowerCase().includes(q) || p.phone.includes(q)).slice(0, 20);
-  }, [patients, search]);
+  const opdPatients = useMemo(() => patients.filter((p) => (p.careSetting || "OPD") === "OPD"), [patients]);
+  const ipdPatients = useMemo(() => patients.filter((p) => p.careSetting === "IPD" || appts.some((a) => a.patientId === p.id && /ipd/i.test(a.type || ""))), [patients, appts]);
+  const ipdRows = useMemo(() => ipdPatients.map((p) => {
+    const ens = encounters.filter((e) => e.patientId === p.id).sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime());
+    const rx = prescriptions.filter((r) => r.patientId === p.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const pendingLabs = labs.filter((l) => l.patientId === p.id && !/resulted|completed/i.test(l.status || ""));
+    const pendingDiag = diagnostics.filter((d) => d.patientId === p.id && !/reported|completed/i.test(d.status || ""));
+    const blood = bloodRequests.filter((r) => r.patientId === p.id && !/fulfilled|completed|cancelled/i.test(r.status || ""));
+    const emergency = (p.notes || "").match(/Diagnosis:\s*([^\n]+)/i)?.[1] || ens[0]?.diagnosis || "—";
+    return { p, latest: ens[0], medicines: rx[0]?.medicines || "—", diagnosis: emergency, pendingLabs, pendingDiag, blood, appointment: appts.find((a) => a.patientId === p.id && /ipd/i.test(a.type || "")) };
+  }), [ipdPatients, encounters, prescriptions, labs, diagnostics, bloodRequests, appts]);
 
-  const setStatus = async (id: string, status: string) => {
-    const r = await apiUpdateAppointmentStatus(id, status);
-    if (r.success) await reload();
-    else setError(r.error || "Could not update appointment");
-  };
-
+  const setStatus = async (id: string, status: string) => { const r = await apiUpdateAppointmentStatus(id, status); if (r.success) await reload(); else setError(r.error || "Could not update appointment"); };
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault(); setError(""); setSaving(true);
     try {
-      const result = await apiAddPatient({ name: form.name.trim(), age: parseInt(form.age, 10) || 0, gender: form.gender, phone: form.phone.trim(), bp: form.bp.trim(), allergies: form.allergies.trim(), notes: form.notes.trim() });
-      if (result.success) { await reload(); setShowAdd(false); setForm({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "" }); setMessage("Patient saved"); setTimeout(() => setMessage(""), 2500); }
-      else setError(result.error || "Could not save patient");
-    } catch { setError("Network error — try again"); }
-    finally { setSaving(false); }
+      const result = await apiAddPatient({ name: form.name.trim(), age: parseInt(form.age, 10) || 0, gender: form.gender, phone: form.phone.trim(), bp: form.bp.trim(), allergies: form.allergies.trim(), notes: form.notes.trim(), careSetting: form.careSetting });
+      if (result.success) { await reload(); setShowAdd(false); setForm({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", notes: "", careSetting: "OPD" }); setMessage(`${form.careSetting} patient saved`); setTimeout(() => setMessage(""), 2500); } else setError(result.error || "Could not save patient");
+    } catch { setError("Network error — try again"); } finally { setSaving(false); }
   };
 
   if (authLoading || !doctor) return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading...</div>;
+  const displayPatients = mode === "IPD" ? ipdRows : opdPatients;
 
-  return (
-    <AppShell>
-      <div className="flex items-center justify-between mb-4 gap-2">
-        <div><h2 className="text-lg font-semibold">Dashboard</h2><p className="text-xs text-gray-500">Welcome, {doctor.name}</p></div>
-        <button type="button" onClick={() => { setError(""); setShowAdd(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">+ Patient</button>
-      </div>
-      {message && <div className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{message}</div>}
+  return <AppShell>
+    <div className="flex items-center justify-between mb-3 gap-2"><div><h2 className="text-lg font-semibold">Dashboard</h2><p className="text-xs text-gray-500">{mode === "IPD" ? "Inpatient / hospital view" : "Outpatient / clinic view"} · Welcome, {doctor.name}</p></div><button type="button" onClick={() => { setError(""); setForm((f) => ({ ...f, careSetting: mode })); setShowAdd(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">+ {mode} Patient</button></div>
+    <div className="inline-flex p-1 bg-gray-100 rounded-xl mb-4"><button type="button" onClick={() => setMode("OPD")} className={`px-5 py-2 rounded-lg text-sm font-semibold ${mode === "OPD" ? "bg-white shadow-sm text-[#c2183a]" : "text-gray-500"}`}>OPD</button><button type="button" onClick={() => setMode("IPD")} className={`px-5 py-2 rounded-lg text-sm font-semibold ${mode === "IPD" ? "bg-white shadow-sm text-[#c2183a]" : "text-gray-500"}`}>IPD</button></div>
+    {message && <div className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{message}</div>}
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Today’s OPD</p><p className="text-xl font-bold text-[#c2183a] mt-1">{dataLoading ? "…" : todaysAppts.length}</p></div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Completed</p><p className="text-xl font-bold mt-1">{dataLoading ? "…" : completedToday}</p></div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Waiting</p><p className="text-xl font-bold mt-1">{dataLoading ? "…" : waiting.length}</p></div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Pending Bills</p><p className="text-xl font-bold mt-1">{dataLoading ? "…" : `₹${pendingAmt}`}</p></div>
-      </div>
+    {mode === "OPD" ? <>
+      <div className="grid grid-cols-2 gap-3 mb-4"><Stat label="Today’s OPD" value={dataLoading ? "…" : todaysAppts.length} accent /><Stat label="Completed" value={dataLoading ? "…" : completedToday} /><Stat label="Waiting" value={dataLoading ? "…" : waiting.length} /><Stat label="Pending Bills" value={dataLoading ? "…" : `₹${pendingAmt}`} /></div>
+      <section className="bg-white rounded-xl shadow-sm border overflow-hidden mb-3"><div className="px-3 py-2 border-b flex items-center justify-between"><div><h3 className="font-semibold text-sm">Today’s OPD Queue</h3><p className="text-[11px] text-gray-400">{upcomingToday.length} scheduled · {waiting.length} waiting</p></div><Link href="/appointments" className="text-xs text-[#c2183a] font-medium">Full schedule</Link></div>{dataLoading ? <div className="p-5 text-center text-gray-400 text-sm">Loading queue…</div> : todaysAppts.length === 0 ? <div className="p-5 text-center text-gray-500 text-sm">No OPD appointments today.</div> : <div className="divide-y">{todaysAppts.map((a) => <div key={a.id} className="px-3 py-2.5 flex items-center justify-between gap-2"><div className="min-w-0"><p className="font-medium text-sm truncate">{a.patientName}</p><p className="text-xs text-gray-500">{a.time} · {a.type} · {a.status}</p></div><div className="flex gap-2 shrink-0">{a.status === "Scheduled" && <button type="button" onClick={() => setStatus(a.id, "Waiting")} className="text-xs text-amber-700 font-medium">Check in</button>}{(a.status === "Scheduled" || a.status === "Waiting") && <Link href={`/patients/${a.patientId}?appointmentId=${a.id}`} className="text-xs text-[#c2183a] font-medium">Start</Link>}{a.status === "Completed" && <Link href={`/patients/${a.patientId}`} className="text-xs text-gray-600">View</Link>}</div></div>)}</div>}</section>
+      <section className="bg-white rounded-xl shadow-sm border overflow-hidden"><div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">OPD Patients</h3></div><div className="p-3"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or phone" className="w-full h-10 px-3 rounded-lg border text-sm"/><div className="mt-2 divide-y">{opdPatients.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.phone.includes(search)).slice(0, 20).map((p) => <Link key={p.id} href={`/patients/${p.id}`} className="block py-2"><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p></Link>)}</div></div></section>
+    </> : <>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4"><Stat label="Current IPD" value={dataLoading ? "…" : ipdRows.length} accent /><Stat label="Pending labs" value={dataLoading ? "…" : ipdRows.reduce((n, r) => n + r.pendingLabs.length, 0)} /><Stat label="Pending diagnostics" value={dataLoading ? "…" : ipdRows.reduce((n, r) => n + r.pendingDiag.length, 0)} /><Stat label="Blood requests" value={dataLoading ? "…" : ipdRows.reduce((n, r) => n + r.blood.length, 0)} /></div>
+      <section className="bg-white rounded-xl shadow-sm border overflow-hidden"><div className="px-3 py-3 border-b"><h3 className="font-semibold">IPD Census & Clinical Dashboard</h3><p className="text-xs text-gray-500 mt-0.5">Bedside-focused view: identity, allergy, diagnosis, investigations, medication and blood requirement.</p></div>{dataLoading ? <div className="p-6 text-center text-gray-400">Loading IPD census…</div> : ipdRows.length === 0 ? <div className="p-8 text-center text-gray-500"><p className="font-medium">No IPD patients yet.</p><p className="text-xs mt-1">Add a patient as IPD to start the inpatient workflow.</p></div> : <div className="overflow-x-auto"><table className="min-w-[1100px] w-full text-xs"><thead className="bg-gray-50"><tr>{["Patient / ID","Location","Allergy","Diagnosis","Investigations","Current medication","Blood","Actions"].map((h) => <th key={h} className="text-left px-3 py-2 font-semibold text-gray-600">{h}</th>)}</tr></thead><tbody className="divide-y">{ipdRows.map((r) => <tr key={r.p.id} className="align-top"><td className="px-3 py-3"><Link href={`/patients/${r.p.id}`} className="font-semibold text-[#c2183a]">{r.p.name}</Link><p className="text-[10px] text-gray-400 mt-1">ID: {r.p.id}</p><p className="text-[10px] text-gray-500">{r.p.age} yrs · {r.p.gender}</p></td><td className="px-3 py-3">{r.appointment?.type || "IPD"}</td><td className="px-3 py-3">{r.p.allergies ? <span className="text-red-700 font-medium">⚠ {r.p.allergies}</span> : "No allergy recorded"}</td><td className="px-3 py-3 max-w-[190px]">{r.diagnosis}</td><td className="px-3 py-3"><p>{r.pendingLabs.length ? `${r.pendingLabs.length} lab order(s) pending` : "No pending labs"}</p><p>{r.pendingDiag.length ? `${r.pendingDiag.length} diagnostic study/studies pending` : "No pending diagnostics"}</p></td><td className="px-3 py-3 max-w-[220px] whitespace-pre-wrap">{r.medicines}</td><td className="px-3 py-3">{r.blood.length ? <span className="font-semibold">{r.blood.map((b) => `${b.bloodGroup || "Group ?"} · ${b.component || "Component"} · ${b.unitsRequested || 1}U`).join(", ")}</span> : "Not required / none recorded"}</td><td className="px-3 py-3"><div className="flex flex-col gap-2"><Link href={`/patients/${r.p.id}`} className="text-[#c2183a] font-medium">Open chart</Link><Link href={`/patients/${r.p.id}/label`} className="text-gray-600">BRADMA label</Link></div></td></tr>)}</tbody></table></div>}</section>
+      <div className="mt-3 grid md:grid-cols-3 gap-3"><Info title="Consultant / RMO / Nursing notes" text="IPD charting will use dedicated note categories as the inpatient workflow is expanded; the dashboard already reserves the clinical handoff space."/><Info title="Critical support" text="Allergies, pending laboratory/diagnostic work and blood requests are surfaced at census level."/><Info title="Emergency context" text="Open the patient chart from the census for the detailed emergency/critical-care record."/></div>
+    </>}
 
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden mb-3">
-        <div className="px-3 py-2 border-b flex items-center justify-between"><div><h3 className="font-semibold text-sm">Today’s OPD</h3><p className="text-[11px] text-gray-400">Queue · {upcomingToday.length} scheduled · {waiting.length} waiting</p></div><Link href="/appointments" className="text-xs text-[#c2183a] font-medium">Full schedule</Link></div>
-        {dataLoading ? <div className="p-5 text-center text-gray-400 text-sm">Loading queue…</div> : todaysAppts.length === 0 ? <div className="p-5 text-center text-gray-500 text-sm">No appointments today.</div> : <div className="divide-y">{todaysAppts.map((a) => (
-          <div key={a.id} className="px-3 py-2.5 flex items-center justify-between gap-2">
-            <div className="min-w-0"><p className="font-medium text-sm truncate">{a.patientName}</p><p className="text-xs text-gray-500">{a.time} · {a.type} · <span className={a.status === "Waiting" ? "text-amber-600" : a.status === "Completed" ? "text-green-600" : ""}>{a.status}</span></p></div>
-            <div className="flex items-center gap-2 shrink-0">
-              {a.status === "Scheduled" && <button type="button" onClick={() => setStatus(a.id, "Waiting")} className="text-xs text-amber-700 font-medium">Check in</button>}
-              {(a.status === "Scheduled" || a.status === "Waiting") && <Link href={`/patients/${a.patientId}?appointmentId=${a.id}`} className="text-xs text-[#c2183a] font-medium">Start</Link>}
-              {a.status === "Completed" && <Link href={`/patients/${a.patientId}`} className="text-xs text-gray-600">View</Link>}
-            </div>
-          </div>
-        ))}</div>}
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden mb-3">
-        <div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">Find Patient</h3></div>
-        <div className="p-3"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or phone" className="w-full h-10 px-3 rounded-lg border text-sm" />
-          <div className="mt-2 divide-y">{filteredPatients.map((p) => <Link key={p.id} href={`/patients/${p.id}`} className="block py-2 hover:bg-gray-50"><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p></Link>)}{filteredPatients.length === 0 && <p className="py-3 text-center text-xs text-gray-400">No matching patient.</p>}</div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden mb-3">
-        <div className="px-3 py-2 border-b flex justify-between"><h3 className="font-semibold text-sm">Follow-ups</h3><span className="text-[11px] text-gray-400">{overdueFollowUps} overdue</span></div>
-        {followUps.length === 0 ? <div className="p-4 text-center text-xs text-gray-400">No upcoming follow-ups.</div> : <div className="divide-y">{followUps.map((e) => { const p = patients.find((x) => x.id === e.patientId); return <Link key={e.id} href={`/patients/${e.patientId}`} className="block px-3 py-2"><p className="text-sm font-medium">{p?.name || "Patient"}</p><p className="text-xs text-gray-500">Follow-up: {e.followUpDate}</p></Link>; })}</div>}
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">My Patients</h3></div>
-        {dataLoading ? <div className="p-6 text-center text-gray-400 text-sm">Loading patients…</div> : patients.length === 0 ? <div className="p-6 text-center text-gray-500 text-sm">No patients yet. Tap <b>+ Patient</b>.</div> : <div className="divide-y">{patients.map((p) => <Link key={p.id} href={`/patients/${p.id}`} className="px-3 py-2.5 block hover:bg-gray-50"><p className="font-medium text-sm text-[#1a1a1f]">{p.name}</p><p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>{(p.bp || p.allergies) && <p className="text-xs text-gray-500 mt-0.5">{p.bp ? `BP: ${p.bp}` : ""}{p.bp && p.allergies ? " · " : ""}{p.allergies ? `Allergies: ${p.allergies}` : ""}</p>}</Link>)}</div>}
-      </div>
-
-      {showAdd && <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-3"><div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl max-h-[90vh] overflow-y-auto"><h3 className="text-base font-semibold mb-3">Add Patient</h3>{error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}<form onSubmit={handleAddPatient} className="space-y-2.5"><input required placeholder="Full name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" /><div className="grid grid-cols-2 gap-2"><input type="number" required placeholder="Age *" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" /><select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"><option>Male</option><option>Female</option><option>Other</option></select></div><input required placeholder="Phone *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" /><input placeholder="BP" value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" /><input placeholder="Allergies" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" /><div className="flex gap-2 pt-1"><button type="button" disabled={saving} onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button><button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Save Patient"}</button></div></form></div></div>}
-    </AppShell>
-  );
+    {showAdd && <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-3"><div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl max-h-[90vh] overflow-y-auto"><h3 className="text-base font-semibold mb-3">Add Patient</h3>{error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}<form onSubmit={handleAddPatient} className="space-y-2.5"><label className="block text-xs font-medium text-gray-600">Care setting<select value={form.careSetting} onChange={(e) => setForm({ ...form, careSetting: e.target.value })} className="mt-1 w-full h-11 px-3 rounded-lg border text-sm"><option value="OPD">OPD — Outpatient</option><option value="IPD">IPD — Inpatient</option></select></label><input required placeholder="Full name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"/><div className="grid grid-cols-2 gap-2"><input type="number" required placeholder="Age *" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"/><select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"><option>Male</option><option>Female</option><option>Other</option></select></div><input required placeholder="Phone *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"/><input placeholder="BP" value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"/><input placeholder="Allergies" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"/><textarea placeholder="Clinical notes / diagnosis context" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full min-h-20 p-3 rounded-lg border text-sm"/><div className="flex gap-2 pt-1"><button type="button" disabled={saving} onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button><button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Save Patient"}</button></div></form></div></div>}
+  </AppShell>;
 }
+
+function Stat({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) { return <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">{label}</p><p className={`text-xl font-bold mt-1 ${accent ? "text-[#c2183a]" : ""}`}>{value}</p></div>; }
+function Info({ title, text }: { title: string; text: string }) { return <div className="bg-white rounded-xl border p-3"><p className="font-semibold text-sm">{title}</p><p className="text-xs text-gray-500 mt-1">{text}</p></div>; }
