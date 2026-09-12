@@ -39,7 +39,7 @@ if (!middleware.includes("req.headers.get(\"origin\")")) throw new Error("Cross-
 if (!middleware.includes("x-forwarded-host") || !middleware.includes("x-forwarded-proto")) {
   throw new Error("Reverse-proxy-aware origin validation missing");
 }
-if (!middleware.includes("getTrustedOrigins") || !middleware.includes("forwardedHost") || !middleware.includes("origins.has(origin)")) {
+if (!middleware.includes("getTrustedOrigins") || !middleware.includes("forwardedHost") || !middleware.includes("getTrustedOrigins(req).has(origin)")) {
   throw new Error("External Render origin must be validated for state-changing API requests");
 }
 
