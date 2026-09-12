@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: medlum-mvp
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /login
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
