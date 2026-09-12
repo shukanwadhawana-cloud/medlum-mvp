@@ -12,7 +12,9 @@ export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 const TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
   Scheduled: ["Confirmed", "Waiting", "Cancelled"],
   Confirmed: ["Waiting", "Cancelled"],
-  Waiting: ["In Consultation", "Cancelled"],
+  // Direct completion remains supported for the existing one-click OPD workflow;
+  // video/clinical sessions can use the explicit In Consultation state first.
+  Waiting: ["In Consultation", "Completed", "Cancelled"],
   "In Consultation": ["Completed"],
   Completed: [],
   Cancelled: [],
