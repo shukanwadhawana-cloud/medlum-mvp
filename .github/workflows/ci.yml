@@ -30,6 +30,9 @@ jobs:
       - name: Verify production security
         run: npm run test:production-security
 
+      - name: Verify pilot readiness
+        run: npm run test:pilot-readiness
+
       - name: Verify EKA ABDM onboarding
         run: npm run test:eka
 
