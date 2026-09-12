@@ -23,6 +23,14 @@ export type SessionPayload = {
   email: string;
 };
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: MAX_AGE,
+};
+
 export async function createSession(payload: SessionPayload): Promise<void> {
   const token = await new SignJWT({ doctorId: payload.doctorId, email: payload.email })
     .setProtectedHeader({ alg: "HS256" })
@@ -31,13 +39,7 @@ export async function createSession(payload: SessionPayload): Promise<void> {
     .sign(getSecret());
 
   const jar = await cookies();
-  jar.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: MAX_AGE,
-  });
+  jar.set(COOKIE_NAME, token, cookieOptions);
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
@@ -50,8 +52,6 @@ export async function getSession(): Promise<SessionPayload | null> {
     const email = payload.email as string | undefined;
     if (!doctorId || !email) return null;
 
-    // Re-check account state on every authenticated request so an existing
-    // session cannot continue operating after the doctor is deactivated.
     const doctor = await prisma.doctor.findUnique({
       where: { id: doctorId },
       select: { isActive: true, email: true },
@@ -66,11 +66,5 @@ export async function getSession(): Promise<SessionPayload | null> {
 
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
-  jar.set(COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  jar.set(COOKIE_NAME, "", { ...cookieOptions, maxAge: 0 });
 }
