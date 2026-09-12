@@ -1,4 +1,4 @@
-// MedLum — PostgreSQL schema (clinical encounters, labs and pharmacy)
+// MedLum — PostgreSQL schema (clinical encounters, labs, pharmacy and diagnostics)
 
 generator client {
   provider = "prisma-client-js"
@@ -18,7 +18,6 @@ model Doctor {
   phone        String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
   patients       Patient[]
   appointments   Appointment[]
   prescriptions  Prescription[]
@@ -27,6 +26,7 @@ model Doctor {
   labOrders      LabOrder[]
   pharmacyItems  PharmacyItem[]
   dispensings    Dispensing[]
+  diagnosticOrders DiagnosticOrder[]
   auditLogs      AuditLog[]
 }
 
@@ -42,7 +42,6 @@ model Patient {
   notes     String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   doctor         Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   appointments   Appointment[]
   prescriptions  Prescription[]
@@ -50,7 +49,7 @@ model Patient {
   encounters     Encounter[]
   labOrders      LabOrder[]
   dispensings    Dispensing[]
-
+  diagnosticOrders DiagnosticOrder[]
   @@index([doctorId])
 }
 
@@ -65,11 +64,9 @@ model Appointment {
   status      String   @default("Scheduled")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   doctor     Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient    Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
   encounters Encounter[]
-
   @@index([doctorId])
   @@index([patientId])
 }
@@ -94,13 +91,12 @@ model Encounter {
   height         String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
   doctor        Doctor         @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   prescriptions Prescription[]
   labOrders     LabOrder[]
-
+  diagnosticOrders DiagnosticOrder[]
   @@index([doctorId])
   @@index([patientId])
   @@index([appointmentId])
@@ -116,12 +112,10 @@ model Prescription {
   advice      String   @default("")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   doctor      Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   encounter   Encounter?   @relation(fields: [encounterId], references: [id], onDelete: SetNull)
   dispensings Dispensing[]
-
   @@index([doctorId])
   @@index([patientId])
   @@index([encounterId])
@@ -137,10 +131,8 @@ model Invoice {
   note        String   @default("")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   doctor  Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
   @@index([doctorId])
 }
 
@@ -159,11 +151,9 @@ model LabOrder {
   resultedAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
   doctor    Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
   encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
-
   @@index([doctorId])
   @@index([patientId])
   @@index([encounterId])
@@ -183,9 +173,7 @@ model PharmacyItem {
   unit         String   @default("units")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
   doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-
   @@index([doctorId])
   @@index([name])
 }
@@ -201,15 +189,42 @@ model Dispensing {
   dispensedAt    DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-
   doctor       Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
   patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
-
   @@index([doctorId])
   @@index([patientId])
   @@index([prescriptionId])
   @@index([status])
+}
+
+model DiagnosticOrder {
+  id          String    @id @default(cuid())
+  doctorId    String
+  patientId   String
+  encounterId String?
+  patientName String
+  studyName   String
+  modality    String    @default("Other")
+  bodyPart    String    @default("")
+  indication  String    @default("")
+  status      String    @default("Ordered")
+  findings    String    @default("")
+  impression  String    @default("")
+  notes       String    @default("")
+  orderedAt   DateTime  @default(now())
+  performedAt DateTime?
+  reportedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  doctor    Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient   Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  encounter Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  @@index([doctorId])
+  @@index([patientId])
+  @@index([encounterId])
+  @@index([status])
+  @@index([modality])
 }
 
 model AuditLog {
@@ -220,9 +235,7 @@ model AuditLog {
   entityId  String?
   meta      String   @default("{}")
   createdAt DateTime @default(now())
-
   doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
-
   @@index([doctorId])
   @@index([createdAt])
 }
