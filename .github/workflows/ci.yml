@@ -24,6 +24,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
