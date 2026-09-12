@@ -47,3 +47,6 @@ export async function apiCreateInsurancePolicy(data:any){const res=await fetch("
 export async function apiUpdateInsurancePolicy(data:any){const res=await fetch("/api/insurance",{...opts,method:"PATCH",body:JSON.stringify({action:"policy",...data})});return json<any>(res)}
 export async function apiCreateInsuranceClaim(data:any){const res=await fetch("/api/insurance",{...opts,method:"POST",body:JSON.stringify({action:"claim",...data})});return json<any>(res)}
 export async function apiUpdateInsuranceClaim(data:any){const res=await fetch("/api/insurance",{...opts,method:"PATCH",body:JSON.stringify({action:"claim",...data})});return json<any>(res)}
+export async function apiGetEmergencyCases(){try{const res=await fetch("/api/emergency",{credentials:"include",cache:"no-store"});if(!res.ok)return[];return(await json<{cases:any[]}>(res)).cases||[]}catch{return[]}}
+export async function apiCreateEmergencyCase(data:any){const res=await fetch("/api/emergency",{...opts,method:"POST",body:JSON.stringify(data)});return json<any>(res)}
+export async function apiUpdateEmergencyCase(data:any){const res=await fetch("/api/emergency",{...opts,method:"PATCH",body:JSON.stringify(data)});return json<any>(res)}
