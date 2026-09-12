@@ -32,7 +32,8 @@ export async function POST(req: Request) {
     const patient = await getSharedPatient(patientId, session.doctorId);
     if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
     if (encounterId) {
-      const enc = await prisma.encounter.findFirst({ where: { id: encounterId, patientId } });
+      // Preserve consultant ownership of clinical events even though patients are shared.
+      const enc = await prisma.encounter.findFirst({ where: { id: encounterId, patientId, doctorId: session.doctorId } });
       if (!enc) return NextResponse.json({ success: false, error: "Encounter not found" }, { status: 404 });
     }
     const rx = await prisma.prescription.create({ data: { doctorId: session.doctorId, patientId, patientName: patient.name, encounterId, medicines, advice } });
