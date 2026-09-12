@@ -15,58 +15,42 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - name: Install dependencies
         run: npm install --include=dev --ignore-scripts
-
       - name: Generate Prisma client
         run: npx prisma generate
-
       - name: Verify production security
         run: npm run test:production-security
-
       - name: Verify pilot readiness
         run: npm run test:pilot-readiness
-
+      - name: Verify OPD and IPD pilot UI
+        run: npm run test:ipd-pilot-ui
       - name: Verify EKA ABDM onboarding
         run: npm run test:eka
-
       - name: Verify MedLum data architecture
         run: npm run test:data-architecture
-
       - name: Verify data retention protections
         run: npm run test:data-retention
-
       - name: Verify soft deactivation protections
         run: npm run test:soft-deactivation
-
       - name: Verify API authentication coverage
         run: npm run test:api-auth-coverage
-
       - name: Verify telemedicine foundation
         run: npm run test:telemedicine
-
       - name: Verify video consultation layer
         run: npm run test:video-consultation
-
       - name: Verify responsive UI and PWA hardening
         run: npm run test:responsive-ui
-
       - name: Verify Android and iOS packaging configuration
         run: npm run test:mobile-packaging
-
       - name: Verify Windows macOS Linux packaging configuration
         run: npm run test:desktop-packaging
-
       - name: Verify multi-device and role workflows
         run: npm run test:multi-device-role-workflow
-
-      # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
