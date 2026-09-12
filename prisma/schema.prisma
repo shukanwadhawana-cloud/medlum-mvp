@@ -33,8 +33,8 @@ model ClinicMember {
   role String @default("Consultant")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic Clinic @relation(fields:[clinicId], references:[id], onDelete:Cascade)
-  doctor Doctor @relation(fields:[doctorId], references:[id], onDelete:Cascade)
+  clinic Clinic @relation(fields:[clinicId], references:[id], onDelete:Restrict)
+  doctor Doctor @relation(fields:[doctorId], references:[id], onDelete:Restrict)
   @@unique([clinicId,doctorId])
   @@index([clinicId])
   @@index([doctorId])
@@ -76,7 +76,7 @@ model Patient {
   notes String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:SetNull)
   appointments Appointment[]
   prescriptions Prescription[]
@@ -105,7 +105,7 @@ model Appointment {
   status String @default("Scheduled")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   encounters Encounter[]
   @@index([doctorId])
@@ -132,7 +132,7 @@ model Encounter {
   height String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   appointment Appointment? @relation(fields:[appointmentId],references:[id],onDelete:SetNull)
   prescriptions Prescription[]
@@ -153,7 +153,7 @@ model Prescription {
   advice String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   encounter Encounter? @relation(fields:[encounterId],references:[id],onDelete:SetNull)
   dispensings Dispensing[]
@@ -178,7 +178,7 @@ model Invoice {
   dueDate DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:SetNull)
   items InvoiceItem[]
@@ -214,7 +214,7 @@ model Payment {
   note String?
   createdAt DateTime @default(now())
   invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   @@index([invoiceId])
   @@index([doctorId])
@@ -236,7 +236,7 @@ model LabOrder {
   resultedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   encounter Encounter? @relation(fields:[encounterId],references:[id],onDelete:SetNull)
   @@index([doctorId])
@@ -258,7 +258,7 @@ model PharmacyItem {
   unit String @default("units")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   @@index([doctorId])
   @@index([name])
 }
@@ -274,7 +274,7 @@ model Dispensing {
   dispensedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   prescription Prescription @relation(fields:[prescriptionId],references:[id],onDelete:Cascade)
   @@index([doctorId])
@@ -302,7 +302,7 @@ model DiagnosticOrder {
   reportedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Cascade)
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   encounter Encounter? @relation(fields:[encounterId],references:[id],onDelete:SetNull)
   @@index([doctorId])
@@ -326,7 +326,7 @@ model BloodInventory {
   notes String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   requests BloodRequest[]
   @@index([clinicId])
   @@index([bloodGroup])
@@ -347,7 +347,7 @@ model BloodDonor {
   notes String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   @@index([clinicId])
   @@index([bloodGroup])
   @@index([status])
@@ -371,7 +371,7 @@ model BloodRequest {
   fulfilledAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   inventory BloodInventory? @relation(fields:[inventoryId],references:[id],onDelete:SetNull)
   @@index([clinicId])
@@ -396,7 +396,7 @@ model InsuranceProvider {
   status String @default("Active")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   policies InsurancePolicy[]
   @@index([clinicId])
   @@index([name])
@@ -420,7 +420,7 @@ model InsurancePolicy {
   notes String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   provider InsuranceProvider @relation(fields:[providerId],references:[id],onDelete:Cascade)
   claims InsuranceClaim[]
@@ -451,7 +451,7 @@ model InsuranceClaim {
   notes String @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Cascade)
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
   policy InsurancePolicy @relation(fields:[policyId],references:[id],onDelete:Cascade)
   invoice Invoice? @relation(fields:[invoiceId],references:[id],onDelete:SetNull)
