@@ -14,7 +14,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
       scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
       startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
-      patient: { select: { id: true, name: true, phone: true } },
     },
   });
   if (!item) return NextResponse.json({ success: false, error: "Telemedicine session not found." }, { status: 404 });
