@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:eka": "node scripts/verify-eka-onboarding.mjs",
+    "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"
