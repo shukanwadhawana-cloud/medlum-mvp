@@ -32,7 +32,8 @@ export async function POST(req: Request) {
   if (!patient) return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   let validEncounterId: string | null = null;
   if (encounterId) {
-    const encounter = await prisma.encounter.findFirst({ where: { id: String(encounterId), patientId: patient.id } });
+    // Shared patients are readable across consultants, but a new order may only link to the creator's encounter.
+    const encounter = await prisma.encounter.findFirst({ where: { id: String(encounterId), patientId: patient.id, doctorId: session.doctorId } });
     if (!encounter) return NextResponse.json({ error: "Encounter not found" }, { status: 404 });
     validEncounterId = encounter.id;
   }
