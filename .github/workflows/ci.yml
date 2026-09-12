@@ -57,6 +57,9 @@ jobs:
       - name: Verify Windows macOS Linux packaging configuration
         run: npm run test:desktop-packaging
 
+      - name: Verify multi-device and role workflows
+        run: npm run test:multi-device-role-workflow
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
