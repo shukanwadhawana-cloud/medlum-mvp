@@ -8,8 +8,8 @@ import { apiAddPatient, apiAddPrescriptionWithEncounter, apiCreateEncounter, api
 
 type Patient = { id: string; name: string; age: number; gender: string; phone: string; allergies?: string; bp?: string };
 type Field = "chiefComplaint" | "clinicalNotes" | "diagnosis" | "assessment" | "plan" | "medicines" | "advice";
-
-type SpeechRecognitionCtor = new () => { lang: string; continuous: boolean; interimResults: boolean; onresult: ((event: any) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
+type SpeechRecognitionInstance = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((event: any) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
 
 function parseScan(text: string) {
   const clean = text.replace(/\s+/g, " ").trim();
@@ -40,7 +40,7 @@ export default function ClinicalAssistPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const recognitionRef = useRef<ReturnType<SpeechRecognitionCtor> | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", medicines: "", advice: "" });
 
   useEffect(() => { apiGetPatients().then((x) => setPatients(x as Patient[])); }, []);
@@ -68,7 +68,7 @@ export default function ClinicalAssistPage() {
 
   function toggleVoice(field: Field) {
     if (voiceField === field) { recognitionRef.current?.stop(); setVoiceField(null); setVoiceStatus(""); return; }
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition as SpeechRecognitionCtor | undefined;
+    const SR = (window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor }).SpeechRecognition || (window as Window & { webkitSpeechRecognition?: SpeechRecognitionCtor }).webkitSpeechRecognition;
     if (!SR) { setVoiceStatus("Voice dictation is not supported by this browser. Try Safari/Chrome on the phone."); return; }
     const r = new SR(); r.lang = "en-IN"; r.continuous = true; r.interimResults = true;
     r.onresult = (event:any) => { let text=""; for(let i=event.resultIndex;i<event.results.length;i++) text += event.results[i][0].transcript; setForm(f=>({...f,[field]:`${f[field] ? f[field]+" " : ""}${text}`.trim()})); };
