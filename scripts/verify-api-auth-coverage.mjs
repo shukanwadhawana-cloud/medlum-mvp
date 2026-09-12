@@ -7,6 +7,7 @@ const SPECIAL_CASES = new Set([
   "public/booking/route.ts", "portal/auth/login/route.ts", "portal/auth/logout/route.ts",
   "portal/auth/reset/route.ts", "portal/auth/me/route.ts",
   "interoperability/eka/webhooks/route.ts",
+  "telemedicine/join/route.ts",
 ]);
 
 async function routeFiles(dir) {
