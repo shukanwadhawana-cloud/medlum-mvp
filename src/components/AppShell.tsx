@@ -8,6 +8,7 @@ const nav = [
   { href: "/dashboard", label: "Home" },
   { href: "/patients", label: "Patients" },
   { href: "/appointments", label: "Appts" },
+  { href: "/emergency", label: "Emergency" },
   { href: "/labs", label: "Labs" },
   { href: "/diagnostics", label: "Diagnostics" },
   { href: "/pharmacy", label: "Pharmacy" },
