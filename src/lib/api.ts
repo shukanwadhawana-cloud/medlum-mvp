@@ -1,53 +1,35 @@
 /** MedLum API client — cookies + PostgreSQL */
 
 export type ApiDoctor = { id: string; name: string; email: string; clinicName: string; phone: string; createdAt: string };
-
-const opts: RequestInit = { credentials: "include", headers: { "Content-Type": "application/json" } };
-
-async function json<T>(res: Response): Promise<T> { return (await res.json().catch(() => ({}))) as T; }
-export async function apiSignup(data: { name: string; email: string; password: string; clinicName: string; phone: string }) { const res = await fetch("/api/auth/signup", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res); }
-export async function apiLogin(email: string, password: string) { const res = await fetch("/api/auth/login", { ...opts, method: "POST", body: JSON.stringify({ email, password }) }); return json<{ success: boolean; error?: string; doctor?: ApiDoctor }>(res); }
-export async function apiLogout() { await fetch("/api/auth/logout", { ...opts, method: "POST" }); }
-export async function apiMe() { try { const res = await fetch("/api/auth/me", { credentials: "include" }); if (!res.ok) return { success: false as const, doctor: null }; return json<{ success: boolean; doctor: ApiDoctor | null }>(res); } catch { return { success: false as const, doctor: null }; } }
-export async function apiGetPatients() { try { const res = await fetch("/api/patients", { credentials: "include" }); if (!res.ok) return []; return (await json<{ patients: any[] }>(res)).patients || []; } catch { return []; } }
-export async function apiAddPatient(data: { name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string; notes?: string }) { const res = await fetch("/api/patients", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; patient?: any }>(res); }
-export async function apiGetAppointments() { try { const res = await fetch("/api/appointments", { credentials: "include" }); if (!res.ok) return []; return (await json<{ appointments: any[] }>(res)).appointments || []; } catch { return []; } }
-export async function apiAddAppointment(data: { patientId: string; patientName: string; date: string; time: string; type: string }) { const res = await fetch("/api/appointments", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
-export async function apiUpdateAppointmentStatus(id: string, status: string) { const res = await fetch("/api/appointments", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) }); return json<{ success: boolean; error?: string }>(res); }
-export async function apiGetPrescriptions() { try { const res = await fetch("/api/prescriptions", { credentials: "include" }); if (!res.ok) return []; return (await json<{ prescriptions: any[] }>(res)).prescriptions || []; } catch { return []; } }
-export async function apiAddPrescription(data: { patientId: string; patientName: string; medicines: string; advice: string }) { const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
-export async function apiGetInvoices() { try { const res = await fetch("/api/invoices", { credentials: "include" }); if (!res.ok) return []; return (await json<{ invoices: any[] }>(res)).invoices || []; } catch { return []; } }
-export async function apiAddInvoice(data: { patientId: string; patientName: string; amount: number; note?: string }) { const res = await fetch("/api/invoices", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
-export async function apiUpdateInvoiceStatus(id: string, status: string) { const res = await fetch("/api/invoices", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) }); return json<{ success: boolean; error?: string }>(res); }
-
-export async function apiGetPatientDetail(id: string) {
-  let lastError = "Unable to load patient record";
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = await fetch(`/api/patients/${id}`, { credentials: "include", cache: "no-store" });
-      if (res.ok) return json<any>(res);
-      const body = await json<{ error?: string }>(res);
-      lastError = body.error || (res.status === 401 ? "Your session has expired. Please log in again." : res.status === 404 ? "Patient record not found." : `Could not load patient record (${res.status}).`);
-      if (res.status === 404) break;
-    } catch {
-      lastError = "Network error while loading patient record. Please try again.";
-    }
-    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
-  }
-  throw new Error(lastError);
-}
-
-export async function apiGetEncounters(patientId?: string) { const q = patientId ? `?patientId=${encodeURIComponent(patientId)}` : ""; const res = await fetch(`/api/encounters${q}`, { credentials: "include" }); if (!res.ok) return []; return (await json<{ encounters: any[] }>(res)).encounters || []; }
-export async function apiCreateEncounter(data: Record<string, unknown>) { const res = await fetch("/api/encounters", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; encounter?: any }>(res); }
-export async function apiAddPrescriptionWithEncounter(data: { patientId: string; patientName: string; medicines: string; advice: string; encounterId?: string }) { const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
-export async function apiGetLabOrders(patientId?: string) { try { const q = patientId ? `?patientId=${encodeURIComponent(patientId)}` : ""; const res = await fetch(`/api/labs${q}`, { credentials: "include" }); if (!res.ok) return []; return (await json<{ orders: any[] }>(res)).orders || []; } catch { return []; } }
-export async function apiCreateLabOrder(data: { patientId: string; testName: string; category?: string; notes?: string; encounterId?: string }) { const res = await fetch("/api/labs", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; order?: any }>(res); }
-export async function apiUpdateLabOrder(data: { id: string; status: string; result?: string; notes?: string }) { const res = await fetch("/api/labs", { ...opts, method: "PATCH", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; order?: any }>(res); }
-export async function apiGetPharmacy() { try { const res = await fetch("/api/pharmacy", { credentials: "include" }); if (!res.ok) return { items: [], prescriptions: [], dispensings: [] }; return json<{ items: any[]; prescriptions: any[]; dispensings: any[] }>(res); } catch { return { items: [], prescriptions: [], dispensings: [] }; } }
-export async function apiAddPharmacyItem(data: { name: string; genericName?: string; form?: string; batchNumber?: string; expiryDate?: string; quantity?: number; reorderLevel?: number; unit?: string }) { const res = await fetch("/api/pharmacy", { ...opts, method: "POST", body: JSON.stringify({ action: "inventory", ...data }) }); return json<{ success: boolean; error?: string; item?: any }>(res); }
-export async function apiUpdatePharmacyItem(data: { id: string; quantity?: number; reorderLevel?: number }) { const res = await fetch("/api/pharmacy", { ...opts, method: "PATCH", body: JSON.stringify({ action: "inventory", ...data }) }); return json<{ success: boolean; error?: string; item?: any }>(res); }
-export async function apiCreateDispensing(prescriptionId: string) { const res = await fetch("/api/pharmacy", { ...opts, method: "POST", body: JSON.stringify({ action: "dispense", prescriptionId }) }); return json<{ success: boolean; error?: string; dispensing?: any }>(res); }
-export async function apiUpdateDispensing(id: string, status: string) { const res = await fetch("/api/pharmacy", { ...opts, method: "PATCH", body: JSON.stringify({ action: "dispensing", id, status }) }); return json<{ success: boolean; error?: string; dispensing?: any }>(res); }
-export async function apiGetDiagnostics(patientId?: string) { try { const q = patientId ? `?patientId=${encodeURIComponent(patientId)}` : ""; const res = await fetch(`/api/diagnostics${q}`, { credentials: "include" }); if (!res.ok) return []; return (await json<{ orders: any[] }>(res)).orders || []; } catch { return []; } }
-export async function apiCreateDiagnosticOrder(data: { patientId: string; studyName: string; modality?: string; bodyPart?: string; indication?: string; notes?: string; encounterId?: string }) { const res = await fetch("/api/diagnostics", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; order?: any }>(res); }
-export async function apiUpdateDiagnosticOrder(data: { id: string; status?: string; findings?: string; impression?: string; notes?: string }) { const res = await fetch("/api/diagnostics", { ...opts, method: "PATCH", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; order?: any }>(res); }
+const opts: RequestInit = { credentials:"include", headers:{"Content-Type":"application/json"} };
+async function json<T>(res:Response):Promise<T>{return(await res.json().catch(()=>({}))) as T;}
+export async function apiSignup(data:{name:string;email:string;password:string;clinicName:string;phone:string}){const res=await fetch("/api/auth/signup",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string;doctor?:ApiDoctor}>(res);}
+export async function apiLogin(email:string,password:string){const res=await fetch("/api/auth/login",{...opts,method:"POST",body:JSON.stringify({email,password})});return json<{success:boolean;error?:string;doctor?:ApiDoctor}>(res);}
+export async function apiLogout(){await fetch("/api/auth/logout",{...opts,method:"POST"});}
+export async function apiMe(){try{const res=await fetch("/api/auth/me",{credentials:"include"});if(!res.ok)return{success:false as const,doctor:null};return json<{success:boolean;doctor:ApiDoctor|null}>(res)}catch{return{success:false as const,doctor:null}}}
+export async function apiGetPatients(){try{const res=await fetch("/api/patients",{credentials:"include"});if(!res.ok)return[];return(await json<{patients:any[]}>(res)).patients||[]}catch{return[]}}
+export async function apiAddPatient(data:any){const res=await fetch("/api/patients",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string;patient?:any}>(res)}
+export async function apiGetAppointments(){try{const res=await fetch("/api/appointments",{credentials:"include"});if(!res.ok)return[];return(await json<{appointments:any[]}>(res)).appointments||[]}catch{return[]}}
+export async function apiAddAppointment(data:any){const res=await fetch("/api/appointments",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string}>(res)}
+export async function apiUpdateAppointmentStatus(id:string,status:string){const res=await fetch("/api/appointments",{...opts,method:"PATCH",body:JSON.stringify({id,status})});return json<{success:boolean;error?:string}>(res)}
+export async function apiGetPrescriptions(){try{const res=await fetch("/api/prescriptions",{credentials:"include"});if(!res.ok)return[];return(await json<{prescriptions:any[]}>(res)).prescriptions||[]}catch{return[]}}
+export async function apiAddPrescription(data:any){const res=await fetch("/api/prescriptions",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string}>(res)}
+export async function apiAddPrescriptionWithEncounter(data:any){const res=await fetch("/api/prescriptions",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string}>(res)}
+export async function apiGetInvoices(){try{const res=await fetch("/api/invoices",{credentials:"include",cache:"no-store"});if(!res.ok)return[];return(await json<{invoices:any[]}>(res)).invoices||[]}catch{return[]}}
+export async function apiAddInvoice(data:{patientId:string;items:{description:string;category:string;quantity:number;unitPrice:number}[];discount?:number;tax?:number;note?:string;dueDate?:string}){const res=await fetch("/api/invoices",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string;invoice?:any}>(res)}
+export async function apiAddInvoicePayment(data:{id:string;amount:number;method:string;reference?:string;note?:string;paidAt?:string}){const res=await fetch("/api/invoices",{...opts,method:"PATCH",body:JSON.stringify({action:"payment",...data})});return json<{success:boolean;error?:string;invoice?:any;payment?:any}>(res)}
+export async function apiUpdateInvoiceStatus(id:string,status:string){const res=await fetch("/api/invoices",{...opts,method:"PATCH",body:JSON.stringify({action:"status",id,status})});return json<{success:boolean;error?:string;invoice?:any}>(res)}
+export async function apiGetPatientDetail(id:string){let lastError="Unable to load patient record";for(let attempt=0;attempt<3;attempt++){try{const res=await fetch(`/api/patients/${id}`,{credentials:"include",cache:"no-store"});if(res.ok)return json<any>(res);const body=await json<{error?:string}>(res);lastError=body.error||(res.status===401?"Your session has expired. Please log in again.":res.status===404?"Patient record not found.":`Could not load patient record (${res.status}).`);if(res.status===404)break}catch{lastError="Network error while loading patient record. Please try again."}if(attempt<2)await new Promise(r=>setTimeout(r,400*(attempt+1)))}throw new Error(lastError)}
+export async function apiGetEncounters(patientId?:string){const q=patientId?`?patientId=${encodeURIComponent(patientId)}`:"";const res=await fetch(`/api/encounters${q}`,{credentials:"include"});if(!res.ok)return[];return(await json<{encounters:any[]}>(res)).encounters||[]}
+export async function apiCreateEncounter(data:any){const res=await fetch("/api/encounters",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string;encounter?:any}>(res)}
+export async function apiGetLabOrders(patientId?:string){try{const q=patientId?`?patientId=${encodeURIComponent(patientId)}`:"";const res=await fetch(`/api/labs${q}`,{credentials:"include"});if(!res.ok)return[];return(await json<{orders:any[]}>(res)).orders||[]}catch{return[]}}
+export async function apiCreateLabOrder(data:any){const res=await fetch("/api/labs",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string;order?:any}>(res)}
+export async function apiUpdateLabOrder(data:any){const res=await fetch("/api/labs",{...opts,method:"PATCH",body:JSON.stringify(data)});return json<{success:boolean;error?:string;order?:any}>(res)}
+export async function apiGetPharmacy(){try{const res=await fetch("/api/pharmacy",{credentials:"include"});if(!res.ok)return{items:[],prescriptions:[],dispensings:[]};return json<any>(res)}catch{return{items:[],prescriptions:[],dispensings:[]}}}
+export async function apiAddPharmacyItem(data:any){const res=await fetch("/api/pharmacy",{...opts,method:"POST",body:JSON.stringify({action:"inventory",...data})});return json<any>(res)}
+export async function apiUpdatePharmacyItem(data:any){const res=await fetch("/api/pharmacy",{...opts,method:"PATCH",body:JSON.stringify({action:"inventory",...data})});return json<any>(res)}
+export async function apiCreateDispensing(prescriptionId:string){const res=await fetch("/api/pharmacy",{...opts,method:"POST",body:JSON.stringify({action:"dispense",prescriptionId})});return json<any>(res)}
+export async function apiUpdateDispensing(id:string,status:string){const res=await fetch("/api/pharmacy",{...opts,method:"PATCH",body:JSON.stringify({action:"dispensing",id,status})});return json<any>(res)}
+export async function apiGetDiagnostics(patientId?:string){try{const q=patientId?`?patientId=${encodeURIComponent(patientId)}`:"";const res=await fetch(`/api/diagnostics${q}`,{credentials:"include"});if(!res.ok)return[];return(await json<{orders:any[]}>(res)).orders||[]}catch{return[]}}
+export async function apiCreateDiagnosticOrder(data:any){const res=await fetch("/api/diagnostics",{...opts,method:"POST",body:JSON.stringify(data)});return json<any>(res)}
+export async function apiUpdateDiagnosticOrder(data:any){const res=await fetch("/api/diagnostics",{...opts,method:"PATCH",body:JSON.stringify(data)});return json<any>(res)}
