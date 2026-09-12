@@ -10,6 +10,7 @@
     "test:eka": "node scripts/verify-eka-onboarding.mjs",
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "test:data-retention": "node scripts/verify-data-retention-protection.mjs",
+    "test:soft-deactivation": "node scripts/verify-soft-deactivation.mjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"
