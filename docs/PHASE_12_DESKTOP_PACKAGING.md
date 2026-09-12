@@ -30,3 +30,7 @@ The workflow requires the GitHub repository variable `MEDLUM_APP_URL` to contain
 ## Important distinction
 
 The main CI green check proves the packaging configuration and source-level contract. The separate Desktop Packaging workflow is the native build that produces the actual Windows/macOS/Linux installer artifacts. macOS signing/notarization and Windows code signing require platform credentials and are intentionally not fabricated in this phase.
+
+## Verification note
+
+The documentation file is intentionally part of the desktop packaging verification contract. It must be present in the same commit as the verifier so a clean GitHub Actions checkout can validate the complete Phase 12 contract.
