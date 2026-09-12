@@ -28,9 +28,7 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
 
 const nav = [
   { href: "/patients", label: "Patients", icon: "patients" },
-  { href: "/clinical-assist", label: "AI Assist", icon: "ai" },
   { href: "/appointments", label: "Appts", icon: "calendar" },
-  { href: "/telemedicine", label: "Video", icon: "video" },
   { href: "/emergency", label: "Emergency", icon: "emergency" },
   { href: "/labs", label: "Labs", icon: "labs" },
   { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics" },
@@ -41,6 +39,8 @@ const nav = [
   { href: "/prescriptions", label: "Rx", icon: "rx" },
   { href: "/billing", label: "Billing", icon: "billing" },
   { href: "/clinic", label: "Clinic", icon: "clinic" },
+  { href: "/clinical-assist", label: "AI Assist", icon: "ai" },
+  { href: "/telemedicine", label: "Video", icon: "video" },
 ];
 
 const isActive = (pathname: string, href: string) => pathname === href || (href === "/patients" && pathname.startsWith("/patients/")) || (href === "/telemedicine" && pathname.startsWith("/telemedicine"));
@@ -53,27 +53,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <header className="bg-[#140a1f] text-white sticky top-0 z-40 shadow-sm">
         <div className="mx-auto w-full max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="h-12 sm:h-14 flex items-center gap-3">
-            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-base sm:text-lg shrink-0" aria-label="MedLum dashboard">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15"><Icon name="brand" size={17} /></span>
-              <span>MedLum</span>
-            </Link>
-            <nav aria-label="Primary navigation" className="hidden md:flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">
-              {nav.map((item) => <Link key={item.href} href={item.href} prefetch title={item.label} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors ${isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70 hover:text-white hover:bg-white/10"}`}><Icon name={item.icon} size={14} /><span>{item.label}</span></Link>)}
-            </nav>
-            <div className="hidden md:block shrink-0"><button type="button" onClick={() => logout()} title="Logout" className="inline-flex items-center gap-1.5 text-xs text-red-300 hover:text-red-200 px-1 py-2"><Icon name="logout" size={14} /><span>Logout</span></button></div>
-            <nav aria-label="Mobile navigation" className="md:hidden flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none overscroll-x-contain">
-              {nav.map((item) => <Link key={item.href} href={item.href} prefetch title={item.label} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0 ${isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70"}`}><Icon name={item.icon} size={14} /><span>{item.label}</span></Link>)}
-              <button type="button" onClick={() => logout()} title="Logout" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0 text-red-300"><Icon name="logout" size={14} /><span>Logout</span></button>
-            </nav>
+            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-base sm:text-lg shrink-0" aria-label="MedLum dashboard"><span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15"><Icon name="brand" size={17} /></span><span>MedLum</span></Link>
+            <nav aria-label="Primary navigation" className="hidden md:flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">{nav.map((item) => <Link key={item.href} href={item.href} prefetch title={item.label} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors ${isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70 hover:text-white hover:bg-white/10"}`}><Icon name={item.icon} size={14}/><span>{item.label}</span></Link>)}</nav>
+            <div className="hidden md:block shrink-0"><button type="button" onClick={() => logout()} title="Logout" className="inline-flex items-center gap-1.5 text-xs text-red-300 hover:text-red-200 px-1 py-2"><Icon name="logout" size={14}/><span>Logout</span></button></div>
+            <nav aria-label="Mobile navigation" className="md:hidden flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none overscroll-x-contain">{nav.map((item) => <Link key={item.href} href={item.href} prefetch title={item.label} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0 ${isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70"}`}><Icon name={item.icon} size={14}/><span>{item.label}</span></Link>)}<button type="button" onClick={() => logout()} title="Logout" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0 text-red-300"><Icon name="logout" size={14}/><span>Logout</span></button></nav>
           </div>
         </div>
       </header>
       <main className="flex-1 min-w-0 px-3 py-4 sm:px-4 sm:py-5 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 md:pb-6">{children}</main>
-      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom">
-        <nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-4">
-          {[nav[0], nav[2], nav[3], nav[1]].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>)}
-        </nav>
-      </div>
+      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom"><nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-4">{[nav[0], nav[1], nav[2], nav[nav.length - 1]].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span>{item.label}</span></Link>)}</nav></div>
     </div>
   );
 }
