@@ -4,72 +4,13 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { appointmentTransitionError } from "@/lib/workflow";
 
-async function getClinicId(doctorId: string) {
-  const membership = await prisma.clinicMember.findFirst({ where: { doctorId, isActive: true }, select: { clinicId: true } });
-  return membership?.clinicId || null;
-}
-
-async function getSharedPatient(patientId: string, doctorId: string) {
-  const clinicId = await getClinicId(doctorId);
-  return prisma.patient.findFirst({ where: clinicId ? { id: patientId, OR: [{ clinicId }, { doctorId }] } : { id: patientId, doctorId } });
-}
-
-async function getScopedAppointment(id: string, doctorId: string) {
-  const clinicId = await getClinicId(doctorId);
-  return clinicId
-    ? prisma.appointment.findFirst({ where: { id, doctor: { clinicMemberships: { some: { clinicId, isActive: true } } } } })
-    : prisma.appointment.findFirst({ where: { id, doctorId } });
-}
-
-export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const clinicId = await getClinicId(session.doctorId);
-  const appointments = clinicId
-    ? await prisma.appointment.findMany({ where: { doctor: { clinicMemberships: { some: { clinicId, isActive: true } } } }, orderBy: [{ date: "asc" }, { time: "asc" }] })
-    : await prisma.appointment.findMany({ where: { doctorId: session.doctorId }, orderBy: [{ date: "asc" }, { time: "asc" }] });
-  return NextResponse.json({ appointments }, { headers: { "Cache-Control": "no-store" } });
-}
-
-export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  try {
-    const body = await req.json();
-    const patientId = String(body.patientId || "");
-    const patientName = String(body.patientName || "");
-    const date = String(body.date || "");
-    const time = String(body.time || "");
-    const type = String(body.type || "Consultation");
-    if (!patientId || !date || !time) return NextResponse.json({ success: false, error: "Missing fields" }, { status: 400 });
-    const patient = await getSharedPatient(patientId, session.doctorId);
-    if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
-    const appt = await prisma.appointment.create({ data: { doctorId: session.doctorId, patientId, patientName: patientName || patient.name, date, time, type, status: "Scheduled" } });
-    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Appointment", entityId: appt.id });
-    return NextResponse.json({ success: true, appointment: appt });
-  } catch (e) {
-    console.error("create appt", e);
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
-  }
-}
-
-export async function PATCH(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  try {
-    const body = await req.json();
-    const id = String(body.id || "");
-    const status = String(body.status || "");
-    if (!id || !status) return NextResponse.json({ success: false, error: "id and status required" }, { status: 400 });
-    const existing = await getScopedAppointment(id, session.doctorId);
-    if (!existing) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
-    const transitionError = appointmentTransitionError(existing.status, status);
-    if (transitionError) return NextResponse.json({ success: false, error: transitionError }, { status: 409 });
-    const updated = await prisma.appointment.update({ where: { id }, data: { status } });
-    await writeAudit({ doctorId: session.doctorId, action: "update_status", entity: "Appointment", entityId: id, meta: { from: existing.status, to: status } });
-    return NextResponse.json({ success: true, appointment: updated });
-  } catch (e) {
-    console.error("patch appt", e);
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
-  }
-}
+const APPT_MARKER="__MEDLUM_CONSULTANT__";
+function encodeType(type:string,name:string,specialty:string){return `${type.replace(/\|/g,"/")}|${APPT_MARKER}|name=${name.replace(/[|\n]/g," ")}|specialty=${specialty.replace(/[|\n]/g," ")}`}
+function serialize(a:any){const parts=String(a.type||"").split(`|${APPT_MARKER}|`),type=parts[0]||a.type;const meta=Object.fromEntries(String(parts[1]||"").split("|").filter(Boolean).map((x:string)=>{const i=x.indexOf("=");return i>0?[x.slice(0,i),x.slice(i+1)]:[x,""]}));return {...a,type,consultantName:meta.name||a.doctor?.name||"",consultantSpecialty:meta.specialty||""}}
+async function getClinicId(doctorId:string){const membership=await prisma.clinicMember.findFirst({where:{doctorId,isActive:true},select:{clinicId:true}});return membership?.clinicId||null;}
+async function getSharedPatient(patientId:string,doctorId:string){const clinicId=await getClinicId(doctorId);return prisma.patient.findFirst({where:clinicId?{id:patientId,OR:[{clinicId},{doctorId}]}:{id:patientId,doctorId}})}
+async function getScopedAppointment(id:string,doctorId:string){const clinicId=await getClinicId(doctorId);return clinicId?prisma.appointment.findFirst({where:{id,doctor:{clinicMemberships:{some:{clinicId,isActive:true}}}}}):prisma.appointment.findFirst({where:{id,doctorId}})}
+export async function GET(){const session=await getSession();if(!session)return NextResponse.json({error:"Unauthorized"},{status:401});const clinicId=await getClinicId(session.doctorId);const appointments=clinicId?await prisma.appointment.findMany({where:{doctor:{clinicMemberships:{some:{clinicId,isActive:true}}}},orderBy:[{date:"asc"},{time:"asc"}],include:{doctor:{select:{name:true}}}}):await prisma.appointment.findMany({where:{doctorId:session.doctorId},orderBy:[{date:"asc"},{time:"asc"}],include:{doctor:{select:{name:true}}}});return NextResponse.json({appointments:appointments.map(serialize)},{headers:{"Cache-Control":"no-store"}})}
+export async function POST(req:Request){const session=await getSession();if(!session)return NextResponse.json({error:"Unauthorized"},{status:401});try{const body=await req.json(),patientId=String(body.patientId||""),patientName=String(body.patientName||""),date=String(body.date||""),time=String(body.time||""),type=String(body.type||"Consultation"),consultantName=String(body.consultantName||"").trim(),consultantSpecialty=String(body.consultantSpecialty||"").trim();if(!patientId||!date||!time)return NextResponse.json({success:false,error:"Missing fields"},{status:400});const patient=await getSharedPatient(patientId,session.doctorId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const appt=await prisma.appointment.create({data:{doctorId:session.doctorId,patientId,patientName:patientName||patient.name,date,time,type:encodeType(type,consultantName,specialtyOrEmpty(consultantSpecialty)),status:"Scheduled"}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"Appointment",entityId:appt.id,meta:{consultantName,consultantSpecialty}});return NextResponse.json({success:true,appointment:serialize(appt)})}catch(e){console.error("create appt",e);return NextResponse.json({success:false,error:"Server error"},{status:500})}}
+function specialtyOrEmpty(value:string){return value}
+export async function PATCH(req:Request){const session=await getSession();if(!session)return NextResponse.json({error:"Unauthorized"},{status:401});try{const body=await req.json(),id=String(body.id||""),status=String(body.status||"");if(!id||!status)return NextResponse.json({success:false,error:"id and status required"},{status:400});const existing=await getScopedAppointment(id,session.doctorId);if(!existing)return NextResponse.json({success:false,error:"Not found"},{status:404});const transitionError=appointmentTransitionError(existing.status,status);if(transitionError)return NextResponse.json({success:false,error:transitionError},{status:409});const updated=await prisma.appointment.update({where:{id},data:{status}});await writeAudit({doctorId:session.doctorId,action:"update_status",entity:"Appointment",entityId:id,meta:{from:existing.status,to:status}});return NextResponse.json({success:true,appointment:updated})}catch(e){console.error("patch appt",e);return NextResponse.json({success:false,error:"Server error"},{status:500})}}
