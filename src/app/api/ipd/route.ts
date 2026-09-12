@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { cleanPatientNotes, encodePatientNotes, parsePatientProfile } from "@/lib/patient-metadata";
+import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 
 async function getClinicId(doctorId:string){return (await prisma.clinicMember.findFirst({where:{doctorId,isActive:true},select:{clinicId:true}}))?.clinicId||null;}
 function metaOf(log:any){try{return typeof log.meta==="string"?JSON.parse(log.meta||"{}"):log.meta||{}}catch{return{}}}
@@ -14,7 +14,7 @@ export async function GET(){
  const patients=await prisma.patient.findMany({where:{doctorId:{in:doctorIds}},orderBy:{createdAt:"desc"}});const logs=await prisma.auditLog.findMany({where:{doctorId:{in:doctorIds},entity:{in:["HospitalRoom","ClinicalNote","NursingVital"]}},orderBy:{createdAt:"desc"},take:2000});
  const roomsMap=new Map<string,any>(),notesMap=new Map<string,any[]>(),vitalsMap=new Map<string,any[]>();
  for(const l of logs){const m=metaOf(l);if(l.entity==="HospitalRoom"&&m.roomNumber&&!roomsMap.has(String(m.roomNumber)))roomsMap.set(String(m.roomNumber),{id:l.entityId||String(m.roomNumber),...m});if(l.entity==="ClinicalNote"&&l.entityId){const a=notesMap.get(l.entityId)||[];a.push({id:l.id,...m,createdAt:l.createdAt.toISOString()});notesMap.set(l.entityId,a)}if(l.entity==="NursingVital"&&l.entityId){const a=vitalsMap.get(l.entityId)||[];a.push({id:l.id,...m,createdAt:l.createdAt.toISOString()});vitalsMap.set(l.entityId,a)}}
- const ipd=patients.filter(p=>parsePatientProfile(p.notes).careSetting==="IPD").map(p=>{const profile=parsePatientProfile(p.notes),vs=vitalsMap.get(p.id)||[],latest=vs[0];return {id:p.id,name:p.name,age:p.age,gender:p.gender,phone:p.phone,bp:p.bp,allergies:p.allergies,notes:cleanPatientNotes(p.notes),...profile,vitals:latest?{...latest,abnormal:abnormalVitals(latest)}:null,clinicalNotes:notesMap.get(p.id)||[]}});
+ const ipd=patients.filter(p=>parseCareSetting(p.notes)==="IPD").map(p=>{const profile=parsePatientProfile(p.notes),vs=vitalsMap.get(p.id)||[],latest=vs[0];return {id:p.id,name:p.name,age:p.age,gender:p.gender,phone:p.phone,bp:p.bp,allergies:p.allergies,notes:cleanPatientNotes(p.notes),...profile,vitals:latest?{...latest,abnormal:abnormalVitals(latest)}:null,clinicalNotes:notesMap.get(p.id)||[]}});
  const rooms=[...roomsMap.values()].map(r=>({...r,occupied:ipd.some(p=>p.roomNumber===r.roomNumber),patientName:ipd.find(p=>p.roomNumber===r.roomNumber)?.name||null}));
  return NextResponse.json({patients:ipd,rooms},{headers:{"Cache-Control":"no-store"}});
 }
