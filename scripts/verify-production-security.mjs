@@ -35,7 +35,13 @@ if (!middleware.includes("Strict-Transport-Security") || !middleware.includes("N
   throw new Error("Production HSTS protection missing");
 }
 if (!middleware.includes('pathname.startsWith("/api/")')) throw new Error("API origin protection missing");
-if (!middleware.includes("origin !== req.nextUrl.origin")) throw new Error("Cross-origin state-changing request check missing");
+if (!middleware.includes("req.headers.get(\"origin\")")) throw new Error("Cross-origin state-changing request check missing");
+if (!middleware.includes("x-forwarded-host") || !middleware.includes("x-forwarded-proto")) {
+  throw new Error("Reverse-proxy-aware origin validation missing");
+}
+if (!middleware.includes("expectedOrigin") || !middleware.includes("origin !== expectedOrigin")) {
+  throw new Error("External Render origin must be validated for state-changing API requests");
+}
 
 for (const token of ["httpOnly: true", "secure: process.env.NODE_ENV === \"production\"", "sameSite: \"lax\"", "maxAge: MAX_AGE"]) {
   if (!session.includes(token)) throw new Error(`Session cookie hardening missing: ${token}`);
@@ -51,6 +57,7 @@ if (env.includes("NEXT_PUBLIC_EKA_CLIENT_SECRET") || env.includes("NEXT_PUBLIC_E
 console.log("Phase 14 production security verification passed.");
 console.log("- Security headers and production HSTS");
 console.log("- Cross-origin protection for state-changing API requests");
+console.log("- Reverse-proxy-aware Render origin validation");
 console.log("- HttpOnly/Secure/SameSite session cookie hardening");
 console.log("- 32+ character production SESSION_SECRET requirement");
 console.log("- Server-only EKA secret configuration");
