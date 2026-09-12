@@ -13,6 +13,7 @@ const nav = [
   { href: "/pharmacy", label: "Pharmacy" },
   { href: "/prescriptions", label: "Rx" },
   { href: "/billing", label: "Billing" },
+  { href: "/clinic", label: "Clinic" },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
