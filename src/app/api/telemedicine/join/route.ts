@@ -12,8 +12,6 @@ export async function GET(req: Request) {
       id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
       scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
       startedAt: true, endedAt: true,
-      doctor: { select: { name: true, clinicName: true } },
-      patient: { select: { name: true } },
     },
   });
 
@@ -40,8 +38,6 @@ export async function GET(req: Request) {
       meetingUrl: session.meetingUrl,
       startedAt: session.startedAt,
       endedAt: session.endedAt,
-      doctor: session.doctor,
-      patient: session.patient,
     },
   });
 }
