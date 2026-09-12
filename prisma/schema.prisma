@@ -77,7 +77,7 @@ model Patient {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
-  clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:SetNull)
+  clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   appointments Appointment[]
   prescriptions Prescription[]
   invoices Invoice[]
@@ -180,7 +180,7 @@ model Invoice {
   updatedAt DateTime @updatedAt
   doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
   patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
-  clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:SetNull)
+  clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:Restrict)
   items InvoiceItem[]
   payments Payment[]
   insuranceClaims InsuranceClaim[]
