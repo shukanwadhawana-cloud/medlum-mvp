@@ -16,8 +16,11 @@ async function getSharedPatient(patientId: string, doctorId: string) {
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const appointments = await prisma.appointment.findMany({ where: { doctorId: session.doctorId }, orderBy: [{ date: "asc" }, { time: "asc" }] });
-  return NextResponse.json({ appointments });
+  const clinicId = await getClinicId(session.doctorId);
+  const appointments = clinicId
+    ? await prisma.appointment.findMany({ where: { doctor: { clinicMembers: { some: { clinicId } } } }, orderBy: [{ date: "asc" }, { time: "asc" }] })
+    : await prisma.appointment.findMany({ where: { doctorId: session.doctorId }, orderBy: [{ date: "asc" }, { time: "asc" }] });
+  return NextResponse.json({ appointments }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -50,7 +53,10 @@ export async function PATCH(req: Request) {
     const id = String(body.id || "");
     const status = String(body.status || "");
     if (!id || !status) return NextResponse.json({ success: false, error: "id and status required" }, { status: 400 });
-    const existing = await prisma.appointment.findFirst({ where: { id, doctorId: session.doctorId } });
+    const clinicId = await getClinicId(session.doctorId);
+    const existing = clinicId
+      ? await prisma.appointment.findFirst({ where: { id, doctor: { clinicMembers: { some: { clinicId } } } } })
+      : await prisma.appointment.findFirst({ where: { id, doctorId: session.doctorId } });
     if (!existing) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
     const updated = await prisma.appointment.update({ where: { id }, data: { status } });
     await writeAudit({ doctorId: session.doctorId, action: "update_status", entity: "Appointment", entityId: id, meta: { status } });
