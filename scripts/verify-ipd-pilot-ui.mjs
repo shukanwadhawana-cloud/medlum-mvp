@@ -16,8 +16,9 @@ for (const token of ["OPD", "IPD", "Inpatient / hospital view", "IPD Census & Cl
 for (const token of ["careSetting", "__MEDLUM_CARE_SETTING__", "careSetting === \"IPD\""]) {
   if (!patients.includes(token)) throw new Error(`Missing patient care-setting contract: ${token}`);
 }
-for (const token of ["mode === \"OPD\"", "mode === \"IPD\"", "Separate OPD clinic reporting from IPD hospital reporting", "careSetting.counts", "careSetting.revenue"]) {
-  if (!reports.includes(token) && !reportsApi.includes(token)) throw new Error(`Missing OPD/IPD reports contract: ${token}`);
+const reportSource = `${reports}\n${reportsApi}`;
+for (const pattern of [/mode\s*===\s*["']OPD["']|setMode\(\s*["']OPD["']\s*\)/, /mode\s*===\s*["']IPD["']|setMode\(\s*["']IPD["']\s*\)/, /Separate OPD clinic reporting from IPD hospital reporting/, /careSetting\.counts/, /careSetting\.revenue/]) {
+  if (!pattern.test(reportSource)) throw new Error(`Missing OPD/IPD reports contract: ${pattern}`);
 }
 for (const token of ["PM-JAY / Ayushman Bharat", "ESIC", "Government Scheme", "Corporate / Employer", "Private Insurance"]) {
   if (!insurance.includes(token)) throw new Error(`Missing insurance/scheme contract: ${token}`);
