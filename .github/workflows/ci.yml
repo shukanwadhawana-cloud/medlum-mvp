@@ -39,6 +39,9 @@ jobs:
       - name: Verify API authentication coverage
         run: npm run test:api-auth-coverage
 
+      - name: Verify telemedicine foundation
+        run: npm run test:telemedicine
+
       # Keep CI build verification explicit; production uses Render's Docker build.
       - name: Build application
         env:
