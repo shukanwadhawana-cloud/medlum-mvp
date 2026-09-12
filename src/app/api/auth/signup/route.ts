@@ -26,8 +26,28 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await hashPassword(password);
-    const doctor = await prisma.doctor.create({
-      data: { name, email, passwordHash, clinicName, phone },
+
+    // Create doctor + primary clinic + Owner membership in one transaction so
+    // invoices, reports, and clinic-scoped patient sharing work immediately.
+    const doctor = await prisma.$transaction(async (tx) => {
+      const d = await tx.doctor.create({
+        data: { name, email, passwordHash, clinicName, phone },
+      });
+      const clinic = await tx.clinic.create({
+        data: {
+          name: clinicName,
+          isActive: true,
+        },
+      });
+      await tx.clinicMember.create({
+        data: {
+          clinicId: clinic.id,
+          doctorId: d.id,
+          role: "Owner",
+          isActive: true,
+        },
+      });
+      return d;
     });
 
     await createSession({ doctorId: doctor.id, email: doctor.email });
