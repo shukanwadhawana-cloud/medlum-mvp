@@ -1,11 +1,18 @@
 import { ekaOnboardFacility } from "./eka";
-import type { AdapterResult } from "./types";
+import type { AdapterResult, FhirResource } from "./types";
+
+type EkaFacilityOnboardResult = {
+  hip_code?: string;
+  hip_id?: string;
+  hip_name?: string;
+  scan_share_url?: string;
+};
 
 export async function onboardEkaFacility(input: {
   hipId: string;
   name: string;
   clinicId: string;
-}): Promise<AdapterResult> {
+}): Promise<AdapterResult<EkaFacilityOnboardResult>> {
   try {
     const data = await ekaOnboardFacility(input);
     return { ok: true, provider: "EKA_ABDM", data };
