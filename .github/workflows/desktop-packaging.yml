@@ -1,0 +1,106 @@
+name: MedLum Desktop Packaging
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "src/app/**"
+      - "src/components/**"
+      - ".github/workflows/desktop-packaging.yml"
+
+permissions:
+  contents: read
+
+env:
+  MEDLUM_APP_URL: ${{ vars.MEDLUM_APP_URL }}
+
+jobs:
+  verify:
+    name: Verify desktop packaging configuration
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run test:desktop-packaging
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
+          - name: Linux
+            os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Install frontend dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build web frontend
+        run: npm run build:desktop-web
+
+      - name: Configure deployed MedLum URL
+        shell: bash
+        run: |
+          if [ -z "$MEDLUM_APP_URL" ]; then
+            echo "MEDLUM_APP_URL repository variable is required for a functional desktop package."
+            echo "Set MEDLUM_APP_URL to the deployed MedLum HTTPS URL, then rerun this workflow."
+            exit 1
+          fi
+          node - <<'NODE'
+          const fs = require('fs');
+          const url = process.env.MEDLUM_APP_URL;
+          const config = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+          config.app.windows[0].url = url;
+          fs.writeFileSync('src-tauri/tauri.conf.generated.json', JSON.stringify(config, null, 2) + '\n');
+          NODE
+
+      - name: Build Tauri bundle
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: .
+          args: --config src-tauri/tauri.conf.generated.json
+
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: medlum-${{ runner.os }}-desktop
+          path: |
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.app
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: error
+          retention-days: 14
