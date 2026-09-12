@@ -32,7 +32,7 @@ for (const permission of ["clinical", "appointments", "telemedicine", "billing",
 
 const appointmentApi = read("src/app/api/appointments/route.ts");
 if (!appointmentApi.includes("appointmentTransitionError")) throw new Error("Appointment API does not enforce lifecycle transitions");
-if (!appointmentApi.includes("status: \"Scheduled\"")) throw new Error("New appointments must start Scheduled");
+if (!/status\s*:\s*[\"']Scheduled[\"']/.test(appointmentApi)) throw new Error("New appointments must start Scheduled");
 if (!appointmentApi.includes("{ status: 409 }")) throw new Error("Invalid appointment transitions must return HTTP 409");
 if (!appointmentApi.includes("isActive: true")) throw new Error("Clinic appointment scope must ignore inactive memberships");
 
