@@ -15,11 +15,17 @@
     "test:telemedicine": "node scripts/verify-telemedicine-foundation.mjs",
     "test:video-consultation": "node scripts/verify-video-consultation.mjs",
     "test:responsive-ui": "node scripts/verify-responsive-ui.mjs",
+    "test:mobile-packaging": "node scripts/verify-mobile-packaging.mjs",
+    "mobile:android": "CAPACITOR_BUILD=false npx cap sync android && npx cap open android",
+    "mobile:ios": "CAPACITOR_BUILD=false npx cap sync ios && npx cap open ios",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^2.4.3",
     "jose": "^6.0.10",
@@ -29,6 +35,7 @@
     "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
