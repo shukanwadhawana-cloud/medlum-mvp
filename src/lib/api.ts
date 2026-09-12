@@ -7,7 +7,7 @@ async function json<T>(res:Response):Promise<T>{return(await res.json().catch(()
 export async function apiSignup(data:{name:string;email:string;password:string;clinicName:string;phone:string}){const res=await fetch("/api/auth/signup",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string;doctor?:ApiDoctor}>(res);}
 export async function apiLogin(email:string,password:string){const res=await fetch("/api/auth/login",{...opts,method:"POST",body:JSON.stringify({email,password})});return json<{success:boolean;error?:string;doctor?:ApiDoctor}>(res);}
 export async function apiLogout(){await fetch("/api/auth/logout",{...opts,method:"POST"});}
-export async function apiMe(){try{const res=await fetch("/api/auth/me",{credentials:"include"});if(!res.ok)return{success:false as const,doctor:null};return json<{success:boolean;doctor:ApiDoctor|null}>(res)}catch{return{success:false as const,doctor:null}}
+export async function apiMe(){try{const res=await fetch("/api/auth/me",{credentials:"include"});if(!res.ok)return{success:false as const,doctor:null};return json<{success:boolean;doctor:ApiDoctor|null}>(res)}catch{return{success:false as const,doctor:null}}}
 export async function apiGetPatients(){try{const res=await fetch("/api/patients",{credentials:"include"});if(!res.ok)return[];return(await json<{patients:any[]}>(res)).patients||[]}catch{return[]}}
 export async function apiAddPatient(data:any){const res=await fetch("/api/patients",{...opts,method:"POST",body:JSON.stringify(data)});return json<{success:boolean;error?:string;patient?:any}>(res)}
 export async function apiGetAppointments(){try{const res=await fetch("/api/appointments",{credentials:"include"});if(!res.ok)return[];return(await json<{appointments:any[]}>(res)).appointments||[]}catch{return[]}}
@@ -40,7 +40,7 @@ export async function apiUpdateBloodInventory(data:any){const res=await fetch("/
 export async function apiCreateBloodDonor(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"POST",body:JSON.stringify({action:"donor",...data})});return json<any>(res)}
 export async function apiUpdateBloodDonor(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"PATCH",body:JSON.stringify({action:"donor",...data})});return json<any>(res)}
 export async function apiCreateBloodRequest(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"POST",body:JSON.stringify({action:"request",...data})});return json<any>(res)}
-export async function apiUpdateBloodRequest(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"PATCH",body:JSON.stringify({action:"request",...data})});return json<any>(res)}
+export async function apiUpdateBloodRequest(data:any){const res=await fetch("/api/blood-bank",{...opts,method:"PATCH",body:JSON.stringify({action:"request",id:data.id,status:data.status})});return json<any>(res)}
 export async function apiGetInsurance(){try{const res=await fetch("/api/insurance",{credentials:"include",cache:"no-store"});if(!res.ok)return{providers:[],policies:[],claims:[]};return json<any>(res)}catch{return{providers:[],policies:[],claims:[]}}}
 export async function apiCreateInsuranceProvider(data:any){const res=await fetch("/api/insurance",{...opts,method:"POST",body:JSON.stringify({action:"provider",...data})});return json<any>(res)}
 export async function apiUpdateInsuranceProvider(data:any){const res=await fetch("/api/insurance",{...opts,method:"PATCH",body:JSON.stringify({action:"provider",...data})});return json<any>(res)}
