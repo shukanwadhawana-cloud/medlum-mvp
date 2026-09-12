@@ -13,8 +13,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout exact triggering commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
