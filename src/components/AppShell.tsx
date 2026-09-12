@@ -11,6 +11,7 @@ const nav = [
   { href: "/labs", label: "Labs" },
   { href: "/diagnostics", label: "Diagnostics" },
   { href: "/pharmacy", label: "Pharmacy" },
+  { href: "/blood-bank", label: "Blood" },
   { href: "/prescriptions", label: "Rx" },
   { href: "/billing", label: "Billing" },
   { href: "/clinic", label: "Clinic" },
