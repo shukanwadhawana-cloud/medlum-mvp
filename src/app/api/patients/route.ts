@@ -3,12 +3,23 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 
+async function getClinicId(doctorId: string) {
+  const membership = await prisma.clinicMember.findFirst({
+    where: { doctorId },
+    select: { clinicId: true },
+  });
+  return membership?.clinicId || null;
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const clinicId = await getClinicId(session.doctorId);
   const patients = await prisma.patient.findMany({
-    where: { doctorId: session.doctorId },
+    where: clinicId
+      ? { clinicId }
+      : { doctorId: session.doctorId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -25,7 +36,7 @@ export async function GET() {
       notes: p.notes,
       createdAt: p.createdAt.toISOString(),
     })),
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -46,9 +57,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Name and phone required" }, { status: 400 });
     }
 
+    const clinicId = await getClinicId(session.doctorId);
     const patient = await prisma.patient.create({
       data: {
         doctorId: session.doctorId,
+        clinicId,
         name,
         age,
         gender,
