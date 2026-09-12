@@ -1,100 +1,33 @@
 "use client";
-
-import { useCallback, useEffect, useState } from "react";
+import { useCallback,useEffect,useMemo,useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiGetPatients, apiGetInvoices, apiAddInvoice, apiUpdateInvoiceStatus } from "@/lib/api";
+import { apiGetPatients,apiGetInvoices,apiAddInvoice,apiAddInvoicePayment } from "@/lib/api";
 
-type Patient = { id: string; name: string };
-type Invoice = { id: string; patientName: string; amount: number; status: string; note: string; createdAt: string };
-
-export default function BillingPage() {
-  const router = useRouter();
-  const { doctor, loading: authLoading } = useDoctor();
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [form, setForm] = useState({ patientId: "", amount: "", note: "" });
-  const [dataLoading, setDataLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    const [pts, invs] = await Promise.all([apiGetPatients(), apiGetInvoices()]);
-    setPatients(pts as Patient[]);
-    setInvoices(invs as Invoice[]);
-    setDataLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!doctor) { router.replace("/login"); return; }
-    refresh();
-  }, [doctor, authLoading, router, refresh]);
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    const p = patients.find((x) => x.id === form.patientId);
-    if (!p) { setError("Select a patient"); return; }
-    const amount = parseFloat(form.amount);
-    if (!amount || amount <= 0) { setError("Enter a valid amount"); return; }
-    setSaving(true);
-    try {
-      const r = await apiAddInvoice({ patientId: p.id, patientName: p.name, amount, note: form.note.trim() });
-      if (r.success) { await refresh(); setShowAdd(false); setForm({ patientId: "", amount: "", note: "" }); }
-      else setError(r.error || "Could not create invoice");
-    } catch { setError("Network error"); }
-    finally { setSaving(false); }
-  };
-
-  const totalPending = invoices.filter((i) => i.status !== "Paid").reduce((s, i) => s + Number(i.amount), 0);
-  const totalPaid = invoices.filter((i) => i.status === "Paid").reduce((s, i) => s + Number(i.amount), 0);
-
-  if (authLoading || !doctor) return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading...</div>;
-
-  return (
-    <AppShell>
-      <div className="flex items-center justify-between mb-4 gap-2">
-        <div><h2 className="text-lg font-semibold">Billing</h2><p className="text-xs text-gray-500">Invoices</p></div>
-        <button type="button" onClick={() => { setError(""); setShowAdd(true); }} disabled={patients.length === 0} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-40">+ Invoice</button>
-      </div>
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Pending</p><p className="text-xl font-bold text-amber-600 mt-1">{dataLoading ? "…" : `₹${totalPending}`}</p></div>
-        <div className="bg-white rounded-xl p-3 shadow-sm border"><p className="text-xs text-gray-500">Collected</p><p className="text-xl font-bold text-green-600 mt-1">{dataLoading ? "…" : `₹${totalPaid}`}</p></div>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        {dataLoading ? <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
-          : invoices.length === 0 ? <div className="p-6 text-center text-gray-500 text-sm">No invoices yet.</div>
-          : <div className="divide-y">{invoices.map((inv) => (
-            <div key={inv.id} className="px-3 py-2.5 flex justify-between gap-2 items-center">
-              <div><p className="font-medium text-sm">{inv.patientName}</p><p className="text-xs text-gray-500">{inv.note || "Fee"} · {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : ""}</p></div>
-              <div className="text-right shrink-0">
-                <p className="font-semibold text-sm">₹{inv.amount}</p>
-                <p className="text-xs">{inv.status}</p>
-                {inv.status !== "Paid" && <button type="button" onClick={async () => { await apiUpdateInvoiceStatus(inv.id, "Paid"); await refresh(); }} className="text-xs text-green-600">Mark Paid</button>}
-              </div>
-            </div>
-          ))}</div>}
-      </div>
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-3">
-          <div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl">
-            <h3 className="text-base font-semibold mb-3">Create Invoice</h3>
-            {error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
-            <form onSubmit={handleAdd} className="space-y-2.5">
-              <select required value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"><option value="">Select patient</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-              <input type="number" required min="1" step="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" placeholder="Amount ₹" />
-              <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm" placeholder="Note (optional)" />
-              <div className="flex gap-2">
-                <button type="button" disabled={saving} onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
-                <button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm disabled:opacity-60">{saving ? "Creating…" : "Create"}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </AppShell>
-  );
+type Patient={id:string;name:string};
+type Item={description:string;category:string;quantity:number;unitPrice:number};
+type Invoice={id:string;patientId:string;patientName:string;total:number;status:string;note:string;createdAt:string;items:Item[];payments:{id:string;amount:number;method:string;paidAt:string;reference?:string|null}[];paid:number;balance:number;dueDate?:string|null};
+const categories=["Consultation","Procedure","Laboratory","Diagnostic","Pharmacy","Service","Other"];
+const methods=["Cash","UPI","Card","Bank Transfer","Other"];
+const money=(n:number)=>`₹${Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
+export default function BillingPage(){
+ const router=useRouter(); const {doctor,loading:authLoading}=useDoctor();
+ const [patients,setPatients]=useState<Patient[]>([]); const [invoices,setInvoices]=useState<Invoice[]>([]); const [showAdd,setShowAdd]=useState(false); const [payFor,setPayFor]=useState<Invoice|null>(null); const [saving,setSaving]=useState(false); const [error,setError]=useState(""); const [dataLoading,setDataLoading]=useState(true); const [form,setForm]=useState({patientId:"",discount:"",tax:"",note:"",dueDate:""}); const [items,setItems]=useState<Item[]>([{description:"",category:"Consultation",quantity:1,unitPrice:0}]); const [payment,setPayment]=useState({amount:"",method:"UPI",reference:"",note:""});
+ const refresh=useCallback(async()=>{const [p,i]=await Promise.all([apiGetPatients(),apiGetInvoices()]);setPatients(p as Patient[]);setInvoices(i as Invoice[]);setDataLoading(false)},[]);
+ useEffect(()=>{if(authLoading)return;if(!doctor){router.replace("/login");return;}refresh()},[doctor,authLoading,router,refresh]);
+ const subtotal=useMemo(()=>items.reduce((s,i)=>s+(Number(i.quantity)||0)*(Number(i.unitPrice)||0),0),[items]);
+ const discount=Math.max(0,Number(form.discount)||0),tax=Math.max(0,Number(form.tax)||0),total=Math.max(0,subtotal-discount+tax);
+ const addItem=()=>setItems([...items,{description:"",category:"Service",quantity:1,unitPrice:0}]);
+ const updateItem=(idx:number,key:keyof Item,val:string|number)=>setItems(items.map((x,i)=>i===idx?{...x,[key]:val}:x));
+ const handleAdd=async(e:React.FormEvent)=>{e.preventDefault();setError("");if(!form.patientId){setError("Select a patient");return}const valid=items.filter(x=>x.description.trim()&&x.quantity>0&&x.unitPrice>=0);if(!valid.length||total<=0){setError("Add at least one billable item with a valid amount");return}setSaving(true);try{const r=await apiAddInvoice({patientId:form.patientId,items:valid,discount,tax,note:form.note.trim(),dueDate:form.dueDate||undefined});if(r.success){await refresh();setShowAdd(false);setForm({patientId:"",discount:"",tax:"",note:"",dueDate:""});setItems([{description:"",category:"Consultation",quantity:1,unitPrice:0}])}else setError(r.error||"Could not create invoice")}catch{setError("Network error")}finally{setSaving(false)}};
+ const handlePayment=async(e:React.FormEvent)=>{e.preventDefault();if(!payFor)return;setError("");const amount=Number(payment.amount);if(!amount||amount<=0||amount>payFor.balance+0.001){setError(`Enter an amount up to ${money(payFor.balance)}`);return}setSaving(true);try{const r=await apiAddInvoicePayment({id:payFor.id,amount,method:payment.method,reference:payment.reference,note:payment.note});if(r.success){await refresh();setPayFor(null);setPayment({amount:"",method:"UPI",reference:"",note:""})}else setError(r.error||"Could not record payment")}catch{setError("Network error")}finally{setSaving(false)}};
+ const pending=invoices.reduce((s,i)=>s+i.balance,0),collected=invoices.reduce((s,i)=>s+i.paid,0),today=invoices.filter(i=>new Date(i.createdAt).toDateString()===new Date().toDateString()).reduce((s,i)=>s+i.total,0);
+ if(authLoading||!doctor)return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading...</div>;
+ return <AppShell><div className="flex items-center justify-between mb-4 gap-2"><div><h2 className="text-lg font-semibold">Billing & Revenue</h2><p className="text-xs text-gray-500">Invoices, collections and outstanding dues</p></div><button onClick={()=>{setError("");setShowAdd(true)}} disabled={!patients.length} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-40">+ Invoice</button></div>
+ <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-xl p-3 border shadow-sm"><p className="text-xs text-gray-500">Today billed</p><p className="text-lg font-bold mt-1">{dataLoading?"…":money(today)}</p></div><div className="bg-white rounded-xl p-3 border shadow-sm"><p className="text-xs text-gray-500">Collected</p><p className="text-lg font-bold text-green-600 mt-1">{dataLoading?"…":money(collected)}</p></div><div className="bg-white rounded-xl p-3 border shadow-sm"><p className="text-xs text-gray-500">Outstanding</p><p className="text-lg font-bold text-amber-600 mt-1">{dataLoading?"…":money(pending)}</p></div></div>
+ <div className="bg-white rounded-xl shadow-sm border overflow-hidden">{dataLoading?<div className="p-6 text-center text-gray-400 text-sm">Loading…</div>:!invoices.length?<div className="p-6 text-center text-gray-500 text-sm">No invoices yet.</div>:<div className="divide-y">{invoices.map(inv=><div key={inv.id} className="p-3"><div className="flex justify-between gap-3"><div><button onClick={()=>router.push(`/patients/${inv.patientId}`)} className="font-medium text-sm text-left">{inv.patientName}</button><p className="text-xs text-gray-500">{inv.items.map(x=>x.description).join(" • ")} · {new Date(inv.createdAt).toLocaleDateString()}</p></div><div className="text-right"><p className="font-semibold text-sm">{money(inv.total)}</p><p className={`text-xs ${inv.balance>0?"text-amber-600":"text-green-600"}`}>{inv.status} · {inv.balance>0?`${money(inv.balance)} due`:`Paid`}</p></div></div>{inv.balance>0&&inv.status!=="Cancelled"&&<button onClick={()=>{setError("");setPayFor(inv);setPayment({...payment,amount:String(inv.balance)})}} className="mt-2 text-xs font-medium text-green-700">Record payment</button>}</div>)}</div>}</div>
+ {showAdd&&<div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-3"><div className="bg-white rounded-2xl w-full max-w-lg p-4 shadow-xl max-h-[90vh] overflow-auto"><h3 className="text-base font-semibold mb-3">Create Invoice</h3>{error&&<div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}<form onSubmit={handleAdd} className="space-y-2.5"><select required value={form.patientId} onChange={e=>setForm({...form,patientId:e.target.value})} className="w-full h-11 px-3 rounded-lg border text-sm"><option value="">Select patient</option>{patients.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select><div className="space-y-2">{items.map((it,idx)=><div key={idx} className="grid grid-cols-[1fr_80px_100px] gap-2"><input value={it.description} onChange={e=>updateItem(idx,"description",e.target.value)} className="h-10 px-2 rounded-lg border text-sm" placeholder="Service / item"/><input type="number" min="1" step="1" value={it.quantity} onChange={e=>updateItem(idx,"quantity",Number(e.target.value))} className="h-10 px-2 rounded-lg border text-sm"/><input type="number" min="0" step="0.01" value={it.unitPrice||""} onChange={e=>updateItem(idx,"unitPrice",Number(e.target.value))} className="h-10 px-2 rounded-lg border text-sm" placeholder="₹"/><select value={it.category} onChange={e=>updateItem(idx,"category",e.target.value)} className="col-span-3 h-9 px-2 rounded-lg border text-xs">{categories.map(c=><option key={c}>{c}</option>)}</select></div>)}</div><button type="button" onClick={addItem} className="text-xs text-[#c2183a] font-medium">+ Add line item</button><div className="grid grid-cols-2 gap-2"><input type="number" min="0" step="0.01" value={form.discount} onChange={e=>setForm({...form,discount:e.target.value})} className="h-10 px-3 rounded-lg border text-sm" placeholder="Discount ₹"/><input type="number" min="0" step="0.01" value={form.tax} onChange={e=>setForm({...form,tax:e.target.value})} className="h-10 px-3 rounded-lg border text-sm" placeholder="Tax ₹"/></div><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className="w-full h-10 px-3 rounded-lg border text-sm"/><input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} className="w-full h-10 px-3 rounded-lg border text-sm" placeholder="Note (optional)"/><div className="rounded-lg bg-gray-50 p-3 text-sm flex justify-between"><span>Total</span><b>{money(total)}</b></div><div className="flex gap-2"><button type="button" onClick={()=>setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button><button disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm">{saving?"Creating…":"Create invoice"}</button></div></form></div></div>}
+ {payFor&&<div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-3"><div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl"><h3 className="text-base font-semibold">Record payment</h3><p className="text-xs text-gray-500 mt-1">{payFor.patientName} · Outstanding {money(payFor.balance)}</p>{error&&<div className="my-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}<form onSubmit={handlePayment} className="space-y-2.5 mt-3"><input required type="number" min="0.01" max={payFor.balance} step="0.01" value={payment.amount} onChange={e=>setPayment({...payment,amount:e.target.value})} className="w-full h-11 px-3 rounded-lg border text-sm" placeholder="Payment amount ₹"/><select value={payment.method} onChange={e=>setPayment({...payment,method:e.target.value})} className="w-full h-11 px-3 rounded-lg border text-sm">{methods.map(m=><option key={m}>{m}</option>)}</select><input value={payment.reference} onChange={e=>setPayment({...payment,reference:e.target.value})} className="w-full h-11 px-3 rounded-lg border text-sm" placeholder="Transaction/reference (optional)"/><input value={payment.note} onChange={e=>setPayment({...payment,note:e.target.value})} className="w-full h-11 px-3 rounded-lg border text-sm" placeholder="Note (optional)"/><div className="flex gap-2"><button type="button" onClick={()=>setPayFor(null)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button><button disabled={saving} className="flex-1 h-11 rounded-lg bg-green-600 text-white text-sm">{saving?"Saving…":"Record payment"}</button></div></form></div></div>}
+ </AppShell>;
 }
