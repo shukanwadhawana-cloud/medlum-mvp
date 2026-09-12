@@ -2,21 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-
-const CARE_MARKER = /(?:^|\n)__MEDLUM_CARE_SETTING__:(OPD|IPD)\n?/;
-
-function parseCareSetting(notes: string) {
-  const match = String(notes || "").match(CARE_MARKER);
-  return match?.[1] === "IPD" ? "IPD" : "OPD";
-}
-
-function cleanNotes(notes: string) {
-  return String(notes || "").replace(CARE_MARKER, "").trim();
-}
-
-function encodeNotes(notes: string, careSetting: "OPD" | "IPD") {
-  return `__MEDLUM_CARE_SETTING__:${careSetting}\n${cleanNotes(notes)}`.trim();
-}
+import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 
 async function getClinicId(doctorId: string) {
   const membership = await prisma.clinicMember.findFirst({ where: { doctorId }, select: { clinicId: true } });
@@ -24,9 +10,12 @@ async function getClinicId(doctorId: string) {
 }
 
 function serialize(p: any) {
+  const profile = parsePatientProfile(p.notes);
   return {
     id: p.id, doctorId: p.doctorId, name: p.name, age: p.age, gender: p.gender, phone: p.phone,
-    bp: p.bp, allergies: p.allergies, notes: cleanNotes(p.notes), careSetting: parseCareSetting(p.notes), createdAt: p.createdAt.toISOString(),
+    bp: p.bp, allergies: p.allergies, notes: cleanPatientNotes(p.notes), careSetting: profile.careSetting || parseCareSetting(p.notes),
+    ...profile,
+    createdAt: p.createdAt.toISOString(),
   };
 }
 
@@ -53,8 +42,9 @@ export async function POST(req: Request) {
     const careSetting = body.careSetting === "IPD" ? "IPD" : "OPD";
     if (!name || !phone) return NextResponse.json({ success: false, error: "Name and phone required" }, { status: 400 });
     const clinicId = await getClinicId(session.doctorId);
-    const patient = await prisma.patient.create({ data: { doctorId: session.doctorId, clinicId, name, age, gender, phone, bp, allergies, notes: encodeNotes(notes, careSetting) } });
-    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Patient", entityId: patient.id, meta: { name, careSetting } });
+    const profile = body.profile && typeof body.profile === "object" ? { ...body.profile, careSetting } : { careSetting };
+    const patient = await prisma.patient.create({ data: { doctorId: session.doctorId, clinicId, name, age, gender, phone, bp, allergies, notes: encodePatientNotes(notes, careSetting, profile) } });
+    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Patient", entityId: patient.id, meta: { name, careSetting, profile } });
     return NextResponse.json({ success: true, patient: serialize(patient) });
   } catch (e) {
     console.error("create patient", e);
