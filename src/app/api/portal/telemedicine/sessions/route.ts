@@ -13,7 +13,6 @@ export async function GET() {
       id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
       scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
       startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
-      doctor: { select: { id: true, name: true, clinicName: true } },
     },
   });
 
