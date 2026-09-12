@@ -19,7 +19,24 @@ export async function apiAddPrescription(data: { patientId: string; patientName:
 export async function apiGetInvoices() { try { const res = await fetch("/api/invoices", { credentials: "include" }); if (!res.ok) return []; return (await json<{ invoices: any[] }>(res)).invoices || []; } catch { return []; } }
 export async function apiAddInvoice(data: { patientId: string; patientName: string; amount: number; note?: string }) { const res = await fetch("/api/invoices", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
 export async function apiUpdateInvoiceStatus(id: string, status: string) { const res = await fetch("/api/invoices", { ...opts, method: "PATCH", body: JSON.stringify({ id, status }) }); return json<{ success: boolean; error?: string }>(res); }
-export async function apiGetPatientDetail(id: string) { const res = await fetch(`/api/patients/${id}`, { credentials: "include" }); if (!res.ok) return null; return json<any>(res); }
+
+export async function apiGetPatientDetail(id: string) {
+  let lastError = "Unable to load patient record";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`/api/patients/${id}`, { credentials: "include", cache: "no-store" });
+      if (res.ok) return json<any>(res);
+      const body = await json<{ error?: string }>(res);
+      lastError = body.error || (res.status === 401 ? "Your session has expired. Please log in again." : res.status === 404 ? "Patient record not found." : `Could not load patient record (${res.status}).`);
+      if (res.status === 404) break;
+    } catch {
+      lastError = "Network error while loading patient record. Please try again.";
+    }
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+  }
+  throw new Error(lastError);
+}
+
 export async function apiGetEncounters(patientId?: string) { const q = patientId ? `?patientId=${encodeURIComponent(patientId)}` : ""; const res = await fetch(`/api/encounters${q}`, { credentials: "include" }); if (!res.ok) return []; return (await json<{ encounters: any[] }>(res)).encounters || []; }
 export async function apiCreateEncounter(data: Record<string, unknown>) { const res = await fetch("/api/encounters", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string; encounter?: any }>(res); }
 export async function apiAddPrescriptionWithEncounter(data: { patientId: string; patientName: string; medicines: string; advice: string; encounterId?: string }) { const res = await fetch("/api/prescriptions", { ...opts, method: "POST", body: JSON.stringify(data) }); return json<{ success: boolean; error?: string }>(res); }
