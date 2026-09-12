@@ -6,12 +6,21 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const dashboard = read("src/app/dashboard/page.tsx");
 const patients = read("src/app/api/patients/route.ts");
 const shell = read("src/components/AppShell.tsx");
+const reports = read("src/app/reports/page.tsx");
+const reportsApi = read("src/app/api/reports/route.ts");
+const insurance = read("src/app/insurance/page.tsx");
 
-for (const token of ["OPD", "IPD", "Inpatient / hospital view", "IPD Census & Clinical Dashboard", "Patient / ID", "Allergy", "Diagnosis", "Investigations", "Current medication", "Blood", "BRADMA label", "Consultant / RMO / Nursing notes"]) {
+for (const token of ["OPD", "IPD", "Inpatient / hospital view", "IPD Census & Clinical Dashboard", "Patient / ID", "Allergy", "Primary diagnosis", "ICD-10", "Investigations", "Current medication", "Blood", "BRADMA label", "Consultant / RMO / Nursing notes"]) {
   if (!dashboard.includes(token)) throw new Error(`Missing IPD dashboard contract: ${token}`);
 }
 for (const token of ["careSetting", "__MEDLUM_CARE_SETTING__", "careSetting === \"IPD\""]) {
   if (!patients.includes(token)) throw new Error(`Missing patient care-setting contract: ${token}`);
+}
+for (const token of ["mode === \"OPD\"", "mode === \"IPD\"", "Separate OPD clinic reporting from IPD hospital reporting", "careSetting.counts", "careSetting.revenue"]) {
+  if (!reports.includes(token) && !reportsApi.includes(token)) throw new Error(`Missing OPD/IPD reports contract: ${token}`);
+}
+for (const token of ["PM-JAY / Ayushman Bharat", "ESIC", "Government Scheme", "Corporate / Employer", "Private Insurance"]) {
+  if (!insurance.includes(token)) throw new Error(`Missing insurance/scheme contract: ${token}`);
 }
 if (!shell.includes('{ href: "/emergency", label: "Emergency"')) throw new Error("Emergency navigation priority missing");
 if (!shell.includes('{ href: "/clinical-assist", label: "AI Assist"')) throw new Error("AI Assist navigation missing");
