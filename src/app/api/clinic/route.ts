@@ -1,0 +1,121 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/session";
+
+async function getContext() {
+  const session = await getSession();
+  if (!session) return null;
+  const membership = await prisma.clinicMember.findFirst({
+    where: { doctorId: session.doctorId },
+    include: { clinic: true, doctor: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return membership ? { session, membership } : null;
+}
+
+export async function GET() {
+  const ctx = await getContext();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const members = await prisma.clinicMember.findMany({
+    where: { clinicId: ctx.membership.clinicId },
+    include: { doctor: { select: { id: true, name: true, email: true, phone: true, clinicName: true } } },
+    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+  });
+
+  return NextResponse.json({
+    clinic: ctx.membership.clinic,
+    currentMember: { id: ctx.membership.id, role: ctx.membership.role },
+    members: members.map((m) => ({
+      id: m.id,
+      role: m.role,
+      createdAt: m.createdAt,
+      doctor: m.doctor,
+    })),
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
+export async function POST(req: Request) {
+  const ctx = await getContext();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!["Owner", "Admin"].includes(ctx.membership.role)) {
+    return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const role = typeof body.role === "string" && ["Admin", "Consultant", "Staff"].includes(body.role) ? body.role : "Consultant";
+  if (!email) return NextResponse.json({ error: "Doctor email is required." }, { status: 400 });
+
+  const doctor = await prisma.doctor.findUnique({ where: { email } });
+  if (!doctor) return NextResponse.json({ error: "No MedLum doctor account exists with that email." }, { status: 404 });
+  if (doctor.id === ctx.session.doctorId) return NextResponse.json({ error: "You are already a member of this clinic." }, { status: 400 });
+
+  const existing = await prisma.clinicMember.findUnique({
+    where: { clinicId_doctorId: { clinicId: ctx.membership.clinicId, doctorId: doctor.id } },
+  });
+  if (existing) return NextResponse.json({ error: "This doctor is already a member of the clinic." }, { status: 409 });
+
+  const member = await prisma.clinicMember.create({
+    data: { clinicId: ctx.membership.clinicId, doctorId: doctor.id, role },
+    include: { doctor: { select: { id: true, name: true, email: true, phone: true, clinicName: true } } },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      doctorId: ctx.session.doctorId,
+      action: "CLINIC_MEMBER_ADDED",
+      entity: "ClinicMember",
+      entityId: member.id,
+      meta: JSON.stringify({ clinicId: ctx.membership.clinicId, addedDoctorId: doctor.id, role }),
+    },
+  });
+
+  return NextResponse.json({ success: true, member });
+}
+
+export async function PATCH(req: Request) {
+  const ctx = await getContext();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!["Owner", "Admin"].includes(ctx.membership.role)) {
+    return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const id = typeof body.id === "string" ? body.id : "";
+  const role = typeof body.role === "string" && ["Admin", "Consultant", "Staff"].includes(body.role) ? body.role : "Consultant";
+  if (!id) return NextResponse.json({ error: "Membership id is required." }, { status: 400 });
+
+  const target = await prisma.clinicMember.findFirst({ where: { id, clinicId: ctx.membership.clinicId } });
+  if (!target) return NextResponse.json({ error: "Clinic member not found." }, { status: 404 });
+  if (target.role === "Owner") return NextResponse.json({ error: "The clinic owner role cannot be changed here." }, { status: 400 });
+
+  const member = await prisma.clinicMember.update({ where: { id }, data: { role } });
+  return NextResponse.json({ success: true, member });
+}
+
+export async function DELETE(req: Request) {
+  const ctx = await getContext();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!["Owner", "Admin"].includes(ctx.membership.role)) {
+    return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const id = typeof body.id === "string" ? body.id : "";
+  const target = await prisma.clinicMember.findFirst({ where: { id, clinicId: ctx.membership.clinicId } });
+  if (!target) return NextResponse.json({ error: "Clinic member not found." }, { status: 404 });
+  if (target.role === "Owner") return NextResponse.json({ error: "The clinic owner cannot be removed." }, { status: 400 });
+
+  await prisma.clinicMember.delete({ where: { id } });
+  await prisma.auditLog.create({
+    data: {
+      doctorId: ctx.session.doctorId,
+      action: "CLINIC_MEMBER_REMOVED",
+      entity: "ClinicMember",
+      entityId: id,
+      meta: JSON.stringify({ clinicId: ctx.membership.clinicId, removedDoctorId: target.doctorId }),
+    },
+  });
+  return NextResponse.json({ success: true });
+}
