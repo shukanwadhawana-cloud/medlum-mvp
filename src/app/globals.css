@@ -9,13 +9,107 @@
   --muted: #6b6b75;
 }
 
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 0;
+  min-width: 320px;
+  overflow-x: hidden;
 }
 
 * {
   box-sizing: border-box;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border: 0;
+}
+
+/* Keep wide clinical tables usable on phones without forcing the page itself to scroll. */
+.overflow-x-auto {
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Utility used by the responsive navigation without changing Tailwind configuration. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 639px) {
+  /* Prevent long clinical identifiers and URLs from widening cards on narrow phones. */
+  h1,
+  h2,
+  h3,
+  p,
+  td,
+  th,
+  label,
+  a,
+  button {
+    overflow-wrap: anywhere;
+  }
+
+  /* Give embedded consultation video a stable phone-friendly aspect ratio. */
+  .telemedicine-video-frame {
+    aspect-ratio: 16 / 9;
+    min-height: 240px;
+  }
+}
+
+@media (min-width: 640px) {
+  .telemedicine-video-frame {
+    min-height: 420px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .telemedicine-video-frame {
+    min-height: 560px;
+  }
 }
