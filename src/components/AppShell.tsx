@@ -8,6 +8,7 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   const paths: Record<string, React.ReactNode> = {
     brand: <><path d="M4 17V7l4 4 4-6 4 6 4-4v10"/><path d="M8 17h8"/></>,
     patients: <><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.2 2.5-5 6-5s6 1.8 6 5"/><path d="M17 11a3 3 0 1 0-1-5.8"/><path d="M17 15c2.5.2 4 1.8 4 5"/></>,
+    ipd: <><path d="M4 21V5h16v16"/><path d="M8 9h8M8 13h8M8 17h3M15 15v5M12 17h6"/></>,
     ai: <><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="5"/><path d="m10 12 1.4 1.5L14.5 10"/></>,
     calendar: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></>,
     video: <><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></>,
@@ -28,6 +29,7 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
 
 const nav = [
   { href: "/patients", label: "Patients", icon: "patients" },
+  { href: "/ipd", label: "IPD", icon: "ipd" },
   { href: "/appointments", label: "Appts", icon: "calendar" },
   { href: "/emergency", label: "Emergency", icon: "emergency" },
   { href: "/labs", label: "Labs", icon: "labs" },
@@ -61,7 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1 min-w-0 px-3 py-4 sm:px-4 sm:py-5 lg:px-6 lg:py-6 max-w-7xl w-full mx-auto pb-20 md:pb-6">{children}</main>
-      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom"><nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-4">{[nav[0], nav[1], nav[2], nav[nav.length - 1]].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span>{item.label}</span></Link>)}</nav></div>
+      <div className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom"><nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-4">{[nav[0], nav[1], nav[2], nav[3]].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span>{item.label}</span></Link>)}</nav></div>
     </div>
   );
 }
