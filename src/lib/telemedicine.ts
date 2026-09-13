@@ -33,11 +33,16 @@ export function getVideoProvider(): VideoProvider {
   return process.env.VIDEO_PROVIDER === "external" ? "external" : "jitsi";
 }
 
+/** Jitsi URL with prejoin disabled so mobile users land closer to the call. */
 export function createVideoMeetingUrl(sessionId: string) {
   const provider = getVideoProvider();
   if (provider === "external") return null;
 
   const base = (process.env.VIDEO_BASE_URL || "https://meet.jit.si").replace(/\/+$/, "");
   const roomSecret = randomBytes(18).toString("base64url");
-  return `${base}/medlum-${sessionId}-${roomSecret}`;
+  const room = `${base}/medlum-${sessionId}-${roomSecret}`;
+  // Skip the "How do you want to join this meeting?" prejoin screen when possible.
+  const hash =
+    "#config.prejoinConfig.enabled=false&config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false";
+  return `${room}${hash}`;
 }
