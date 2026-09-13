@@ -6,9 +6,11 @@ type JitsiApi = {
   dispose: () => void;
 };
 
+type JitsiConstructor = new (domain: string, options: Record<string, unknown>) => JitsiApi;
+
 declare global {
   interface Window {
-    JitsiMeetExternalAPI?: new (domain: string, options: Record<string, unknown>) => JitsiApi;
+    JitsiMeetExternalAPI?: JitsiConstructor;
   }
 }
 
@@ -27,14 +29,15 @@ export default function JitsiMeeting({ meetingUrl, displayName }: { meetingUrl: 
     let cancelled = false;
 
     const start = () => {
-      if (cancelled || !containerRef.current || !window.JitsiMeetExternalAPI) return;
+      const JitsiMeetExternalAPI = window.JitsiMeetExternalAPI;
+      if (cancelled || !containerRef.current || !JitsiMeetExternalAPI) return;
       try {
         const { domain, roomName } = getMeetingParts(meetingUrl);
         if (!roomName) throw new Error("Invalid video room.");
 
         apiRef.current?.dispose();
         containerRef.current.innerHTML = "";
-        apiRef.current = new window.JitsiMeetExternalAPI(domain, {
+        apiRef.current = new JitsiMeetExternalAPI(domain, {
           roomName,
           parentNode: containerRef.current,
           width: "100%",
@@ -62,13 +65,17 @@ export default function JitsiMeeting({ meetingUrl, displayName }: { meetingUrl: 
       if (existing) {
         existing.addEventListener("load", start, { once: true });
       } else {
-        const script = document.createElement("script");
-        script.src = `${new URL(meetingUrl).origin}/external_api.js`;
-        script.async = true;
-        script.dataset.medlumJitsi = "true";
-        script.addEventListener("load", start, { once: true });
-        script.addEventListener("error", () => setError("The video service could not be loaded."), { once: true });
-        document.head.appendChild(script);
+        try {
+          const script = document.createElement("script");
+          script.src = `${new URL(meetingUrl).origin}/external_api.js`;
+          script.async = true;
+          script.dataset.medlumJitsi = "true";
+          script.addEventListener("load", start, { once: true });
+          script.addEventListener("error", () => setError("The video service could not be loaded."), { once: true });
+          document.head.appendChild(script);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Invalid video room URL.");
+        }
       }
     }
 
