@@ -60,6 +60,9 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     try {
       await patch({ status });
       if (status === "Active") setMsg("Guest can now enter the video room.");
+      if (status === "Completed" || status === "Cancelled") {
+        setMsg("Call ended. Guest will see the consultation as closed.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update consultation.");
     } finally {
@@ -67,7 +70,6 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     }
   }
 
-  /** One tap: Waiting → Active so the other device leaves the waiting screen. */
   async function startCallForGuest() {
     setBusy(true);
     setError("");
@@ -78,6 +80,19 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       setMsg("Call is live. Guest page will show video when they keep it open.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to start call.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function hangUp() {
+    setBusy(true);
+    setError("");
+    try {
+      await patch({ status: "Completed" });
+      setMsg("Call ended. You can leave this page.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to end call.");
     } finally {
       setBusy(false);
     }
@@ -145,6 +160,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
 
   const canJoin = session?.status !== "Completed" && session?.status !== "Cancelled" && session?.status !== "Expired";
   const active = session?.status === "Active";
+  const ended = !canJoin;
 
   return (
     <AppShell>
@@ -153,7 +169,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
           <Link href="/telemedicine" className="text-xs text-[#c2183a]">
             ← Telemedicine
           </Link>
-          <h1 className="mt-1 text-xl sm:text-2xl font-bold">Video consultation</h1>
+          <h1 className="mt-1 text-xl font-bold sm:text-2xl">Video consultation</h1>
           <p className="text-sm text-gray-500">Start the call for the guest, then join video below.</p>
         </div>
         <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-xs">{session?.status}</span>
@@ -164,7 +180,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
 
       <section className="mb-3 rounded-2xl border bg-white p-3 sm:p-4">
         <div className="text-sm font-semibold">Consultation room</div>
-        <div className="mt-1 text-xs text-gray-500 break-all">
+        <div className="mt-1 break-all text-xs text-gray-500">
           Provider: {session?.provider || "external"} · {session?.sessionKind || "patient"}
           {session?.peerLabel ? ` · ${session.peerLabel}` : ""}
         </div>
@@ -179,13 +195,13 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               {busy ? "Starting…" : "Start call (let guest in)"}
             </button>
           )}
-          {active && (
+          {canJoin && (
             <button
               disabled={busy}
-              onClick={() => void update("Completed")}
-              className="rounded-xl border px-3.5 py-2.5 text-sm font-medium"
+              onClick={() => void hangUp()}
+              className="rounded-xl bg-red-600 px-3.5 py-2.5 text-sm font-medium text-white"
             >
-              Complete consultation
+              Hang up / end call
             </button>
           )}
           {canJoin && (
@@ -207,6 +223,11 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               Open video in new tab
             </a>
           )}
+          {ended && (
+            <Link href="/telemedicine" className="rounded-xl border px-3.5 py-2.5 text-sm font-medium">
+              Back to Telemedicine
+            </Link>
+          )}
         </div>
 
         {inviteLink && (
@@ -226,22 +247,18 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               >
                 {copied ? "Copied ✓" : "Copy link"}
               </button>
-              <button
-                type="button"
-                onClick={() => void shareInvite()}
-                className="rounded-xl border px-4 py-2 text-xs font-medium"
-              >
+              <button type="button" onClick={() => void shareInvite()} className="rounded-xl border px-4 py-2 text-xs font-medium">
                 Share…
               </button>
             </div>
           </div>
         )}
 
-        {!inviteLink && canJoin && (
+        {canJoin && (
           <p className="mt-2 text-[11px] text-gray-500">
-            Tip: tap <strong>Get / refresh invite link</strong>, then <strong>Copy link</strong> or <strong>Share…</strong>{" "}
-            to the other phone/tablet. On that device keep the join page open. Then tap{" "}
-            <strong>Start call (let guest in)</strong>.
+            <strong>Same room (iPhone + iPad)?</strong> Use headphones on one device, or mute the speaker on the
+            guest phone — otherwise each microphone hears the other speaker and you get echo. Real patients in another
+            location will not have this problem.
           </p>
         )}
       </section>
@@ -259,9 +276,11 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
         </section>
       ) : (
         <section className="rounded-2xl border bg-white p-6 text-center">
-          <div className="text-sm font-medium">Video room unavailable</div>
+          <div className="text-sm font-medium">{ended ? "This consultation has ended." : "Video room unavailable"}</div>
           <p className="mt-1 text-xs text-gray-500">
-            This session is configured for an external video provider or is no longer joinable.
+            {ended
+              ? "Use Back to Telemedicine to start another session."
+              : "This session is configured for an external video provider or is no longer joinable."}
           </p>
         </section>
       )}
