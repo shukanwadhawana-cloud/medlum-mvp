@@ -18,14 +18,15 @@ function metaOf(log: any) {
 
 async function getPending(doctorId: string) {
   const { clinicId, doctorIds } = await clinicContext(doctorId);
-  const logs = await prisma.auditLog.findMany({
-    where: { doctorId: { in: doctorIds }, entity: "ClinicalNote" },
-    orderBy: { createdAt: "desc" }, take: 1000,
-  });
+  const [logs, consumedLogs] = await Promise.all([
+    prisma.auditLog.findMany({ where: { doctorId: { in: doctorIds }, entity: "ClinicalNote" }, orderBy: { createdAt: "desc" }, take: 1000 }),
+    prisma.auditLog.findMany({ where: { doctorId: { in: doctorIds }, entity: { in: ["MedicationIndent", "InvestigationIndent"] }, action: "consume" }, orderBy: { createdAt: "desc" }, take: 1000 }),
+  ]);
+  const consumed = new Set(consumedLogs.map(log => String(log.entityId)));
   const candidates = logs.map(log => ({ log, meta: metaOf(log) })).filter(x =>
     x.meta?.status === "Pending" &&
     (x.meta?.noteType === "Medication Indent" || x.meta?.noteType === "Investigation Indent") &&
-    x.meta?.orderId
+    x.meta?.orderId && !consumed.has(String(x.meta.orderId))
   );
   const patientIds = [...new Set(candidates.map(x => x.log.entityId).filter(Boolean))] as string[];
   const patients = patientIds.length ? await prisma.patient.findMany({ where: clinicId ? { id: { in: patientIds }, clinicId } : { id: { in: patientIds }, doctorId: { in: doctorIds } }, select: { id: true, name: true, roomNumber: true, notes: true } }) : [];
@@ -34,7 +35,7 @@ async function getPending(doctorId: string) {
   const labIds = candidates.filter(x => x.meta.noteType === "Investigation Indent").map(x => String(x.meta.orderId));
   const [prescriptions, labs] = await Promise.all([
     prescriptionIds.length ? prisma.prescription.findMany({ where: { id: { in: prescriptionIds }, doctorId: { in: doctorIds } } }) : [],
-    labIds.length ? prisma.labOrder.findMany({ where: { id: { in: labIds }, doctorId: { in: doctorIds } } }) : [],
+    labIds.length ? prisma.labOrder.findMany({ where: { id: { in: labIds }, doctorId: { in: doctorIds } }) : [],
   ]);
   const prescriptionMap = new Map(prescriptions.map(p => [p.id, p]));
   const labMap = new Map(labs.map(l => [l.id, l]));
@@ -70,9 +71,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const type = String(body.type || "");
     const orderId = String(body.orderId || "");
-    if (!["Medication", "Investigation"].includes(type) || !orderId) {
-      return NextResponse.json({ success: false, error: "Valid indent type and orderId are required" }, { status: 400 });
-    }
+    if (!["Medication", "Investigation"].includes(type) || !orderId) return NextResponse.json({ success: false, error: "Valid indent type and orderId are required" }, { status: 400 });
     const { clinicId, doctorIds } = await clinicContext(session.doctorId);
     const patientScope = clinicId ? { clinicId } : { doctorId: { in: doctorIds } };
 
