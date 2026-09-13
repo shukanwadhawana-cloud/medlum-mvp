@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 
@@ -32,7 +33,7 @@ export default function TelemedicinePage() {
 
   useEffect(() => { void load(); }, []);
 
-  async function createSession(e: React.FormEvent) {
+  async function createSession(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError(""); setLastJoinLink("");
     try {
       const r = await fetch("/api/telemedicine/sessions", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ patientId, scheduledAt: new Date(scheduledAt).toISOString() }) });
@@ -54,7 +55,7 @@ export default function TelemedicinePage() {
   return <AppShell>
     <div className="mb-4"><Link href="/dashboard" className="text-xs text-[#c2183a]">← Dashboard</Link><h1 className="mt-1 text-xl font-bold">Telemedicine</h1><p className="text-sm text-gray-500">Create a session, send the secure patient link, open the video room and complete the consultation.</p></div>
     {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-    {lastJoinLink && <section className="mb-3 rounded-2xl border border-green-200 bg-green-50 p-4"><div className="font-semibold text-green-800">Patient link ready</div><p className="mt-1 text-xs text-green-700">Share this link with the patient. It is the only credential needed to enter the waiting room.</p><div className="mt-2 flex gap-2"><input readOnly value={lastJoinLink} className="min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 text-xs"/><button onClick={copyLink} className="rounded-xl bg-[#140a1f] px-4 py-2 text-xs font-medium text-white">Copy</button></div></section>}
+    {lastJoinLink && <section className="mb-3 rounded-2xl border border-green-200 bg-green-50 p-4"><div className="font-semibold text-green-800">Patient link ready</div><p className="mt-1 text-xs text-green-700">For the first live test, open this link on a second browser/device and join as the patient/test participant. No separate video app is required.</p><div className="mt-2 flex flex-col gap-2 sm:flex-row"><input readOnly value={lastJoinLink} className="min-w-0 flex-1 rounded-xl border bg-white px-3 py-2 text-xs"/><div className="flex gap-2"><button onClick={copyLink} className="rounded-xl bg-[#140a1f] px-4 py-2 text-xs font-medium text-white">Copy</button><a href={lastJoinLink} target="_blank" rel="noreferrer" className="rounded-xl border border-green-300 bg-white px-4 py-2 text-xs font-medium text-green-800">Open test view</a></div></div></section>}
 
     <section className="rounded-2xl border bg-white p-4 mb-3"><h2 className="font-semibold">New video consultation</h2><form onSubmit={createSession} className="mt-3 grid gap-2 sm:grid-cols-2"><select required value={patientId} onChange={e => setPatientId(e.target.value)} className="rounded-xl border px-3 py-2.5 text-sm"><option value="">Select patient</option>{patients.map(p => <option key={p.id} value={p.id}>{p.name} · {p.phone}</option>)}</select><input required type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className="rounded-xl border px-3 py-2.5 text-sm"/><button disabled={saving} className="rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white sm:col-span-2">{saving ? "Creating…" : "Create video consultation"}</button></form></section>
 
