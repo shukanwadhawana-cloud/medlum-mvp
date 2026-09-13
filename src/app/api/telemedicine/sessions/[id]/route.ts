@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { isTelemedicineStatus, sanitizeMeetingUrl } from "@/lib/telemedicine";
+import { createJoinToken, hashJoinToken, isTelemedicineStatus, sanitizeMeetingUrl } from "@/lib/telemedicine";
+
+const sessionSelect = {
+  id: true,
+  doctorId: true,
+  patientId: true,
+  appointmentId: true,
+  clinicId: true,
+  sessionKind: true,
+  peerLabel: true,
+  scheduledAt: true,
+  expiresAt: true,
+  status: true,
+  provider: true,
+  meetingUrl: true,
+  startedAt: true,
+  endedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -10,11 +29,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const item = await prisma.telemedicineSession.findFirst({
     where: { id, doctorId: session.doctorId },
-    select: {
-      id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
-      scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
-      startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
-    },
+    select: sessionSelect,
   });
   if (!item) return NextResponse.json({ success: false, error: "Telemedicine session not found." }, { status: 404 });
   return NextResponse.json({ success: true, session: item });
@@ -28,6 +43,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const body = await req.json();
     const status = body.status;
+    const regenerateJoinToken = Boolean(body.regenerateJoinToken);
     const meetingUrl = body.meetingUrl === undefined ? undefined : sanitizeMeetingUrl(body.meetingUrl);
     if (status !== undefined && !isTelemedicineStatus(status)) {
       return NextResponse.json({ success: false, error: "Invalid telemedicine status." }, { status: 400 });
@@ -47,16 +63,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (nextStatus === "Completed" && !existing.endedAt) data.endedAt = now;
     if (nextStatus === "Cancelled" && !existing.endedAt) data.endedAt = now;
 
+    let joinToken: string | undefined;
+    if (regenerateJoinToken) {
+      joinToken = createJoinToken();
+      data.joinTokenHash = hashJoinToken(joinToken);
+    }
+
     const updated = await prisma.telemedicineSession.update({
       where: { id },
       data,
-      select: {
-        id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
-        scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
-        startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
-      },
+      select: sessionSelect,
     });
-    return NextResponse.json({ success: true, session: updated });
+    return NextResponse.json({ success: true, session: updated, ...(joinToken ? { joinToken } : {}) });
   } catch (error) {
     console.error("update telemedicine session", error);
     return NextResponse.json({ success: false, error: "Unable to update telemedicine session." }, { status: 500 });
