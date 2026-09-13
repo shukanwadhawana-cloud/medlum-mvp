@@ -1,0 +1,45 @@
+name: IPD Audit Attribution
+on:
+  push:
+    branches: [fix/ipd-live-clinical-workflow]
+permissions:
+  contents: write
+jobs:
+  attribution:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add clinician attribution
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          route=Path('src/app/api/ipd/route.ts')
+          s=route.read_text()
+          if 'doctorNameById' not in s:
+              marker='const ipd=patients.filter(p=>parseCareSetting(p.notes)==="IPD").map(p=>'
+              insert='const doctorRows=await prisma.doctor.findMany({where:{id:{in:doctorIds}},select:{id:true,name:true}});const doctorNameById=new Map(doctorRows.map(d=>[d.id,d.name]));'
+              if marker not in s: raise SystemExit('IPD mapper marker missing')
+              s=s.replace(marker,insert+marker,1)
+              s=s.replace('a.push({id:l.id,...m,createdAt:l.createdAt.toISOString()});notesMap.set(l.entityId,a)','a.push({id:l.id,...m,authorName:doctorNameById.get(l.doctorId)||"Clinician",createdAt:l.createdAt.toISOString()});notesMap.set(l.entityId,a)',1)
+              s=s.replace('createdAt:e.createdAt.toISOString()});notesMap.set(e.patientId,a)','authorName:doctorNameById.get(e.doctorId)||"Clinician",createdAt:e.createdAt.toISOString()});notesMap.set(e.patientId,a)',1)
+              s=s.replace('createdAt:r.createdAt.toISOString()});notesMap.set(r.patientId,a)','authorName:doctorNameById.get(r.doctorId)||"Clinician",createdAt:r.createdAt.toISOString()});notesMap.set(r.patientId,a)',1)
+              route.write_text(s)
+          page=Path('src/app/ipd/page.tsx')
+          p=page.read_text()
+          p=p.replace('n.authorRole||"Clinician"','n.authorName||n.authorRole||"Clinician"')
+          page.write_text(p)
+          PY
+      - name: Verify
+        run: |
+          grep -q 'doctorNameById' src/app/api/ipd/route.ts
+          grep -q 'authorName||n.authorRole' src/app/ipd/page.tsx
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/api/ipd/route.ts src/app/ipd/page.tsx
+          git rm -f .github/workflows/ipd-audit-attribution.yml
+          git diff --cached --check
+          git commit -m 'feat(ipd): attribute documentation to clinician names [skip ci]'
+          git push origin HEAD:fix/ipd-live-clinical-workflow
