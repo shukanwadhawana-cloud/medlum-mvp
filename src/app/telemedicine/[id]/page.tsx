@@ -7,64 +7,264 @@ import AppShell from "@/components/AppShell";
 export default function TelemedicineVideoPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState("");
   const [session, setSession] = useState<any>(null);
+  const [inviteLink, setInviteLink] = useState("");
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
 
   async function load(sessionId: string) {
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
-      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(sessionId)}`, { credentials: "include", cache: "no-store" });
+      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(sessionId)}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Unable to load consultation.");
       setSession(j.session);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to load consultation."); }
-    finally { setLoading(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load consultation.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { void params.then(({ id: value }) => { setId(value); void load(value); }); }, [params]);
+  useEffect(() => {
+    void params.then(({ id: value }) => {
+      setId(value);
+      void load(value);
+    });
+  }, [params]);
+
+  async function patch(body: Record<string, unknown>) {
+    if (!id) return null;
+    const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "Unable to update consultation.");
+    setSession(j.session);
+    return j;
+  }
 
   async function update(status: "Waiting" | "Active" | "Completed" | "Cancelled") {
-    if (!id) return;
-    setBusy(true); setError("");
+    setBusy(true);
+    setError("");
+    setMsg("");
     try {
-      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(id)}`, {
-        method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || "Unable to update consultation.");
-      setSession(j.session);
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to update consultation."); }
-    finally { setBusy(false); }
+      await patch({ status });
+      if (status === "Active") setMsg("Guest can now enter the video room.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to update consultation.");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (loading) return <AppShell><div className="text-sm text-gray-500">Loading video consultation…</div></AppShell>;
-  if (error && !session) return <AppShell><div className="rounded-xl bg-white p-4 text-sm text-red-600">{error}</div></AppShell>;
+  /** One tap: Waiting → Active so the other device leaves the waiting screen. */
+  async function startCallForGuest() {
+    setBusy(true);
+    setError("");
+    setMsg("");
+    try {
+      if (session?.status === "Scheduled") await patch({ status: "Waiting" });
+      await patch({ status: "Active" });
+      setMsg("Call is live. Guest page will show video when they keep it open.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to start call.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function makeInviteLink() {
+    setBusy(true);
+    setError("");
+    setCopied(false);
+    try {
+      const j = await patch({ regenerateJoinToken: true });
+      if (!j?.joinToken) throw new Error("Could not create invite link.");
+      const link = `${window.location.origin}/telemedicine/join?token=${encodeURIComponent(j.joinToken)}`;
+      setInviteLink(link);
+      setMsg("Invite link ready — Copy or Share it.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to create invite link.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyInvite() {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Clipboard blocked — long-press the link and copy.");
+    }
+  }
+
+  async function shareInvite() {
+    if (!inviteLink) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "MedLum video consultation",
+          text: "Join the MedLum video call",
+          url: inviteLink,
+        });
+      } else {
+        await copyInvite();
+      }
+    } catch {
+      /* user cancelled share */
+    }
+  }
+
+  if (loading) {
+    return (
+      <AppShell>
+        <div className="text-sm text-gray-500">Loading video consultation…</div>
+      </AppShell>
+    );
+  }
+  if (error && !session) {
+    return (
+      <AppShell>
+        <div className="rounded-xl bg-white p-4 text-sm text-red-600">{error}</div>
+      </AppShell>
+    );
+  }
 
   const canJoin = session?.status !== "Completed" && session?.status !== "Cancelled" && session?.status !== "Expired";
   const active = session?.status === "Active";
 
-  return <AppShell>
-    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-      <div><Link href="/dashboard" className="text-xs text-[#c2183a]">← Dashboard</Link><h1 className="mt-1 text-xl sm:text-2xl font-bold">Video consultation</h1><p className="text-sm text-gray-500">Waiting room → video → consultation → completion.</p></div>
-      <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-xs">{session?.status}</span>
-    </div>
-    {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-    <section className="rounded-2xl border bg-white p-3 sm:p-4 mb-3">
-      <div className="text-sm font-semibold">Consultation room</div>
-      <div className="mt-1 text-xs text-gray-500 break-all">Provider: {session?.provider || "external"} · Session: {session?.id}</div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {session?.status === "Scheduled" && <button disabled={busy} onClick={() => update("Waiting")} className="rounded-xl border px-3.5 py-2.5 text-sm font-medium">Open waiting room</button>}
-        {session?.status === "Waiting" && <button disabled={busy} onClick={() => update("Active")} className="rounded-xl bg-[#140a1f] px-3.5 py-2.5 text-sm font-medium text-white">Start consultation</button>}
-        {active && <button disabled={busy} onClick={() => update("Completed")} className="rounded-xl border px-3.5 py-2.5 text-sm font-medium">Complete consultation</button>}
-        {canJoin && session?.meetingUrl && <a href={session.meetingUrl} target="_blank" rel="noreferrer" className="rounded-xl border px-3.5 py-2.5 text-sm font-medium">Open video in new tab</a>}
-        {canJoin && session?.meetingUrl && <a href={`/telemedicine/${encodeURIComponent(session.id)}`} className="rounded-xl border px-3.5 py-2.5 text-sm">Refresh room</a>}
+  return (
+    <AppShell>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <Link href="/telemedicine" className="text-xs text-[#c2183a]">
+            ← Telemedicine
+          </Link>
+          <h1 className="mt-1 text-xl sm:text-2xl font-bold">Video consultation</h1>
+          <p className="text-sm text-gray-500">Start the call for the guest, then join video below.</p>
+        </div>
+        <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-xs">{session?.status}</span>
       </div>
-    </section>
 
-    {canJoin && session?.meetingUrl ? <section className="overflow-hidden rounded-2xl border bg-black">
-      <div className="telemedicine-video-frame w-full"><iframe title="MedLum video consultation" src={session.meetingUrl} allow="camera; microphone; fullscreen; display-capture; autoplay" className="h-full w-full border-0" /></div>
-    </section> : <section className="rounded-2xl border bg-white p-6 text-center"><div className="text-sm font-medium">Video room unavailable</div><p className="mt-1 text-xs text-gray-500">This session is configured for an external video provider or is no longer joinable.</p></section>}
-  </AppShell>;
+      {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {msg && <div className="mb-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{msg}</div>}
+
+      <section className="mb-3 rounded-2xl border bg-white p-3 sm:p-4">
+        <div className="text-sm font-semibold">Consultation room</div>
+        <div className="mt-1 text-xs text-gray-500 break-all">
+          Provider: {session?.provider || "external"} · {session?.sessionKind || "patient"}
+          {session?.peerLabel ? ` · ${session.peerLabel}` : ""}
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {canJoin && !active && (
+            <button
+              disabled={busy}
+              onClick={() => void startCallForGuest()}
+              className="rounded-xl bg-[#c2183a] px-3.5 py-2.5 text-sm font-medium text-white"
+            >
+              {busy ? "Starting…" : "Start call (let guest in)"}
+            </button>
+          )}
+          {active && (
+            <button
+              disabled={busy}
+              onClick={() => void update("Completed")}
+              className="rounded-xl border px-3.5 py-2.5 text-sm font-medium"
+            >
+              Complete consultation
+            </button>
+          )}
+          {canJoin && (
+            <button
+              disabled={busy}
+              onClick={() => void makeInviteLink()}
+              className="rounded-xl border px-3.5 py-2.5 text-sm font-medium"
+            >
+              Get / refresh invite link
+            </button>
+          )}
+          {canJoin && session?.meetingUrl && (
+            <a
+              href={session.meetingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border px-3.5 py-2.5 text-sm font-medium"
+            >
+              Open video in new tab
+            </a>
+          )}
+        </div>
+
+        {inviteLink && (
+          <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
+            <div className="text-xs font-semibold text-green-900">Invite link (tap Copy or Share)</div>
+            <input
+              readOnly
+              value={inviteLink}
+              onFocus={(e) => e.target.select()}
+              className="mt-2 w-full rounded-lg border bg-white px-2 py-2 text-[11px]"
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void copyInvite()}
+                className="rounded-xl bg-[#140a1f] px-4 py-2 text-xs font-medium text-white"
+              >
+                {copied ? "Copied ✓" : "Copy link"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void shareInvite()}
+                className="rounded-xl border px-4 py-2 text-xs font-medium"
+              >
+                Share…
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!inviteLink && canJoin && (
+          <p className="mt-2 text-[11px] text-gray-500">
+            Tip: tap <strong>Get / refresh invite link</strong>, then <strong>Copy link</strong> or <strong>Share…</strong>{" "}
+            to the other phone/tablet. On that device keep the join page open. Then tap{" "}
+            <strong>Start call (let guest in)</strong>.
+          </p>
+        )}
+      </section>
+
+      {canJoin && session?.meetingUrl ? (
+        <section className="overflow-hidden rounded-2xl border bg-black">
+          <div className="telemedicine-video-frame w-full">
+            <iframe
+              title="MedLum video consultation"
+              src={session.meetingUrl}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              className="h-full w-full border-0"
+            />
+          </div>
+        </section>
+      ) : (
+        <section className="rounded-2xl border bg-white p-6 text-center">
+          <div className="text-sm font-medium">Video room unavailable</div>
+          <p className="mt-1 text-xs text-gray-500">
+            This session is configured for an external video provider or is no longer joinable.
+          </p>
+        </section>
+      )}
+    </AppShell>
+  );
 }
