@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import JitsiMeeting from "@/components/JitsiMeeting";
 
 export default function TelemedicineVideoPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState("");
@@ -43,6 +44,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
 
   const canJoin = session?.status !== "Completed" && session?.status !== "Cancelled" && session?.status !== "Expired";
   const active = session?.status === "Active";
+  const jitsi = session?.provider === "jitsi" && Boolean(session?.meetingUrl);
 
   return <AppShell>
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -63,8 +65,10 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       </div>
     </section>
 
-    {canJoin && session?.meetingUrl ? <section className="overflow-hidden rounded-2xl border bg-black">
-      <div className="telemedicine-video-frame w-full"><iframe title="MedLum video consultation" src={session.meetingUrl} allow="camera; microphone; fullscreen; display-capture; autoplay" className="h-full w-full border-0" /></div>
+    {canJoin && jitsi ? <section className="overflow-hidden rounded-2xl border bg-black">
+      <div className="telemedicine-video-frame w-full"><JitsiMeeting meetingUrl={session.meetingUrl} displayName="MedLum Doctor" /></div>
+    </section> : canJoin && session?.meetingUrl ? <section className="overflow-hidden rounded-2xl border bg-black">
+      <div className="telemedicine-video-frame w-full"><iframe title="MedLum external video consultation" src={session.meetingUrl} allow="camera; microphone; fullscreen; display-capture; autoplay" className="h-full w-full border-0" /></div>
     </section> : <section className="rounded-2xl border bg-white p-6 text-center"><div className="text-sm font-medium">Video room unavailable</div><p className="mt-1 text-xs text-gray-500">This session is configured for an external video provider or is no longer joinable.</p></section>}
   </AppShell>;
 }
