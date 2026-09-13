@@ -37,6 +37,23 @@ if (!workflow.includes("actions/upload-artifact")) throw new Error("Desktop arti
 if (!workflow.includes("tauri-apps/tauri-action")) throw new Error("Tauri build action missing");
 if (!workflow.includes("npm run build:desktop-web")) throw new Error("Desktop web build step missing");
 
+// MEDLUM_APP_URL must come from repository Variables (vars.*), never Secrets or hardcoded production URL.
+if (!workflow.includes("vars.MEDLUM_APP_URL")) {
+  throw new Error("Desktop workflow must read MEDLUM_APP_URL from vars.MEDLUM_APP_URL");
+}
+if (workflow.includes("secrets.MEDLUM_APP_URL")) {
+  throw new Error("MEDLUM_APP_URL must be a repository Variable, not a Secret");
+}
+if (workflow.includes("medlum-mvp.onrender.com")) {
+  throw new Error("Production URL must not be hardcoded in the desktop packaging workflow");
+}
+if (!workflow.includes("skip=true") || !workflow.includes("workflow_dispatch")) {
+  throw new Error("Desktop workflow must skip native build on push when MEDLUM_APP_URL is unset and fail on workflow_dispatch");
+}
+if (!workflow.includes("if-no-files-found: error")) {
+  throw new Error("Artifact upload must fail when installer files are missing");
+}
+
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const desktopWeb = pkg.scripts?.["build:desktop-web"] || "";
 if (!desktopWeb.includes("prepare-desktop-web")) {
