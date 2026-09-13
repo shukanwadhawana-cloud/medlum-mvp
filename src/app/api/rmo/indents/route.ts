@@ -29,7 +29,12 @@ async function getPending(doctorId: string) {
     x.meta?.orderId && !consumed.has(String(x.meta.orderId))
   );
   const patientIds = [...new Set(candidates.map(x => x.log.entityId).filter(Boolean))] as string[];
-  const patients = patientIds.length ? await prisma.patient.findMany({ where: clinicId ? { id: { in: patientIds }, clinicId } : { id: { in: patientIds }, doctorId: { in: doctorIds } }, select: { id: true, name: true, roomNumber: true, notes: true } }) : [];
+  const patients = patientIds.length ? await prisma.patient.findMany({
+    where: clinicId
+      ? { id: { in: patientIds }, clinicId }
+      : { id: { in: patientIds }, doctorId: { in: doctorIds } },
+    select: { id: true, name: true, notes: true },
+  }) : [];
   const patientMap = new Map(patients.map(p => [p.id, p]));
   const prescriptionIds = candidates.filter(x => x.meta.noteType === "Medication Indent").map(x => String(x.meta.orderId));
   const labIds = candidates.filter(x => x.meta.noteType === "Investigation Indent").map(x => String(x.meta.orderId));
@@ -44,7 +49,17 @@ async function getPending(doctorId: string) {
     const orderId = String(x.meta.orderId);
     const order = x.meta.noteType === "Medication Indent" ? prescriptionMap.get(orderId) : labMap.get(orderId);
     if (!patient || !order) return null;
-    return { id: orderId, type: x.meta.noteType === "Medication Indent" ? "Medication" : "Investigation", patientId: patient.id, patientName: patient.name, roomNumber: patient.roomNumber || "", description: x.meta.noteType === "Medication Indent" ? (order as any).medicines : (order as any).testName, notes: (order as any).notes || (order as any).advice || "", status: "Pending", createdAt: x.log.createdAt.toISOString() };
+    return {
+      id: orderId,
+      type: x.meta.noteType === "Medication Indent" ? "Medication" : "Investigation",
+      patientId: patient.id,
+      patientName: patient.name,
+      roomNumber: "",
+      description: x.meta.noteType === "Medication Indent" ? (order as any).medicines : (order as any).testName,
+      notes: (order as any).notes || (order as any).advice || "",
+      status: "Pending",
+      createdAt: x.log.createdAt.toISOString(),
+    };
   }).filter(Boolean);
 }
 
