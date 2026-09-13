@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { parsePatientProfile } from "@/lib/patient-metadata";
 
 async function clinicContext(doctorId: string) {
   const membership = await prisma.clinicMember.findFirst({ where: { doctorId, isActive: true }, select: { clinicId: true } });
@@ -49,12 +50,13 @@ async function getPending(doctorId: string) {
     const orderId = String(x.meta.orderId);
     const order = x.meta.noteType === "Medication Indent" ? prescriptionMap.get(orderId) : labMap.get(orderId);
     if (!patient || !order) return null;
+    const profile = parsePatientProfile(patient.notes);
     return {
       id: orderId,
       type: x.meta.noteType === "Medication Indent" ? "Medication" : "Investigation",
       patientId: patient.id,
       patientName: patient.name,
-      roomNumber: "",
+      roomNumber: String(profile.roomNumber || ""),
       description: x.meta.noteType === "Medication Indent" ? (order as any).medicines : (order as any).testName,
       notes: (order as any).notes || (order as any).advice || "",
       status: "Pending",
