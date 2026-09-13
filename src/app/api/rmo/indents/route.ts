@@ -35,7 +35,7 @@ async function getPending(doctorId: string) {
   const labIds = candidates.filter(x => x.meta.noteType === "Investigation Indent").map(x => String(x.meta.orderId));
   const [prescriptions, labs] = await Promise.all([
     prescriptionIds.length ? prisma.prescription.findMany({ where: { id: { in: prescriptionIds }, doctorId: { in: doctorIds } } }) : [],
-    labIds.length ? prisma.labOrder.findMany({ where: { id: { in: labIds }, doctorId: { in: doctorIds } }) : [],
+    labIds.length ? prisma.labOrder.findMany({ where: { id: { in: labIds }, doctorId: { in: doctorIds } } }) : [],
   ]);
   const prescriptionMap = new Map(prescriptions.map(p => [p.id, p]));
   const labMap = new Map(labs.map(l => [l.id, l]));
@@ -44,17 +44,7 @@ async function getPending(doctorId: string) {
     const orderId = String(x.meta.orderId);
     const order = x.meta.noteType === "Medication Indent" ? prescriptionMap.get(orderId) : labMap.get(orderId);
     if (!patient || !order) return null;
-    return {
-      id: orderId,
-      type: x.meta.noteType === "Medication Indent" ? "Medication" : "Investigation",
-      patientId: patient.id,
-      patientName: patient.name,
-      roomNumber: patient.roomNumber || "",
-      description: x.meta.noteType === "Medication Indent" ? (order as any).medicines : (order as any).testName,
-      notes: (order as any).notes || (order as any).advice || "",
-      status: "Pending",
-      createdAt: x.log.createdAt.toISOString(),
-    };
+    return { id: orderId, type: x.meta.noteType === "Medication Indent" ? "Medication" : "Investigation", patientId: patient.id, patientName: patient.name, roomNumber: patient.roomNumber || "", description: x.meta.noteType === "Medication Indent" ? (order as any).medicines : (order as any).testName, notes: (order as any).notes || (order as any).advice || "", status: "Pending", createdAt: x.log.createdAt.toISOString() };
   }).filter(Boolean);
 }
 
