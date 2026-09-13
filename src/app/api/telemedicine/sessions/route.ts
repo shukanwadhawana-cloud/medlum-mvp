@@ -37,8 +37,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "expiresAt must be after scheduledAt." }, { status: 400 });
     }
 
+    const membership = await prisma.clinicMember.findFirst({
+      where: { doctorId: session.doctorId, isActive: true },
+      select: { clinicId: true },
+    });
+    const clinicIdForDoctor = membership?.clinicId || null;
     const patient = await prisma.patient.findFirst({
-      where: { id: patientId, doctorId: session.doctorId },
+      where: clinicIdForDoctor
+        ? { id: patientId, OR: [{ doctorId: session.doctorId }, { clinicId: clinicIdForDoctor }] }
+        : { id: patientId, doctorId: session.doctorId },
       select: { id: true, name: true, clinicId: true },
     });
     if (!patient) return NextResponse.json({ success: false, error: "Patient not found for this doctor." }, { status: 404 });
@@ -59,7 +66,7 @@ export async function POST(req: Request) {
         doctorId: session.doctorId,
         patientId,
         appointmentId,
-        clinicId: clinicId || patient.clinicId,
+        clinicId: clinicId || patient.clinicId || clinicIdForDoctor,
         scheduledAt,
         expiresAt,
         status: "Scheduled",
@@ -74,8 +81,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // The meeting URL is generated independently of the database ID so provider
-    // implementations remain replaceable without exposing join credentials.
     if (provider === "jitsi" && meetingUrl) {
       const finalMeetingUrl = meetingUrl.replace("medlum-pending-", `medlum-${created.id}-`);
       const updated = await prisma.telemedicineSession.update({
