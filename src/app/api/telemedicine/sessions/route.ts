@@ -3,16 +3,36 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { createJoinToken, createVideoMeetingUrl, getVideoProvider, hashJoinToken } from "@/lib/telemedicine";
 
+function isMissingTableError(error: unknown) {
+  const msg = error instanceof Error ? error.message : String(error || "");
+  return /TelemedicineSession/i.test(msg) && /(does not exist|no such table|P2021|P2010)/i.test(msg);
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-  const sessions = await prisma.telemedicineSession.findMany({
-    where: { doctorId: session.doctorId },
-    orderBy: { scheduledAt: "asc" },
-  });
-
-  return NextResponse.json({ success: true, sessions: sessions.map(({ joinTokenHash, ...item }) => item) });
+  try {
+    const sessions = await prisma.telemedicineSession.findMany({
+      where: { doctorId: session.doctorId },
+      orderBy: { scheduledAt: "asc" },
+    });
+    return NextResponse.json({ success: true, sessions: sessions.map(({ joinTokenHash, ...item }) => item) });
+  } catch (error) {
+    console.error("list telemedicine sessions", error);
+    if (isMissingTableError(error)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Video sessions database table is not ready.",
+          hint: "Run prisma migrate deploy on the production database so TelemedicineSession exists, then refresh.",
+          sessions: [],
+        },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ success: false, error: "Unable to load video sessions.", sessions: [] }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
@@ -48,14 +68,24 @@ export async function POST(req: Request) {
         : { id: patientId, doctorId: session.doctorId },
       select: { id: true, name: true, clinicId: true },
     });
-    if (!patient) return NextResponse.json({ success: false, error: "Patient not found for this doctor." }, { status: 404 });
+    if (!patient) {
+      return NextResponse.json(
+        { success: false, error: "Patient not found for this doctor or clinic. Register the patient first." },
+        { status: 404 }
+      );
+    }
 
     if (appointmentId) {
       const appointment = await prisma.appointment.findFirst({
         where: { id: appointmentId, doctorId: session.doctorId, patientId },
         select: { id: true },
       });
-      if (!appointment) return NextResponse.json({ success: false, error: "Appointment does not belong to this patient and doctor." }, { status: 400 });
+      if (!appointment) {
+        return NextResponse.json(
+          { success: false, error: "Appointment does not belong to this patient and doctor." },
+          { status: 400 }
+        );
+      }
     }
 
     const joinToken = createJoinToken();
@@ -75,9 +105,20 @@ export async function POST(req: Request) {
         joinTokenHash: hashJoinToken(joinToken),
       },
       select: {
-        id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
-        scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
-        startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
+        id: true,
+        doctorId: true,
+        patientId: true,
+        appointmentId: true,
+        clinicId: true,
+        scheduledAt: true,
+        expiresAt: true,
+        status: true,
+        provider: true,
+        meetingUrl: true,
+        startedAt: true,
+        endedAt: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -87,9 +128,20 @@ export async function POST(req: Request) {
         where: { id: created.id },
         data: { meetingUrl: finalMeetingUrl },
         select: {
-          id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
-          scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
-          startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
+          id: true,
+          doctorId: true,
+          patientId: true,
+          appointmentId: true,
+          clinicId: true,
+          scheduledAt: true,
+          expiresAt: true,
+          status: true,
+          provider: true,
+          meetingUrl: true,
+          startedAt: true,
+          endedAt: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
       return NextResponse.json({ success: true, session: updated, patientName: patient.name, joinToken }, { status: 201 });
@@ -98,6 +150,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, session: created, patientName: patient.name, joinToken }, { status: 201 });
   } catch (error) {
     console.error("create telemedicine session", error);
+    if (isMissingTableError(error)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Video sessions database table is not ready.",
+          hint: "Run prisma migrate deploy on production so TelemedicineSession exists.",
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ success: false, error: "Unable to create telemedicine session." }, { status: 500 });
   }
 }
