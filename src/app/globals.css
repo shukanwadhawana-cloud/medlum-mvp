@@ -81,8 +81,21 @@ iframe {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Full usable height for Jitsi embed on phones and tablets. */
+.telemedicine-video-frame {
+  width: 100%;
+  height: min(72vh, 720px);
+  min-height: 320px;
+  background: #000;
+}
+
+.telemedicine-video-frame iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+}
+
 @media (max-width: 639px) {
-  /* Prevent long clinical identifiers and URLs from widening cards on narrow phones. */
   h1,
   h2,
   h3,
@@ -95,21 +108,15 @@ iframe {
     overflow-wrap: anywhere;
   }
 
-  /* Give embedded consultation video a stable phone-friendly aspect ratio. */
   .telemedicine-video-frame {
-    aspect-ratio: 16 / 9;
-    min-height: 240px;
+    height: min(68vh, 560px);
+    min-height: 280px;
   }
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .telemedicine-video-frame {
-    min-height: 420px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .telemedicine-video-frame {
-    min-height: 560px;
+    height: min(75vh, 800px);
+    min-height: 480px;
   }
 }
