@@ -24,6 +24,7 @@
     "test:pilot-readiness": "node scripts/verify-pilot-readiness.mjs",
     "test:production-pilot": "node scripts/verify-production-pilot.mjs",
     "test:ipd-pilot-ui": "node scripts/verify-ipd-pilot-ui.mjs",
+    "test:rmo-indent-consumer": "node scripts/verify-rmo-indent-consumer.mjs",
     "desktop:build": "npx tauri build",
     "mobile:android": "CAPACITOR_BUILD=false npx cap sync android && npx cap open android",
     "mobile:ios": "CAPACITOR_BUILD=false npx cap sync ios && npx cap open ios",

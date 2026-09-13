@@ -33,6 +33,8 @@ jobs:
         run: npm run test:pilot-readiness
       - name: Verify OPD and IPD pilot UI
         run: npm run test:ipd-pilot-ui
+      - name: Verify RMO indent consumer
+        run: npm run test:rmo-indent-consumer
       - name: Verify EKA ABDM onboarding
         run: npm run test:eka
       - name: Verify MedLum data architecture

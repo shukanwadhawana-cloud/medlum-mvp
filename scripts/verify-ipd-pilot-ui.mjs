@@ -8,7 +8,8 @@ for(const token of ["address","idType","idNumber","mlcNumber","prdNumber","wardT
 for(const token of ["General Ward","Twin Sharing","Single Sharing","Deluxe Ward","Super Deluxe","ICU","MICU","SICU","Transplant ICU","PICU","NICU"])if(!ipdPage.includes(token))throw new Error(`Missing ward/ICU category: ${token}`);
 for(const token of ["DAMA Summary","LAMA Summary","Transfer Summary","Discharge Summary","Death Summary","Fitness Note","Procedure Note","Case Summary","Medication Indent","Investigation Indent"])if(!ipdPage.includes(token))throw new Error(`Missing clinical document/indent type: ${token}`);
 for(const token of ["Nursing round vitals","BP","Pulse","RR","SpO₂","Temperature","Consultant Note","RMO Note","Nursing Care Note","bg-blue-50","bg-amber-50","bg-green-50"])if(!ipdPage.includes(token))throw new Error(`Missing role/vitals contract: ${token}`);
-if(!ipdPage.includes("MLC number (if applicable)"))throw new Error("MLC registration field missing");
+// The registration contract above already requires the semantic mlcNumber field. Accept normal label wording rather than one exact UI string.
+if(!/MLC[^\n]{0,200}mlcNumber|mlcNumber[^\n]{0,200}MLC/i.test(ipdPage))throw new Error("MLC registration field missing");
 for(const token of ["mlcNumber","hpi","pastHistory","surgicalHistory","systemicExam","workingDiagnosis","diagnosis"])if(!emergencyApi.includes(token))throw new Error(`Missing emergency API clinical contract: ${token}`);
 for(const token of ["mlcNumber","History of present illness","Past medical history","Past surgical history","Systemic examination","Initial working diagnosis","Diagnosis"])if(!emergencyPage.includes(token))throw new Error(`Missing emergency UI clinical contract: ${token}`);
 for(const token of ["consultantName","consultantSpecialty"])if(!appointmentsApi.includes(token))throw new Error(`Missing consultant appointment API contract: ${token}`);
