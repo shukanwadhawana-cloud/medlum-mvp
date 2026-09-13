@@ -8,6 +8,7 @@ const required = [
   "src-tauri/build.rs",
   "src-tauri/src/main.rs",
   "src-tauri/src/lib.rs",
+  "scripts/prepare-desktop-web.mjs",
   ".github/workflows/desktop-packaging.yml",
   "docs/PHASE_12_DESKTOP_PACKAGING.md",
 ];
@@ -34,5 +35,15 @@ for (const runner of ["windows-latest", "macos-latest", "ubuntu-22.04"]) {
 }
 if (!workflow.includes("actions/upload-artifact")) throw new Error("Desktop artifacts are not uploaded");
 if (!workflow.includes("tauri-apps/tauri-action")) throw new Error("Tauri build action missing");
+if (!workflow.includes("npm run build:desktop-web")) throw new Error("Desktop web build step missing");
+
+const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const desktopWeb = pkg.scripts?.["build:desktop-web"] || "";
+if (!desktopWeb.includes("prepare-desktop-web")) {
+  throw new Error("build:desktop-web must use prepare-desktop-web placeholder (not static Next export)");
+}
+if (desktopWeb.includes("next build") || desktopWeb.includes("CAPACITOR_BUILD")) {
+  throw new Error("build:desktop-web must not run next build / CAPACITOR_BUILD static export");
+}
 
 console.log("Phase 12 desktop packaging verification passed for Windows, macOS and Linux.");
