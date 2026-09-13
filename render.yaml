@@ -4,9 +4,11 @@ services:
     runtime: docker
     plan: free
     autoDeploy: true
-    healthCheckPath: /login
+    healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
         sync: false
       - key: SESSION_SECRET
+        sync: false
+      - key: MEDLUM_APP_URL
         sync: false
