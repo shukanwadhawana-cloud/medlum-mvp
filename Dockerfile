@@ -18,4 +18,5 @@ ENV PORT=10000
 
 EXPOSE 10000
 
-CMD ["npm", "start"]
+# Apply pending migrations (including TelemedicineSession) before serving traffic.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
