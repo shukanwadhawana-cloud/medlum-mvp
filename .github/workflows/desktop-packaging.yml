@@ -2,6 +2,11 @@ name: MedLum Desktop Packaging
 
 on:
   workflow_dispatch:
+    inputs:
+      app_url:
+        description: "MedLum HTTPS URL for the desktop window (optional if repository variable MEDLUM_APP_URL is set)"
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
@@ -19,7 +24,8 @@ permissions:
   contents: read
 
 env:
-  MEDLUM_APP_URL: ${{ vars.MEDLUM_APP_URL }}
+  # Prefer dispatch input when provided; otherwise repository Variable. Never hardcode production URL.
+  MEDLUM_APP_URL: ${{ github.event.inputs.app_url || vars.MEDLUM_APP_URL }}
 
 jobs:
   verify:
@@ -67,8 +73,8 @@ jobs:
         run: |
           if [ -z "$MEDLUM_APP_URL" ]; then
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              echo "MEDLUM_APP_URL repository variable is required for manual desktop packaging."
-              echo "Set MEDLUM_APP_URL to the deployed MedLum HTTPS URL, then rerun this workflow."
+              echo "MEDLUM_APP_URL is required for manual desktop packaging."
+              echo "Provide the app_url workflow input, or set repository variable MEDLUM_APP_URL (Actions → Variables)."
               exit 1
             fi
             echo "MEDLUM_APP_URL is not set — skipping native Tauri build on this push."
