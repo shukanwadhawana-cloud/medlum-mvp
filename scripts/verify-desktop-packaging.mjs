@@ -18,9 +18,12 @@ for (const file of required) {
 }
 
 const config = JSON.parse(fs.readFileSync(path.join(root, "src-tauri/tauri.conf.json"), "utf8"));
-if (config.identifier !== "com.medlum.app") throw new Error("Desktop identifier mismatch");
+if (config.identifier !== "com.medlum.desktop") throw new Error("Desktop identifier mismatch (expected com.medlum.desktop)");
 if (config.productName !== "MedLum") throw new Error("Desktop product name mismatch");
 if (config.build?.frontendDist !== "../out") throw new Error("Tauri frontendDist must point to Next export");
+if (!Array.isArray(config.bundle?.icon) || config.bundle.icon.length < 1) {
+  throw new Error("Tauri bundle.icon must list icon assets");
+}
 const targets = config.bundle?.targets || [];
 for (const target of ["nsis", "dmg", "appimage", "deb"]) {
   if (!targets.includes(target)) throw new Error(`Missing desktop bundle target: ${target}`);
@@ -37,7 +40,6 @@ if (!workflow.includes("actions/upload-artifact")) throw new Error("Desktop arti
 if (!workflow.includes("tauri-apps/tauri-action")) throw new Error("Tauri build action missing");
 if (!workflow.includes("npm run build:desktop-web")) throw new Error("Desktop web build step missing");
 
-// MEDLUM_APP_URL must come from repository Variables and/or dispatch input — never Secrets or hardcoded production URL.
 if (!workflow.includes("vars.MEDLUM_APP_URL")) {
   throw new Error("Desktop workflow must read MEDLUM_APP_URL from vars.MEDLUM_APP_URL");
 }
@@ -55,6 +57,11 @@ if (!workflow.includes("skip=true") || !workflow.includes("workflow_dispatch")) 
 }
 if (!workflow.includes("if-no-files-found: error")) {
   throw new Error("Artifact upload must fail when installer files are missing");
+}
+
+const prepare = fs.readFileSync(path.join(root, "scripts/prepare-desktop-web.mjs"), "utf8");
+if (!prepare.includes("src-tauri") || !prepare.includes("icons")) {
+  throw new Error("prepare-desktop-web must generate Tauri icons under src-tauri/icons");
 }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
