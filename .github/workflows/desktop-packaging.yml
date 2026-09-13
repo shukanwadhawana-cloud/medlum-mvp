@@ -7,6 +7,7 @@ on:
     paths:
       - "src-tauri/**"
       - "scripts/verify-desktop-packaging.mjs"
+      - "scripts/prepare-desktop-web.mjs"
       - "package.json"
       - "package-lock.json"
       - "next.config.ts"
@@ -54,29 +55,48 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
-
       - name: Install frontend dependencies
         run: npm install --include=dev --ignore-scripts
 
       - name: Build web frontend
         run: npm run build:desktop-web
 
-      - name: Configure deployed MedLum URL
+      - name: Resolve MEDLUM_APP_URL
+        id: app_url
         shell: bash
         run: |
           if [ -z "$MEDLUM_APP_URL" ]; then
-            echo "MEDLUM_APP_URL repository variable is required for a functional desktop package."
-            echo "Set MEDLUM_APP_URL to the deployed MedLum HTTPS URL, then rerun this workflow."
-            exit 1
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "MEDLUM_APP_URL repository variable is required for manual desktop packaging."
+              echo "Set MEDLUM_APP_URL to the deployed MedLum HTTPS URL, then rerun this workflow."
+              exit 1
+            fi
+            echo "MEDLUM_APP_URL is not set — skipping native Tauri build on this push."
+            echo "Set repository variable MEDLUM_APP_URL (Actions → Variables) to the deployed HTTPS URL to produce installers."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            if ! [[ "$MEDLUM_APP_URL" =~ ^https:// ]]; then
+              echo "MEDLUM_APP_URL must use HTTPS (got: $MEDLUM_APP_URL)"
+              exit 1
+            fi
+            echo "Using MEDLUM_APP_URL for desktop window."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Install Rust
+        if: steps.app_url.outputs.skip != 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux' && steps.app_url.outputs.skip != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Configure deployed MedLum URL
+        if: steps.app_url.outputs.skip != 'true'
+        shell: bash
+        run: |
           node - <<'NODE'
           const fs = require('fs');
           const url = process.env.MEDLUM_APP_URL;
@@ -87,12 +107,14 @@ jobs:
           NODE
 
       - name: Build Tauri bundle
+        if: steps.app_url.outputs.skip != 'true'
         uses: tauri-apps/tauri-action@v1
         with:
           projectPath: .
           args: --config src-tauri/tauri.conf.generated.json
 
       - name: Upload desktop installers
+        if: steps.app_url.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: medlum-${{ runner.os }}-desktop
