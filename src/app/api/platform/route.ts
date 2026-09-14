@@ -6,6 +6,7 @@ import { getPlatformAccess, getClinicSubscription, isPlatformRole } from "@/lib/
 import { ensurePrimaryClinic } from "@/lib/ensure-clinic";
 
 const STAFF_ROLES = ["PlatformAdmin", "PlatformSupport", "PlatformDeveloper", "PlatformBilling"] as const;
+const SUSPENDED_SUBSCRIPTION_STATES = ["SUSPENDED", "EXPIRED", "PAST_DUE", "CANCELLED"];
 
 export async function GET() {
   const access = await getPlatformAccess();
@@ -81,8 +82,13 @@ export async function POST(req: Request) {
     if (!clinic) return NextResponse.json({ success: false, error: "Clinic not found" }, { status: 404 });
     const patientLimit = Math.max(1, parseInt(String(body.patientLimit || 200), 10) || 200);
     const status = String(body.status || "ACTIVE").toUpperCase();
-    const dueDate = body.dueDate ? new Date(String(body.dueDate)).toISOString() : null;
-    await writeAudit({ doctorId: access.session.doctorId, action: "update", entity: "ClinicSubscription", entityId: clinicId, meta: { plan: String(body.plan || "Pilot"), patientLimit, status, dueDate } });
+    if (!(["ACTIVE", ...SUSPENDED_SUBSCRIPTION_STATES] as string[]).includes(status)) return NextResponse.json({ success: false, error: "Invalid subscription status" }, { status: 400 });
+    const dueDate = body.dueDate ? new Date(String(body.dueDate)) : null;
+    if (dueDate && Number.isNaN(dueDate.getTime())) return NextResponse.json({ success: false, error: "Invalid dueDate" }, { status: 400 });
+    const normalizedDueDate = dueDate ? dueDate.toISOString() : null;
+    await writeAudit({ doctorId: access.session.doctorId, action: "update", entity: "ClinicSubscription", entityId: clinicId, meta: { plan: String(body.plan || "Pilot"), patientLimit, status, dueDate: normalizedDueDate } });
+    const shouldActivate = status === "ACTIVE" && (!dueDate || dueDate.getTime() >= Date.now());
+    await prisma.clinic.update({ where: { id: clinicId }, data: { isActive: shouldActivate, deactivatedAt: shouldActivate ? null : new Date() } });
     return NextResponse.json({ success: true, subscription: await getClinicSubscription(clinicId) });
   }
 
