@@ -66,13 +66,20 @@ export async function getSession(): Promise<SessionPayload | null> {
 
     const doctor = await prisma.doctor.findUnique({
       where: { id: doctorId },
-      select: { isActive: true, email: true, clinicMemberships: { where: { isActive: true }, select: { clinicId: true, role: true } } },
+      select: {
+        isActive: true,
+        email: true,
+        clinicMemberships: {
+          where: { isActive: true },
+          select: { clinicId: true, role: true, clinic: { select: { isActive: true } } },
+        },
+      },
     });
     if (!doctor || !doctor.isActive || doctor.email !== email) return null;
 
     const nonPlatformMemberships = doctor.clinicMemberships.filter((m) => !PLATFORM_ROLES.has(m.role));
     if (nonPlatformMemberships.length > 0) {
-      const states = await Promise.all(nonPlatformMemberships.map((m) => subscriptionIsActive(m.clinicId)));
+      const states = await Promise.all(nonPlatformMemberships.map(async (m) => m.clinic.isActive && await subscriptionIsActive(m.clinicId)));
       if (states.every((active) => !active)) {
         jar.set(COOKIE_NAME, "", { ...cookieOptions, maxAge: 0 });
         return null;
