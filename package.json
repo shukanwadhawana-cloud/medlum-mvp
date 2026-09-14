@@ -25,6 +25,7 @@
     "test:production-pilot": "node scripts/verify-production-pilot.mjs",
     "test:ipd-pilot-ui": "node scripts/verify-ipd-pilot-ui.mjs",
     "test:rmo-indent-consumer": "node scripts/verify-rmo-indent-consumer.mjs",
+    "test:platform-controls": "node scripts/verify-platform-controls.mjs",
     "desktop:build": "npx tauri build",
     "mobile:android": "CAPACITOR_BUILD=false npx cap sync android && npx cap open android",
     "mobile:ios": "CAPACITOR_BUILD=false npx cap sync ios && npx cap open ios",
@@ -46,8 +47,8 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.4",
-    "@tailwindcss/postcss": "^4",
     "@tauri-apps/cli": "^2.8.2",
+    "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
