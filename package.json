@@ -47,8 +47,8 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.4",
-    "@tauri-apps/cli": "^2.8.2",
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.8.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
