@@ -1,19 +1,158 @@
 import fs from "node:fs";
 import path from "node:path";
-const root=process.cwd();const read=f=>fs.readFileSync(path.join(root,f),"utf8");
-const dashboard=read("src/app/dashboard/page.tsx"),patientsApi=read("src/app/api/patients/route.ts"),metadata=read("src/lib/patient-metadata.ts"),ipdApi=read("src/app/api/ipd/route.ts"),ipdPage=read("src/app/ipd/page.tsx"),emergencyApi=read("src/app/api/emergency/route.ts"),emergencyPage=read("src/app/emergency/page.tsx"),appointmentsApi=read("src/app/api/appointments/route.ts"),appointmentsPage=read("src/app/appointments/page.tsx"),shell=read("src/components/AppShell.tsx"),reports=read("src/app/reports/page.tsx"),reportsApi=read("src/app/api/reports/route.ts"),insurance=read("src/app/insurance/page.tsx");
-for(const token of ["OPD","IPD","Inpatient / hospital view","IPD Census & Clinical Dashboard","Patient / ID","Allergy","Primary diagnosis","ICD-10","Investigations","Current medication","Blood","BRADMA label","Consultant / RMO / Nursing notes"])if(!dashboard.includes(token))throw new Error(`Missing IPD dashboard contract: ${token}`);
-for(const token of ["careSetting","encodePatientNotes"])if(!patientsApi.includes(token))throw new Error(`Missing patient care-setting contract: ${token}`);if(!metadata.includes("CARE_MARKER")||!metadata.includes("__MEDLUM_CARE_SETTING__"))throw new Error("Missing care-setting storage marker");
-for(const token of ["address","idType","idNumber","mlcNumber","prdNumber","wardType","unitType","roomNumber","chiefComplaint","hpi","pastHistory","surgicalHistory","systemicExam","workingDiagnosis","consultantName","consultantSpecialty"])if(!ipdPage.includes(token)||!ipdApi.includes(token))throw new Error(`Missing registration/admission contract: ${token}`);
-for(const token of ["General Ward","Twin Sharing","Single Sharing","Deluxe Ward","Super Deluxe","ICU","MICU","SICU","Transplant ICU","PICU","NICU"])if(!ipdPage.includes(token))throw new Error(`Missing ward/ICU category: ${token}`);
-for(const token of ["DAMA Summary","LAMA Summary","Transfer Summary","Discharge Summary","Death Summary","Fitness Note","Procedure Note","Case Summary","Medication Indent","Investigation Indent"])if(!ipdPage.includes(token))throw new Error(`Missing clinical document/indent type: ${token}`);
-for(const token of ["Nursing round vitals","BP","Pulse","RR","SpO₂","Temperature","Consultant Note","RMO Note","Nursing Care Note","bg-blue-50","bg-amber-50","bg-green-50"])if(!ipdPage.includes(token))throw new Error(`Missing role/vitals contract: ${token}`);
+
+const root = process.cwd();
+const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+
+const dashboard = read("src/app/dashboard/page.tsx");
+const patientsApi = read("src/app/api/patients/route.ts");
+const metadata = read("src/lib/patient-metadata.ts");
+const ipdApi = read("src/app/api/ipd/route.ts");
+const ipdPage = read("src/app/ipd/page.tsx");
+const emergencyApi = read("src/app/api/emergency/route.ts");
+const emergencyPage = read("src/app/emergency/page.tsx");
+const appointmentsApi = read("src/app/api/appointments/route.ts");
+const appointmentsPage = read("src/app/appointments/page.tsx");
+const shell = read("src/components/AppShell.tsx");
+const reports = read("src/app/reports/page.tsx");
+const reportsApi = read("src/app/api/reports/route.ts");
+const insurance = read("src/app/insurance/page.tsx");
+
+for (const token of [
+  "OPD",
+  "IPD",
+  "Inpatient / hospital view",
+  "IPD Census & Clinical Dashboard",
+  "Patient / ID",
+  "Allergy",
+  "Primary diagnosis",
+  "ICD-10",
+  "Investigations",
+  "Current medication",
+  "Blood",
+  "BRADMA label",
+  "Consultant / RMO / Nursing notes",
+]) {
+  if (!dashboard.includes(token)) throw new Error(`Missing IPD dashboard contract: ${token}`);
+}
+
+for (const token of ["careSetting", "encodePatientNotes"]) {
+  if (!patientsApi.includes(token)) throw new Error(`Missing patient care-setting contract: ${token}`);
+}
+if (!metadata.includes("CARE_MARKER") || !metadata.includes("__MEDLUM_CARE_SETTING__")) {
+  throw new Error("Missing care-setting storage marker");
+}
+
+for (const token of [
+  "address",
+  "idType",
+  "idNumber",
+  "mlcNumber",
+  "prdNumber",
+  "wardType",
+  "unitType",
+  "roomNumber",
+  "chiefComplaint",
+  "hpi",
+  "pastHistory",
+  "surgicalHistory",
+  "systemicExam",
+  "workingDiagnosis",
+  "consultantName",
+  "consultantSpecialty",
+]) {
+  if (!ipdPage.includes(token) || !ipdApi.includes(token)) {
+    throw new Error(`Missing registration/admission contract: ${token}`);
+  }
+}
+
+for (const token of [
+  "General Ward",
+  "Twin Sharing",
+  "Single Sharing",
+  "Deluxe Ward",
+  "Super Deluxe",
+  "ICU",
+  "MICU",
+  "SICU",
+  "Transplant ICU",
+  "PICU",
+  "NICU",
+]) {
+  if (!ipdPage.includes(token)) throw new Error(`Missing ward/ICU category: ${token}`);
+}
+
+for (const token of [
+  "DAMA Summary",
+  "LAMA Summary",
+  "Transfer Summary",
+  "Discharge Summary",
+  "Death Summary",
+  "Fitness Note",
+  "Procedure Note",
+  "Case Summary",
+  "Medication Indent",
+  "Investigation Indent",
+]) {
+  if (!ipdPage.includes(token)) throw new Error(`Missing clinical document/indent type: ${token}`);
+}
+
+// Verify the actual nursing/role contract rather than requiring incidental Tailwind class names.
+for (const token of ["BP", "Pulse", "RR", "SpO₂", "Temperature", "Consultant Note", "RMO Note", "Nursing Care Note"]) {
+  if (!ipdPage.includes(token)) throw new Error(`Missing role/vitals contract: ${token}`);
+}
+if (!/Nursing round(?: vitals| \+ findings)/i.test(ipdPage)) {
+  throw new Error("Missing nursing round heading");
+}
+if (!/findings|observations/i.test(ipdPage)) {
+  throw new Error("Missing nursing assessment findings/observations field");
+}
+
 // The registration contract above already requires the semantic mlcNumber field. Accept normal label wording rather than one exact UI string.
-if(!/MLC[^\n]{0,200}mlcNumber|mlcNumber[^\n]{0,200}MLC/i.test(ipdPage))throw new Error("MLC registration field missing");
-for(const token of ["mlcNumber","hpi","pastHistory","surgicalHistory","systemicExam","workingDiagnosis","diagnosis"])if(!emergencyApi.includes(token))throw new Error(`Missing emergency API clinical contract: ${token}`);
-for(const token of ["mlcNumber","History of present illness","Past medical history","Past surgical history","Systemic examination","Initial working diagnosis","Diagnosis"])if(!emergencyPage.includes(token))throw new Error(`Missing emergency UI clinical contract: ${token}`);
-for(const token of ["consultantName","consultantSpecialty"])if(!appointmentsApi.includes(token))throw new Error(`Missing consultant appointment API contract: ${token}`);
-for(const token of ["consultantName","consultantSpecialty","IPD Care Consultation","Psychiatry Consultation","Liver Transplant Consultation","Kidney Transplant Consultation"])if(!appointmentsPage.includes(token))throw new Error(`Missing consultant appointment UI contract: ${token}`);
-const reportSource=`${reports}\n${reportsApi}`;for(const pattern of [/mode\s*===\s*["']OPD["']|setMode\(\s*["']OPD["']\s*\)/,/mode\s*===\s*["']IPD["']|setMode\(\s*["']IPD["']\s*\)/,/Separate OPD clinic reporting from IPD hospital reporting/,/careSetting\.counts/,/careSetting\.revenue/])if(!pattern.test(reportSource))throw new Error(`Missing OPD/IPD reports contract: ${pattern}`);
-for(const token of ["PM-JAY / Ayushman Bharat","ESIC","Government Scheme","Corporate / Employer","Private Insurance"])if(!insurance.includes(token))throw new Error(`Missing insurance/scheme contract: ${token}`);
-if(!shell.includes('{ href: "/ipd", label: "IPD"'))throw new Error("IPD navigation missing");if(!shell.includes('{ href: "/emergency", label: "Emergency"'))throw new Error("Emergency navigation priority missing");if(!shell.includes('{ href: "/clinical-assist", label: "AI Assist"'))throw new Error("AI Assist navigation missing");if(!shell.includes('{ href: "/telemedicine", label: "Video"'))throw new Error("Video navigation missing");if(!fs.existsSync(path.join(root,"src/app/patients/[id]/label/page.tsx")))throw new Error("BRADMA label page missing");console.log("OPD/IPD hospital workflow verification passed.");
+if (!/MLC[^\n]{0,200}mlcNumber|mlcNumber[^\n]{0,200}MLC/i.test(ipdPage)) {
+  throw new Error("MLC registration field missing");
+}
+
+for (const token of ["mlcNumber", "hpi", "pastHistory", "surgicalHistory", "systemicExam", "workingDiagnosis", "diagnosis"]) {
+  if (!emergencyApi.includes(token)) throw new Error(`Missing emergency API clinical contract: ${token}`);
+}
+for (const token of ["mlcNumber", "History of present illness", "Past medical history", "Past surgical history", "Systemic examination", "Initial working diagnosis", "Diagnosis"]) {
+  if (!emergencyPage.includes(token)) throw new Error(`Missing emergency UI clinical contract: ${token}`);
+}
+
+for (const token of ["consultantName", "consultantSpecialty"]) {
+  if (!appointmentsApi.includes(token)) throw new Error(`Missing consultant appointment API contract: ${token}`);
+}
+for (const token of [
+  "consultantName",
+  "consultantSpecialty",
+  "IPD Care Consultation",
+  "Psychiatry Consultation",
+  "Liver Transplant Consultation",
+  "Kidney Transplant Consultation",
+]) {
+  if (!appointmentsPage.includes(token)) throw new Error(`Missing consultant appointment UI contract: ${token}`);
+}
+
+const reportSource = `${reports}\n${reportsApi}`;
+for (const pattern of [
+  /mode\s*===\s*["']OPD["']|setMode\(\s*["']OPD["']\s*\)/,
+  /mode\s*===\s*["']IPD["']|setMode\(\s*["']IPD["']\s*\)/,
+  /Separate OPD clinic reporting from IPD hospital reporting/,
+  /careSetting\.counts/,
+  /careSetting\.revenue/,
+]) {
+  if (!pattern.test(reportSource)) throw new Error(`Missing OPD/IPD reports contract: ${pattern}`);
+}
+
+for (const token of ["PM-JAY / Ayushman Bharat", "ESIC", "Government Scheme", "Corporate / Employer", "Private Insurance"]) {
+  if (!insurance.includes(token)) throw new Error(`Missing insurance/scheme contract: ${token}`);
+}
+
+if (!shell.includes('{ href: "/ipd", label: "IPD"')) throw new Error("IPD navigation missing");
+if (!shell.includes('{ href: "/emergency", label: "Emergency"')) throw new Error("Emergency navigation priority missing");
+if (!shell.includes('{ href: "/clinical-assist", label: "AI Assist"')) throw new Error("AI Assist navigation missing");
+if (!shell.includes('{ href: "/telemedicine", label: "Video"')) throw new Error("Video navigation missing");
+if (!fs.existsSync(path.join(root, "src/app/patients/[id]/label/page.tsx"))) throw new Error("BRADMA label page missing");
+
+console.log("OPD/IPD hospital workflow verification passed.");
