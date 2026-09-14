@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
@@ -44,7 +45,7 @@ export async function getPlatformSession(): Promise<PlatformOwnerSession | null>
     if (!ownerId || !email) return null;
     await ensureControlPlaneSchema();
     const rows = await prisma.$queryRaw<PlatformOwnerSession[]>(
-      { __raw: `SELECT "id" AS "ownerId","email","name","isActive" FROM "PlatformOwner" WHERE "id" = $1 AND "email" = $2 LIMIT 1`, values: [ownerId, email] } as never
+      Prisma.sql`SELECT "id" AS "ownerId","email","name","isActive" FROM "PlatformOwner" WHERE "id" = ${ownerId} AND "email" = ${email} LIMIT 1`
     );
     const owner = rows[0];
     if (!owner || !owner.isActive) {
