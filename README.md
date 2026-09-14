@@ -46,6 +46,10 @@ npm run dev
 2. Logout → Sign up Doctor B
 3. Confirm Doctor B cannot see Doctor A data
 
+## Pilot release gates
+
+Before merging the IPD clinical workflow into `main`, the repository CI must pass the clinical persistence, RMO indent-consumer, platform-controls, authentication, production-security, telemedicine, packaging, and build verification gates. Render remains the canonical production deployment; a Vercel preview failure does not change the production target.
+
 ## Deployment
 
 Render is the canonical production deployment for this repository. Vercel is not the production target.
