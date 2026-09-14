@@ -40,6 +40,8 @@ jobs:
         run: npm run test:rmo-indent-consumer
       - name: Verify platform controls
         run: npm run test:platform-controls
+      - name: Verify Razorpay integration contract
+        run: npm run test:razorpay
       - name: Verify EKA ABDM onboarding
         run: npm run test:eka
       - name: Verify MedLum data architecture
