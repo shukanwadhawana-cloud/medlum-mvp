@@ -28,7 +28,7 @@ export async function GET() {
   }));
 
   const allInvoices = await prisma.invoice.findMany({ where: { clinicId: { not: null } }, select: { total: true, amount: true, status: true } });
-  const allPayments = await prisma.payment.findMany({ where: { invoice: { clinicId: { not: null } }, }, select: { amount: true } });
+  const allPayments = await prisma.payment.findMany({ where: { invoice: { clinicId: { not: null } } }, select: { amount: true } });
   const totalPatients = await prisma.patient.count({ where: { clinicId: { not: null } } });
   const totalCollected = allPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalInvoiced = allInvoices.reduce((s, i) => s + Number(i.total ?? i.amount ?? 0), 0);
@@ -50,7 +50,8 @@ export async function POST(req: Request) {
     if (!email || password.length < 8) return NextResponse.json({ success: false, error: "Valid email and password (8+ chars) required" }, { status: 400 });
     let doctor = await prisma.doctor.findUnique({ where: { email } });
     if (!doctor) doctor = await prisma.doctor.create({ data: { name, email, passwordHash: await hashPassword(password), clinicName: "MedLum Platform", phone: "" } });
-    const clinicId = await ensurePrimaryClinic(doctor.id, "MedLum Platform");
+    const clinicMembership = await ensurePrimaryClinic(doctor.id, "MedLum Platform");
+    const clinicId = clinicMembership.clinicId;
     const hasStaffMembership = await prisma.clinicMember.findFirst({ where: { doctorId: doctor.id, clinicId, role: { in: [...STAFF_ROLES] }, isActive: true } });
     if (!hasStaffMembership) {
       await prisma.doctor.update({ where: { id: doctor.id }, data: { name, passwordHash: await hashPassword(password), isActive: true, clinicName: "MedLum Platform" } });
@@ -72,7 +73,8 @@ export async function POST(req: Request) {
     if (!email || !name || password.length < 8) return NextResponse.json({ success: false, error: "Name, email and 8+ character password required" }, { status: 400 });
     if (await prisma.doctor.findUnique({ where: { email } })) return NextResponse.json({ success: false, error: "Email already registered" }, { status: 409 });
     const doctor = await prisma.doctor.create({ data: { name, email, passwordHash: await hashPassword(password), clinicName: "MedLum Platform", phone: "" } });
-    const clinicId = await ensurePrimaryClinic(doctor.id, "MedLum Platform");
+    const clinicMembership = await ensurePrimaryClinic(doctor.id, "MedLum Platform");
+    const clinicId = clinicMembership.clinicId;
     await prisma.clinicMember.updateMany({ where: { doctorId: doctor.id, clinicId }, data: { role, isActive: true, deactivatedAt: null } });
     await writeAudit({ doctorId: access.session.doctorId, action: "create", entity: "PlatformUser", entityId: doctor.id, meta: { role, email } });
     return NextResponse.json({ success: true, user: { id: doctor.id, name, email, role } });
