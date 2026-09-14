@@ -253,7 +253,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </span>
               <span>MedLum</span>
             </Link>
-            <nav aria-label="Primary navigation" className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none md:flex">
+            <nav
+              aria-label="Primary navigation"
+              className="hidden md:flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none"
+            >
               {primaryNav.map((item) => (
                 <Link
                   key={item.href}
