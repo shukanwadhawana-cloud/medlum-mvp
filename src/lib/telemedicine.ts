@@ -33,7 +33,7 @@ export function getVideoProvider(): VideoProvider {
   return process.env.VIDEO_PROVIDER === "external" ? "external" : "jitsi";
 }
 
-/** Jitsi URL with prejoin disabled so mobile users land closer to the call. */
+/** Jitsi URL tuned for mobile: skip prejoin, prefer live mic/camera. */
 export function createVideoMeetingUrl(sessionId: string) {
   const provider = getVideoProvider();
   if (provider === "external") return null;
@@ -41,8 +41,17 @@ export function createVideoMeetingUrl(sessionId: string) {
   const base = (process.env.VIDEO_BASE_URL || "https://meet.jit.si").replace(/\/+$/, "");
   const roomSecret = randomBytes(18).toString("base64url");
   const room = `${base}/medlum-${sessionId}-${roomSecret}`;
-  // Skip the "How do you want to join this meeting?" prejoin screen when possible.
-  const hash =
-    "#config.prejoinConfig.enabled=false&config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false";
-  return `${room}${hash}`;
+  const hash = [
+    "config.prejoinConfig.enabled=false",
+    "config.prejoinPageEnabled=false",
+    "config.startWithAudioMuted=false",
+    "config.startWithVideoMuted=false",
+    "config.startSilent=false",
+    "config.disableAP=false",
+    "config.enableNoAudioDetection=true",
+    "config.enableNoisyMicDetection=true",
+    "config.disableAudioLevels=false",
+    "interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=true",
+  ].join("&");
+  return `${room}#${hash}`;
 }
