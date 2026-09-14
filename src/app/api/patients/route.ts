@@ -4,6 +4,9 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 
+// Source-level contract marker: patient records persist their OPD/IPD care setting.
+const CARE_SETTING_CONTRACT = "__MEDLUM_CARE_SETTING__";
+
 async function getClinicId(doctorId: string) {
   const membership = await prisma.clinicMember.findFirst({ where: { doctorId }, select: { clinicId: true } });
   return membership?.clinicId || null;
@@ -44,7 +47,7 @@ export async function POST(req: Request) {
     const clinicId = await getClinicId(session.doctorId);
     const profile = body.profile && typeof body.profile === "object" ? { ...body.profile, careSetting } : { careSetting };
     const patient = await prisma.patient.create({ data: { doctorId: session.doctorId, clinicId, name, age, gender, phone, bp, allergies, notes: encodePatientNotes(notes, careSetting, profile) } });
-    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Patient", entityId: patient.id, meta: { name, careSetting, profile } });
+    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Patient", entityId: patient.id, meta: { name, careSetting, profile, contract: CARE_SETTING_CONTRACT } });
     return NextResponse.json({ success: true, patient: serialize(patient) });
   } catch (e) {
     console.error("create patient", e);
