@@ -28,8 +28,9 @@ const checks = [
   ["payment signature verification", verify.includes("verifyPaymentSignature")],
   ["server-side order amount validation", verify.includes("order.amount !== expectedAmount")],
   ["payment idempotency", verify.includes("reference: paymentId")],
-  ["MedLum payment persistence", verify.includes("prisma.payment.create")],
-  ["invoice paid state", verify.includes('status: \"Paid\"')],
+  // Payment creation is intentionally performed inside a Prisma transaction as tx.payment.create.
+  ["MedLum payment persistence", /(?:prisma|tx)\.payment\.create\s*\(/.test(verify)],
+  ["invoice paid state", verify.includes('status: "Paid"')],
   ["webhook signature verification", webhook.includes("verifyWebhookSignature")],
   ["webhook secret", webhook.includes("RAZORPAY_WEBHOOK_SECRET")],
   ["webhook event handling", webhook.includes("payment.captured") && webhook.includes("order.paid")],
