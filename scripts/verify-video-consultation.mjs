@@ -23,6 +23,13 @@ const join = fs.readFileSync(path.join(root, "src/app/api/telemedicine/join/rout
 const doctorRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
 const patientRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/join/page.tsx"), "utf8");
 
+const doctorLifecycle =
+  (doctorRoom.includes('status: "Waiting"') || doctorRoom.includes("status: 'Waiting'")) &&
+  (doctorRoom.includes('status: "Active"') || doctorRoom.includes("status: 'Active'")) &&
+  (doctorRoom.includes('status: "Completed"') || doctorRoom.includes("status: 'Completed'")) &&
+  (doctorRoom.includes("startCallForGuest") || doctorRoom.includes("Start call")) &&
+  (doctorRoom.includes("hangUp") || doctorRoom.includes("Hang up"));
+
 const checks = [
   ["replaceable provider selection", helper.includes("getVideoProvider") && helper.includes('"external"') && helper.includes('"jitsi"')],
   ["HTTPS video base URL default", helper.includes("https://meet.jit.si")],
@@ -30,8 +37,8 @@ const checks = [
   ["video URL persisted at session creation", sessions.includes("meetingUrl") && sessions.includes("provider")],
   ["join token remains hashed", sessions.includes("hashJoinToken(joinToken)")],
   ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
-  ["doctor lifecycle controls", doctorRoom.includes('update("Waiting")') && doctorRoom.includes('update("Active")') && doctorRoom.includes('update("Completed")')],
-  ["doctor video embed", doctorRoom.includes("allow=\"camera; microphone; fullscreen; display-capture; autoplay\"")],
+  ["doctor lifecycle controls", doctorLifecycle],
+  ["doctor video embed", doctorRoom.includes('allow="camera; microphone; fullscreen; display-capture; autoplay"')],
   ["patient waiting room", patientRoom.includes("You're in the waiting room")],
   ["patient video embed", patientRoom.includes("session.meetingUrl")],
 ];
