@@ -28,7 +28,7 @@ for (const file of routes) {
   const source = await readFile(file, "utf8");
   if (SPECIAL_CASES.has(rel)) continue;
   const usesPrisma = /\bprisma\b/.test(source);
-  const authenticated = /getSession\s*\(|getPortalSession\s*\(/.test(source);
+  const authenticated = /getSession\s*\(|getPortalSession\s*\(|getPlatformAccess\s*\(|requirePlatformAccess\s*\(/.test(source);
   const webhookVerified = /verify.*webhook|webhook.*verify|x-.*signature|signature/i.test(source);
   if (usesPrisma && !authenticated && !webhookVerified) {
     failures.push(`${rel}: Prisma-backed route has no authenticated session/webhook verification`);
