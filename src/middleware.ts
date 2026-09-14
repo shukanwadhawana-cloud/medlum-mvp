@@ -10,6 +10,13 @@ function getExpectedOrigin(req: NextRequest) {
 }
 
 export function middleware(req: NextRequest) {
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  if (process.env.NODE_ENV === "production" && forwardedProto === "http") {
+    const url = req.nextUrl.clone();
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 308);
+  }
+
   if (req.nextUrl.pathname.startsWith("/api/") && !SAFE_METHODS.has(req.method)) {
     const origin = req.headers.get("origin");
     const expectedOrigin = getExpectedOrigin(req);
@@ -27,7 +34,7 @@ export function middleware(req: NextRequest) {
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
 
   if (process.env.NODE_ENV === "production") {
-    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   }
 
   return response;
