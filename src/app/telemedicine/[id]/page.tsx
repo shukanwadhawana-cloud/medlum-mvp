@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 
+async function requestCameraMic() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("This browser cannot access camera/microphone.");
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  // Stop tracks after unlocking permission — Jitsi will open its own stream.
+  for (const t of stream.getTracks()) t.stop();
+}
+
 export default function TelemedicineVideoPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState("");
   const [session, setSession] = useState<any>(null);
@@ -13,6 +22,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  const [permHint, setPermHint] = useState("");
 
   async function load(sessionId: string) {
     setLoading(true);
@@ -53,20 +63,16 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     return j;
   }
 
-  async function update(status: "Waiting" | "Active" | "Completed" | "Cancelled") {
-    setBusy(true);
+  async function enableDevices() {
+    setPermHint("");
     setError("");
-    setMsg("");
     try {
-      await patch({ status });
-      if (status === "Active") setMsg("Guest can now enter the video room.");
-      if (status === "Completed" || status === "Cancelled") {
-        setMsg("Call ended. Guest will see the consultation as closed.");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to update consultation.");
-    } finally {
-      setBusy(false);
+      await requestCameraMic();
+      setMsg("Camera and microphone allowed. If the embed still fails, use Open video in new tab.");
+    } catch {
+      setPermHint(
+        "Camera/microphone blocked. On iPad/iPhone: Settings → Safari (or Chrome) → Camera & Microphone → Allow for this site. Or tap Open video in new tab and Allow when prompted."
+      );
     }
   }
 
@@ -75,6 +81,11 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     setError("");
     setMsg("");
     try {
+      try {
+        await requestCameraMic();
+      } catch {
+        /* still start call; host can open new tab */
+      }
       if (session?.status === "Scheduled") await patch({ status: "Waiting" });
       await patch({ status: "Active" });
       setMsg("Call is live. Guest page will show video when they keep it open.");
@@ -139,7 +150,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
         await copyInvite();
       }
     } catch {
-      /* user cancelled share */
+      /* cancelled */
     }
   }
 
@@ -177,12 +188,15 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
 
       {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {msg && <div className="mb-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{msg}</div>}
+      {permHint && (
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">{permHint}</div>
+      )}
 
       <section className="mb-3 rounded-2xl border bg-white p-3 sm:p-4">
         <div className="text-sm font-semibold">Consultation room</div>
         <div className="mt-1 break-all text-xs text-gray-500">
           Provider: {session?.provider || "external"} · {session?.sessionKind || "patient"}
-          {session?.peerLabel ? ` · ${session.peerLabel}` : ""}
+          {session?.peerLabel ? ` · ${session.peerLabel}` : ""} · free Jitsi (no 1-hour hard limit)
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -193,6 +207,16 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               className="rounded-xl bg-[#c2183a] px-3.5 py-2.5 text-sm font-medium text-white"
             >
               {busy ? "Starting…" : "Start call (let guest in)"}
+            </button>
+          )}
+          {canJoin && (
+            <button
+              disabled={busy}
+              type="button"
+              onClick={() => void enableDevices()}
+              className="rounded-xl border px-3.5 py-2.5 text-sm font-medium"
+            >
+              Allow camera & mic
             </button>
           )}
           {canJoin && (
@@ -218,9 +242,9 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               href={session.meetingUrl}
               target="_blank"
               rel="noreferrer"
-              className="rounded-xl border px-3.5 py-2.5 text-sm font-medium"
+              className="rounded-xl bg-[#140a1f] px-3.5 py-2.5 text-sm font-medium text-white"
             >
-              Open video in new tab
+              Open video in new tab (best on iPad)
             </a>
           )}
           {ended && (
@@ -255,11 +279,16 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
         )}
 
         {canJoin && (
-          <p className="mt-2 text-[11px] text-gray-500">
-            <strong>Same room (iPhone + iPad)?</strong> Use headphones on one device, or mute the speaker on the
-            guest phone — otherwise each microphone hears the other speaker and you get echo. Real patients in another
-            location will not have this problem.
-          </p>
+          <div className="mt-2 space-y-1 text-[11px] text-gray-500">
+            <p>
+              <strong>Camera / mic error?</strong> Tap <strong>Allow camera & mic</strong>, or use{" "}
+              <strong>Open video in new tab (best on iPad)</strong> and choose Allow. iOS often blocks camera inside
+              embedded frames after a previous Deny.
+            </p>
+            <p>
+              <strong>Same room?</strong> Headphones on one device (or mute guest speaker) to avoid echo.
+            </p>
+          </div>
         )}
       </section>
 
