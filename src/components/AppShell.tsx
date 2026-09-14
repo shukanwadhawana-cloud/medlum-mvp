@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useDoctor } from "./DoctorProvider";
 
 const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
@@ -145,6 +145,11 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
         <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
       </>
     ),
+    close: (
+      <>
+        <path d="M6 6l12 12M18 6 6 18" />
+      </>
+    ),
   };
   return <svg {...common}>{paths[name] ?? paths.brand}</svg>;
 };
@@ -162,15 +167,15 @@ const primaryNav = [
 ];
 
 const moreNav = [
-  { href: "/pricing", label: "Pricing & plans", icon: "pricing" },
-  { href: "/help", label: "Help center & FAQs", icon: "help" },
-  { href: "/billing", label: "Patient billing", icon: "billing" },
-  { href: "/blood-bank", label: "Blood bank", icon: "blood" },
-  { href: "/insurance", label: "Insurance", icon: "insurance" },
-  { href: "/reports", label: "Reports", icon: "reports" },
-  { href: "/prescriptions", label: "Prescriptions", icon: "rx" },
-  { href: "/clinic", label: "Clinic settings", icon: "clinic" },
-  { href: "/clinical-assist", label: "AI Assist", icon: "ai" },
+  { href: "/pricing", label: "Pricing & plans", icon: "pricing", group: "Account" },
+  { href: "/help", label: "Help center & FAQs", icon: "help", group: "Account" },
+  { href: "/billing", label: "Patient billing", icon: "billing", group: "Clinic" },
+  { href: "/blood-bank", label: "Blood bank", icon: "blood", group: "Clinic" },
+  { href: "/insurance", label: "Insurance", icon: "insurance", group: "Clinic" },
+  { href: "/reports", label: "Reports", icon: "reports", group: "Clinic" },
+  { href: "/prescriptions", label: "Prescriptions", icon: "rx", group: "Clinic" },
+  { href: "/clinic", label: "Clinic settings", icon: "clinic", group: "Clinic" },
+  { href: "/clinical-assist", label: "AI Assist", icon: "ai", group: "Clinic" },
 ];
 
 const isActive = (pathname: string, href: string) =>
@@ -180,57 +185,104 @@ const isActive = (pathname: string, href: string) =>
   (href === "/help" && pathname.startsWith("/help")) ||
   (href === "/pricing" && pathname.startsWith("/pricing"));
 
-function MoreMenu({ pathname }: { pathname: string }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const moreActive = moreNav.some((i) => isActive(pathname, i.href));
-
+function MoreSidebar({
+  open,
+  onClose,
+  pathname,
+  onLogout,
+}: {
+  open: boolean;
+  onClose: () => void;
+  pathname: string;
+  onLogout: () => void;
+}) {
   useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose]);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  if (!open) return null;
+
+  const groups = ["Account", "Clinic"] as const;
 
   return (
-    <div className="relative shrink-0" ref={ref}>
+    <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="More menu">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap transition-colors ${
-          moreActive || open ? "bg-[#c2183a] font-medium text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
-        }`}
-      >
-        <Icon name="more" size={14} />
-        <span>More</span>
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 z-50 mt-1.5 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#1c1228] py-1 shadow-xl"
-        >
-          {moreNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              role="menuitem"
-              className={`flex items-center gap-2 px-3 py-2.5 text-xs ${
-                isActive(pathname, item.href) ? "bg-[#c2183a]/30 text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <Icon name={item.icon} size={14} />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+        className="absolute inset-0 bg-black/45"
+        aria-label="Close menu"
+        onClick={onClose}
+      />
+      <aside className="absolute inset-y-0 right-0 flex w-[min(100%,20rem)] flex-col bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div>
+            <div className="text-sm font-bold text-[#140a1f]">More</div>
+            <div className="text-[11px] text-gray-500">Pricing, help, modules & settings</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-lg border text-[#140a1f]"
+            aria-label="Close"
+          >
+            <Icon name="close" size={16} />
+          </button>
         </div>
-      )}
+
+        <nav className="flex-1 overflow-y-auto px-2 py-3">
+          {groups.map((group) => (
+            <div key={group} className="mb-3">
+              <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{group}</div>
+              <ul className="space-y-0.5">
+                {moreNav
+                  .filter((i) => i.group === group)
+                  .map((item) => {
+                    const active = isActive(pathname, item.href);
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={onClose}
+                          className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm ${
+                            active ? "bg-[#c2183a]/10 font-semibold text-[#c2183a]" : "text-gray-800 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className={`grid h-8 w-8 place-items-center rounded-lg ${active ? "bg-[#c2183a]/15" : "bg-gray-100"}`}>
+                            <Icon name={item.icon} size={16} />
+                          </span>
+                          <span>{item.label}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t p-3 safe-area-bottom">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onLogout();
+            }}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-medium text-red-700"
+          >
+            <Icon name="logout" size={16} />
+            Logout
+          </button>
+        </div>
+      </aside>
     </div>
   );
 }
@@ -238,11 +290,33 @@ function MoreMenu({ pathname }: { pathname: string }) {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { logout } = useDoctor();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreActive = moreNav.some((i) => isActive(pathname, i.href));
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [pathname]);
+
+  const moreButton = (
+    <button
+      type="button"
+      onClick={() => setMoreOpen(true)}
+      aria-expanded={moreOpen}
+      aria-haspopup="dialog"
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap transition-colors ${
+        moreActive || moreOpen ? "bg-[#c2183a] font-medium text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      <Icon name="more" size={14} />
+      <span>More</span>
+    </button>
+  );
+
   return (
     <div className="flex min-h-screen flex-col bg-[#f5f5f7]">
       <header className="sticky top-0 z-40 bg-[#140a1f] text-white shadow-sm">
         <div className="mx-auto w-full max-w-7xl px-3 sm:px-4 lg:px-6">
-          <div className="flex h-12 items-center gap-3 sm:h-14">
+          <div className="flex h-12 items-center gap-2 sm:h-14 sm:gap-3">
             <Link
               href="/dashboard"
               className="flex shrink-0 items-center gap-2 text-base font-bold sm:text-lg"
@@ -251,8 +325,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15">
                 <Icon name="brand" size={17} />
               </span>
-              <span>MedLum</span>
+              <span className="hidden xs:inline sm:inline">MedLum</span>
             </Link>
+
             <nav
               aria-label="Primary navigation"
               className="hidden md:flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none"
@@ -273,19 +348,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <span>{item.label}</span>
                 </Link>
               ))}
-              <MoreMenu pathname={pathname} />
             </nav>
-            <div className="hidden shrink-0 md:block">
-              <button
-                type="button"
-                onClick={() => logout()}
-                title="Logout"
-                className="inline-flex items-center gap-1.5 px-1 py-2 text-xs text-red-300 hover:text-red-200"
-              >
-                <Icon name="logout" size={14} />
-                <span>Logout</span>
-              </button>
-            </div>
+
             <nav
               aria-label="Mobile navigation"
               className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain scrollbar-none md:hidden"
@@ -304,31 +368,37 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <span>{item.label}</span>
                 </Link>
               ))}
-              <MoreMenu pathname={pathname} />
+            </nav>
+
+            {/* Fixed outside the scroll strip so More always receives taps */}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {moreButton}
               <button
                 type="button"
                 onClick={() => logout()}
                 title="Logout"
-                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs text-red-300"
+                className="hidden items-center gap-1.5 px-1 py-2 text-xs text-red-300 hover:text-red-200 md:inline-flex"
               >
                 <Icon name="logout" size={14} />
                 <span>Logout</span>
               </button>
-            </nav>
+            </div>
           </div>
         </div>
       </header>
+
       <main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-3 py-4 pb-20 sm:px-4 sm:py-5 md:pb-6 lg:px-6 lg:py-6">
         {children}
       </main>
+
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom md:hidden">
-        <nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-4">
+        <nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-5">
           {[primaryNav[0], primaryNav[1], primaryNav[2], primaryNav[3]].map((item) => (
             <Link
               key={item.href}
               href={item.href}
               title={item.label}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium ${
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium ${
                 isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"
               }`}
             >
@@ -336,8 +406,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span>{item.label}</span>
             </Link>
           ))}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium ${
+              moreActive || moreOpen ? "text-[#c2183a]" : "text-gray-500"
+            }`}
+          >
+            <Icon name="more" size={18} />
+            <span>More</span>
+          </button>
         </nav>
       </div>
+
+      <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} />
     </div>
   );
 }
