@@ -1,21 +1,13 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { resolveSessionSecretBytes } from "@/lib/session-secret";
 
 const COOKIE_NAME = "medlum_session";
 const MAX_AGE = 60 * 60 * 24 * 14; // 14 days
 
 function getSecret() {
-  const secret = process.env.SESSION_SECRET;
-  if (secret && secret.length >= 32) {
-    return new TextEncoder().encode(secret);
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("SESSION_SECRET must be configured with at least 32 characters");
-  }
-
-  return new TextEncoder().encode("medlum-dev-secret-change-me-32b");
+  return resolveSessionSecretBytes();
 }
 
 export type SessionPayload = {
