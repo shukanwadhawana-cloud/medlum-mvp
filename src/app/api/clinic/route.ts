@@ -18,8 +18,6 @@ async function getContext(allowInactiveClinic = false) {
 }
 
 export async function GET() {
-  // Owners/Admins must still be able to see the inactive workspace so they
-  // can explicitly reactivate it. Ordinary members cannot enter an inactive clinic.
   const ctx = await getContext(true);
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!ctx.membership.clinic.isActive && !["Owner", "Admin"].includes(ctx.membership.role)) {
@@ -97,7 +95,22 @@ export async function PATCH(req: Request) {
   const action = body.action === "reactivate" ? "reactivate" : body.action === "deactivate" ? "deactivate" : "role";
   if (action === "role") {
     const role = typeof body.role === "string" && ["Admin", "Consultant", "Staff"].includes(body.role) ? body.role : "Consultant";
+    const previousRole = target.role;
     const member = await prisma.clinicMember.update({ where: { id }, data: { role } });
+    await prisma.auditLog.create({
+      data: {
+        doctorId: ctx.session.doctorId,
+        action: "CLINIC_MEMBER_ROLE_CHANGED",
+        entity: "ClinicMember",
+        entityId: id,
+        meta: JSON.stringify({
+          clinicId: ctx.membership.clinicId,
+          targetDoctorId: target.doctorId,
+          previousRole,
+          newRole: role,
+        }),
+      },
+    });
     return NextResponse.json({ success: true, member });
   }
 
