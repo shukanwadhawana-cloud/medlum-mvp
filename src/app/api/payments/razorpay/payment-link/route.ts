@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { getRazorpayCredential } from "@/lib/razorpay-config";
+import { getMedlumAppUrl, getRazorpayConfigStatus, getRazorpayCredential } from "@/lib/razorpay-config";
 
 export const runtime = "nodejs";
 
@@ -13,8 +13,8 @@ type PlanId = keyof typeof plans;
 type Interval = keyof (typeof plans)["professional"];
 
 /** Public site origin for Razorpay callback (Render-aware). Never uses internal Docker host. */
-function resolvePublicOrigin(req: Request): string {
-  const configured = process.env.MEDLUM_APP_URL?.trim().replace(/\/+$/, "");
+async function resolvePublicOrigin(req: Request): Promise<string> {
+  const configured = (await getMedlumAppUrl()).value;
   if (configured) return configured;
 
   const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       {
         success: false,
         error: "Razorpay test credentials are not configured on the server",
-        diagnostics: { keyId: keyIdConfig.source, keySecret: keySecretConfig.source },
+        diagnostics: await getRazorpayConfigStatus(),
       },
       { status: 503 }
     );
@@ -68,10 +68,9 @@ export async function POST(req: Request) {
     const amountInr = plans[plan][interval];
     const amount = amountInr * 100;
     const referenceId = `ml_${plan}_${interval}_${Date.now()}`.slice(0, 40);
-    const origin = resolvePublicOrigin(req);
+    const origin = await resolvePublicOrigin(req);
     const planLabel = plan === "professional" ? "Professional" : "Clinic Plus";
 
-    // Hosted Payment Link (Test Mode when keys are test_*). Opens on razorpay.com, not embedded Checkout.
     const response = await fetch("https://api.razorpay.com/v1/payment_links", {
       method: "POST",
       headers: {
@@ -96,7 +95,6 @@ export async function POST(req: Request) {
           interval,
           doctorId: session.doctorId,
         },
-        // After payment Razorpay redirects this tab back to MedLum with status query params.
         callback_url: `${origin}/pricing?razorpay=return&plan=${encodeURIComponent(plan)}&interval=${encodeURIComponent(interval)}`,
         callback_method: "get",
       }),
@@ -121,7 +119,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Never return key secret. short_url is the hosted Razorpay page.
     return NextResponse.json({
       success: true,
       paymentLink: data.short_url,
