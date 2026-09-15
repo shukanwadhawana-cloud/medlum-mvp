@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import { useDoctor } from "@/components/DoctorProvider";
 
 const sections = [
   {
@@ -27,6 +28,8 @@ const sections = [
 ];
 
 export default function MorePage() {
+  const { doctor, logout } = useDoctor();
+
   return (
     <AppShell>
       <div className="mb-4">
@@ -34,7 +37,12 @@ export default function MorePage() {
           ← Dashboard
         </Link>
         <h1 className="mt-1 text-2xl font-bold">More</h1>
-        <p className="mt-1 text-sm text-gray-600">Pricing, help, FAQs, and the rest of MedLum modules.</p>
+        <p className="mt-1 text-sm text-gray-600">Pricing, help, FAQs, modules, and account.</p>
+        {doctor && (
+          <p className="mt-1 text-xs text-gray-500">
+            Signed in as <span className="font-medium text-[#140a1f]">{doctor.name || doctor.email}</span>
+          </p>
+        )}
       </div>
 
       {sections.map((sec) => (
@@ -57,6 +65,25 @@ export default function MorePage() {
           </ul>
         </section>
       ))}
+
+      <section className="mb-8 overflow-hidden rounded-2xl border border-red-100 bg-white">
+        <div className="border-b bg-red-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-700">
+          Session
+        </div>
+        <div className="p-4">
+          <p className="mb-3 text-xs text-gray-600">
+            Log out to switch accounts (for example, founder/CEO vs clinic doctor). This clears your session on this
+            device.
+          </p>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-600 text-sm font-semibold text-white active:bg-red-700"
+          >
+            Logout
+          </button>
+        </div>
+      </section>
     </AppShell>
   );
 }
