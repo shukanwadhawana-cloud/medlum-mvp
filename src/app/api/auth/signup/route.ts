@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     await saveClinicSetup(membership.clinicId, { facilityType, subscriptionModel, licenseNumber, registrationNumber, ownerName, doctorInCharge, address, city, state, pincode, phone, email, onboardingCompleted: true });
 
     await createSession({ doctorId: doctor.id, email: doctor.email });
-    await writeAudit({ doctorId: doctor.id, action: "signup", entity: "Doctor", entityId: doctor.id, meta: JSON.stringify({ clinicId: membership.clinicId, facilityType, subscriptionModel, onboardingCompleted: true }) });
+    await writeAudit({ doctorId: doctor.id, action: "signup", entity: "Doctor", entityId: doctor.id, meta: { clinicId: membership.clinicId, facilityType, subscriptionModel, onboardingCompleted: true } });
 
     return NextResponse.json({ success: true, doctor: { id: doctor.id, name: doctor.name, email: doctor.email, clinicName: doctor.clinicName, phone: doctor.phone, createdAt: doctor.createdAt.toISOString() }, productAccess: { subscriptionModel } });
   } catch (e) {
