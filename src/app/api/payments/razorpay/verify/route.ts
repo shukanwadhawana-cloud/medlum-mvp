@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getSession } from "@/lib/session";
+import { getRazorpayCredential } from "@/lib/razorpay-config";
 
 export const runtime = "nodejs";
 
@@ -8,8 +9,15 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-  const secret = process.env.RAZORPAY_KEY_SECRET;
-  if (!secret) return NextResponse.json({ success: false, error: "Razorpay credentials are not configured" }, { status: 503 });
+  const secretConfig = await getRazorpayCredential("RAZORPAY_KEY_SECRET");
+  const secret = secretConfig.value;
+  if (!secret) {
+    return NextResponse.json({
+      success: false,
+      error: "Razorpay credentials are not configured",
+      diagnostics: { keySecret: secretConfig.source },
+    }, { status: 503 });
+  }
 
   try {
     const body = await req.json();
