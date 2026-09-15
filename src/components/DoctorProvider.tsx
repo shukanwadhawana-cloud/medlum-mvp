@@ -20,7 +20,14 @@ const DoctorContext = createContext<Ctx>({
   setDoctor: () => {},
 });
 
-const PUBLIC = ["/login", "/signup"];
+const PUBLIC = ["/login", "/signup", "/join", "/help", "/pricing", "/privacy", "/terms"];
+
+function isPublicPath(pathname: string) {
+  if (PUBLIC.includes(pathname)) return true;
+  if (pathname.startsWith("/join/")) return true;
+  if (pathname.startsWith("/telemedicine/join")) return true;
+  return false;
+}
 
 export function DoctorProvider({ children }: { children: React.ReactNode }) {
   const [doctor, setDoctor] = useState<ApiDoctor | null>(null);
@@ -57,7 +64,7 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!checked || loading) return;
-    if (!doctor && !PUBLIC.includes(pathname)) {
+    if (!doctor && !isPublicPath(pathname)) {
       router.replace("/login");
     }
   }, [checked, loading, doctor, pathname, router]);
