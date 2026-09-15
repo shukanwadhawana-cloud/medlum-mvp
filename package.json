@@ -22,6 +22,7 @@
     "test:multi-device-role-workflow": "node scripts/verify-multi-device-role-workflow.mjs",
     "test:production-security": "node scripts/verify-production-security.mjs",
     "test:p0-security": "node scripts/verify-p0-security.mjs",
+    "test:p1-authorization": "node scripts/verify-p1-authorization.mjs",
     "test:pilot-readiness": "node scripts/verify-pilot-readiness.mjs",
     "test:production-pilot": "node scripts/verify-production-pilot.mjs",
     "test:ipd-pilot-ui": "node scripts/verify-ipd-pilot-ui.mjs",

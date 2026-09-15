@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 import { getActiveClinicId, getClinicSetup, requireClinicalModule } from "@/lib/clinic-products";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 function serialize(p: any) {
   const profile = parsePatientProfile(p.notes);
@@ -13,8 +14,10 @@ function serialize(p: any) {
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const clinicId = await getActiveClinicId(session.doctorId);
-  const patients = await prisma.patient.findMany({ where: clinicId ? { clinicId } : { doctorId: session.doctorId }, orderBy: { createdAt: "desc" } });
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return NextResponse.json({ error: "No active clinic membership." }, { status: 403 });
+  const clinicId = membership.clinicId;
+  const patients = await prisma.patient.findMany({ where: { clinicId }, orderBy: { createdAt: "desc" } });
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
   const visible = setup?.subscriptionModel === "OPD" ? patients.filter(p => parseCareSetting(p.notes) !== "IPD") : setup?.subscriptionModel === "IPD" ? patients.filter(p => parseCareSetting(p.notes) === "IPD") : patients;
   return NextResponse.json({ patients: visible.map(serialize) }, { headers: { "Cache-Control": "no-store" } });
