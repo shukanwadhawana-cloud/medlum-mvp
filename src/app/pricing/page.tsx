@@ -13,7 +13,7 @@ export default function PricingPage() {
   function choosePlan(id: string) {
     setSelected(id);
     setNote(
-      `You selected ${id} (${interval}). Auto-renew billing gateway (Razorpay/Stripe) will connect here next — for now this records your intent in the pilot.`
+      `You selected ${id} (${interval}). Your pilot selection is saved on this page. Recurring auto-renew is not enabled yet; Razorpay payment setup is available separately while subscription billing is being completed.`
     );
   }
 
@@ -25,8 +25,8 @@ export default function PricingPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-bold">Pricing & subscription</h1>
         <p className="mt-1 max-w-2xl text-sm text-gray-600">
-          MedLum uses an <strong>auto-subscription</strong> model: pick a plan, it renews monthly or yearly until you
-          cancel. Pilot stays free while you validate clinical workflows.
+          Choose the plan and billing cycle you want to use for the pilot. Recurring subscription billing will be
+          enabled after the production Razorpay subscription flow is completed.
         </p>
       </div>
 
@@ -39,7 +39,7 @@ export default function PricingPage() {
             interval === "monthly" ? "border-[#140a1f] bg-[#140a1f] text-white" : "bg-white"
           }`}
         >
-          Monthly (auto-renew)
+          Monthly
         </button>
         <button
           type="button"
@@ -48,12 +48,22 @@ export default function PricingPage() {
             interval === "yearly" ? "border-[#140a1f] bg-[#140a1f] text-white" : "bg-white"
           }`}
         >
-          Yearly (auto-renew, save ~17%)
+          Yearly (save ~17%)
         </button>
       </div>
 
       {note && (
-        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">{note}</div>
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+          {note}
+          <div className="mt-2 flex flex-wrap gap-3 text-xs font-medium">
+            <Link href="/billing" className="text-[#c2183a] underline">
+              Open Billing
+            </Link>
+            <Link href="/billing/razorpay-test" className="text-[#c2183a] underline">
+              Test Razorpay payment
+            </Link>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -113,15 +123,15 @@ export default function PricingPage() {
       </div>
 
       <section className="mt-8 rounded-2xl border bg-white p-5">
-        <h2 className="font-semibold">How auto-subscription works</h2>
+        <h2 className="font-semibold">Current billing status</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-700">
           <li>Choose Monthly or Yearly billing.</li>
-          <li>Select a plan. Payment gateway (Razorpay / UPI / card) attaches on production hardening.</li>
-          <li>Subscription renews automatically until you cancel from Clinic settings.</li>
-          <li>Pilot remains free for friend-test and workflow validation — no card required.</li>
+          <li>Select a plan to save your pilot selection.</li>
+          <li>Razorpay test checkout is available from Billing while the production subscription flow is being completed.</li>
+          <li>No recurring charge is created from this page, so the pilot cannot accidentally imply an active auto-renewal.</li>
         </ol>
         <p className="mt-3 text-xs text-gray-500">
-          Need help choosing? See the{" "}
+          Need help? See the{" "}
           <Link href="/help" className="font-medium text-[#c2183a]">
             Help center & FAQs
           </Link>
