@@ -1,5 +1,7 @@
--- AlterTable
+-- Peer (consultant-to-consultant) video: patient is optional.
+-- Also safe if foundation migration already applied.
+
 ALTER TABLE "TelemedicineSession" ALTER COLUMN "patientId" DROP NOT NULL;
 
--- AlterTable  
--- sessionKind and peerLabel may already exist on some deploys; keep migration idempotent-friendly via IF NOT EXISTS patterns where supported.
+ALTER TABLE "TelemedicineSession" ADD COLUMN IF NOT EXISTS "sessionKind" TEXT NOT NULL DEFAULT 'patient';
+ALTER TABLE "TelemedicineSession" ADD COLUMN IF NOT EXISTS "peerLabel" TEXT;
