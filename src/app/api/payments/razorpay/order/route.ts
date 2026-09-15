@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { getRazorpayCredential } from "@/lib/razorpay-config";
 
 export const runtime = "nodejs";
 
@@ -7,10 +8,18 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const [keyIdConfig, keySecretConfig] = await Promise.all([
+    getRazorpayCredential("RAZORPAY_KEY_ID"),
+    getRazorpayCredential("RAZORPAY_KEY_SECRET"),
+  ]);
+  const keyId = keyIdConfig.value;
+  const keySecret = keySecretConfig.value;
   if (!keyId || !keySecret) {
-    return NextResponse.json({ success: false, error: "Razorpay test credentials are not configured on the server" }, { status: 503 });
+    return NextResponse.json({
+      success: false,
+      error: "Razorpay test credentials are not configured on the server",
+      diagnostics: { keyId: keyIdConfig.source, keySecret: keySecretConfig.source },
+    }, { status: 503 });
   }
 
   try {
