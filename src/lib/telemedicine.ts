@@ -33,11 +33,25 @@ export function getVideoProvider(): VideoProvider {
   return process.env.VIDEO_PROVIDER === "external" ? "external" : "jitsi";
 }
 
+/** Jitsi URL tuned for mobile: skip prejoin, prefer live mic/camera. */
 export function createVideoMeetingUrl(sessionId: string) {
   const provider = getVideoProvider();
   if (provider === "external") return null;
 
   const base = (process.env.VIDEO_BASE_URL || "https://meet.jit.si").replace(/\/+$/, "");
   const roomSecret = randomBytes(18).toString("base64url");
-  return `${base}/medlum-${sessionId}-${roomSecret}`;
+  const room = `${base}/medlum-${sessionId}-${roomSecret}`;
+  const hash = [
+    "config.prejoinConfig.enabled=false",
+    "config.prejoinPageEnabled=false",
+    "config.startWithAudioMuted=false",
+    "config.startWithVideoMuted=false",
+    "config.startSilent=false",
+    "config.disableAP=false",
+    "config.enableNoAudioDetection=true",
+    "config.enableNoisyMicDetection=true",
+    "config.disableAudioLevels=false",
+    "interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=true",
+  ].join("&");
+  return `${room}#${hash}`;
 }
