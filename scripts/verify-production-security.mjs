@@ -12,6 +12,9 @@ const requiredFiles = [
   "src/middleware.ts",
   "src/lib/security.ts",
   "src/lib/session.ts",
+  "src/lib/session-secret.ts",
+  "src/lib/rate-limit.ts",
+  "src/lib/auth-config.ts",
   ".env.example",
 ];
 for (const file of requiredFiles) {
@@ -46,8 +49,27 @@ if (!middleware.includes("getExpectedOrigin") || !middleware.includes("forwarded
 for (const token of ["httpOnly: true", "secure: process.env.NODE_ENV === \"production\"", "sameSite: \"lax\"", "maxAge: MAX_AGE"]) {
   if (!session.includes(token)) throw new Error(`Session cookie hardening missing: ${token}`);
 }
-if (!session.includes("SESSION_SECRET must be configured") || !session.includes("secret.length >= 32")) {
+const sessionSecret = fs.readFileSync(path.join(root, "src/lib/session-secret.ts"), "utf8");
+if (!sessionSecret.includes("SESSION_SECRET must be configured") || !sessionSecret.includes("secret.length < 32")) {
   throw new Error("Production session secret validation missing");
+}
+if (!session.includes("resolveSessionSecretBytes")) {
+  throw new Error("Session must use shared resolveSessionSecretBytes helper");
+}
+const authConfig = fs.readFileSync(path.join(root, "src/lib/auth-config.ts"), "utf8");
+if (!authConfig.includes("ALLOW_PUBLIC_SIGNUP") || !authConfig.includes("isPublicSignupAllowed")) {
+  throw new Error("Production signup gate missing");
+}
+const signup = fs.readFileSync(path.join(root, "src/app/api/auth/signup/route.ts"), "utf8");
+if (!signup.includes("isPublicSignupAllowed") || !signup.includes("consumeRateLimit")) {
+  throw new Error("Signup must be gated and rate limited");
+}
+const login = fs.readFileSync(path.join(root, "src/app/api/auth/login/route.ts"), "utf8");
+if (!login.includes("consumeRateLimit")) {
+  throw new Error("Login must be rate limited");
+}
+if (!env.includes("ALLOW_PUBLIC_SIGNUP")) {
+  throw new Error("ALLOW_PUBLIC_SIGNUP must be documented in .env.example");
 }
 if (!env.includes("SESSION_SECRET") || !env.includes("at-least-32-chars")) throw new Error("Secure session secret documentation missing");
 if (env.includes("NEXT_PUBLIC_EKA_CLIENT_SECRET") || env.includes("NEXT_PUBLIC_EKA_API_KEY")) {
