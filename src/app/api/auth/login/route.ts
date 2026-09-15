@@ -4,6 +4,7 @@ import { verifyPassword } from "@/lib/password";
 import { createSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { ensurePrimaryClinic } from "@/lib/ensure-clinic";
+import { isMedlumOwnerEmail } from "@/lib/owner";
 
 export async function POST(req: Request) {
   try {
@@ -22,29 +23,39 @@ export async function POST(req: Request) {
 
     if (!doctor.isActive) {
       return NextResponse.json(
-        { success: false, error: "This doctor account is deactivated. Contact a clinic administrator." },
+        { success: false, error: "This account is deactivated. Contact MedLum support." },
         { status: 403 }
       );
     }
 
-    await ensurePrimaryClinic(doctor.id, doctor.clinicName);
+    const isOwner = isMedlumOwnerEmail(doctor.email);
+
+    // Owners keep a doctor row for schema compatibility but are not forced into OPD clinic bootstrap UX.
+    if (!isOwner) {
+      await ensurePrimaryClinic(doctor.id, doctor.clinicName);
+    }
+
     await createSession({ doctorId: doctor.id, email: doctor.email });
     await writeAudit({
       doctorId: doctor.id,
       action: "login",
-      entity: "Doctor",
+      entity: isOwner ? "PlatformOwner" : "Doctor",
       entityId: doctor.id,
+      meta: JSON.stringify({ isOwner }),
     });
 
     return NextResponse.json({
       success: true,
+      isOwner,
       doctor: {
         id: doctor.id,
         name: doctor.name,
         email: doctor.email,
-        clinicName: doctor.clinicName,
+        clinicName: isOwner ? "MedLum Platform" : doctor.clinicName,
         phone: doctor.phone,
         createdAt: doctor.createdAt.toISOString(),
+        isOwner,
+        primaryRole: isOwner ? "Owner" : undefined,
       },
     });
   } catch (e) {
