@@ -421,7 +421,7 @@ model InsurancePolicy {
   memberId String @default("")
   planName String @default("")
   policyHolderName String @default("")
-  relationship String @default("")
+  relationship String @default("Self")
   validFrom DateTime?
   validTo DateTime?
   sumInsured Decimal @db.Decimal(12,2)
@@ -487,9 +487,11 @@ model AuditLog {
 model TelemedicineSession {
   id String @id @default(cuid())
   doctorId String
-  patientId String
+  patientId String?
   appointmentId String?
   clinicId String?
+  sessionKind String @default("patient")
+  peerLabel String?
   scheduledAt DateTime
   expiresAt DateTime?
   status String @default("Scheduled")
@@ -505,4 +507,5 @@ model TelemedicineSession {
   @@index([appointmentId])
   @@index([clinicId])
   @@index([status, scheduledAt])
+  @@index([sessionKind])
 }
