@@ -5,6 +5,7 @@ import { createSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { ensurePrimaryClinic } from "@/lib/ensure-clinic";
 import { isMedlumOwnerEmail } from "@/lib/owner";
+import { AUTH_LIMITS, authBucketKey, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
@@ -14,6 +15,16 @@ export async function POST(req: Request) {
 
     if (!email || !password) {
       return NextResponse.json({ success: false, error: "Email and password required" }, { status: 400 });
+    }
+
+    const rl = await consumeRateLimit(
+      authBucketKey("login", req, email),
+      AUTH_LIMITS.login.limit,
+      AUTH_LIMITS.login.windowMs
+    );
+    if (!rl.allowed) {
+      const { body: b, headers } = rateLimitResponse(rl.retryAfterSec);
+      return NextResponse.json(b, { status: 429, headers });
     }
 
     const doctor = await prisma.doctor.findUnique({ where: { email } });
@@ -30,7 +41,6 @@ export async function POST(req: Request) {
 
     const isOwner = isMedlumOwnerEmail(doctor.email);
 
-    // Owners keep a doctor row for schema compatibility but are not forced into OPD clinic bootstrap UX.
     if (!isOwner) {
       await ensurePrimaryClinic(doctor.id, doctor.clinicName);
     }
