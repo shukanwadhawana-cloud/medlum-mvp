@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       action: "login",
       entity: isOwner ? "PlatformOwner" : "Doctor",
       entityId: doctor.id,
-      meta: JSON.stringify({ isOwner }),
+      meta: { isOwner },
     });
 
     return NextResponse.json({
