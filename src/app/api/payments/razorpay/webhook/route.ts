@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getRazorpayCredential } from "@/lib/razorpay-config";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const secret = (await getRazorpayCredential("RAZORPAY_WEBHOOK_SECRET")).value;
   if (!secret) return NextResponse.json({ error: "Webhook secret is not configured" }, { status: 503 });
 
   const rawBody = await req.text();
@@ -16,8 +17,6 @@ export async function POST(req: Request) {
   try {
     const event = JSON.parse(rawBody);
     console.log("Razorpay webhook received", event.event, event.payload?.payment?.entity?.id ?? event.payload?.order?.entity?.id ?? "");
-    // Payment reconciliation is intentionally kept separate from checkout verification.
-    // Once invoice/order mapping is enabled, handle payment.captured/order.paid here.
     return NextResponse.json({ received: true });
   } catch {
     return NextResponse.json({ error: "Invalid webhook payload" }, { status: 400 });
