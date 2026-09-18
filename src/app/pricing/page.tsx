@@ -54,7 +54,7 @@ function PricingInner() {
       const response = await fetch("/api/payments/razorpay/payment-link", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
         body: JSON.stringify({ plan: id, interval }),
       });
       const data = await response.json().catch(() => ({}));
