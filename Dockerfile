@@ -4,10 +4,10 @@ WORKDIR /app
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
 
