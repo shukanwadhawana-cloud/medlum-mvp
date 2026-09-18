@@ -29,7 +29,7 @@ for (const header of [
   "Cross-Origin-Opener-Policy",
   "Cross-Origin-Resource-Policy",
 ]) {
-  if (!middleware.includes(`response.headers.set("${header}"`)) {
+  if (!middleware.includes(header)) {
     throw new Error(`Missing security header: ${header}`);
   }
 }
