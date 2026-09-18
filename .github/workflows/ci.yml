@@ -22,8 +22,7 @@ jobs:
         with:
           node-version: 20
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
+        run: npm ci --include=dev --ignore-scripts
       - name: Generate Prisma client
         run: npx prisma generate
       - name: TypeScript typecheck
