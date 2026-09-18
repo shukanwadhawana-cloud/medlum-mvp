@@ -4,10 +4,10 @@ WORKDIR /app
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY prisma ./prisma
 
-RUN npm install
+RUN npm ci
 
 COPY . .
 
@@ -18,5 +18,4 @@ ENV PORT=10000
 
 EXPOSE 10000
 
-# Apply pending migrations (including TelemedicineSession) before serving traffic.
 CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
