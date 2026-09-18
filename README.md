@@ -51,3 +51,7 @@ npm run dev
 Render is the canonical production deployment for this repository. Vercel is not the production target.
 
 [Open MedLum production on Render](https://medlum-mvp.onrender.com/)
+
+## Runner diagnostic
+
+This harmless marker is used to verify that GitHub-hosted Actions can execute a public-repository workflow independently of private-repository billing configuration.
