@@ -32,6 +32,27 @@ assert(!middleware.includes("default-src *"), "CSP must not use default-src *");
 assert(middleware.includes("frame-src"), "CSP frame-src for Jitsi");
 assert(middleware.includes("object-src 'none'"), "CSP object-src none");
 
+const clientPagesRequired = ["src/app/portal/login/page.tsx"];
+for (const page of clientPagesRequired) {
+  const src = read(page);
+  assert(src.includes("X-MedLum-Requested-With"), `${page} missing MedLum CSRF header`);
+}
+const clientPagesRecommended = [
+  "src/app/clinic/page.tsx",
+  "src/app/clinic/setup/page.tsx",
+  "src/app/ipd/page.tsx",
+  "src/app/pricing/page.tsx",
+  "src/app/telemedicine/page.tsx",
+];
+for (const page of clientPagesRecommended) {
+  const full = path.join(root, page);
+  if (!fs.existsSync(full)) continue;
+  const src = fs.readFileSync(full, "utf8");
+  if (!src.includes("X-MedLum-Requested-With")) {
+    console.warn(`WARN: ${page} still missing X-MedLum-Requested-With on direct fetch mutations`);
+  }
+}
+
 console.log("CSRF + CSP hardening verification PASSED");
 console.log("- Origin mismatch rejected");
 console.log("- Origin-absent requires X-MedLum-Requested-With");
