@@ -2,18 +2,23 @@
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+export const MEDLUM_CLIENT_HEADER = "x-medlum-requested-with";
+export const MEDLUM_CLIENT_HEADER_VALUE = "MedLum";
+
 /**
- * Reject cross-site state-changing requests when a browser supplies an Origin.
- * Native Capacitor clients may omit Origin, so absence is allowed.
+ * Reject cross-site state-changing requests.
+ * Origin present → must match. Origin absent → require MedLum client header.
  */
 export function assertSameOrigin(req: Request): void {
   if (SAFE_METHODS.has(req.method)) return;
   const origin = req.headers.get("origin");
-  if (!origin) return;
-
-  const expected = new URL(req.url).origin;
-  if (origin !== expected) {
-    throw new Error("CSRF_ORIGIN_MISMATCH");
+  if (origin) {
+    const expected = new URL(req.url).origin;
+    if (origin !== expected) throw new Error("CSRF_ORIGIN_MISMATCH");
+    return;
+  }
+  if (req.headers.get(MEDLUM_CLIENT_HEADER) !== MEDLUM_CLIENT_HEADER_VALUE) {
+    throw new Error("CSRF_CLIENT_HEADER_MISSING");
   }
 }
 
