@@ -22,13 +22,16 @@ jobs:
         with:
           node-version: 20
       - name: Install dependencies
-        run: npm install --include=dev --ignore-scripts
+        run: |
+          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
       - name: Generate Prisma client
         run: npx prisma generate
       - name: TypeScript typecheck
         run: npm run typecheck
       - name: Verify production security
         run: npm run test:production-security
+      - name: Verify CSRF and CSP hardening
+        run: npm run test:csrf
       - name: Verify pilot readiness
         run: npm run test:pilot-readiness
       - name: Verify OPD and IPD pilot UI
