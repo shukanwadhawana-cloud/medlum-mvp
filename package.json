@@ -27,6 +27,8 @@
     "test:production-pilot": "node scripts/verify-production-pilot.mjs",
     "test:ipd-pilot-ui": "node scripts/verify-ipd-pilot-ui.mjs",
     "test:pricing-payment-link": "node scripts/verify-pricing-payment-link.mjs",
+    "test:csrf": "node scripts/verify-csrf-hardening.mjs",
+    "test:e2e-auth-foundation": "node scripts/verify-e2e-auth-foundation.mjs",
     "desktop:build": "npx tauri build",
     "mobile:android": "CAPACITOR_BUILD=false npx cap sync android && npx cap open android",
     "mobile:ios": "CAPACITOR_BUILD=false npx cap sync ios && npx cap open ios",
