@@ -6,6 +6,8 @@ import { writeAudit } from "@/lib/audit";
 import { ensurePrimaryClinic } from "@/lib/ensure-clinic";
 import { isMedlumOwnerEmail } from "@/lib/owner";
 import { AUTH_LIMITS, authBucketKey, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { issueLoginOtp, roleRequiresOtp } from "@/lib/otp";
+import { normalizeClinicRole } from "@/lib/workflow";
 
 export async function POST(req: Request) {
   try {
@@ -29,6 +31,13 @@ export async function POST(req: Request) {
 
     const doctor = await prisma.doctor.findUnique({ where: { email } });
     if (!doctor || !(await verifyPassword(password, doctor.passwordHash))) {
+      await writeAudit({
+        doctorId: doctor?.id,
+        action: "login_failed",
+        entity: "Doctor",
+        entityId: doctor?.id,
+        meta: { email },
+      });
       return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
     }
 
@@ -45,17 +54,47 @@ export async function POST(req: Request) {
       await ensurePrimaryClinic(doctor.id, doctor.clinicName);
     }
 
+    const membership = await prisma.clinicMember.findFirst({
+      where: { doctorId: doctor.id, isActive: true },
+      select: { role: true, clinicId: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const primaryRole = isOwner ? "Owner" : normalizeClinicRole(membership?.role);
+
+    if (!isOwner && roleRequiresOtp(primaryRole)) {
+      const issued = await issueLoginOtp({
+        doctorId: doctor.id,
+        email: doctor.email,
+        clinicId: membership?.clinicId,
+      });
+      return NextResponse.json({
+        success: true,
+        requiresOtp: true,
+        challengeId: issued.challengeId,
+        expiresAt: issued.expiresAt.toISOString(),
+        deliveryChannel: issued.delivery.channel,
+        ...(issued.delivery.devCode ? { devOtp: issued.delivery.devCode } : {}),
+        doctor: {
+          id: doctor.id,
+          name: doctor.name,
+          email: doctor.email,
+          primaryRole,
+        },
+      });
+    }
+
     await createSession({ doctorId: doctor.id, email: doctor.email });
     await writeAudit({
       doctorId: doctor.id,
       action: "login",
       entity: isOwner ? "PlatformOwner" : "Doctor",
       entityId: doctor.id,
-      meta: { isOwner },
+      meta: { isOwner, primaryRole },
     });
 
     return NextResponse.json({
       success: true,
+      requiresOtp: false,
       isOwner,
       doctor: {
         id: doctor.id,
@@ -65,7 +104,7 @@ export async function POST(req: Request) {
         phone: doctor.phone,
         createdAt: doctor.createdAt.toISOString(),
         isOwner,
-        primaryRole: isOwner ? "Owner" : undefined,
+        primaryRole,
       },
     });
   } catch (e) {
