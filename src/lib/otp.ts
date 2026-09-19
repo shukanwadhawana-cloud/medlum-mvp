@@ -49,22 +49,29 @@ async function deliverOtp(params: {
   email: string;
   code: string;
 }): Promise<OtpDeliveryResult> {
-  const telegramToken = process.env.TELEGRAM_BOT_TOKEN || "";
-  const telegramChat = process.env.TELEGRAM_OTP_CHAT_ID || "";
+  const gmailUser = process.env.GMAIL_SMTP_USER || "";
+  const gmailAppPassword = process.env.GMAIL_SMTP_APP_PASSWORD || "";
+  const from = process.env.GMAIL_SMTP_FROM || gmailUser;
 
-  if (telegramToken && telegramChat) {
+  // Gmail SMTP is the production delivery provider.
+  if (gmailUser && gmailAppPassword) {
     try {
-      await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: telegramChat,
-          text: `MedLum OTP: ${params.code} (expires 5 min)`,
-        }),
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: gmailUser, pass: gmailAppPassword },
       });
-      return { channel: "telegram" };
-    } catch {
-      // fall through
+
+      await transporter.sendMail({
+        from,
+        to: params.email,
+        subject: "MedLum login verification code",
+        text: `Your MedLum verification code is ${params.code}. It expires in 5 minutes. If you did not request this code, ignore this email.`,
+        html: `<p>Your MedLum verification code is <strong>${params.code}</strong>.</p><p>It expires in 5 minutes.</p><p>If you did not request this code, you can ignore this email.</p>`,
+      });
+      return { channel: "email" };
+    } catch (error) {
+      console.error("[MedLum OTP] Gmail delivery failed:", error instanceof Error ? error.message : "unknown error");
     }
   }
 
@@ -73,8 +80,7 @@ async function deliverOtp(params: {
     return { channel: "console", devCode: params.code };
   }
 
-  console.info(`[MedLum OTP] challenge created for doctor=${params.doctorId} (configure TELEGRAM_BOT_TOKEN for delivery)`);
-  return { channel: "console" };
+  throw new Error("Gmail OTP delivery is not configured. Set GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD.");
 }
 
 export async function issueLoginOtp(params: {
