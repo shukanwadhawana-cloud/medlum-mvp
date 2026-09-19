@@ -48,7 +48,6 @@ export default function PatientPortalCredentialsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [password, setPassword] = useState("");
-  const [activationUrl, setActivationUrl] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -100,29 +99,6 @@ export default function PatientPortalCredentialsPage() {
     }
   };
 
-  const createActivationLink = async () => {
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      const res = await fetch("/api/portal/accounts/activation-link", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
-        body: JSON.stringify({ patientId: id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) throw new Error(data.error || "Could not create activation link.");
-      setActivationUrl(data.activationUrl);
-      setSuccess("Patient activation link created. It expires in 24 hours.");
-      await navigator.clipboard.writeText(data.activationUrl);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create activation link.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const copy = async (value: string) => {
     await navigator.clipboard.writeText(value);
     setSuccess("Copied to clipboard.");
@@ -168,24 +144,15 @@ export default function PatientPortalCredentialsPage() {
               disabled={saving || !patient.phone.trim()}
               className="mt-4 w-full h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-50"
             >
-              {saving ? "Working…" : "Create Patient Activation Link"}
+              {saving ? "Creating…" : account ? "Reset / Create New Password" : "Create Patient Portal Credentials"}
             </button>
-            <p className="text-xs text-gray-500 mt-2">The patient opens the link, creates their own password, and is signed in automatically. No password needs to be shared by clinic staff.</p>
             {!patient.phone.trim() && <p className="text-xs text-red-600 mt-2">Add a patient phone number before creating portal access.</p>}
-            {activationUrl && <div className="mt-4 rounded-lg bg-gray-50 p-3">
-              <div className="text-xs font-medium mb-2">Activation link</div>
-              <div className="flex gap-2">
-                <input readOnly value={activationUrl} className="min-w-0 flex-1 h-10 border rounded-lg px-2 text-xs bg-white" />
-                <button type="button" onClick={() => copy(activationUrl)} className="px-3 rounded-lg border text-xs bg-white">Copy</button>
-              </div>
-              <Link href={activationUrl} target="_blank" className="inline-block mt-2 text-xs text-[#c2183a] underline">Open activation page</Link>
-            </div>
           </div>
 
           {password && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <h3 className="font-semibold text-sm">Manual login credentials</h3>
-              <p className="text-xs text-amber-800 mt-1">Fallback option: save or securely share these credentials with the patient. The password is only shown here after creation.</p>
+              <h3 className="font-semibold text-sm">New patient login credentials</h3>
+              <p className="text-xs text-amber-800 mt-1">Save or securely share these credentials with the patient. The password is only shown here after creation.</p>
               <div className="mt-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500 w-20">Phone</span>
