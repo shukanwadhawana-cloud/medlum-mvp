@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { setPortalSession } from "@/lib/portal-session";
+import {
+  attachPortalSessionCookie,
+  signPortalToken,
+} from "@/lib/portal-session";
+import { phoneLookupCandidates, normalizePhoneDigits } from "@/lib/phone";
 import { AUTH_LIMITS, authBucketKey, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const phone = String(body.phone || "").trim();
+    const phoneRaw = String(body.phone || body.username || body.email || "").trim();
     const password = String(body.password || "");
 
     const rl = await consumeRateLimit(
-      authBucketKey("portal-login", req, phone || "unknown"),
+      authBucketKey("portal-login", req, normalizePhoneDigits(phoneRaw) || phoneRaw || "unknown"),
       AUTH_LIMITS.portalLogin.limit,
       AUTH_LIMITS.portalLogin.windowMs
     );
@@ -20,27 +24,70 @@ export async function POST(req: Request) {
       return NextResponse.json(b, { status: 429, headers });
     }
 
-    if (!phone || !password) {
-      return NextResponse.json({ success: false, error: "Phone and password are required." }, { status: 400 });
+    if (!phoneRaw || !password) {
+      return NextResponse.json(
+        { success: false, error: "Phone and password are required." },
+        { status: 400 }
+      );
     }
 
-    const account = await prisma.patientPortalAccount.findFirst({
-      where: { phone },
-      select: { id: true, patientId: true, passwordHash: true, status: true },
-    });
+    const candidates = phoneLookupCandidates(phoneRaw);
+    let account =
+      (await prisma.patientPortalAccount.findFirst({
+        where: { phone: { in: candidates } },
+        select: { id: true, patientId: true, passwordHash: true, status: true, phone: true },
+      })) || null;
 
-    if (!account || account.status !== "Active" || !(await bcrypt.compare(password, account.passwordHash))) {
-      return NextResponse.json({ success: false, error: "Invalid phone number or password." }, { status: 401 });
+    if (!account) {
+      const digits = normalizePhoneDigits(phoneRaw);
+      if (digits.length >= 8) {
+        const recent = await prisma.patientPortalAccount.findMany({
+          where: { status: "Active" },
+          select: { id: true, patientId: true, passwordHash: true, status: true, phone: true },
+          take: 500,
+          orderBy: { updatedAt: "desc" },
+        });
+        account =
+          recent.find((a) => normalizePhoneDigits(a.phone) === digits) || null;
+      }
     }
 
-    await setPortalSession(account.patientId, account.id);
+    if (!account) {
+      return NextResponse.json(
+        { success: false, error: "Invalid phone number or password." },
+        { status: 401 }
+      );
+    }
+
+    if (account.status !== "Active") {
+      return NextResponse.json(
+        { success: false, error: "This portal account is inactive. Contact your clinic." },
+        { status: 403 }
+      );
+    }
+
+    const ok = await bcrypt.compare(password, account.passwordHash);
+    if (!ok) {
+      return NextResponse.json(
+        { success: false, error: "Invalid phone number or password." },
+        { status: 401 }
+      );
+    }
+
+    const token = await signPortalToken(account.patientId, account.id);
     await prisma.patientPortalAccount.update({
       where: { id: account.id },
       data: { lastLoginAt: new Date() },
     });
-    return NextResponse.json({ success: true });
+
+    const res = NextResponse.json({
+      success: true,
+      redirectTo: "/portal/dashboard",
+    });
+    attachPortalSessionCookie(res, token);
+    return res;
   } catch (e) {
-    console.error("portal login", e);
+    console.error("portal login", e instanceof Error ? e.message : "error");
     return NextResponse.json({ success: false, error: "Unable to sign in." }, { status: 500 });
   }
 }
