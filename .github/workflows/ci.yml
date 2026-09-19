@@ -65,6 +65,8 @@ jobs:
         run: npm run test:hospital-foundation
       - name: Verify patient portal auth and dashboard
         run: npm run test:portal-auth
+      - name: Verify multi-tenant isolation (static)
+        run: npm run test:tenant-isolation
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
