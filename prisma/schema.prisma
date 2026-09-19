@@ -1,1 +1,10 @@
-PLACEHOLDER
+// MedLum — PostgreSQL schema (clinical encounters, labs, pharmacy, diagnostics, clinic sharing, revenue, blood bank and insurance)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
