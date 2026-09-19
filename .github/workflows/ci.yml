@@ -63,6 +63,8 @@ jobs:
         run: npm run test:multi-device-role-workflow
       - name: Verify hospital foundation (OTP tariff lab lifecycle)
         run: npm run test:hospital-foundation
+      - name: Verify invoice tariff snapshot + numbering
+        run: npm run test:invoice-snapshot
       - name: Verify patient portal auth and dashboard
         run: npm run test:portal-auth
       - name: Verify multi-tenant isolation (static)
