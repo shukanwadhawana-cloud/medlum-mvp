@@ -123,7 +123,7 @@ export default function PatientDetailPage() {
       {loading || !p ? <div className="p-6 text-center text-gray-400 text-sm">{loading ? "Loading…" : "Patient not found"}</div> : <>
         <div className="flex items-start justify-between gap-2 mb-3 print:hidden">
           <div><h2 className="text-lg font-semibold">{p.name}</h2><p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p></div>
-          <div className="flex gap-2 shrink-0"><button type="button" onClick={() => window.print()} className="h-9 px-3 rounded-lg border text-sm">Print Rx</button><button type="button" onClick={() => { setError(""); setSelectedLabs([]); setSelectedDiagnostics([]); setShowConsult(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium">Start Consult</button></div>
+          <div className="flex gap-2 shrink-0"><Link href={`/patients/${id}/portal`} className="h-9 px-3 rounded-lg border text-sm flex items-center">Patient Portal</Link><button type="button" onClick={() => window.print()} className="h-9 px-3 rounded-lg border text-sm">Print Rx</button><button type="button" onClick={() => { setError(""); setSelectedLabs([]); setSelectedDiagnostics([]); setShowConsult(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium">Start Consult</button></div>
         </div>
 
         <div id="medlum-print-area" className="bg-white rounded-xl shadow-sm border p-3 mb-3 print:shadow-none print:border-0">
