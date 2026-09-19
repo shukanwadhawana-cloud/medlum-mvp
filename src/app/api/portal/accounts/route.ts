@@ -3,6 +3,54 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
+async function getMembership() {
+  const session = await getSession();
+  if (!session) return { session: null, membership: null };
+  const membership = await prisma.clinicMember.findFirst({
+    where: { doctorId: session.doctorId, isActive: true },
+    select: { clinicId: true, role: true },
+  });
+  return { session, membership };
+}
+
+export async function GET(req: Request) {
+  try {
+    const { session, membership } = await getMembership();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!membership || !["Owner", "Admin", "Consultant"].includes(membership.role)) {
+      return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+    }
+
+    const patientId = new URL(req.url).searchParams.get("patientId") || "";
+    if (!patientId) return NextResponse.json({ success: false, error: "Patient is required." }, { status: 400 });
+
+    const patient = await prisma.patient.findFirst({
+      where: { id: patientId, clinicId: membership.clinicId },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!patient) return NextResponse.json({ success: false, error: "Patient not found." }, { status: 404 });
+
+    const account = await prisma.patientPortalAccount.findUnique({
+      where: { patientId: patient.id },
+      select: { id: true, phone: true, status: true, lastLoginAt: true, createdAt: true, updatedAt: true },
+    });
+
+    return NextResponse.json({
+      success: true,
+      patient,
+      account: account ? {
+        ...account,
+        lastLoginAt: account.lastLoginAt?.toISOString() || null,
+        createdAt: account.createdAt.toISOString(),
+        updatedAt: account.updatedAt.toISOString(),
+      } : null,
+    });
+  } catch (e) {
+    console.error("portal account status", e);
+    return NextResponse.json({ success: false, error: "Unable to load portal access." }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getSession();
