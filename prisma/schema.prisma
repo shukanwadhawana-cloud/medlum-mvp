@@ -8,3 +8,118 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Clinic {
+  id        String   @id @default(cuid())
+  name      String
+  address   String   @default("")
+  phone     String   @default("")
+  email     String   @default("")
+  logoUrl   String   @default("")
+  registrationNo String @default("")
+  isActive  Boolean  @default(true)
+  deactivatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   ClinicMember[]
+  patients  Patient[]
+  invoices  Invoice[]
+  bloodInventory BloodInventory[]
+  bloodDonors BloodDonor[]
+  bloodRequests BloodRequest[]
+  insuranceProviders InsuranceProvider[]
+  insurancePolicies InsurancePolicy[]
+  insuranceClaims InsuranceClaim[]
+  portalAccounts PatientPortalAccount[]
+  otpChallenges OtpChallenge[]
+  tariffVersions TariffVersion[]
+  labTemplates LabTemplate[]
+  @@index([name])
+  @@index([isActive])
+}
+
+model ClinicMember {
+  id String @id @default(cuid())
+  clinicId String
+  doctorId String
+  role String @default("Consultant")
+  isActive Boolean @default(true)
+  deactivatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId], references:[id], onDelete:Restrict)
+  doctor Doctor @relation(fields:[doctorId], references:[id], onDelete:Restrict)
+  @@unique([clinicId,doctorId])
+  @@index([clinicId])
+  @@index([doctorId])
+  @@index([isActive])
+}
+
+model Doctor {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  clinicName String
+  phone String
+  isActive Boolean @default(true)
+  deactivatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patients Patient[]
+  appointments Appointment[]
+  prescriptions Prescription[]
+  invoices Invoice[]
+  payments Payment[]
+  encounters Encounter[]
+  labOrders LabOrder[]
+  pharmacyItems PharmacyItem[]
+  dispensings Dispensing[]
+  diagnosticOrders DiagnosticOrder[]
+  auditLogs AuditLog[]
+  clinicMemberships ClinicMember[]
+  otpChallenges OtpChallenge[]
+  @@index([isActive])
+}
+
+model Patient {
+  id String @id @default(cuid())
+  doctorId String
+  clinicId String?
+  name String
+  age Int
+  gender String
+  phone String
+  bp String @default("")
+  allergies String @default("")
+  notes String @default("")
+  status String @default("ACTIVE") // ACTIVE | DISCHARGED | ARCHIVED
+  registrationNo String @default("")
+  uhid String @default("")
+  deletedAt DateTime?
+  deletedBy String?
+  deletionReason String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
+  clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:Restrict)
+  appointments Appointment[]
+  prescriptions Prescription[]
+  invoices Invoice[]
+  payments Payment[]
+  encounters Encounter[]
+  labOrders LabOrder[]
+  dispensings Dispensing[]
+  diagnosticOrders DiagnosticOrder[]
+  bloodRequests BloodRequest[]
+  insurancePolicies InsurancePolicy[]
+  insuranceClaims InsuranceClaim[]
+  portalAccounts PatientPortalAccount[]
+  @@index([doctorId])
+  @@index([clinicId])
+  @@index([phone])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([registrationNo])
+  @@index([uhid])
+}
