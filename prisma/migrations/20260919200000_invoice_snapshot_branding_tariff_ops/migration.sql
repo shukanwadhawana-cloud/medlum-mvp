@@ -1,0 +1,17 @@
+-- Additive: clinic branding extras + invoice tariff snapshot fields
+ALTER TABLE "Clinic" ADD COLUMN IF NOT EXISTS "website" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Clinic" ADD COLUMN IF NOT EXISTS "invoiceFooter" TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "invoiceNumber" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "tariffVersionId" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "tariffVersionName" TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE "InvoiceItem" ADD COLUMN IF NOT EXISTS "code" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "InvoiceItem" ADD COLUMN IF NOT EXISTS "esicRate" DOUBLE PRECISION;
+ALTER TABLE "InvoiceItem" ADD COLUMN IF NOT EXISTS "billedRate" DOUBLE PRECISION;
+ALTER TABLE "InvoiceItem" ADD COLUMN IF NOT EXISTS "tariffVersionId" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "InvoiceItem" ADD COLUMN IF NOT EXISTS "tariffItemId" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "InvoiceItem" ADD COLUMN IF NOT EXISTS "snapshotJson" TEXT NOT NULL DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS "InvoiceItem_tariffVersionId_idx" ON "InvoiceItem"("tariffVersionId");
+CREATE INDEX IF NOT EXISTS "InvoiceItem_code_idx" ON "InvoiceItem"("code");
