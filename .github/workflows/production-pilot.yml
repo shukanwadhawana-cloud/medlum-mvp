@@ -1,6 +1,7 @@
 name: MedLum Production Pilot Validation
 
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["MedLum CI"]
     types: [completed]
@@ -11,13 +12,13 @@ permissions:
 
 jobs:
   production-pilot:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout validated commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
