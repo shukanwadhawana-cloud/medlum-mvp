@@ -14,6 +14,7 @@
     "test:tenant-isolation": "node scripts/verify-tenant-isolation.mjs",
     "test:rbac-matrix": "node scripts/verify-rbac-matrix.mjs",
     "test:runtime-e2e": "node scripts/runtime-e2e-harness.mjs",
+    "test:invoice-snapshot": "node scripts/verify-invoice-snapshot.mjs",
     "test:eka": "node scripts/verify-eka-onboarding.mjs",
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "test:data-retention": "node scripts/verify-data-retention-protection.mjs",
