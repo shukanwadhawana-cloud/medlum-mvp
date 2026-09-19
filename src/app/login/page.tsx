@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const finishLogin = (doctor: any, isOwner?: boolean) => {\n    setDoctor(doctor);\n    if (isOwner || doctor.isOwner) router.push("/owner");\n    else router.push("/dashboard");\n  };\n\n  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -37,7 +37,7 @@ export default function LoginPage() {
     }
   };
 
-  return (
+  const handleOtpSubmit = async (e: React.FormEvent) => {\n    e.preventDefault();\n    setError("");\n    setLoading(true);\n    try {\n      const result = await apiVerifyOtp({ doctorId, challengeId, code: otp });\n      if (result.success && result.doctor) finishLogin(result.doctor, result.doctor.isOwner);\n      else setError(result.error || "Invalid verification code");\n    } catch {\n      setError("Unable to verify the code. Check your connection.");\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  return (
     <div className="min-h-screen flex">
       <div className="hidden lg:flex w-[42%] bg-gradient-to-b from-[#8B1538] to-[#140a1f] flex-col justify-between p-12">
         <div>
