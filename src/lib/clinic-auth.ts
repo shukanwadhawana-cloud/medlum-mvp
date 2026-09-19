@@ -4,7 +4,19 @@
  */
 import { prisma } from "@/lib/db";
 
-export type ClinicRole = "Owner" | "Admin" | "Consultant" | "Staff";
+export type ClinicRole =
+  | "Owner"
+  | "Admin"
+  | "Manager"
+  | "Consultant"
+  | "Doctor"
+  | "RMO"
+  | "Nurse"
+  | "Pharmacy"
+  | "Laboratory"
+  | "Billing"
+  | "Receptionist"
+  | "Staff";
 
 export type ClinicMembershipContext = {
   membershipId: string;
@@ -13,11 +25,21 @@ export type ClinicMembershipContext = {
   role: ClinicRole;
 };
 
-const CLINICAL_ROLES: ClinicRole[] = ["Owner", "Admin", "Consultant", "Staff"];
+const CLINICAL_ROLES: ClinicRole[] = [
+  "Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO",
+  "Nurse", "Pharmacy", "Laboratory", "Billing", "Receptionist", "Staff",
+];
+
+const ROLE_ALIASES: Record<string, ClinicRole> = {
+  Owner: "Owner", Admin: "Admin", Manager: "Manager", Consultant: "Consultant",
+  Doctor: "Doctor", RMO: "RMO", Nurse: "Nurse", Pharmacy: "Pharmacy",
+  Laboratory: "Laboratory", Billing: "Billing", Receptionist: "Receptionist", Staff: "Staff",
+  MasterOwner: "Owner", "Lab Tech": "Laboratory", Lab: "Laboratory", Pharmacist: "Pharmacy",
+};
 
 export function normalizeClinicRole(role: string): ClinicRole {
-  if (role === "Owner" || role === "Admin" || role === "Consultant" || role === "Staff") return role;
-  return "Consultant";
+  if (!role) return "Consultant";
+  return ROLE_ALIASES[role] || ROLE_ALIASES[role.trim()] || "Consultant";
 }
 
 /** Active membership in an active clinic for this doctor (primary / oldest). */
@@ -43,23 +65,35 @@ export async function requireActiveClinicMembership(
 }
 
 export function isMembershipManager(role: ClinicRole): boolean {
-  return role === "Owner" || role === "Admin";
+  return role === "Owner" || role === "Admin" || role === "Manager";
 }
 
 export function canResetPortalPassword(role: ClinicRole): boolean {
-  return role === "Owner" || role === "Admin";
+  return role === "Owner" || role === "Admin" || role === "Manager";
 }
 
 export function canViewFullClinicalChart(role: ClinicRole): boolean {
-  return role === "Owner" || role === "Admin" || role === "Consultant";
+  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Consultant" || role === "Doctor" || role === "RMO";
 }
 
 export function canViewBillingDetail(role: ClinicRole): boolean {
-  return role === "Owner" || role === "Admin";
+  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Billing";
 }
 
 export function canViewBillingSummary(role: ClinicRole): boolean {
-  return role === "Owner" || role === "Admin" || role === "Consultant";
+  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Consultant" || role === "Doctor" || role === "Billing" || role === "Receptionist";
+}
+
+export function canManageTariff(role: ClinicRole): boolean {
+  return role === "Owner" || role === "Admin" || role === "Manager";
+}
+
+export function canManageLab(role: ClinicRole): boolean {
+  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Laboratory";
+}
+
+export function canManagePharmacy(role: ClinicRole): boolean {
+  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Pharmacy";
 }
 
 /**
@@ -68,12 +102,30 @@ export function canViewBillingSummary(role: ClinicRole): boolean {
  */
 export async function findAuthorizedPatient(
   ctx: ClinicMembershipContext,
-  patientId: string
-): Promise<{ id: string; clinicId: string | null; doctorId: string; name: string; age: number; gender: string; phone: string; bp: string; allergies: string; notes: string; createdAt: Date } | null> {
+  patientId: string,
+  opts?: { includeDeleted?: boolean }
+): Promise<{
+  id: string;
+  clinicId: string | null;
+  doctorId: string;
+  name: string;
+  age: number;
+  gender: string;
+  phone: string;
+  bp: string;
+  allergies: string;
+  notes: string;
+  status?: string;
+  deletedAt?: Date | null;
+  registrationNo?: string;
+  uhid?: string;
+  createdAt: Date;
+} | null> {
   const patient = await prisma.patient.findFirst({
     where: {
       id: patientId,
       OR: [{ clinicId: ctx.clinicId }, { doctorId: ctx.doctorId, clinicId: null }],
+      ...(opts?.includeDeleted ? {} : { deletedAt: null }),
     },
   });
   return patient;
