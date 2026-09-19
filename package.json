@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:portal-auth": "node scripts/verify-portal-auth.mjs",
     "test:eka": "node scripts/verify-eka-onboarding.mjs",
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "test:data-retention": "node scripts/verify-data-retention-protection.mjs",
