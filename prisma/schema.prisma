@@ -1,1 +1,41 @@
-// SCHEMA_PLACEHOLDER_WILL_FAIL_IF_NOT_REPLACED
+// MedLum — PostgreSQL schema (clinical encounters, labs, pharmacy, diagnostics, clinic sharing, revenue, blood bank and insurance)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Clinic {
+  id        String   @id @default(cuid())
+  name      String
+  address   String   @default("")
+  phone     String   @default("")
+  email     String   @default("")
+  logoUrl   String   @default("")
+  website   String   @default("")
+  invoiceFooter String @default("")
+  registrationNo String @default("")
+  isActive  Boolean  @default(true)
+  deactivatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members   ClinicMember[]
+  patients  Patient[]
+  invoices  Invoice[]
+  bloodInventory BloodInventory[]
+  bloodDonors BloodDonor[]
+  bloodRequests BloodRequest[]
+  insuranceProviders InsuranceProvider[]
+  insurancePolicies InsurancePolicy[]
+  insuranceClaims InsuranceClaim[]
+  portalAccounts PatientPortalAccount[]
+  otpChallenges OtpChallenge[]
+  tariffVersions TariffVersion[]
+  labTemplates LabTemplate[]
+  @@index([name])
+  @@index([isActive])
+}
