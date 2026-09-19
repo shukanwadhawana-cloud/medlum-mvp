@@ -12,6 +12,7 @@
     "test:portal-auth": "node scripts/verify-portal-auth.mjs",
     "test:hospital-foundation": "node scripts/verify-hospital-foundation.mjs",
     "test:tenant-isolation": "node scripts/verify-tenant-isolation.mjs",
+    "test:rbac-matrix": "node scripts/verify-rbac-matrix.mjs",
     "test:eka": "node scripts/verify-eka-onboarding.mjs",
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "test:data-retention": "node scripts/verify-data-retention-protection.mjs",
