@@ -57,8 +57,19 @@ async function deliverOtp(params: {
   if (gmailUser && gmailAppPassword) {
     try {
       const nodemailer = await import("nodemailer");
+      const smtpHost = process.env.GMAIL_SMTP_HOST || "smtp.gmail.com";
+      const smtpPort = Number(process.env.GMAIL_SMTP_PORT || "465");
+      const smtpSecure = process.env.GMAIL_SMTP_SECURE
+        ? process.env.GMAIL_SMTP_SECURE === "true"
+        : smtpPort === 465;
+
       const transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000,
         auth: { user: gmailUser, pass: gmailAppPassword },
       });
 
