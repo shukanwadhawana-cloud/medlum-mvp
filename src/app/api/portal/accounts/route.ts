@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { normalizePhoneDigits } from "@/lib/phone";
 
 async function getMembership() {
   const session = await getSession();
@@ -87,11 +88,12 @@ export async function POST(req: Request) {
     }
 
     const hash = await bcrypt.hash(password, 12);
+    const portalPhone = normalizePhoneDigits(patient.phone) || patient.phone.trim();
     const existing = await prisma.patientPortalAccount.findUnique({ where: { patientId: patient.id } });
     if (existing) {
       await prisma.patientPortalAccount.update({
         where: { id: existing.id },
-        data: { phone: patient.phone.trim(), passwordHash: hash, status: "Active" },
+        data: { phone: portalPhone, passwordHash: hash, status: "Active" },
       });
       return NextResponse.json({ success: true, created: false });
     }
@@ -100,7 +102,7 @@ export async function POST(req: Request) {
       data: {
         clinicId: membership.clinicId,
         patientId: patient.id,
-        phone: patient.phone.trim(),
+        phone: portalPhone,
         passwordHash: hash,
         status: "Active",
       },
