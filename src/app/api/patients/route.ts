@@ -17,7 +17,7 @@ export async function GET() {
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership." }, { status: 403 });
   const clinicId = membership.clinicId;
-  const patients = await prisma.patient.findMany({ where: { clinicId }, orderBy: { createdAt: "desc" } });
+  const patients = await prisma.patient.findMany({ where: { clinicId, deletedAt: null, NOT: { status: "ARCHIVED" } }, orderBy: { createdAt: "desc" } });
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
   const visible = setup?.subscriptionModel === "OPD" ? patients.filter(p => parseCareSetting(p.notes) !== "IPD") : setup?.subscriptionModel === "IPD" ? patients.filter(p => parseCareSetting(p.notes) === "IPD") : patients;
   return NextResponse.json({ patients: visible.map(serialize) }, { headers: { "Cache-Control": "no-store" } });
