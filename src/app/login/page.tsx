@@ -22,7 +22,6 @@ export default function LoginPage() {
       const result = await apiLogin(email, password);
       if (result.success && result.doctor) {
         setDoctor(result.doctor);
-        // Founder/owner lands on platform home, not clinical OPD.
         if (result.isOwner || result.doctor.isOwner) {
           router.push("/owner");
         } else {
@@ -52,44 +51,31 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center bg-[#f5f5f7] px-6">
         <div className="w-full max-w-md">
           <h2 className="text-3xl font-semibold">Welcome back</h2>
-          <p className="mt-2 text-gray-500">Sign in as clinic doctor or MedLum owner</p>
+          <p className="mt-2 text-gray-500">Sign in as clinic doctor, staff or MedLum owner</p>
           <form onSubmit={handleSubmit} className="mt-10 space-y-5">
             {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
             <div>
               <label className="block text-sm font-medium mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-12 px-4 rounded-xl border border-gray-200"
-                placeholder="you@clinic.com"
-                autoComplete="email"
-              />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-gray-200" placeholder="you@clinic.com" autoComplete="email" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1.5">Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full h-12 px-4 rounded-xl border border-gray-200"
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
+              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-gray-200" placeholder="••••••••" autoComplete="current-password" />
             </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-12 rounded-xl bg-[#c2183a] text-white font-semibold disabled:opacity-60"
-            >
+            <button type="submit" disabled={loading} className="w-full h-12 rounded-xl bg-[#c2183a] text-white font-semibold disabled:opacity-60">
               {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
-          <p className="mt-8 text-center text-sm text-gray-500">
-            New doctor? <Link href="/signup" className="text-[#c2183a] font-medium">Create an account</Link>
-          </p>
+          <div className="mt-8 space-y-3 text-center text-sm">
+            <p className="text-gray-500">
+              New doctor? <Link href="/signup" className="text-[#c2183a] font-medium">Create an account</Link>
+            </p>
+            <p>
+              <Link href="/portal/login" className="text-[#c2183a] font-semibold">
+                Patient? Sign in to the Patient Portal →
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
