@@ -1,3 +1,8 @@
 import { NextResponse } from "next/server";
-import { clearPortalSession } from "@/lib/portal-session";
-export async function POST(){ await clearPortalSession(); return NextResponse.json({success:true}); }
+import { clearPortalSessionCookie } from "@/lib/portal-session";
+
+export async function POST() {
+  const res = NextResponse.json({ success: true });
+  clearPortalSessionCookie(res);
+  return res;
+}
