@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 const ROOT = join(process.cwd(), "src", "app", "api");
 const SPECIAL_CASES = new Set([
   "auth/login/route.ts", "auth/signup/route.ts", "auth/logout/route.ts",
+  "auth/otp/verify/route.ts", // pre-session OTP verification (rate-limited)
   "public/booking/route.ts", "portal/auth/login/route.ts", "portal/auth/logout/route.ts",
   "portal/auth/reset/route.ts", "portal/auth/me/route.ts",
   "interoperability/eka/webhooks/route.ts",
