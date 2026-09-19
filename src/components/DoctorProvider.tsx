@@ -26,6 +26,8 @@ function isPublicPath(pathname: string) {
   if (PUBLIC.includes(pathname)) return true;
   if (pathname.startsWith("/join/")) return true;
   if (pathname.startsWith("/telemedicine/join")) return true;
+  // Patient portal has its own authentication and must not be redirected by clinical auth.
+  if (pathname === "/portal" || pathname.startsWith("/portal/")) return true;
   return false;
 }
 
