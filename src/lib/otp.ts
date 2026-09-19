@@ -72,6 +72,11 @@ async function deliverOtp(params: {
       return { channel: "email" };
     } catch (error) {
       console.error("[MedLum OTP] Gmail delivery failed:", error instanceof Error ? error.message : "unknown error");
+      // Production fail-closed: never fall back to console or allow login without delivery.
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("Gmail OTP delivery failed. Login verification is unavailable.");
+      }
+      // Non-production: allow console fallback after SMTP failure for local testing.
     }
   }
 
@@ -108,11 +113,21 @@ export async function issueLoginOtp(params: {
     },
   });
 
-  const delivery = await deliverOtp({
-    doctorId: params.doctorId,
-    email: params.email,
-    code,
-  });
+  let delivery: OtpDeliveryResult;
+  try {
+    delivery = await deliverOtp({
+      doctorId: params.doctorId,
+      email: params.email,
+      code,
+    });
+  } catch (err) {
+    // Invalidate challenge so a failed delivery cannot leave a usable login OTP.
+    await prisma.otpChallenge.update({
+      where: { id: challenge.id },
+      data: { consumedAt: new Date(), deliveryChannel: "console" },
+    });
+    throw err;
+  }
 
   await prisma.otpChallenge.update({
     where: { id: challenge.id },
