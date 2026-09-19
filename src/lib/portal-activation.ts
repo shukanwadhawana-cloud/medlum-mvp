@@ -7,7 +7,7 @@ function b64url(input: Buffer | string) {
 
 export function createPortalActivationToken(payload: { patientId: string; clinicId: string; expiresAt: number }) {
   const body = b64url(JSON.stringify(payload));
-  const sig = crypto.createHmac("sha256", resolveSessionSecretBytes()).update(body).digest("base64url");
+  const sig = crypto.createHmac("sha256", Buffer.from(resolveSessionSecretBytes())).update(body).digest("base64url");
   return body + "." + sig;
 }
 
