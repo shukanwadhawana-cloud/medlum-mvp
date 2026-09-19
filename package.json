@@ -15,6 +15,7 @@
     "test:rbac-matrix": "node scripts/verify-rbac-matrix.mjs",
     "test:runtime-e2e": "node scripts/runtime-e2e-harness.mjs",
     "test:invoice-snapshot": "node scripts/verify-invoice-snapshot.mjs",
+    "test:otp-login-invariant": "node scripts/verify-otp-login-invariant.mjs",
     "test:eka": "node scripts/verify-eka-onboarding.mjs",
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "test:data-retention": "node scripts/verify-data-retention-protection.mjs",
@@ -50,11 +51,11 @@
     "bcryptjs": "^2.4.3",
     "jose": "^6.0.10",
     "next": "16.3.5",
+    "nodemailer": "^7.0.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tesseract.js": "^6.0.1",
-    "xlsx": "^0.18.5",
-    "nodemailer": "^7.0.6"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.4",
@@ -65,9 +66,9 @@
     "@types/nodemailer": "^7.0.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.0.0",
     "prisma": "6.19.3",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "cross-env": "^10.0.0"
+    "typescript": "^5"
   }
 }
