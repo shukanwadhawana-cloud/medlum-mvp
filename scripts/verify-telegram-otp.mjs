@@ -8,7 +8,7 @@ const checks = [
   ["Telegram identity", schema.includes("model TelegramIdentity") && schema.includes("telegramChatId")],
   ["Link challenge", schema.includes("model TelegramLinkChallenge") && schema.includes("tokenHash")],
   ["OTP remains hashed", otp.includes("bcrypt.hash") && otp.includes("bcrypt.compare")],
-  ["Production fail-closed", otp.includes("NODE_ENV !== "production"") && otp.includes("Telegram account is not linked")],
+  ["Production fail-closed", otp.includes('NODE_ENV !== "production"') && otp.includes("Telegram account is not linked")],
 ];
 for (const [name, ok] of checks) {
   if (!ok) throw new Error("FAIL: " + name);
