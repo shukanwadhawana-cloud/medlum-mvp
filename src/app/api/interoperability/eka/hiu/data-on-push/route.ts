@@ -1,19 +1,11 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { prisma } from "@/lib/db";
 import { verifyEkaWebhookSignature } from "@/lib/interoperability/eka-webhook";
 import { normalizeInteropEvent } from "@/lib/interoperability/events";
 
-/**
- * Eka/ABDM HIU callback boundary for the result of pushed care-context data.
- *
- * This endpoint deliberately does not decrypt, persist, or expose health data.
- * The ABDM encryption/key-exchange flow must be completed before clinical data
- * is accepted into the MedLum chart.
- */
+/** HIU callback: signature-only auth; does not decrypt or store clinical payloads. */
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const payload = await req.text();
   const signature = req.headers.get("Eka-Webhook-Signature");
   const secret = process.env.EKA_WEBHOOK_SIGNING_KEY || "";
@@ -40,14 +32,36 @@ export async function POST(req: Request) {
       payload: event.data,
     });
 
-    return NextResponse.json({
-      accepted: true,
-      provider: normalized.provider,
-      kind: normalized.kind,
-      transactionId: normalized.transactionId,
-      status: event.status || (event.success === false ? "failed" : "accepted"),
-      dataStored: false,
-    }, { status: 202 });
+    const txn = normalized.transactionId || `hiu-${Date.now()}`;
+    const payloadHash = createHash("sha256").update(payload).digest("hex").slice(0, 32);
+
+    const existing = await prisma.abdmEvent.findUnique({
+      where: { transactionId_kind: { transactionId: txn, kind: normalized.kind } },
+    });
+    if (existing) {
+      return NextResponse.json({ accepted: true, duplicate: true, transactionId: txn }, { status: 202 });
+    }
+
+    await prisma.abdmEvent.create({
+      data: {
+        transactionId: txn,
+        kind: normalized.kind,
+        status: event.status || (event.success === false ? "failed" : "accepted"),
+        payloadHash,
+      },
+    });
+
+    return NextResponse.json(
+      {
+        accepted: true,
+        provider: normalized.provider,
+        kind: normalized.kind,
+        transactionId: normalized.transactionId,
+        status: event.status || (event.success === false ? "failed" : "accepted"),
+        dataStored: false,
+      },
+      { status: 202 }
+    );
   } catch {
     return NextResponse.json({ error: "Invalid webhook payload." }, { status: 400 });
   }
