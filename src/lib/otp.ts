@@ -44,7 +44,7 @@ function telegramBotConfig() {
   return { token, username };
 }
 
-async function telegramRequest<T>(method: string, body: Record<string, unknown>): Promise<T> {
+async function telegramRequest<T>(method: string, body: Record<string, unknown> = {}): Promise<T> {
   const { token } = telegramBotConfig();
   if (!token) throw new Error("Telegram OTP delivery is not configured.");
   const controller = new AbortController();
@@ -72,16 +72,128 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
   await telegramRequest("sendMessage", { chat_id: chatId, text });
 }
 
-/** Register the production webhook using the server-side bot credentials. */
-export async function ensureTelegramWebhook(webhookUrl: string): Promise<void> {
+/**
+ * Canonical public app origin for webhooks.
+ * Never use request URLs (can be preview/deployment hostnames on Vercel).
+ */
+export function getCanonicalAppOrigin(): string {
+  const explicit =
+    process.env.MEDLUM_APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    "";
+  const cleaned = String(explicit).trim().replace(/\/$/, "");
+  if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) return cleaned;
+
+  if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
+    return "https://medlum-mvp.vercel.app";
+  }
+
+  const vercelUrl = String(process.env.VERCEL_URL || "").trim().replace(/\/$/, "");
+  if (vercelUrl) return vercelUrl.startsWith("http") ? vercelUrl : `https://${vercelUrl}`;
+
+  return "http://localhost:3000";
+}
+
+export function getTelegramWebhookUrl(): string {
+  return `${getCanonicalAppOrigin()}/api/telegram/webhook`;
+}
+
+export type TelegramConfigStatus = {
+  tokenConfigured: boolean;
+  usernameConfigured: boolean;
+  secretConfigured: boolean;
+  webhookUrl: string;
+};
+
+export function getTelegramConfigStatus(): TelegramConfigStatus {
+  const { token, username } = telegramBotConfig();
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
-  if (!secret) throw new Error("Telegram webhook secret is not configured.");
-  await telegramRequest("setWebhook", {
-    url: webhookUrl,
-    secret_token: secret,
-    allowed_updates: ["message"],
-    drop_pending_updates: false,
-  });
+  return {
+    tokenConfigured: Boolean(token),
+    usernameConfigured: Boolean(username),
+    secretConfigured: Boolean(secret),
+    webhookUrl: getTelegramWebhookUrl(),
+  };
+}
+
+/**
+ * Register the production webhook using server-side bot credentials.
+ * Always targets the canonical production webhook URL (not the request host).
+ */
+export async function ensureTelegramWebhook(_ignoredRequestUrl?: string): Promise<{
+  webhookUrl: string;
+  botUsername: string | null;
+}> {
+  const cfg = getTelegramConfigStatus();
+  if (!cfg.tokenConfigured) {
+    const err = new Error("CONFIG_MISSING: TELEGRAM_BOT_TOKEN");
+    (err as any).code = "CONFIG_MISSING";
+    throw err;
+  }
+  if (!cfg.secretConfigured) {
+    const err = new Error("CONFIG_MISSING: TELEGRAM_WEBHOOK_SECRET");
+    (err as any).code = "CONFIG_MISSING";
+    throw err;
+  }
+
+  const webhookUrl = cfg.webhookUrl;
+  const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
+
+  try {
+    await telegramRequest("getMe", {});
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    console.error("[MedLum Telegram] getMe failed:", msg.slice(0, 120));
+    const err = new Error(
+      msg.toLowerCase().includes("unauthorized") || msg.includes("401")
+        ? "BOT_TOKEN_INVALID"
+        : "TELEGRAM_API_UNREACHABLE"
+    );
+    (err as any).code = err.message;
+    throw err;
+  }
+
+  try {
+    await telegramRequest("setWebhook", {
+      url: webhookUrl,
+      secret_token: secret,
+      allowed_updates: ["message"],
+      drop_pending_updates: false,
+    });
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    console.error("[MedLum Telegram] setWebhook failed:", msg.slice(0, 160), "url=", webhookUrl);
+    const err = new Error("WEBHOOK_SET_FAILED");
+    (err as any).code = "WEBHOOK_SET_FAILED";
+    throw err;
+  }
+
+  try {
+    const info = await telegramRequest<{ url?: string }>("getWebhookInfo", {});
+    const registered = String(info?.url || "");
+    if (registered && registered !== webhookUrl) {
+      console.error("[MedLum Telegram] webhook URL mismatch registered=", registered, "expected=", webhookUrl);
+    }
+  } catch {
+    // non-fatal
+  }
+
+  const { username } = telegramBotConfig();
+  return { webhookUrl, botUsername: username || null };
+}
+
+export function classifyTelegramError(error: unknown): string {
+  if (!error) return "TELEGRAM_UNKNOWN";
+  const code = (error as any)?.code;
+  if (typeof code === "string" && code) return code;
+  const msg = String((error as any)?.message || error);
+  if (msg.includes("CONFIG_MISSING")) return "CONFIG_MISSING";
+  if (msg.includes("BOT_TOKEN_INVALID") || /unauthorized/i.test(msg)) return "BOT_TOKEN_INVALID";
+  if (msg.includes("WEBHOOK_SET_FAILED")) return "WEBHOOK_SET_FAILED";
+  if (msg.includes("not configured")) return "CONFIG_MISSING";
+  if (/timeout|abort|fetch failed|ENOTFOUND|ECONN/i.test(msg)) return "TELEGRAM_API_UNREACHABLE";
+  return "TELEGRAM_UNKNOWN";
 }
 
 export async function createTelegramLinkChallenge(doctorId: string): Promise<{ token: string; expiresAt: Date }> {
@@ -135,7 +247,7 @@ export async function issueLoginOtp(params: {
     if (identity?.telegramChatId) {
       await sendTelegramMessage(
         identity.telegramChatId,
-        `MedLum login verification code\\n\\nYour verification code is: ${code}\\n\\nThis code expires in 5 minutes.\\n\\nIf you did not request this code, ignore this message.`
+        `MedLum login verification code\n\nYour verification code is: ${code}\n\nThis code expires in 5 minutes.\n\nIf you did not request this code, ignore this message.`
       );
       delivery = { channel: "telegram" };
     } else if (process.env.NODE_ENV !== "production") {
