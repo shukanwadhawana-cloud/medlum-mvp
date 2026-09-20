@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
-import { createTelegramLinkChallenge, ensureTelegramWebhook, roleRequiresOtp } from "@/lib/otp";
+import { createTelegramLinkChallenge, ensureTelegramWebhook, classifyTelegramError, roleRequiresOtp } from "@/lib/otp";
 import { normalizeClinicRole } from "@/lib/workflow";
 import { isMedlumOwnerEmail } from "@/lib/owner";
 import { writeAudit } from "@/lib/audit";
@@ -11,7 +11,6 @@ export const runtime = "nodejs";
 /**
  * Pre-login Telegram linking.
  * Proves account ownership with email + password, but does NOT create a session.
- * This is intentionally separate from the authenticated Security page flow.
  */
 export async function POST(req: Request) {
   try {
@@ -66,23 +65,28 @@ export async function POST(req: Request) {
 
     const username = String(process.env.TELEGRAM_BOT_USERNAME || "").trim().replace(/^@/, "");
     if (!username) {
-      return NextResponse.json({ success: false, error: "Telegram bot is not configured." }, { status: 503 });
+      console.error("[MedLum Telegram] prelink CONFIG_MISSING username");
+      return NextResponse.json({ success: false, error: "Telegram bot is not configured.", reason: "CONFIG_MISSING" }, { status: 503 });
     }
 
-    const webhookUrl = new URL("/api/telegram/webhook", req.url).toString();
     try {
-      await ensureTelegramWebhook(webhookUrl);
+      await ensureTelegramWebhook();
     } catch (error) {
-      console.error("Telegram webhook registration failed:", error);
-      return NextResponse.json({ success: false, error: "Telegram could not be configured." }, { status: 503 });
+      const reason = classifyTelegramError(error);
+      console.error("[MedLum Telegram] prelink failed reason=", reason);
+      return NextResponse.json({
+        success: false,
+        error: "Telegram could not be configured.",
+        reason,
+      }, { status: 503 });
     }
 
     const { token, expiresAt } = await createTelegramLinkChallenge(doctor.id);
     await writeAudit({
       doctorId: doctor.id,
-      action: "telegram_link_started",
+      action: "telegram_prelink_started",
       entity: "TelegramLinkChallenge",
-      meta: { preLogin: true },
+      meta: {},
     });
 
     return NextResponse.json({
@@ -91,8 +95,8 @@ export async function POST(req: Request) {
       expiresAt: expiresAt.toISOString(),
       deepLink: `https://t.me/${username}?start=${encodeURIComponent(token)}`,
     });
-  } catch (error) {
-    console.error("pre-login Telegram link failed", error);
-    return NextResponse.json({ success: false, error: "Unable to start Telegram linking." }, { status: 500 });
+  } catch (e) {
+    console.error("telegram prelink error", e instanceof Error ? e.message : "error");
+    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
   }
 }
