@@ -44,50 +44,188 @@ export function roleRequiresOtp(role: string | null | undefined): boolean {
   return OTP_REQUIRED_ROLES.has(role);
 }
 
+/** Strip paste artifacts from Google App Passwords (spaces/quotes) without logging secrets. */
+export function normalizeSmtpUser(raw: string | undefined | null): string {
+  return String(raw || "").trim().toLowerCase();
+}
+
+/**
+ * Google App Passwords are 16 chars; Google UI shows them as "xxxx xxxx xxxx xxxx".
+ * Pasted values often include spaces or surrounding quotes — those cause 535 BadCredentials.
+ */
+export function normalizeSmtpAppPassword(raw: string | undefined | null): string {
+  let p = String(raw || "").trim();
+  if (
+    (p.startsWith('"') && p.endsWith('"')) ||
+    (p.startsWith("'") && p.endsWith("'"))
+  ) {
+    p = p.slice(1, -1).trim();
+  }
+  // Remove all whitespace (spaces, tabs, newlines) — App Passwords never contain spaces.
+  return p.replace(/\s+/g, "");
+}
+
+export type SmtpConfigSanitized = {
+  smtpUserConfigured: boolean;
+  smtpUserLooksLikeEmail: boolean;
+  smtpUserLength: number;
+  smtpPasswordConfigured: boolean;
+  smtpPasswordLength: number;
+  smtpPasswordHasLeadingWhitespace: boolean;
+  smtpPasswordHasTrailingWhitespace: boolean;
+  smtpPasswordHasInternalWhitespace: boolean;
+  smtpPasswordLooksQuoted: boolean;
+  smtpFromConfigured: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  runtime: string;
+  nodeEnv: string;
+};
+
+/** Secret-free snapshot of SMTP env as the app will use it (after normalization). */
+export function getSmtpConfigSanitized(): SmtpConfigSanitized {
+  const rawUser = process.env.GMAIL_SMTP_USER || "";
+  const rawPass = process.env.GMAIL_SMTP_APP_PASSWORD || "";
+  const user = normalizeSmtpUser(rawUser);
+  const pass = normalizeSmtpAppPassword(rawPass);
+  const host = (process.env.GMAIL_SMTP_HOST || "smtp.gmail.com").trim();
+  const port = Number(process.env.GMAIL_SMTP_PORT || "587");
+  const secure = process.env.GMAIL_SMTP_SECURE
+    ? process.env.GMAIL_SMTP_SECURE === "true"
+    : port === 465;
+  const rawTrim = String(rawPass);
+  return {
+    smtpUserConfigured: Boolean(user),
+    smtpUserLooksLikeEmail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user),
+    smtpUserLength: user.length,
+    smtpPasswordConfigured: Boolean(pass),
+    smtpPasswordLength: pass.length,
+    smtpPasswordHasLeadingWhitespace: Boolean(rawPass && rawPass !== rawPass.trimStart()),
+    smtpPasswordHasTrailingWhitespace: Boolean(rawPass && rawPass !== rawPass.trimEnd()),
+    smtpPasswordHasInternalWhitespace: /\s/.test(rawTrim.trim()),
+    smtpPasswordLooksQuoted:
+      (rawTrim.trim().startsWith('"') && rawTrim.trim().endsWith('"')) ||
+      (rawTrim.trim().startsWith("'") && rawTrim.trim().endsWith("'")),
+    smtpFromConfigured: Boolean(String(process.env.GMAIL_SMTP_FROM || "").trim()),
+    smtpHost: host,
+    smtpPort: Number.isFinite(port) ? port : 587,
+    smtpSecure: secure,
+    runtime: "nodejs",
+    nodeEnv: process.env.NODE_ENV || "undefined",
+  };
+}
+
+function buildTransportOptions(user: string, pass: string, port: number, secure: boolean, host: string) {
+  return {
+    host,
+    port,
+    secure,
+    requireTLS: !secure && port === 587,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    auth: { user, pass },
+  };
+}
+
+/**
+ * Create transporter with the same config used for OTP delivery.
+ * Prefers 587 STARTTLS (works more reliably on serverless platforms).
+ */
+export async function createOtpMailTransport() {
+  const nodemailer = await import("nodemailer");
+  const user = normalizeSmtpUser(process.env.GMAIL_SMTP_USER);
+  const pass = normalizeSmtpAppPassword(process.env.GMAIL_SMTP_APP_PASSWORD);
+  if (!user || !pass) {
+    throw new Error("Gmail OTP delivery is not configured. Set GMAIL_SMTP_USER and GMAIL_SMTP_APP_PASSWORD.");
+  }
+  const host = (process.env.GMAIL_SMTP_HOST || "smtp.gmail.com").trim();
+  let port = Number(process.env.GMAIL_SMTP_PORT || "587");
+  if (!Number.isFinite(port) || port <= 0) port = 587;
+  const secure = process.env.GMAIL_SMTP_SECURE
+    ? process.env.GMAIL_SMTP_SECURE === "true"
+    : port === 465;
+
+  return nodemailer.createTransport(buildTransportOptions(user, pass, port, secure, host));
+}
+
+/** Safe SMTP verify for diagnostics — never returns secrets. */
+export async function verifyOtpSmtpTransport(): Promise<{
+  ok: boolean;
+  code: "SMTP_CONFIG_OK" | "SMTP_VERIFY_OK" | "SMTP_AUTH_FAILED" | "SMTP_CONNECTION_FAILED" | "SMTP_VERIFY_FAILED" | "SMTP_NOT_CONFIGURED";
+  message: string;
+  config: SmtpConfigSanitized;
+}> {
+  const config = getSmtpConfigSanitized();
+  if (!config.smtpUserConfigured || !config.smtpPasswordConfigured) {
+    return { ok: false, code: "SMTP_NOT_CONFIGURED", message: "SMTP credentials missing", config };
+  }
+  try {
+    const transporter = await createOtpMailTransport();
+    await transporter.verify();
+    return { ok: true, code: "SMTP_VERIFY_OK", message: "SMTP transport verified", config };
+  } catch (error: any) {
+    const msg = String(error?.message || error || "unknown");
+    const responseCode = error?.responseCode || error?.code;
+    const lower = msg.toLowerCase();
+    if (
+      responseCode === 535 ||
+      lower.includes("invalid login") ||
+      lower.includes("badcredentials") ||
+      lower.includes("username and password not accepted") ||
+      lower.includes("authentication failed")
+    ) {
+      return {
+        ok: false,
+        code: "SMTP_AUTH_FAILED",
+        message: `SMTP auth failed (${responseCode || "auth"}). Check App Password normalization and Gmail account SMTP access.`,
+        config,
+      };
+    }
+    if (
+      lower.includes("timeout") ||
+      lower.includes("econnrefused") ||
+      lower.includes("enotfound") ||
+      lower.includes("socket")
+    ) {
+      return { ok: false, code: "SMTP_CONNECTION_FAILED", message: `SMTP connection failed (${responseCode || "conn"})`, config };
+    }
+    return { ok: false, code: "SMTP_VERIFY_FAILED", message: `SMTP verify failed (${responseCode || "error"})`, config };
+  }
+}
+
 async function deliverOtp(params: {
   doctorId: string;
   email: string;
   code: string;
 }): Promise<OtpDeliveryResult> {
-  const gmailUser = process.env.GMAIL_SMTP_USER || "";
-  const gmailAppPassword = process.env.GMAIL_SMTP_APP_PASSWORD || "";
-  const from = process.env.GMAIL_SMTP_FROM || gmailUser;
+  const gmailUser = normalizeSmtpUser(process.env.GMAIL_SMTP_USER);
+  const gmailAppPassword = normalizeSmtpAppPassword(process.env.GMAIL_SMTP_APP_PASSWORD);
+  const fromRaw = String(process.env.GMAIL_SMTP_FROM || "").trim();
+  const from = fromRaw || gmailUser;
 
-  // Gmail SMTP is the production delivery provider.
   if (gmailUser && gmailAppPassword) {
     try {
-      const nodemailer = await import("nodemailer");
-      const smtpHost = process.env.GMAIL_SMTP_HOST || "smtp.gmail.com";
-      const smtpPort = Number(process.env.GMAIL_SMTP_PORT || "465");
-      const smtpSecure = process.env.GMAIL_SMTP_SECURE
-        ? process.env.GMAIL_SMTP_SECURE === "true"
-        : smtpPort === 465;
-
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 10000,
-        auth: { user: gmailUser, pass: gmailAppPassword },
-      });
-
+      const transporter = await createOtpMailTransport();
       await transporter.sendMail({
-        from,
+        from: from.includes("<") ? from : `"MedLum" <${from}>`,
         to: params.email,
         subject: "MedLum login verification code",
         text: `Your MedLum verification code is ${params.code}. It expires in 5 minutes. If you did not request this code, ignore this email.`,
         html: `<p>Your MedLum verification code is <strong>${params.code}</strong>.</p><p>It expires in 5 minutes.</p><p>If you did not request this code, you can ignore this email.</p>`,
       });
       return { channel: "email" };
-    } catch (error) {
-      console.error("[MedLum OTP] Gmail delivery failed:", error instanceof Error ? error.message : "unknown error");
-      // Production fail-closed: never fall back to console or allow login without delivery.
+    } catch (error: any) {
+      const responseCode = error?.responseCode || error?.code || "";
+      console.error(
+        "[MedLum OTP] Gmail delivery failed:",
+        error instanceof Error ? error.message.replace(/pass(word)?[=:]\S+/gi, "pass=[redacted]") : "unknown error",
+        responseCode ? `code=${responseCode}` : ""
+      );
       if (process.env.NODE_ENV === "production") {
         throw new Error("Gmail OTP delivery failed. Login verification is unavailable.");
       }
-      // Non-production: allow console fallback after SMTP failure for local testing.
     }
   }
 
@@ -132,7 +270,6 @@ export async function issueLoginOtp(params: {
       code,
     });
   } catch (err) {
-    // Invalidate challenge so a failed delivery cannot leave a usable login OTP.
     await prisma.otpChallenge.update({
       where: { id: challenge.id },
       data: { consumedAt: new Date(), deliveryChannel: "console" },
