@@ -60,13 +60,19 @@ export default function LoginPage() {
 
   const handleTelegramLink = async () => {
     setError("");
+    const emailValue = email.trim();
+    const passwordValue = password;
+    if (!emailValue || !passwordValue) {
+      setError("Enter email and password, then connect Telegram.");
+      return;
+    }
     setLinkLoading(true);
     try {
       const res = await fetch("/api/auth/telegram/prelink", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: emailValue, password: passwordValue }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || !result.success) {
@@ -161,12 +167,34 @@ export default function LoginPage() {
           ) : linkStep ? (
             <div className="mt-10 space-y-5">
               {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
-              <div className="rounded-2xl border border-gray-200 p-5 bg-gray-50">
+              <div className="rounded-xl border border-[#229ED9]/30 bg-[#229ED9]/5 p-4">
                 <h3 className="font-semibold text-[#140a1f]">Connect Telegram</h3>
-                <p className="mt-2 text-sm text-gray-600">Tap the button below, then press <b>Start</b> in the MedLum Login bot. Your Telegram account will be linked to this MedLum account.</p>
+                <p className="mt-2 text-sm text-gray-600">
+                  Tap the button below, then press <b>Start</b> in the MedLum Login bot. Your Telegram account will be
+                  linked to this MedLum account.
+                </p>
               </div>
-              {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center w-full h-12 rounded-xl bg-[#229ED9] text-white font-semibold">Open Telegram & Connect</a>}
-              <button type="button" onClick={() => { setLinkStep(false); setLinkUrl(""); setError(""); }} className="w-full text-sm text-[#c2183a] font-medium">Back to login</button>
+              {linkUrl && (
+                <a
+                  href={linkUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center w-full h-12 rounded-xl bg-[#229ED9] text-white font-semibold"
+                >
+                  Open Telegram & Connect
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setLinkStep(false);
+                  setLinkUrl("");
+                  setError("");
+                }}
+                className="w-full text-sm text-[#c2183a] font-medium"
+              >
+                Back to sign in
+              </button>
               <p className="text-xs text-gray-500 text-center">After Telegram says connected, return here and sign in again.</p>
             </div>
           ) : (
@@ -203,7 +231,12 @@ export default function LoginPage() {
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
-              <button type="button" onClick={handleTelegramLink} disabled={linkLoading || loading || !email || !password} className="w-full h-12 rounded-xl border border-[#229ED9] text-[#1688bd] font-semibold disabled:opacity-50">
+              <button
+                type="button"
+                onClick={handleTelegramLink}
+                disabled={linkLoading || loading}
+                className="w-full h-12 rounded-xl border border-[#229ED9] text-[#1688bd] font-semibold disabled:opacity-50"
+              >
                 {linkLoading ? "Preparing Telegram..." : "Connect Telegram before signing in"}
               </button>
               <p className="text-xs text-gray-500 text-center">Required once for Owner / Admin / Manager accounts.</p>
