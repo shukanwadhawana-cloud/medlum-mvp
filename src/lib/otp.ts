@@ -57,7 +57,7 @@ async function telegramRequest<T>(method: string, body: Record<string, unknown>)
       signal: controller.signal,
       cache: "no-store",
     });
-    const payload = await response.json().catch(() => null) as any;
+    const payload = (await response.json().catch(() => null)) as any;
     if (!response.ok || !payload?.ok) {
       const description = String(payload?.description || `Telegram API HTTP ${response.status}`);
       throw new Error(description);
@@ -123,7 +123,7 @@ export async function issueLoginOtp(params: {
     if (identity?.telegramChatId) {
       await sendTelegramMessage(
         identity.telegramChatId,
-        `MedLum Login Verification\\n\\nYour verification code is: ${code}\\n\\nThis code expires in 5 minutes. If you did not request this code, ignore this message.`
+        `MedLum login verification code\n\nYour verification code is: ${code}\n\nThis code expires in 5 minutes.\n\nIf you did not request this code, ignore this message.`
       );
       delivery = { channel: "telegram" };
     } else if (process.env.NODE_ENV !== "production") {
@@ -174,19 +174,42 @@ export async function consumeLoginOtp(params: {
   const challenge = await prisma.otpChallenge.findFirst({
     where: { id: params.challengeId, doctorId: params.doctorId, purpose: "login" },
   });
+
   if (!challenge) return { ok: false, error: "Invalid or expired verification code." };
   if (challenge.consumedAt) return { ok: false, error: "This verification code was already used." };
-  if (challenge.expiresAt.getTime() < Date.now()) return { ok: false, error: "Verification code expired. Sign in again." };
-  if (challenge.attempts >= challenge.maxAttempts) return { ok: false, error: "Too many verification attempts. Sign in again." };
+  if (challenge.expiresAt.getTime() < Date.now()) {
+    return { ok: false, error: "Verification code expired. Sign in again." };
+  }
+  if (challenge.attempts >= challenge.maxAttempts) {
+    return { ok: false, error: "Too many verification attempts. Sign in again." };
+  }
 
   const match = await verifyOtpHash(params.code.trim(), challenge.codeHash);
   if (!match) {
-    await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { attempts: { increment: 1 } } });
-    await writeAudit({ doctorId: params.doctorId, action: "otp_failed", entity: "OtpChallenge", entityId: challenge.id });
+    await prisma.otpChallenge.update({
+      where: { id: challenge.id },
+      data: { attempts: { increment: 1 } },
+    });
+    await writeAudit({
+      doctorId: params.doctorId,
+      action: "otp_failed",
+      entity: "OtpChallenge",
+      entityId: challenge.id,
+    });
     return { ok: false, error: "Invalid verification code." };
   }
 
-  await prisma.otpChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
-  await writeAudit({ doctorId: params.doctorId, action: "otp_verified", entity: "OtpChallenge", entityId: challenge.id });
+  await prisma.otpChallenge.update({
+    where: { id: challenge.id },
+    data: { consumedAt: new Date() },
+  });
+
+  await writeAudit({
+    doctorId: params.doctorId,
+    action: "otp_verified",
+    entity: "OtpChallenge",
+    entityId: challenge.id,
+  });
+
   return { ok: true };
 }

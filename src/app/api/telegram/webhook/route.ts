@@ -10,20 +10,27 @@ function hashToken(token: string) {
 }
 
 export async function POST(req: Request) {
-  const expected = String(process.env.TELEGRAM_WEBHOOK_SECRET || "");
+  const expected = String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
   const supplied = req.headers.get("x-telegram-bot-api-secret-token") || "";
-  if (!expected || supplied !== expected) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!expected || supplied !== expected) {
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
 
-  const update = await req.json().catch(() => null) as any;
+  const update = (await req.json().catch(() => null)) as any;
   const message = update?.message;
   const from = message?.from;
   const chat = message?.chat;
   const text = String(message?.text || "");
-  if (!from?.id || !chat?.id || !text.startsWith("/start")) return NextResponse.json({ ok: true });
+  if (!from?.id || !chat?.id || !text.startsWith("/start")) {
+    return NextResponse.json({ ok: true });
+  }
 
   const token = text.slice(6).trim();
   if (!token) {
-    await sendTelegramMessage(String(chat.id), "MedLum: please use the Telegram link generated inside your MedLum account.");
+    await sendTelegramMessage(
+      String(chat.id),
+      "MedLum: open Connect Telegram from your MedLum account to finish linking."
+    );
     return NextResponse.json({ ok: true });
   }
 
@@ -31,15 +38,24 @@ export async function POST(req: Request) {
     where: { tokenHash: hashToken(token), consumedAt: null, expiresAt: { gt: new Date() } },
   });
   if (!challenge) {
-    await sendTelegramMessage(String(chat.id), "This MedLum linking link is invalid or expired. Generate a new one from MedLum.");
+    await sendTelegramMessage(
+      String(chat.id),
+      "This MedLum linking link is invalid or expired. Generate a new one from MedLum."
+    );
     return NextResponse.json({ ok: true });
   }
 
-  const existing = await prisma.telegramIdentity.findFirst({
-    where: { OR: [{ doctorId: challenge.doctorId }, { telegramUserId: String(from.id) }, { telegramChatId: String(chat.id) }] },
+  const conflict = await prisma.telegramIdentity.findFirst({
+    where: {
+      OR: [{ telegramUserId: String(from.id) }, { telegramChatId: String(chat.id) }],
+      NOT: { doctorId: challenge.doctorId },
+    },
   });
-
-  if (existing && existing.doctorId !== challenge.doctorId) {
+  if (conflict) {
+    await sendTelegramMessage(
+      String(chat.id),
+      "This Telegram account is already linked to a different MedLum user. Unlink it there first."
+    );
     return NextResponse.json({ ok: true });
   }
 
@@ -64,6 +80,9 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  await sendTelegramMessage(String(chat.id), "MedLum Telegram is now linked to your account. Future privileged login verification codes will be sent here.");
+  await sendTelegramMessage(
+    String(chat.id),
+    "MedLum Telegram is now linked. Future login verification codes will be sent here."
+  );
   return NextResponse.json({ ok: true });
 }
