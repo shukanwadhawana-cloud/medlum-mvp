@@ -14,6 +14,17 @@ const sections = [
     ],
   },
   {
+    title: "Hospital MVP",
+    items: [
+      { href: "/mvp-blueprint", label: "MVP Blueprint", desc: "Frozen product map and acceptance checklist" },
+      { href: "/clinic/setup", label: "Hospital / Clinic setup", desc: "Facility, license, OPD/IPD mode" },
+      { href: "/clinic/tariffs", label: "Tariff / Rate list", desc: "Excel/CSV import, validate, activate rates" },
+      { href: "/clinic", label: "Staff & clinic settings", desc: "Members, roles, portal passwords" },
+      { href: "/opd", label: "OPD workspace", desc: "Outpatient visits, labs, billing" },
+      { href: "/billing", label: "Billing & receipts", desc: "Invoices, payments, print" },
+    ],
+  },
+  {
     title: "Clinic modules",
     items: [
       { href: "/billing", label: "Patient billing", desc: "Invoices and payments" },
