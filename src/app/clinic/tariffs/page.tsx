@@ -28,6 +28,8 @@ const MAP_FIELDS = [
   { key: "notes", label: "Notes" },
 ];
 
+const CSRF_HEADERS = { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" } as const;
+
 export default function TariffImportPage() {
   const { doctor, loading: authLoading } = useDoctor();
   const [versions, setVersions] = useState<Version[]>([]);
@@ -73,7 +75,7 @@ export default function TariffImportPage() {
       try {
         const res = await fetch("/api/tariffs/import", {
           method: "POST", credentials: "include",
-          headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "fetch" },
+          headers: CSRF_HEADERS,
           body: JSON.stringify({ csv: text, sourceFile: file.name, mode: "preview" }),
         });
         const data: InspectResult = await res.json();
@@ -96,7 +98,7 @@ export default function TariffImportPage() {
       try {
         const res = await fetch("/api/tariffs/import", {
           method: "POST", credentials: "include",
-          headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "fetch" },
+          headers: CSRF_HEADERS,
           body: JSON.stringify({ excelBase64: b64, sourceFile: file.name, mode: "preview" }),
         });
         const data: InspectResult = await res.json();
@@ -120,7 +122,7 @@ export default function TariffImportPage() {
     try {
       const res = await fetch("/api/tariffs/import", {
         method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "fetch" },
+        headers: CSRF_HEADERS,
         body: JSON.stringify({ excelBase64: excelB64, sheetName: name, sourceFile: fileName, mode: "preview" }),
       });
       const data: InspectResult = await res.json();
@@ -141,7 +143,7 @@ export default function TariffImportPage() {
       else { setErr("No file loaded"); return; }
       const res = await fetch("/api/tariffs/import", {
         method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "fetch" },
+        headers: CSRF_HEADERS,
         body: JSON.stringify(body),
       });
       const data: InspectResult = await res.json();
@@ -162,7 +164,7 @@ export default function TariffImportPage() {
       else { setErr("No file loaded"); return; }
       const res = await fetch("/api/tariffs/import", {
         method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "fetch" },
+        headers: CSRF_HEADERS,
         body: JSON.stringify(body),
       });
       const data: InspectResult = await res.json();
@@ -178,7 +180,7 @@ export default function TariffImportPage() {
     try {
       const res = await fetch("/api/tariffs", {
         method: "PATCH", credentials: "include",
-        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "fetch" },
+        headers: CSRF_HEADERS,
         body: JSON.stringify({ id, action: "activate" }),
       });
       const data = await res.json();
