@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { createTelegramLinkChallenge, roleRequiresOtp } from "@/lib/otp";
 import { normalizeClinicRole } from "@/lib/workflow";
+import { isMedlumOwnerEmail } from "@/lib/owner";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ export async function POST() {
     select: { role: true },
     orderBy: { createdAt: "asc" },
   });
-  const isOwner = doctor.email.toLowerCase() === String(process.env.MEDLUM_OWNER_EMAIL || "").toLowerCase();
+  const isOwner = isMedlumOwnerEmail(doctor.email);
   if (!isOwner && !roleRequiresOtp(normalizeClinicRole(membership?.role))) {
     return NextResponse.json({ success: false, error: "Telegram linking is restricted to privileged accounts." }, { status: 403 });
   }
