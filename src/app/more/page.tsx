@@ -14,6 +14,20 @@ const sections = [
     ],
   },
   {
+    title: "Clinical",
+    items: [
+      { href: "/opd", label: "OPD", desc: "Outpatient workspace" },
+      { href: "/patients", label: "Patients", desc: "Registration, search, charts" },
+      { href: "/ipd", label: "IPD", desc: "Inpatient admissions" },
+      { href: "/appointments", label: "Appointments", desc: "Schedule and follow-ups" },
+      { href: "/emergency", label: "Emergency", desc: "Emergency intake" },
+      { href: "/labs", label: "Laboratory", desc: "Orders and results including CBC" },
+      { href: "/diagnostics", label: "Diagnostics", desc: "Imaging and studies" },
+      { href: "/pharmacy", label: "Pharmacy", desc: "Inventory and dispensing" },
+      { href: "/telemedicine", label: "Video consults", desc: "Start or join telemedicine" },
+    ],
+  },
+  {
     title: "Hospital MVP",
     items: [
       { href: "/mvp-blueprint", label: "MVP Blueprint", desc: "Frozen product map and acceptance checklist" },
@@ -120,7 +134,7 @@ export default function MorePage() {
           ← Dashboard
         </Link>
         <h1 className="mt-1 text-2xl font-bold">More</h1>
-        <p className="mt-1 text-sm text-gray-600">Pricing, help, FAQs, modules, and account.</p>
+        <p className="mt-1 text-sm text-gray-600">Pricing, help, clinical modules, MVP workflows, and account.</p>
         {doctor && (
           <p className="mt-1 text-xs text-gray-500">
             Signed in as <span className="font-medium text-[#140a1f]">{doctor.name || doctor.email}</span>
@@ -135,7 +149,7 @@ export default function MorePage() {
           </div>
           <ul className="divide-y">
             {sec.items.map((item) => (
-              <li key={item.href}>
+              <li key={`${sec.title}-${item.href}-${item.label}`}>
                 <Link href={item.href} className="flex items-center justify-between gap-3 px-4 py-3.5 active:bg-gray-50">
                   <div>
                     <div className="text-sm font-medium text-[#140a1f]">{item.label}</div>
