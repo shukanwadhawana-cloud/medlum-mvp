@@ -17,6 +17,9 @@ export default function LoginPage() {
   const [otpExpiry, setOtpExpiry] = useState("");
   const [deliveryChannel, setDeliveryChannel] = useState("");
   const [otpStep, setOtpStep] = useState(false);
+  const [linkStep, setLinkStep] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -52,6 +55,34 @@ export default function LoginPage() {
       setError("Unable to reach server. Check your connection.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTelegramLink = async () => {
+    setError("");
+    setLinkLoading(true);
+    try {
+      const res = await fetch("/api/auth/telegram/prelink", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.success) {
+        setError(result.error || "Unable to start Telegram linking.");
+        return;
+      }
+      if (result.alreadyLinked) {
+        setError("Telegram is already linked. You can sign in now.");
+        return;
+      }
+      setLinkUrl(result.deepLink || "");
+      setLinkStep(true);
+    } catch {
+      setError("Unable to reach server. Check your connection.");
+    } finally {
+      setLinkLoading(false);
     }
   };
 
@@ -127,6 +158,17 @@ export default function LoginPage() {
                 Back to password
               </button>
             </form>
+          ) : linkStep ? (
+            <div className="mt-10 space-y-5">
+              {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
+              <div className="rounded-2xl border border-gray-200 p-5 bg-gray-50">
+                <h3 className="font-semibold text-[#140a1f]">Connect Telegram</h3>
+                <p className="mt-2 text-sm text-gray-600">Tap the button below, then press <b>Start</b> in the MedLum Login bot. Your Telegram account will be linked to this MedLum account.</p>
+              </div>
+              {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" className="flex items-center justify-center w-full h-12 rounded-xl bg-[#229ED9] text-white font-semibold">Open Telegram & Connect</a>}
+              <button type="button" onClick={() => { setLinkStep(false); setLinkUrl(""); setError(""); }} className="w-full text-sm text-[#c2183a] font-medium">Back to login</button>
+              <p className="text-xs text-gray-500 text-center">After Telegram says connected, return here and sign in again.</p>
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="mt-10 space-y-5">
               {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
@@ -161,6 +203,10 @@ export default function LoginPage() {
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
+              <button type="button" onClick={handleTelegramLink} disabled={linkLoading || loading || !email || !password} className="w-full h-12 rounded-xl border border-[#229ED9] text-[#1688bd] font-semibold disabled:opacity-50">
+                {linkLoading ? "Preparing Telegram..." : "Connect Telegram before signing in"}
+              </button>
+              <p className="text-xs text-gray-500 text-center">Required once for Owner / Admin / Manager accounts.</p>
             </form>
           )}
           <div className="mt-8 space-y-3 text-center text-sm">
