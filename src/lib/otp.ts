@@ -72,6 +72,18 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
   await telegramRequest("sendMessage", { chat_id: chatId, text });
 }
 
+/** Register the production webhook using the server-side bot credentials. */
+export async function ensureTelegramWebhook(webhookUrl: string): Promise<void> {
+  const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
+  if (!secret) throw new Error("Telegram webhook secret is not configured.");
+  await telegramRequest("setWebhook", {
+    url: webhookUrl,
+    secret_token: secret,
+    allowed_updates: ["message"],
+    drop_pending_updates: false,
+  });
+}
+
 export async function createTelegramLinkChallenge(doctorId: string): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(24).toString("base64url");
   const tokenHash = hashLinkToken(token);
@@ -123,7 +135,7 @@ export async function issueLoginOtp(params: {
     if (identity?.telegramChatId) {
       await sendTelegramMessage(
         identity.telegramChatId,
-        `MedLum login verification code\n\nYour verification code is: ${code}\n\nThis code expires in 5 minutes.\n\nIf you did not request this code, ignore this message.`
+        `MedLum login verification code\\n\\nYour verification code is: ${code}\\n\\nThis code expires in 5 minutes.\\n\\nIf you did not request this code, ignore this message.`
       );
       delivery = { channel: "telegram" };
     } else if (process.env.NODE_ENV !== "production") {
