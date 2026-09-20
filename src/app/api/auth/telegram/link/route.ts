@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { createTelegramLinkChallenge, roleRequiresOtp } from "@/lib/otp";
+import { createTelegramLinkChallenge, ensureTelegramWebhook, roleRequiresOtp } from "@/lib/otp";
 import { normalizeClinicRole } from "@/lib/workflow";
 import { isMedlumOwnerEmail } from "@/lib/owner";
 import { writeAudit } from "@/lib/audit";
@@ -50,13 +50,21 @@ export async function GET() {
 }
 
 /** Create a one-time deep link to connect Telegram. */
-export async function POST() {
+export async function POST(req: Request) {
   const auth = await requirePrivilegedSession();
   if ("error" in auth && auth.error) return auth.error;
   const doctor = auth.doctor!;
 
   const username = String(process.env.TELEGRAM_BOT_USERNAME || "").trim().replace(/^@/, "");
   if (!username) return NextResponse.json({ success: false, error: "Telegram bot is not configured." }, { status: 503 });
+
+  const webhookUrl = new URL("/api/telegram/webhook", req.url).toString();
+  try {
+    await ensureTelegramWebhook(webhookUrl);
+  } catch (error) {
+    console.error("Telegram webhook registration failed:", error);
+    return NextResponse.json({ success: false, error: "Telegram webhook could not be configured." }, { status: 503 });
+  }
 
   const { token, expiresAt } = await createTelegramLinkChallenge(doctor.id);
   await writeAudit({
