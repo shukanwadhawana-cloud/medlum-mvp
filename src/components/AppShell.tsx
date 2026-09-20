@@ -17,7 +17,18 @@ const primaryNav = [
   { href: "/opd", label: "OPD", icon: "clinic" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" }, { href: "/appointments", label: "Appts", icon: "calendar" }, { href: "/emergency", label: "Emergency", icon: "emergency" }, { href: "/labs", label: "Labs", icon: "labs" }, { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics" }, { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy" }, { href: "/telemedicine", label: "Video", icon: "video" },
 ];
 const moreItems = [
-  { href: "/pricing", label: "Pricing & plans", icon: "pricing", group: "Account" }, { href: "/help", label: "Help center & FAQs", icon: "help", group: "Account" }, { href: "/billing", label: "Patient billing", icon: "billing", group: "Clinic" }, { href: "/blood-bank", label: "Blood bank", icon: "blood", group: "Clinic" }, { href: "/insurance", label: "Insurance", icon: "insurance", group: "Clinic" }, { href: "/reports", label: "Reports", icon: "reports", group: "Clinic" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx", group: "Clinic" }, { href: "/clinic", label: "Clinic settings", icon: "clinic", group: "Clinic" }, { href: "/clinical-assist", label: "AI Assist", icon: "ai", group: "Clinic" }, { href: "/mvp-blueprint", label: "MVP Blueprint", icon: "reports", group: "Clinic" },
+  ...primaryNav,
+  { href: "/billing", label: "Patient billing", icon: "billing" },
+  { href: "/blood-bank", label: "Blood bank", icon: "blood" },
+  { href: "/insurance", label: "Insurance", icon: "insurance" },
+  { href: "/reports", label: "Reports", icon: "reports" },
+  { href: "/prescriptions", label: "Prescriptions", icon: "rx" },
+  { href: "/clinic/setup", label: "Hospital / Clinic setup", icon: "clinic" },
+  { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic" },
+  { href: "/clinic/tariffs", label: "Tariff / Rate list", icon: "billing" },
+  { href: "/clinical-assist", label: "AI Assist", icon: "ai" },
+  { href: "/mvp-blueprint", label: "MVP Blueprint", icon: "reports" },
+  { href: "/dashboard", label: "Dashboard", icon: "clinic" },
 ];
 const isActive = (pathname: string, href: string) => pathname === href || (href === "/opd" && pathname.startsWith("/opd")) || (href === "/patients" && pathname.startsWith("/patients/")) || (href === "/telemedicine" && pathname.startsWith("/telemedicine")) || (href === "/help" && pathname.startsWith("/help")) || (href === "/pricing" && pathname.startsWith("/pricing")) || (href === "/more" && pathname.startsWith("/more"));
 
@@ -76,7 +87,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {[primaryNav[0], primaryNav[1], primaryNav[2], primaryNav[3]].map((item) => (
             <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>
           ))}
-          <Link href="/more" className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium ${moreActive ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name="more" size={18} /><span>More</span></Link>
+          <button type="button" onClick={() => setMoreOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-gray-500"><Icon name="more" size={18} /><span>All modules</span></button>
         </nav>
       </div>
       <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} isOwner={isOwner} />
