@@ -41,7 +41,8 @@
     "mobile:ios": "CAPACITOR_BUILD=false npx cap sync ios && npx cap open ios",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:telegram-otp": "node scripts/verify-telegram-otp.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
@@ -51,7 +52,6 @@
     "bcryptjs": "^2.4.3",
     "jose": "^6.0.10",
     "next": "16.3.5",
-    "nodemailer": "^7.0.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tesseract.js": "^6.0.1",
@@ -63,7 +63,6 @@
     "@tauri-apps/cli": "^2.8.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
-    "@types/nodemailer": "^7.0.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "cross-env": "^10.0.0",
