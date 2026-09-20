@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
@@ -76,7 +78,6 @@ export async function POST(req: Request) {
           challengeId: issued.challengeId,
           expiresAt: issued.expiresAt.toISOString(),
           deliveryChannel: issued.delivery.channel,
-          // devOtp is only present when NODE_ENV !== production (issueLoginOtp strips it otherwise)
           ...(issued.delivery.devCode ? { devOtp: issued.delivery.devCode } : {}),
           doctor: {
             id: doctor.id,
@@ -97,7 +98,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Non-OTP roles only: session may be created after password validation.
     await createSession({ doctorId: doctor.id, email: doctor.email });
     await writeAudit({
       doctorId: doctor.id,
