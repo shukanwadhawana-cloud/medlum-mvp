@@ -7,6 +7,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const CSRF_EXEMPT_PREFIXES = [
   "/api/payments/razorpay/webhook",
   "/api/interoperability/eka/webhooks",
+  "/api/telegram/webhook",
   "/api/public/",
 ];
 
@@ -27,7 +28,7 @@ function isCsrfExempt(pathname: string) {
  * CSRF for cookie-authenticated mutations:
  * - Origin present → must match app origin (Render-aware).
  * - Origin absent → require X-MedLum-Requested-With: MedLum.
- * Webhooks + public booking exempt.
+ * Webhooks + public booking exempt (Telegram uses x-telegram-bot-api-secret-token).
  */
 function assertCsrf(req: NextRequest): NextResponse | null {
   if (SAFE_METHODS.has(req.method)) return null;
