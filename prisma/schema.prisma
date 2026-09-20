@@ -81,6 +81,8 @@ model Doctor {
   auditLogs AuditLog[]
   clinicMemberships ClinicMember[]
   otpChallenges OtpChallenge[]
+  telegramIdentity TelegramIdentity?
+  telegramLinkChallenges TelegramLinkChallenge[]
   @@index([isActive])
 }
 
@@ -567,6 +569,31 @@ model AuthRateLimit {
   key     String   @id
   count   Int      @default(0)
   resetAt DateTime
+}
+
+model TelegramIdentity {
+  id String @id @default(cuid())
+  doctorId String @unique
+  telegramUserId String @unique
+  telegramChatId String @unique
+  telegramUsername String?
+  linkedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  doctor Doctor @relation(fields:[doctorId], references:[id], onDelete:Cascade)
+  @@index([telegramUserId])
+  @@index([telegramChatId])
+}
+
+model TelegramLinkChallenge {
+  id String @id @default(cuid())
+  doctorId String
+  tokenHash String @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  doctor Doctor @relation(fields:[doctorId], references:[id], onDelete:Cascade)
+  @@index([doctorId, consumedAt])
+  @@index([expiresAt])
 }
 
 model OtpChallenge {
