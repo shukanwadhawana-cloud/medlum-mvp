@@ -19,6 +19,9 @@ model Clinic {
   website   String   @default("")
   invoiceFooter String @default("")
   registrationNo String @default("")
+  ekaHipId  String   @default("")
+  ekaHipCode String  @default("")
+  ekaOnboardedAt DateTime?
   isActive  Boolean  @default(true)
   deactivatedAt DateTime?
   createdAt DateTime @default(now())
@@ -36,8 +39,12 @@ model Clinic {
   otpChallenges OtpChallenge[]
   tariffVersions TariffVersion[]
   labTemplates LabTemplate[]
+  abdmConsents AbdmConsent[]
+  abdmCareContexts AbdmCareContext[]
+  abdmEvents AbdmEvent[]
   @@index([name])
   @@index([isActive])
+  @@index([ekaHipId])
 }
 
 model ClinicMember {
@@ -100,6 +107,12 @@ model Patient {
   status String @default("ACTIVE")
   registrationNo String @default("")
   uhid String @default("")
+  abhaNumber String @default("")
+  abhaAddress String @default("")
+  abhaStatus String @default("NOT_LINKED")
+  abhaTxnId String @default("")
+  abhaLinkedAt DateTime?
+  abhaVerifiedAt DateTime?
   deletedAt DateTime?
   deletedBy String?
   deletionReason String @default("")
@@ -119,6 +132,8 @@ model Patient {
   insurancePolicies InsurancePolicy[]
   insuranceClaims InsuranceClaim[]
   portalAccounts PatientPortalAccount[]
+  abdmConsents AbdmConsent[]
+  abdmCareContexts AbdmCareContext[]
   @@index([doctorId])
   @@index([clinicId])
   @@index([phone])
@@ -126,6 +141,8 @@ model Patient {
   @@index([deletedAt])
   @@index([registrationNo])
   @@index([uhid])
+  @@index([abhaStatus])
+  @@index([abhaNumber])
 }
 
 model Appointment {
@@ -690,4 +707,69 @@ model LabTemplateParameter {
   template        LabTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId, displayOrder])
+}
+
+model AbdmConsent {
+  id            String   @id @default(cuid())
+  clinicId      String
+  patientId     String
+  doctorId      String
+  status        String   @default("REQUESTED")
+  purpose       String   @default("Care management")
+  consentInitId String   @default("")
+  txnId         String   @default("")
+  periodFrom    DateTime?
+  periodTo      DateTime?
+  recordTypes   String   @default("[]")
+  careContextIds String  @default("[]")
+  error         String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@index([consentInitId])
+  @@index([txnId])
+}
+
+model AbdmCareContext {
+  id           String   @id @default(cuid())
+  clinicId     String
+  patientId    String
+  doctorId     String
+  sourceType   String
+  sourceId     String
+  displayName  String
+  hiTypes      String   @default("[]")
+  linkStatus   String   @default("PENDING")
+  ekaReference String   @default("")
+  linkedAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, sourceType, sourceId])
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([linkStatus])
+}
+
+model AbdmEvent {
+  id            String   @id @default(cuid())
+  clinicId      String?
+  transactionId String
+  kind          String
+  status        String   @default("RECEIVED")
+  payloadHash   String   @default("")
+  createdAt     DateTime @default(now())
+  clinic        Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  @@unique([transactionId, kind])
+  @@index([clinicId])
+  @@index([kind])
 }

@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
-import { getActiveClinicId, getClinicSetup, requireClinicalModule } from "@/lib/clinic-products";
+import { getClinicSetup, requireClinicalModule } from "@/lib/clinic-products";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 function serialize(p: any) {
