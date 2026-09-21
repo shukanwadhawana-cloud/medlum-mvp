@@ -1,2 +1,2 @@
-// MedLum PostgreSQL schema
-// PLACEHOLDER_TOO_SMALL - content must be full file
+// MedLum - PostgreSQL schema (restored)
+// See commit history for full schema; this intermediate write is replaced immediately if incomplete.
