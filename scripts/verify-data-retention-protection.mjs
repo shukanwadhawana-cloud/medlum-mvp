@@ -19,6 +19,13 @@ const ALLOWED_CASCADE_MODELS = new Set([
   "LabTemplate",
   "LabTemplateParameter",
   "TariffItem", // child of TariffVersion; version itself is Restrict on Clinic
+  // Telegram link state is ephemeral account-binding, not durable clinical PHI
+  "TelegramIdentity",
+  "TelegramLinkChallenge",
+  // ABDM integration state is clinic-scoped; migration uses CASCADE (non-PHI operational records)
+  "AbdmConsent",
+  "AbdmCareContext",
+  "AbdmEvent",
 ]);
 
 function relationIsProtected(model, target) {

@@ -5,9 +5,11 @@ const ROOT = join(process.cwd(), "src", "app", "api");
 const SPECIAL_CASES = new Set([
   "auth/login/route.ts", "auth/signup/route.ts", "auth/logout/route.ts",
   "auth/otp/verify/route.ts", // pre-session OTP verification (rate-limited)
+  "auth/telegram/prelink/route.ts", // email+password ownership proof; does not create session
   "public/booking/route.ts", "portal/auth/login/route.ts", "portal/auth/logout/route.ts",
   "portal/auth/reset/route.ts", "portal/auth/me/route.ts",
   "interoperability/eka/webhooks/route.ts",
+  "telegram/webhook/route.ts", // Telegram secret-token verified (x-telegram-bot-api-secret-token)
   "telemedicine/join/route.ts",
 ]);
 
