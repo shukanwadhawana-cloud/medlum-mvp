@@ -60,7 +60,9 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tesseract.js": "^6.0.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@aws-sdk/client-s3": "^3.1136.0",
+    "@aws-sdk/s3-request-presigner": "^3.1136.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.4",
