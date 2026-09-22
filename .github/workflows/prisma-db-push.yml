@@ -1,19 +1,18 @@
-name: Prisma DB Push
+name: Prisma DB Push (DISABLED)
+
+# Intentionally disabled. Production schema changes must use:
+#   .github/workflows/prisma-migrate-deploy.yml
+# which runs `prisma migrate deploy` only.
+# `prisma db push` is not safe for production MedLum data.
 
 on:
   workflow_dispatch:
 
 jobs:
-  db-push:
+  blocked:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - run: npm install
-      - run: npx prisma generate
-      - name: Prisma db push
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npx prisma db push --skip-generate
+      - name: Refuse prisma db push
+        run: |
+          echo "This workflow is disabled. Use 'Prisma Migrate Deploy (Production)' instead."
+          exit 1
