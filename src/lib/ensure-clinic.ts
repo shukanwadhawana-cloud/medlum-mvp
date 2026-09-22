@@ -1,43 +1,37 @@
 import { prisma } from "@/lib/db";
+import { allocateStaffCode } from "@/lib/staff-id";
 
-/**
- * Every doctor must own at least one active clinic membership so clinic-scoped
- * invoices, reports, and shared patients work. Idempotent for existing owners.
- */
+/** Ensure the doctor has an active primary clinic membership (Owner). Assigns Staff ID if missing. */
 export async function ensurePrimaryClinic(doctorId: string, clinicName: string) {
   const existing = await prisma.clinicMember.findFirst({
-    where: { doctorId, isActive: true },
-    select: { id: true, clinicId: true },
+    where: { doctorId, isActive: true, clinic: { isActive: true } },
+    orderBy: { createdAt: "asc" },
   });
-  if (existing) return existing;
+  if (existing) {
+    if (!existing.staffCode) {
+      const code = await allocateStaffCode(existing.clinicId, existing.role || "Owner");
+      await prisma.clinicMember.update({
+        where: { id: existing.id },
+        data: { staffCode: code, designation: existing.designation || existing.role || "Owner" },
+      });
+      return { ...existing, staffCode: code };
+    }
+    return existing;
+  }
 
-  const name = (clinicName || "Clinic").trim() || "Clinic";
-  return prisma.$transaction(async (tx) => {
-    const again = await tx.clinicMember.findFirst({
-      where: { doctorId, isActive: true },
-      select: { id: true, clinicId: true },
-    });
-    if (again) return again;
-
-    const clinic = await tx.clinic.create({
-      data: { name, isActive: true },
-    });
-    const member = await tx.clinicMember.create({
-      data: {
-        clinicId: clinic.id,
-        doctorId,
-        role: "Owner",
-        isActive: true,
-      },
-      select: { id: true, clinicId: true },
-    });
-
-    // Attach orphan doctor-owned patients to this clinic when possible.
-    await tx.patient.updateMany({
-      where: { doctorId, clinicId: null },
-      data: { clinicId: clinic.id },
-    });
-
-    return member;
+  const clinic = await prisma.clinic.create({
+    data: { name: clinicName || "Clinic" },
   });
+  const staffCode = await allocateStaffCode(clinic.id, "Owner");
+  const membership = await prisma.clinicMember.create({
+    data: {
+      clinicId: clinic.id,
+      doctorId,
+      role: "Owner",
+      staffCode,
+      designation: "Owner",
+      department: "Administration",
+    },
+  });
+  return membership;
 }
