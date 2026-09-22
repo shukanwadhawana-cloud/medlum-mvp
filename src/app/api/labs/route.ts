@@ -25,12 +25,21 @@ async function getClinicId(doctorId: string) {
   const membership = await requireActiveClinicMembership(doctorId);
   return membership?.clinicId || null;
 }
+
+/**
+ * Resolve a patient strictly inside the authenticated member's active clinic.
+ * Legacy rows are only accepted when they have no clinicId and are owned by the
+ * authenticated doctor. Never use doctorId as an OR bypass for a different clinic.
+ */
 async function getSharedPatient(patientId: string, doctorId: string) {
   const clinicId = await getClinicId(doctorId);
+  if (!clinicId) return null;
   return prisma.patient.findFirst({
-    where: clinicId
-      ? { id: patientId, deletedAt: null, OR: [{ clinicId }, { doctorId }] }
-      : { id: patientId, doctorId, deletedAt: null },
+    where: {
+      id: patientId,
+      deletedAt: null,
+      OR: [{ clinicId }, { clinicId: null, doctorId }],
+    },
   });
 }
 
