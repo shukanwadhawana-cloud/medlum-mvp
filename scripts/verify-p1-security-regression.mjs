@@ -13,6 +13,7 @@ const routes = {
   prescriptions: "src/app/api/prescriptions/route.ts",
   encounters: "src/app/api/encounters/route.ts",
   diagnostics: "src/app/api/diagnostics/route.ts",
+  ipd: "src/app/api/ipd/route.ts",
   staff: "src/app/api/clinic/staff/route.ts",
 };
 
