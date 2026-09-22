@@ -1,0 +1,27 @@
+model InsurancePolicy {
+  id String @id @default(cuid())
+  clinicId String
+  patientId String
+  providerId String
+  policyNumber String
+  memberId String @default("")
+  planName String @default("")
+  policyHolderName String @default("")
+  relationship String @default("")
+  validFrom DateTime?
+  validTo DateTime?
+  sumInsured Decimal @db.Decimal(12,2)
+  status String @default("Active")
+  notes String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
+  patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
+  provider InsuranceProvider @relation(fields:[providerId],references:[id],onDelete:Cascade)
+  claims InsuranceClaim[]
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([providerId])
+  @@index([policyNumber])
+  @@index([status])
+}

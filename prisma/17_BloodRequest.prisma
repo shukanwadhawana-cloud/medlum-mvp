@@ -1,0 +1,27 @@
+model BloodRequest {
+  id String @id @default(cuid())
+  clinicId String
+  patientId String
+  doctorId String
+  inventoryId String?
+  bloodGroup String
+  component String
+  unitsRequested Int @default(1)
+  urgency String @default("Routine")
+  status String @default("Requested")
+  crossMatchStatus String @default("Not Started")
+  notes String @default("")
+  requestedAt DateTime @default(now())
+  fulfilledAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
+  patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
+  inventory BloodInventory? @relation(fields:[inventoryId],references:[id],onDelete:SetNull)
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([inventoryId])
+  @@index([status])
+  @@index([urgency])
+}
