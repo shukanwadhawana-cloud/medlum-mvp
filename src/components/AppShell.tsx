@@ -17,7 +17,7 @@ const primaryNav = [
   { href: "/opd", label: "OPD", icon: "clinic" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" }, { href: "/appointments", label: "Appts", icon: "calendar" }, { href: "/emergency", label: "Emergency", icon: "emergency" }, { href: "/labs", label: "Labs", icon: "labs" }, { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics" }, { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy" }, { href: "/telemedicine", label: "Video", icon: "video" },
 ];
 const operationsNav = [
-  { href: "/billing", label: "Patient billing", icon: "billing" }, { href: "/blood-bank", label: "Blood bank", icon: "blood" }, { href: "/insurance", label: "Insurance", icon: "insurance" }, { href: "/reports", label: "Reports", icon: "reports" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/clinic/setup", label: "Hospital / Clinic setup", icon: "clinic" }, { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic" }, { href: "/clinic/tariffs", label: "Tariff / Rate list", icon: "billing" }, { href: "/clinical-assist", label: "AI Assist", icon: "ai" }, { href: "/mvp-blueprint", label: "MVP Blueprint", icon: "reports" }, { href: "/dashboard", label: "Dashboard", icon: "clinic" },
+  { href: "/billing", label: "Patient billing", icon: "billing" }, { href: "/pricing", label: "Pricing & plans", icon: "billing" }, { href: "/help", label: "Help & FAQs", icon: "reports" }, { href: "/blood-bank", label: "Blood bank", icon: "blood" }, { href: "/insurance", label: "Insurance", icon: "insurance" }, { href: "/reports", label: "Reports", icon: "reports" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/clinic/setup", label: "Hospital / Clinic setup", icon: "clinic" }, { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic" }, { href: "/clinic/tariffs", label: "Tariff / Rate list", icon: "billing" }, { href: "/clinical-assist", label: "AI Assist", icon: "ai" }, { href: "/mvp-blueprint", label: "MVP Blueprint", icon: "reports" }, { href: "/dashboard", label: "Dashboard", icon: "clinic" },
 ];
 const moreItems = [...primaryNav, ...operationsNav];
 const isActive = (pathname: string, href: string) => pathname === href || (href === "/opd" && pathname.startsWith("/opd")) || (href === "/patients" && pathname.startsWith("/patients/")) || (href === "/telemedicine" && pathname.startsWith("/telemedicine")) || (href === "/help" && pathname.startsWith("/help")) || (href === "/pricing" && pathname.startsWith("/pricing")) || (href === "/more" && pathname.startsWith("/more"));
@@ -28,9 +28,9 @@ function MoreSidebar({ open, onClose, pathname, onLogout, isOwner }: { open: boo
   if (!mounted || !open) return null;
   const groups = [{ label: "Clinical", items: primaryNav }, { label: "Operations & settings", items: operationsNav }];
   return createPortal(
-    <div className="fixed inset-0 z-[60] md:hidden">
+    <div className="fixed inset-0 z-[60]">
       <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={onClose} />
-      <aside className="absolute right-0 top-0 flex h-full w-[min(20rem,88vw)] flex-col bg-white shadow-xl">
+      <aside className="absolute right-0 top-0 flex h-full w-[min(22rem,92vw)] flex-col bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-4 py-3"><p className="text-sm font-semibold text-[#140a1f]">All modules</p><button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button></div>
         <div className="flex-1 overflow-y-auto p-3">
           {groups.map((group) => (
