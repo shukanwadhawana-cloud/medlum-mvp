@@ -41,6 +41,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       bp: patient.bp,
       allergies: patient.allergies,
       notes: fullClinical ? patient.notes : "",
+      uhid: patient.uhid || "",
+      registrationNo: patient.registrationNo || "",
+      abhaNumber: patient.abhaNumber || "",
+      abhaAddress: patient.abhaAddress || "",
+      abhaStatus: patient.abhaStatus || "NOT_LINKED",
+      abhaLinkedAt: patient.abhaLinkedAt ? patient.abhaLinkedAt.toISOString() : null,
+      abhaVerifiedAt: patient.abhaVerifiedAt ? patient.abhaVerifiedAt.toISOString() : null,
       createdAt: patient.createdAt.toISOString(),
     },
     appointments: appointments.map((a) => ({
