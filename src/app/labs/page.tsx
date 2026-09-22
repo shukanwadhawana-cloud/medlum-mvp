@@ -7,6 +7,7 @@ import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
 import { apiCreateLabOrder, apiGetLabOrders, apiGetPatients, apiUpdateLabOrder } from "@/lib/api";
 import { LAB_CATALOG } from "@/lib/diagnostic-catalog";
+import LabResultDocumentPanel from "@/components/LabResultDocumentPanel";
 
 type Patient = { id: string; name: string };
 type LabOrder = {
@@ -383,6 +384,11 @@ export default function LabsPage() {
                   className="min-h-32 w-full rounded-lg border px-3 py-2 text-sm"
                 />
               )}
+              <LabResultDocumentPanel
+                labOrderId={resultOrder.id}
+                patientId={resultOrder.patientId}
+                onOcrCandidates={(draft) => setParamValues((prev) => ({ ...prev, ...draft }))}
+              />
               <div className="flex gap-2">
                 <button
                   type="button"
