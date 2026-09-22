@@ -6,14 +6,18 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 function assert(c, m) { if (!c) throw new Error(m); }
+/** Collapse whitespace so Prisma field alignment padding does not break checks. */
+function hasSchema(fragment) {
+  const norm = (s) => s.replace(/\s+/g, " ");
+  return norm(read("prisma/schema.prisma")).includes(norm(fragment));
+}
 
-const schema = read("prisma/schema.prisma");
-assert(schema.includes("model OtpChallenge"), "OtpChallenge model");
-assert(schema.includes("model TariffVersion"), "TariffVersion model");
-assert(schema.includes("model LabTemplate"), "LabTemplate model");
-assert(schema.includes("deletedAt"), "Patient soft-delete field");
-assert(schema.includes("registrationNo"), "Patient registrationNo");
-assert(schema.includes('status String @default("ACTIVE")'), "Patient status field");
+assert(hasSchema("model OtpChallenge"), "OtpChallenge model");
+assert(hasSchema("model TariffVersion"), "TariffVersion model");
+assert(hasSchema("model LabTemplate"), "LabTemplate model");
+assert(hasSchema("deletedAt"), "Patient soft-delete field");
+assert(hasSchema("registrationNo"), "Patient registrationNo");
+assert(hasSchema('status String @default("ACTIVE")'), "Patient status field");
 
 const otp = read("src/lib/otp.ts");
 assert(otp.includes("issueLoginOtp") && otp.includes("consumeLoginOtp"), "OTP helpers");

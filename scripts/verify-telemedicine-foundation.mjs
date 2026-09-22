@@ -3,26 +3,32 @@ import { readFile } from "node:fs/promises";
 const schema = await readFile("prisma/schema.prisma", "utf8");
 const migration = await readFile("prisma/migrations/20260912183000_add_telemedicine_foundation/migration.sql", "utf8");
 
+/** Collapse runs of whitespace so Prisma-formatted alignment does not break checks. */
+function hasSchema(fragment) {
+  const norm = (s) => s.replace(/\s+/g, " ");
+  return norm(schema).includes(norm(fragment));
+}
+
 const requiredSchema = [
   "model TelemedicineSession",
   "doctorId String",
   "patientId String",
   "scheduledAt DateTime",
-  "status String @default(\"Scheduled\")",
-  "provider String @default(\"external\")",
+  'status String @default("Scheduled")',
+  'provider String @default("external")',
   "joinTokenHash String? @unique",
 ];
 const requiredMigration = [
   'CREATE TABLE "TelemedicineSession"',
   '"joinTokenHash" TEXT',
   '"TelemedicineSession_joinTokenHash_key"',
-  'ON DELETE RESTRICT',
+  "ON DELETE RESTRICT",
   '"TelemedicineSession_doctorId_scheduledAt_idx"',
   '"TelemedicineSession_patientId_scheduledAt_idx"',
 ];
 
 const failures = [];
-for (const item of requiredSchema) if (!schema.includes(item)) failures.push(`schema missing: ${item}`);
+for (const item of requiredSchema) if (!hasSchema(item)) failures.push(`schema missing: ${item}`);
 for (const item of requiredMigration) if (!migration.includes(item)) failures.push(`migration missing: ${item}`);
 
 const routes = [
