@@ -1,0 +1,66 @@
+name: Prisma Migrate Deploy (Production)
+
+# Safe additive migration against production Neon.
+# Requires GitHub secret DATABASE_URL.
+# NEVER uses migrate reset or db push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type migrate-deploy to confirm production migration'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm intent
+        run: |
+          if [ "${{ inputs.confirm }}" != "migrate-deploy" ]; then
+            echo "Confirmation string must be exactly: migrate-deploy"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
+
+      - name: Require DATABASE_URL secret
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL secret is not configured on this repository."
+            exit 1
+          fi
+          # Never print the secret value
+          echo "DATABASE_URL is present (value not logged)."
+
+      - name: Prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate
+
+      - name: Prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Verify expected P1 migration applied
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          # List applied migrations without printing connection details
+          npx prisma migrate status
