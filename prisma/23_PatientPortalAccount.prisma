@@ -1,0 +1,18 @@
+model PatientPortalAccount {
+  id           String    @id @default(cuid())
+  clinicId     String
+  patientId    String
+  phone        String
+  passwordHash String
+  status       String    @default("Active")
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient      Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId])
+  @@index([clinicId])
+  @@index([phone])
+  @@index([status])
+}

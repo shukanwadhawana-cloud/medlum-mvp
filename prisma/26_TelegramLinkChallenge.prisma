@@ -1,0 +1,11 @@
+model TelegramLinkChallenge {
+  id String @id @default(cuid())
+  doctorId String
+  tokenHash String @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  doctor Doctor @relation(fields:[doctorId], references:[id], onDelete:Cascade)
+  @@index([doctorId, consumedAt])
+  @@index([expiresAt])
+}

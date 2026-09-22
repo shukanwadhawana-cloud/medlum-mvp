@@ -1,0 +1,12 @@
+model AuditLog {
+  id String @id @default(cuid())
+  doctorId String?
+  action String
+  entity String
+  entityId String?
+  meta String @default("{}")
+  createdAt DateTime @default(now())
+  doctor Doctor? @relation(fields:[doctorId],references:[id],onDelete:SetNull)
+  @@index([doctorId])
+  @@index([createdAt])
+}

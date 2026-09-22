@@ -1,0 +1,25 @@
+model TelemedicineSession {
+  id String @id @default(cuid())
+  doctorId String
+  patientId String?
+  appointmentId String?
+  clinicId String?
+  sessionKind String @default("patient")
+  peerLabel String?
+  scheduledAt DateTime
+  expiresAt DateTime?
+  status String @default("Scheduled")
+  provider String @default("external")
+  meetingUrl String?
+  joinTokenHash String? @unique
+  startedAt DateTime?
+  endedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([doctorId, scheduledAt])
+  @@index([patientId, scheduledAt])
+  @@index([appointmentId])
+  @@index([clinicId])
+  @@index([status, scheduledAt])
+  @@index([sessionKind])
+}
