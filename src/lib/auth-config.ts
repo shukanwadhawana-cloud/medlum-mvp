@@ -5,8 +5,9 @@ export function isProductionRuntime(): boolean {
 }
 
 /**
- * Public doctor signup is fail-closed in production unless explicitly enabled.
- * Set ALLOW_PUBLIC_SIGNUP=true only for controlled pilot onboarding windows.
+ * Public self-serve hospital Owner signup is fail-closed in production unless
+ * ALLOW_PUBLIC_SIGNUP=true (controlled pilot windows).
+ * Existing Owners/Admins onboard staff via Clinic → Staff (no MedLum intervention).
  * Optional SIGNUP_INVITE_CODE: when set, request body/header must match.
  */
 export function isPublicSignupAllowed(inviteFromRequest?: string | null): { allowed: boolean; reason?: string } {
@@ -17,7 +18,8 @@ export function isPublicSignupAllowed(inviteFromRequest?: string | null): { allo
   if (process.env.ALLOW_PUBLIC_SIGNUP !== "true") {
     return {
       allowed: false,
-      reason: "Doctor registration is disabled. Contact MedLum to onboard a clinic.",
+      reason:
+        "Public hospital registration is closed on this environment. If you already have a MedLum hospital, ask your Owner/Admin to add you under Clinic → Staff. To open a new hospital workspace, set ALLOW_PUBLIC_SIGNUP=true (or provide SIGNUP_INVITE_CODE) on the deployment.",
     };
   }
 
@@ -27,7 +29,7 @@ export function isPublicSignupAllowed(inviteFromRequest?: string | null): { allo
     if (!provided || provided !== required) {
       return {
         allowed: false,
-        reason: "A valid invitation is required to register.",
+        reason: "A valid invitation code is required to register a new hospital workspace.",
       };
     }
   }
