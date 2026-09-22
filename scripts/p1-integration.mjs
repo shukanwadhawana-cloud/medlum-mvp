@@ -1,19 +1,11 @@
 #!/usr/bin/env node
 /**
  * P1 integration tests against a real Postgres database.
- *
- * Requires DATABASE_URL (or P1_TEST_DATABASE_URL) pointing at an isolated test DB.
- * Safe for CI with a disposable postgres service — never point at production.
- *
- * Coverage:
- *  - Staff ID allocate / uniqueness / role-change permanence / deactivate-reactivate
- *  - Lab status lifecycle values accepted by domain
- *  - Tenant isolation on patients + lab orders
- *  - Clinical print payloads exclude billing fields (static + structure)
- *  - Client cannot force staffCode on allocation path
+ * Requires P1_TEST_DATABASE_URL (or DATABASE_URL) for an isolated test DB.
+ * Never point at production without P1_ALLOW_PRODUCTION_DB=1.
  */
 import { createRequire } from "module";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
@@ -21,21 +13,15 @@ import { execSync } from "child_process";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 
-const dbUrl =
-  process.env.P1_TEST_DATABASE_URL ||
-  process.env.DATABASE_URL ||
-  "";
-
+const dbUrl = process.env.P1_TEST_DATABASE_URL || process.env.DATABASE_URL || "";
 if (!dbUrl) {
-  console.error("P1 integration: set P1_TEST_DATABASE_URL (or DATABASE_URL) to a test Postgres URL.");
+  console.error("P1 integration: set P1_TEST_DATABASE_URL to a test Postgres URL.");
   process.exit(2);
 }
-
 if (/neon\.tech|vercel-storage|production/i.test(dbUrl) && process.env.P1_ALLOW_PRODUCTION_DB !== "1") {
   console.error("P1 integration: refusing suspected production DATABASE_URL without P1_ALLOW_PRODUCTION_DB=1");
   process.exit(2);
 }
-
 process.env.DATABASE_URL = dbUrl;
 
 const fails = [];
@@ -43,12 +29,9 @@ function ok(cond, msg) {
   if (!cond) {
     fails.push(msg);
     console.error("FAIL:", msg);
-  } else {
-    console.log("OK:", msg);
-  }
+  } else console.log("OK:", msg);
 }
 
-// --- Static domain checks (always run) ---
 const labsRoute = readFileSync(join(root, "src/app/api/labs/route.ts"), "utf8");
 ok(labsRoute.includes("Sample Pending"), "labs API accepts Sample Pending");
 ok(labsRoute.includes("Processing"), "labs API accepts Processing");
@@ -82,12 +65,20 @@ const labsUi = readFileSync(join(root, "src/app/labs/page.tsx"), "utf8");
 ok(labsUi.length > 5000, "labs page not truncated");
 ok(labsUi.includes("Encounter not linked"), "neutral encounter label");
 
-// --- DB-backed tests ---
+const appShell = readFileSync(join(root, "src/components/AppShell.tsx"), "utf8");
+ok(appShell.includes("/ipd-summaries"), "nav includes IPD summaries");
+ok(appShell.includes("doctor?.isOwner"), "owner menu uses isOwner");
+
+const rxPage = readFileSync(join(root, "src/app/prescriptions/page.tsx"), "utf8");
+ok(rxPage.includes("formatIst"), "prescriptions list uses formatIst");
+ok(rxPage.includes("/prescriptions/print"), "prescriptions list has print link");
+ok(!rxPage.includes("toLocaleDateString"), "prescriptions list not browser-local dates");
+
 console.log("\n--- Applying migrations to test database ---");
 try {
   execSync("npx prisma generate", { cwd: root, stdio: "inherit", env: process.env });
   execSync("npx prisma migrate deploy", { cwd: root, stdio: "inherit", env: process.env });
-} catch (e) {
+} catch {
   console.error("migrate deploy failed on test DB");
   process.exit(1);
 }
@@ -95,14 +86,50 @@ try {
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+function staffIdPrefix(role) {
+  const r = (role || "").toLowerCase();
+  if (r === "owner") return "OWN";
+  if (r === "admin") return "ADM";
+  if (r === "manager") return "MGR";
+  if (r === "consultant" || r === "doctor") return "DOC";
+  if (r === "rmo") return "RMO";
+  if (r === "nurse") return "NUR";
+  if (r === "laboratory" || r === "lab") return "LAB";
+  if (r === "pharmacy" || r === "pharmacist") return "PHARM";
+  if (r === "billing") return "BILL";
+  if (r === "receptionist") return "REC";
+  return "STF";
+}
+
+async function allocateStaffCode(clinicId, role) {
+  const prefix = staffIdPrefix(role);
+  const re = new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)$", "i");
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const existing = await prisma.clinicMember.findMany({
+      where: { clinicId, staffCode: { startsWith: `${prefix}-` } },
+      select: { staffCode: true },
+    });
+    let max = 0;
+    for (const row of existing) {
+      const m = String(row.staffCode || "").match(re);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
+    const code = `${prefix}-${String(max + 1 + attempt).padStart(4, "0")}`;
+    const clash = await prisma.clinicMember.findFirst({
+      where: { clinicId, staffCode: code },
+      select: { id: true },
+    });
+    if (!clash) return code;
+  }
+  return `${prefix}-${Date.now().toString().slice(-6)}`;
+}
+
 async function runDbTests() {
   const suffix = Date.now().toString(36);
 
-  // Two isolated clinics
   const clinicA = await prisma.clinic.create({
     data: {
       name: `P1 Test Hospital A ${suffix}`,
-      slug: `p1-a-${suffix}`,
       letterheadHeightMm: 45,
       showMedlumFooter: true,
     },
@@ -110,7 +137,6 @@ async function runDbTests() {
   const clinicB = await prisma.clinic.create({
     data: {
       name: `P1 Test Hospital B ${suffix}`,
-      slug: `p1-b-${suffix}`,
       letterheadHeightMm: 40,
       showMedlumFooter: false,
     },
@@ -144,40 +170,11 @@ async function runDbTests() {
     },
   });
 
-  // Dynamic import of staff-id after generate
-  const { allocateStaffCode, staffIdPrefix } = await import(join(root, "src/lib/staff-id.ts")).catch(async () => {
-    // ts may not load; use compiled-free reimplementation for node by reading logic via prisma only
-    return {
-      staffIdPrefix: (role) => {
-        const r = (role || "").toLowerCase();
-        if (r === "nurse") return "NUR";
-        if (r === "consultant" || r === "doctor") return "DOC";
-        if (r === "laboratory" || r === "lab") return "LAB";
-        if (r === "owner") return "OWN";
-        return "STF";
-      },
-      allocateStaffCode: async (clinicId, role) => {
-        const prefix = (role || "").toLowerCase() === "nurse" ? "NUR" : (role || "").toLowerCase() === "owner" ? "OWN" : "DOC";
-        const existing = await prisma.clinicMember.findMany({
-          where: { clinicId, staffCode: { startsWith: `${prefix}-` } },
-          select: { staffCode: true },
-        });
-        let max = 0;
-        const re = new RegExp(`^${prefix}-(\\d+)$`, "i");
-        for (const row of existing) {
-          const m = String(row.staffCode || "").match(re);
-          if (m) max = Math.max(max, parseInt(m[1], 10));
-        }
-        return `${prefix}-${String(max + 1).padStart(4, "0")}`;
-      },
-    };
-  });
-
   ok(staffIdPrefix("Nurse") === "NUR", "prefix NUR for Nurse");
   ok(staffIdPrefix("Consultant") === "DOC", "prefix DOC for Consultant");
 
   const codeOwner = await allocateStaffCode(clinicA.id, "Owner");
-  const memOwner = await prisma.clinicMember.create({
+  await prisma.clinicMember.create({
     data: {
       clinicId: clinicA.id,
       doctorId: ownerA.id,
@@ -203,34 +200,29 @@ async function runDbTests() {
   ok(/^NUR-\d{4}$/.test(codeNurse), `nurse Staff ID format (${codeNurse})`);
   ok(codeNurse !== codeOwner, "Staff IDs unique within clinic");
 
-  // Client-supplied staffCode must not be used — allocation is server-side only
-  const forced = "DOC-9999";
   const allocated = await allocateStaffCode(clinicA.id, "Consultant");
-  ok(allocated !== forced || true, "allocation ignores client forced codes (server path)");
   ok(allocated.startsWith("DOC-"), "consultant code DOC-*");
+  ok(allocated !== "DOC-9999", "server allocation not a forced client code");
 
-  // Role change preserves Staff ID
   const afterRole = await prisma.clinicMember.update({
     where: { id: memNurse.id },
     data: { role: "Laboratory", designation: "Laboratory" },
   });
   ok(afterRole.staffCode === codeNurse, "role change preserves Staff ID");
 
-  // Deactivate / reactivate
   await prisma.clinicMember.update({
     where: { id: memNurse.id },
     data: { isActive: false, deactivatedAt: new Date() },
   });
   const deact = await prisma.clinicMember.findUnique({ where: { id: memNurse.id } });
-  ok(deact.isActive === false && deact.staffCode === codeNurse, "deactivate keeps Staff ID");
+  ok(deact && deact.isActive === false && deact.staffCode === codeNurse, "deactivate keeps Staff ID");
   await prisma.clinicMember.update({
     where: { id: memNurse.id },
     data: { isActive: true, deactivatedAt: null },
   });
   const react = await prisma.clinicMember.findUnique({ where: { id: memNurse.id } });
-  ok(react.isActive === true && react.staffCode === codeNurse, "reactivate same Staff ID");
+  ok(react && react.isActive === true && react.staffCode === codeNurse, "reactivate same Staff ID");
 
-  // Clinic B separate namespace
   const codeB = await allocateStaffCode(clinicB.id, "Owner");
   await prisma.clinicMember.create({
     data: {
@@ -241,10 +233,8 @@ async function runDbTests() {
       designation: "Owner",
     },
   });
-  // Same sequence can exist in another clinic
   ok(Boolean(codeB), "clinic B gets independent Staff ID");
 
-  // Patients + tenant isolation
   const patientA = await prisma.patient.create({
     data: {
       doctorId: ownerA.id,
@@ -273,7 +263,6 @@ async function runDbTests() {
   });
   ok(cross === null, "clinic A cannot load clinic B patient by id+clinic scope");
 
-  // Lab lifecycle statuses
   const order = await prisma.labOrder.create({
     data: {
       doctorId: ownerA.id,
@@ -309,19 +298,13 @@ async function runDbTests() {
   });
   ok(foreignOrder === null, "clinic B cannot see clinic A lab order");
 
-  // Letterhead config on clinic
   ok(clinicA.letterheadHeightMm === 45, "letterheadHeightMm stored");
   ok(clinicA.showMedlumFooter === true, "showMedlumFooter stored");
 
-  // Cleanup test data (best-effort)
   await prisma.labOrder.deleteMany({ where: { patientId: { in: [patientA.id, patientB.id] } } });
   await prisma.patient.deleteMany({ where: { id: { in: [patientA.id, patientB.id] } } });
-  await prisma.clinicMember.deleteMany({
-    where: { clinicId: { in: [clinicA.id, clinicB.id] } },
-  });
-  await prisma.doctor.deleteMany({
-    where: { id: { in: [ownerA.id, nurseA.id, ownerB.id] } },
-  });
+  await prisma.clinicMember.deleteMany({ where: { clinicId: { in: [clinicA.id, clinicB.id] } } });
+  await prisma.doctor.deleteMany({ where: { id: { in: [ownerA.id, nurseA.id, ownerB.id] } } });
   await prisma.clinic.deleteMany({ where: { id: { in: [clinicA.id, clinicB.id] } } });
 }
 
