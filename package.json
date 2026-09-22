@@ -32,6 +32,7 @@
     "test:p1-authorization": "node scripts/verify-p1-authorization.mjs",
     "test:p1-closure": "node scripts/verify-p1-closure.mjs",
     "test:p1-integration": "node scripts/p1-integration.mjs",
+    "test:p1-security-regression": "node scripts/verify-p1-security-regression.mjs",
     "test:pilot-readiness": "node scripts/verify-pilot-readiness.mjs",
     "test:production-pilot": "node scripts/verify-production-pilot.mjs",
     "test:ipd-pilot-ui": "node scripts/verify-ipd-pilot-ui.mjs",
