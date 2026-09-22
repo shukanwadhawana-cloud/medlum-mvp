@@ -2,20 +2,29 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 async function getClinicId(doctorId: string) {
-  const membership = await prisma.clinicMember.findFirst({ where: { doctorId }, select: { clinicId: true } });
+  const membership = await requireActiveClinicMembership(doctorId);
   return membership?.clinicId || null;
 }
 async function getSharedPatient(patientId: string, doctorId: string) {
   const clinicId = await getClinicId(doctorId);
-  return prisma.patient.findFirst({ where: clinicId ? { id: patientId, OR: [{ clinicId }, { doctorId }] } : { id: patientId, doctorId } });
+  if (!clinicId) return null;
+  return prisma.patient.findFirst({
+    where: { id: patientId, deletedAt: null, OR: [{ clinicId }, { clinicId: null, doctorId }] },
+  });
 }
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const list = await prisma.prescription.findMany({ where: { doctorId: session.doctorId }, orderBy: { createdAt: "desc" } });
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  const list = await prisma.prescription.findMany({
+    where: { patient: { clinicId: membership.clinicId } },
+    orderBy: { createdAt: "desc" },
+  });
   return NextResponse.json({ prescriptions: list });
 }
 
@@ -32,7 +41,6 @@ export async function POST(req: Request) {
     const patient = await getSharedPatient(patientId, session.doctorId);
     if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
     if (encounterId) {
-      // Preserve consultant ownership of clinical events even though patients are shared.
       const enc = await prisma.encounter.findFirst({ where: { id: encounterId, patientId, doctorId: session.doctorId } });
       if (!enc) return NextResponse.json({ success: false, error: "Encounter not found" }, { status: 404 });
     }
