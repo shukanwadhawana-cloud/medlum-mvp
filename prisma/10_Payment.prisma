@@ -1,18 +1,1 @@
-model Payment {
-  id String @id @default(cuid())
-  invoiceId String
-  doctorId String
-  patientId String
-  amount Float
-  method String @default("Cash")
-  paidAt DateTime @default(now())
-  reference String?
-  note String?
-  createdAt DateTime @default(now())
-  invoice Invoice @relation(fields:[invoiceId],references:[id],onDelete:Cascade)
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
-  patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
-  @@index([invoiceId])
-  @@index([doctorId])
-  @@index([patientId])
-}
+// Neutralized — full schema is in schema.prisma only

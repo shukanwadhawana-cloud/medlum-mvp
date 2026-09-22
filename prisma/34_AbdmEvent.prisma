@@ -1,14 +1,1 @@
-model AbdmEvent {
-  id            String   @id @default(cuid())
-  clinicId      String?
-  transactionId String
-  kind          String
-  status        String   @default("RECEIVED")
-  payloadHash   String   @default("")
-  createdAt     DateTime @default(now())
-  clinic        Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
-
-  @@unique([transactionId, kind])
-  @@index([clinicId])
-  @@index([kind])
-}
+// Neutralized — full schema is in schema.prisma only

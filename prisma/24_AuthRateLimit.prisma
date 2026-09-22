@@ -1,5 +1,1 @@
-model AuthRateLimit {
-  key     String   @id
-  count   Int      @default(0)
-  resetAt DateTime
-}
+// Neutralized — full schema is in schema.prisma only

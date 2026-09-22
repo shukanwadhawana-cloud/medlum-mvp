@@ -1,17 +1,1 @@
-model PharmacyItem {
-  id String @id @default(cuid())
-  doctorId String
-  name String
-  genericName String @default("")
-  form String @default("")
-  batchNumber String @default("")
-  expiryDate String @default("")
-  quantity Int @default(0)
-  reorderLevel Int @default(0)
-  unit String @default("units")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
-  @@index([doctorId])
-  @@index([name])
-}
+// Neutralized — full schema is in schema.prisma only
