@@ -31,6 +31,7 @@
     "test:p0-security": "node scripts/verify-p0-security.mjs",
     "test:p1-authorization": "node scripts/verify-p1-authorization.mjs",
     "test:p1-closure": "node scripts/verify-p1-closure.mjs",
+    "test:p1-integration": "node scripts/p1-integration.mjs",
     "test:pilot-readiness": "node scripts/verify-pilot-readiness.mjs",
     "test:production-pilot": "node scripts/verify-production-pilot.mjs",
     "test:ipd-pilot-ui": "node scripts/verify-ipd-pilot-ui.mjs",
@@ -41,7 +42,8 @@
     "mobile:android": "CAPACITOR_BUILD=false npx cap sync android && npx cap open android",
     "mobile:ios": "CAPACITOR_BUILD=false npx cap sync ios && npx cap open ios",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:push": "echo 'db push disabled for production safety; use npm run db:migrate:deploy' && exit 1",
     "postinstall": "prisma generate",
     "test:telegram-otp": "node scripts/verify-telegram-otp.mjs",
     "test:lab-documents": "node scripts/verify-lab-documents.mjs"
