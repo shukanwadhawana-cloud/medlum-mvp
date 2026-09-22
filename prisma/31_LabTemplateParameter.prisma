@@ -1,0 +1,16 @@
+model LabTemplateParameter {
+  id              String  @id @default(cuid())
+  templateId      String
+  name            String
+  unit            String  @default("")
+  referenceRange  String  @default("")
+  resultType      String  @default("numeric")
+  decimalPlaces   Int     @default(1)
+  displayOrder    Int     @default(0)
+  criticalLow     Float?
+  criticalHigh    Float?
+  formula         String  @default("")
+  template        LabTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, displayOrder])
+}

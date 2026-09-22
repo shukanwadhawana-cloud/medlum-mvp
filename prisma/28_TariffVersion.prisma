@@ -1,0 +1,19 @@
+model TariffVersion {
+  id          String   @id @default(cuid())
+  clinicId    String
+  name        String
+  version     String
+  effectiveFrom DateTime @default(now())
+  effectiveTo   DateTime?
+  isActive    Boolean  @default(false)
+  sourceFile  String   @default("")
+  notes       String   @default("")
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  items       TariffItem[]
+
+  @@index([clinicId, isActive])
+  @@index([clinicId, effectiveFrom])
+}

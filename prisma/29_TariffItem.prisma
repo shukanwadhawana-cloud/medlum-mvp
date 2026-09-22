@@ -1,0 +1,19 @@
+model TariffItem {
+  id            String  @id @default(cuid())
+  tariffVersionId String
+  code          String  @default("")
+  name          String
+  category      String  @default("General")
+  department    String  @default("")
+  unitPrice     Float
+  esicCode      String  @default("")
+  esicCategory  String  @default("")
+  isActive      Boolean @default(true)
+  notes         String  @default("")
+  tariffVersion TariffVersion @relation(fields: [tariffVersionId], references: [id], onDelete: Cascade)
+
+  @@index([tariffVersionId])
+  @@index([code])
+  @@index([category])
+  @@index([name])
+}
