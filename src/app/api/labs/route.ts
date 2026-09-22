@@ -4,6 +4,23 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
+/** Statuses the lab work queue UI and PATCH accept (must stay in sync with labs page). */
+const LAB_STATUSES = new Set([
+  "Ordered",
+  "Sample Pending",
+  "Collected",
+  "Sample Collected",
+  "Processing",
+  "Result Available",
+  "Awaiting Review",
+  "Resulted",
+  "Reviewed",
+  "Completed",
+  "Cancelled",
+]);
+
+const RESULT_STATUSES = new Set(["Resulted", "Reviewed", "Completed", "Result Available"]);
+
 async function getClinicId(doctorId: string) {
   const membership = await requireActiveClinicMembership(doctorId);
   return membership?.clinicId || null;
@@ -53,6 +70,7 @@ export async function POST(req: Request) {
       });
       if (!encounter) encounterId = null;
     }
+    // doctorId always from session — never from body
     const order = await prisma.labOrder.create({
       data: {
         doctorId: session.doctorId,
@@ -87,12 +105,15 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const id = String(body.id || "");
     const status = String(body.status || "");
-    if (!id || !["Ordered", "Collected", "Resulted", "Cancelled"].includes(status)) {
+    if (!id || !LAB_STATUSES.has(status)) {
       return NextResponse.json({ success: false, error: "Invalid update" }, { status: 400 });
     }
+    // Tenant isolation: order must belong to a patient in this clinic
     const existing = await prisma.labOrder.findFirst({ where: { id, patient: { clinicId } } });
     if (!existing) return NextResponse.json({ success: false, error: "Lab order not found" }, { status: 404 });
-    const result = status === "Resulted" ? String(body.result || existing.result || "") : existing.result;
+    const result = RESULT_STATUSES.has(status)
+      ? String(body.result || existing.result || "")
+      : existing.result;
     const notes = body.notes === undefined ? existing.notes : String(body.notes || "");
     const order = await prisma.labOrder.update({
       where: { id },
@@ -100,7 +121,9 @@ export async function PATCH(req: Request) {
         status,
         result,
         notes,
-        resultedAt: status === "Resulted" ? new Date() : existing.resultedAt,
+        resultedAt: RESULT_STATUSES.has(status)
+          ? existing.resultedAt || new Date()
+          : existing.resultedAt,
       },
     });
     await writeAudit({
