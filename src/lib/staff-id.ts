@@ -18,7 +18,6 @@ export function staffIdPrefix(role: string): string {
 
 /**
  * Allocate next Staff ID for clinic+prefix without races.
- * Uses max existing numeric suffix for the prefix within the clinic.
  * Staff ID is permanent clinical identity and must not be user-editable.
  */
 export async function allocateStaffCode(clinicId: string, role: string): Promise<string> {
@@ -28,8 +27,9 @@ export async function allocateStaffCode(clinicId: string, role: string): Promise
     select: { staffCode: true },
   });
   let max = 0;
+  const re = new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)$", "i");
   for (const row of existing) {
-    const m = String(row.staffCode || "").match(new RegExp(`^${prefix}-(\\d+)$`, "i"));
+    const m = String(row.staffCode || "").match(re);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   for (let attempt = 0; attempt < 8; attempt++) {
