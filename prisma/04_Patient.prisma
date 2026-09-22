@@ -1,0 +1,53 @@
+model Patient {
+  id String @id @default(cuid())
+  doctorId String
+  clinicId String?
+  name String
+  age Int
+  gender String
+  phone String
+  bp String @default("")
+  allergies String @default("")
+  notes String @default("")
+  status String @default("ACTIVE")
+  registrationNo String @default("")
+  uhid String @default("")
+  abhaNumber String @default("")
+  abhaAddress String @default("")
+  abhaStatus String @default("NOT_LINKED")
+  abhaTxnId String @default("")
+  abhaLinkedAt DateTime?
+  abhaVerifiedAt DateTime?
+  deletedAt DateTime?
+  deletedBy String?
+  deletionReason String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
+  clinic Clinic? @relation(fields:[clinicId],references:[id],onDelete:Restrict)
+  appointments Appointment[]
+  prescriptions Prescription[]
+  invoices Invoice[]
+  payments Payment[]
+  encounters Encounter[]
+  labOrders LabOrder[]
+  dispensings Dispensing[]
+  diagnosticOrders DiagnosticOrder[]
+  bloodRequests BloodRequest[]
+  insurancePolicies InsurancePolicy[]
+  insuranceClaims InsuranceClaim[]
+  portalAccounts PatientPortalAccount[]
+  abdmConsents AbdmConsent[]
+  abdmCareContexts AbdmCareContext[]
+  emergencyCases EmergencyCase[]
+  medicalDocuments MedicalDocument[]
+  @@index([doctorId])
+  @@index([clinicId])
+  @@index([phone])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([registrationNo])
+  @@index([uhid])
+  @@index([abhaStatus])
+  @@index([abhaNumber])
+}

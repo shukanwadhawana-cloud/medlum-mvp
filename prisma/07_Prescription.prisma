@@ -1,0 +1,18 @@
+model Prescription {
+  id String @id @default(cuid())
+  doctorId String
+  patientId String
+  patientName String
+  encounterId String?
+  medicines String
+  advice String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  doctor Doctor @relation(fields:[doctorId],references:[id],onDelete:Restrict)
+  patient Patient @relation(fields:[patientId],references:[id],onDelete:Cascade)
+  encounter Encounter? @relation(fields:[encounterId],references:[id],onDelete:SetNull)
+  dispensings Dispensing[]
+  @@index([doctorId])
+  @@index([patientId])
+  @@index([encounterId])
+}
