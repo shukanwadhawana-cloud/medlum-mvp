@@ -2,16 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-
-async function getClinicId(doctorId: string) {
-  const membership = await prisma.clinicMember.findFirst({ where: { doctorId }, select: { clinicId: true } });
-  return membership?.clinicId || null;
-}
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 async function getSharedPatient(patientId: string, doctorId: string) {
-  const clinicId = await getClinicId(doctorId);
+  const membership = await requireActiveClinicMembership(doctorId);
+  if (!membership) return null;
   return prisma.patient.findFirst({
-    where: clinicId ? { id: patientId, OR: [{ clinicId }, { doctorId }] } : { id: patientId, doctorId },
+    where: { id: patientId, deletedAt: null, OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId }] },
   });
 }
 
@@ -20,10 +17,13 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const patientId = searchParams.get("patientId");
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
   if (patientId && !(await getSharedPatient(patientId, session.doctorId))) return NextResponse.json({ error: "Patient not found" }, { status: 404 });
 
+  const scope = { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] };
   const encounters = await prisma.encounter.findMany({
-    where: patientId ? { patientId } : { doctorId: session.doctorId },
+    where: patientId ? { patientId, patient: scope } : { patient: scope },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json({ encounters });
@@ -41,7 +41,6 @@ export async function POST(req: Request) {
 
     let appointmentId: string | null = body.appointmentId ? String(body.appointmentId) : null;
     if (appointmentId) {
-      // Clinic sharing does not grant write access to another consultant's appointment.
       const appt = await prisma.appointment.findFirst({ where: { id: appointmentId, patientId, doctorId: session.doctorId } });
       if (!appt) appointmentId = null;
       else if (appt.status === "Scheduled") await prisma.appointment.update({ where: { id: appointmentId }, data: { status: "Completed" } });
