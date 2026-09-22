@@ -32,10 +32,20 @@ export async function GET() {
 
   return NextResponse.json({
     clinic: ctx.membership.clinic,
-    currentMember: { id: ctx.membership.id, role: ctx.membership.role, isActive: ctx.membership.isActive },
+    currentMember: {
+      id: ctx.membership.id,
+      role: ctx.membership.role,
+      isActive: ctx.membership.isActive,
+      staffCode: ctx.membership.staffCode || "",
+      designation: ctx.membership.designation || "",
+      department: ctx.membership.department || "",
+    },
     members: members.map((m) => ({
       id: m.id,
       role: m.role,
+      staffCode: m.staffCode || "",
+      designation: m.designation || "",
+      department: m.department || "",
       isActive: m.isActive,
       deactivatedAt: m.deactivatedAt,
       createdAt: m.createdAt,
@@ -96,7 +106,11 @@ export async function PATCH(req: Request) {
   if (action === "role") {
     const role = typeof body.role === "string" && ["Admin", "Consultant", "Staff"].includes(body.role) ? body.role : "Consultant";
     const previousRole = target.role;
-    const member = await prisma.clinicMember.update({ where: { id }, data: { role } });
+    // Staff ID is permanent — role change must not reallocate staffCode
+    const member = await prisma.clinicMember.update({
+      where: { id },
+      data: { role, designation: target.designation || role },
+    });
     await prisma.auditLog.create({
       data: {
         doctorId: ctx.session.doctorId,
@@ -108,6 +122,7 @@ export async function PATCH(req: Request) {
           targetDoctorId: target.doctorId,
           previousRole,
           newRole: role,
+          staffCode: target.staffCode || "",
         }),
       },
     });
@@ -116,7 +131,7 @@ export async function PATCH(req: Request) {
 
   const isActive = action === "reactivate";
   const member = await prisma.clinicMember.update({ where: { id }, data: { isActive, deactivatedAt: isActive ? null : new Date() } });
-  await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: isActive ? "CLINIC_MEMBER_REACTIVATED" : "CLINIC_MEMBER_DEACTIVATED", entity: "ClinicMember", entityId: id, meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId }) } });
+  await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: isActive ? "CLINIC_MEMBER_REACTIVATED" : "CLINIC_MEMBER_DEACTIVATED", entity: "ClinicMember", entityId: id, meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId, staffCode: target.staffCode || "" }) } });
   return NextResponse.json({ success: true, member });
 }
 
@@ -132,6 +147,6 @@ export async function DELETE(req: Request) {
   if (target.role === "Owner") return NextResponse.json({ error: "The clinic owner cannot be removed." }, { status: 400 });
 
   const member = await prisma.clinicMember.update({ where: { id }, data: { isActive: false, deactivatedAt: new Date() } });
-  await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "CLINIC_MEMBER_DEACTIVATED", entity: "ClinicMember", entityId: id, meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId, legacyDeleteRequest: true }) } });
+  await prisma.auditLog.create({ data: { doctorId: ctx.session.doctorId, action: "CLINIC_MEMBER_DEACTIVATED", entity: "ClinicMember", entityId: id, meta: JSON.stringify({ clinicId: ctx.membership.clinicId, targetDoctorId: target.doctorId, legacyDeleteRequest: true, staffCode: target.staffCode || "" }) } });
   return NextResponse.json({ success: true, deactivated: true, member });
 }
