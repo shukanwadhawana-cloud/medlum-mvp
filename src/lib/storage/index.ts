@@ -11,6 +11,15 @@ export function storageQuotaBytes(): number {
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per file
 export const ALLOWED_MIME = new Set(["application/pdf", "image/jpeg", "image/png", "image/jpg"]);
 
+function isServerlessRuntime(): boolean {
+  return Boolean(
+    process.env.VERCEL ||
+      process.env.RENDER ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+      process.env.FUNCTION_NAME
+  );
+}
+
 export function getStorageProvider(): StorageProvider {
   const provider = (process.env.STORAGE_PROVIDER || "local").toLowerCase();
   if (provider === "r2") {
@@ -21,9 +30,15 @@ export function getStorageProvider(): StorageProvider {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       throw new Error(
-        `STORAGE_PROVIDER=r2 but R2 adapter failed to load (${msg}). Install @aws-sdk/client-s3 and @aws-sdk/s3-request-presigner, or set STORAGE_PROVIDER=local.`
+        `STORAGE_PROVIDER=r2 but R2 adapter failed to load (${msg}). Install @aws-sdk/client-s3 and @aws-sdk/s3-request-presigner, and configure R2 credentials.`
       );
     }
+  }
+  // Local filesystem is not durable on serverless (ENOENT under /var/task).
+  if (isServerlessRuntime() || process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Secure medical document storage is not configured. Set STORAGE_PROVIDER=r2 with R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET (and optional R2_ENDPOINT). Local filesystem storage is not available on production/serverless hosts."
+    );
   }
   return createLocalStorageProvider();
 }
