@@ -49,9 +49,11 @@ check("Onboard persists clinic HIP", onboard.includes("ekaHipId") && onboard.inc
 check("Tenant hip resolver", tenant.includes("resolveHipId") && tenant.includes("getTenantPatient"));
 check("No secrets in status route", !read("src/app/api/interoperability/eka/status/route.ts").includes("EKA_CLIENT_SECRET"));
 
-check("Patient chart ABHA section", read("src/app/patients/[id]/page.tsx").includes("ABHA / ABDM"));
-check("Patient chart ABHA init", read("src/app/patients/[id]/page.tsx").includes("/api/interoperability/eka/abha/mobile/init"));
-check("Patient chart ABHA confirm", read("src/app/patients/[id]/page.tsx").includes("/api/interoperability/eka/abha/confirm"));
+const patientChart = read("src/app/patients/[id]/page.tsx");
+const abhaPanel = read("src/components/AbhaPatientPanel.tsx");
+check("Patient chart ABHA section", patientChart.includes("AbhaPatientPanel") && abhaPanel.includes("ABHA / ABDM"));
+check("Patient chart ABHA init", abhaPanel.includes("/api/interoperability/eka/abha/mobile/init"));
+check("Patient chart ABHA confirm", abhaPanel.includes("/api/interoperability/eka/abha/confirm"));
 check("Patient detail exposes abhaStatus", read("src/app/api/patients/[id]/route.ts").includes("abhaStatus"));
 check("ABHA confirm txn binding", read("src/app/api/interoperability/eka/abha/confirm/route.ts").includes("txnId"));
 check("No Aadhaar field in ABHA confirm", !/aadhaarNumber|aadhaar_number|body\.aadhaar/i.test(read("src/app/api/interoperability/eka/abha/confirm/route.ts")));
