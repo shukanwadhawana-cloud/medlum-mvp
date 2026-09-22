@@ -17,22 +17,30 @@ export function staffIdPrefix(role: string): string {
 }
 
 /**
- * Allocate next Staff ID for clinic+prefix without races.
+ * Allocate next Staff ID for clinic+prefix.
  * Staff ID is permanent clinical identity and must not be user-editable.
+ * Role change / deactivation / reactivation must never reallocate it.
+ * Uniqueness for non-empty codes is backed by partial unique index
+ * ClinicMember(clinicId, staffCode) WHERE staffCode <> '' in migration
+ * 20260922180000_staff_id_letterhead.
  */
 export async function allocateStaffCode(clinicId: string, role: string): Promise<string> {
   const prefix = staffIdPrefix(role);
-  const existing = await prisma.clinicMember.findMany({
-    where: { clinicId, staffCode: { startsWith: `${prefix}-` } },
-    select: { staffCode: true },
-  });
-  let max = 0;
-  const re = new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)$", "i");
-  for (const row of existing) {
-    const m = String(row.staffCode || "").match(re);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
-  }
-  for (let attempt = 0; attempt < 8; attempt++) {
+  const re = new RegExp(
+    "^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)$",
+    "i"
+  );
+
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const existing = await prisma.clinicMember.findMany({
+      where: { clinicId, staffCode: { startsWith: `${prefix}-` } },
+      select: { staffCode: true },
+    });
+    let max = 0;
+    for (const row of existing) {
+      const m = String(row.staffCode || "").match(re);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
     const n = max + 1 + attempt;
     const code = `${prefix}-${String(n).padStart(4, "0")}`;
     const clash = await prisma.clinicMember.findFirst({
