@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { normalizeClinicRole } from "@/lib/workflow";
 import { isMedlumOwnerEmail } from "@/lib/owner";
+import { allocateStaffCode } from "@/lib/staff-id";
 
 export async function GET() {
   try {
@@ -11,17 +12,43 @@ export async function GET() {
 
     const doctor = await prisma.doctor.findUnique({
       where: { id: session.doctorId },
-      include: { clinicMemberships: { where: { isActive: true }, include: { clinic: true } } },
+      include: {
+        clinicMemberships: {
+          where: { isActive: true },
+          include: { clinic: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
     if (!doctor) return NextResponse.json({ success: false, doctor: null }, { status: 401 });
 
     const isOwner = isMedlumOwnerEmail(doctor.email);
 
+    for (const m of doctor.clinicMemberships) {
+      if (!m.staffCode) {
+        try {
+          const code = await allocateStaffCode(m.clinicId, m.role);
+          await prisma.clinicMember.update({
+            where: { id: m.id },
+            data: { staffCode: code, designation: m.designation || m.role },
+          });
+          m.staffCode = code;
+        } catch {
+          /* ignore concurrent allocate */
+        }
+      }
+    }
+
     const memberships = doctor.clinicMemberships.map((membership) => ({
       clinicId: membership.clinicId,
       clinicName: membership.clinic.name,
       role: normalizeClinicRole(membership.role),
+      staffCode: membership.staffCode || "",
+      designation: membership.designation || membership.role,
+      department: membership.department || "",
     }));
+
+    const primary = memberships[0];
 
     return NextResponse.json({
       success: true,
@@ -34,7 +61,10 @@ export async function GET() {
         phone: doctor.phone,
         createdAt: doctor.createdAt.toISOString(),
         memberships,
-        primaryRole: isOwner ? "Owner" : memberships[0]?.role || "Consultant",
+        primaryRole: isOwner ? "Owner" : primary?.role || "Consultant",
+        staffCode: primary?.staffCode || "",
+        designation: primary?.designation || "",
+        department: primary?.department || "",
         isOwner,
       },
     });
