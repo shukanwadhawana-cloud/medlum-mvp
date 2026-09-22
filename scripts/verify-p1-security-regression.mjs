@@ -41,6 +41,10 @@ ok(staff.includes("allocateStaffCode"), "staff IDs are server allocated");
 ok(staff.includes("Staff ID is permanent"), "staff ID is immutable across role changes");
 ok(!staff.includes("body.staffCode"), "staff ID cannot be client supplied");
 
+const pkg = JSON.parse(read("package.json"));
+ok(Boolean(pkg.dependencies?.["@aws-sdk/client-s3"]), "R2 S3 SDK is a production dependency");
+ok(Boolean(pkg.dependencies?.["@aws-sdk/s3-request-presigner"]), "R2 presigner SDK is a production dependency");
+
 const storage = read("src/lib/storage/index.ts");
 ok(storage.includes("STORAGE_PROVIDER=r2"), "production storage is fail-closed without R2");
 ok(storage.includes("isServerlessRuntime"), "serverless local storage is blocked");
