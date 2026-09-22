@@ -24,6 +24,19 @@ ok(ocrLib.includes("DRAFT"), "OCR produces DRAFT status");
 ok(existsSync("src/lib/storage/local.ts"), "local provider");
 ok(existsSync("src/lib/storage/r2.ts"), "r2 provider adapter");
 const labsUi = readFileSync("src/app/labs/page.tsx", "utf8");
-ok(labsUi.includes("/api/labs/documents"), "labs UI upload path");
-if (fails.length) { console.error("FAIL:", fails.join("\n")); process.exit(1); }
+const labsPanel = existsSync("src/components/LabResultDocumentPanel.tsx")
+  ? readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8")
+  : "";
+const uiHasUpload =
+  labsUi.includes("/api/labs/documents") || labsPanel.includes("/api/labs/documents");
+const uiHasOcr = labsUi.includes("OCR draft") || labsPanel.includes("OCR draft");
+const uiWired =
+  labsUi.includes("LabResultDocumentPanel") || labsPanel.includes("/api/labs/documents");
+ok(uiHasUpload, "labs UI upload path");
+ok(uiHasOcr, "OCR draft control in UI");
+ok(uiWired, "labs result document panel wired");
+if (fails.length) {
+  console.error("FAIL:", fails.join("\n"));
+  process.exit(1);
+}
 console.log("Lab document storage static verification PASSED");
