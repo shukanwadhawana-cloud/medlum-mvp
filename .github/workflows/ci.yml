@@ -69,8 +69,41 @@ jobs:
         run: npm run test:portal-auth
       - name: Verify multi-tenant isolation (static)
         run: npm run test:tenant-isolation
+      - name: Verify P1 closure (static)
+        run: npm run test:p1-closure
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
           SESSION_SECRET: ci-build-secret-not-used-in-production
         run: npm run build
+
+  p1-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: p1
+          POSTGRES_PASSWORD: p1
+          POSTGRES_DB: p1test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U p1 -d p1test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
+      - name: P1 integration tests (Postgres)
+        env:
+          P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
+        run: npm run test:p1-integration
