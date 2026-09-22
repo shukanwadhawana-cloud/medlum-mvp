@@ -1,0 +1,34 @@
+model MedicalDocument {
+  id               String    @id @default(cuid())
+  clinicId         String
+  patientId        String
+  labOrderId       String?
+  encounterId      String?
+  storageProvider  String    @default("local")
+  storageKey       String
+  originalFileName String
+  mimeType         String
+  sizeBytes        Int
+  checksum         String    @default("")
+  uploadedBy       String
+  ocrStatus        String    @default("NONE")
+  ocrDraft         String    @default("")
+  ocrExtractedAt   DateTime?
+  verifiedBy       String?
+  verifiedAt       DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  clinic           Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient          Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  labOrder         LabOrder? @relation(fields: [labOrderId], references: [id], onDelete: SetNull)
+  uploader         Doctor    @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([labOrderId])
+  @@index([uploadedBy])
+  @@index([ocrStatus])
+  @@index([deletedAt])
+  @@unique([clinicId, storageKey])
+}

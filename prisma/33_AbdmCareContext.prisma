@@ -1,0 +1,22 @@
+model AbdmCareContext {
+  id           String   @id @default(cuid())
+  clinicId     String
+  patientId    String
+  doctorId     String
+  sourceType   String
+  sourceId     String
+  displayName  String
+  hiTypes      String   @default("[]")
+  linkStatus   String   @default("PENDING")
+  ekaReference String   @default("")
+  linkedAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, sourceType, sourceId])
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([linkStatus])
+}
