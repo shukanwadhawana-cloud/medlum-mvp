@@ -54,7 +54,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const { doctor, logout } = useDoctor();
   const [moreOpen, setMoreOpen] = useState(false);
-  const isOwner = Boolean(doctor?.isPlatformOwner);
+  const isOwner = Boolean(doctor?.isOwner);
   const moreActive = moreItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
   return (
     <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
