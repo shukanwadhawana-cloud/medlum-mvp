@@ -33,20 +33,31 @@ ok(staffId.includes("padStart(4"), "zero-padded sequence");
 // Staff API does not reallocate on role change
 const clinicApi = read("src/app/api/clinic/route.ts");
 ok(clinicApi.includes("staffCode"), "clinic API exposes staffCode");
-ok(clinicApi.includes("Staff ID is permanent") || clinicApi.includes("staffCode: target.staffCode"), "role change preserves staffCode");
+ok(
+  clinicApi.includes("Staff ID is permanent") || clinicApi.includes("staffCode: target.staffCode"),
+  "role change preserves staffCode"
+);
 
 // IST
 const time = read("src/lib/time.ts");
 ok(time.includes("Asia/Kolkata"), "IST timezone");
 ok(time.includes("formatIst"), "formatIst helper");
 
-// Lab queue
+// Lab queue — must not be truncated/placeholder
 const labs = read("src/app/labs/page.tsx");
+ok(labs.length > 5000, "labs page not truncated");
+ok(!/^PLACEHOLDER\s*$/.test(labs.trim()) && !labs.includes("see-file"), "labs page not placeholder");
 ok(labs.includes("ACTIVE_STATUSES"), "active statuses set");
 ok(labs.includes("HISTORY_STATUSES"), "history statuses set");
-ok(labs.includes("Encounter not linked") || labs.includes("resolveEncounterType"), "neutral encounter label");
+ok(
+  labs.includes("Encounter not linked") || labs.includes("resolveEncounterType"),
+  "neutral encounter label"
+);
 ok(labs.includes("groupByPatient"), "patient grouping");
-ok(labs.includes("encounterId || \"none\"") || labs.includes("`${o.patientId"), "group key includes encounter");
+ok(
+  labs.includes('encounterId || "none"') || labs.includes("`${o.patientId"),
+  "group key includes encounter"
+);
 
 // Print layout
 ok(existsSync(join(root, "src/lib/print-layout.ts")), "print-layout helper");
@@ -62,6 +73,10 @@ ok(!rxPrint.includes("invoice total") && !rxPrint.includes("balance"), "rx print
 const labPrint = read("src/app/api/labs/print/route.ts");
 ok(labPrint.includes("LAB_REPORT"), "lab report print type");
 ok(!labPrint.includes("paid"), "lab print no paid field");
+const ipdPrint = read("src/app/api/ipd/print/route.ts");
+ok(ipdPrint.includes("DISCHARGE_SUMMARY"), "discharge print type");
+ok(!ipdPrint.includes("invoice") && !ipdPrint.includes("balance"), "discharge print no billing fields");
+ok(existsSync(join(root, "src/app/ipd/print/page.tsx")), "discharge print page exists");
 
 // Invoice print still has financial (correct)
 const invPrint = read("src/app/api/invoices/print/route.ts");
