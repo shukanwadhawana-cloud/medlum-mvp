@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     include: {
       items: { orderBy: { createdAt: "asc" } },
       payments: { orderBy: { paidAt: "asc" } },
-      patient: { select: { id: true, name: true, phone: true, age: true, gender: true, registrationNo: true } },
+      patient: { select: { id: true, name: true, phone: true, age: true, gender: true, registrationNo: true, uhid: true } },
     },
   });
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
@@ -34,6 +34,8 @@ export async function GET(req: Request) {
       website: true,
       invoiceFooter: true,
       registrationNo: true,
+      letterheadHeightMm: true,
+      showMedlumFooter: true,
     },
   });
 
