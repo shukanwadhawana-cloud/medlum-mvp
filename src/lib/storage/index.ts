@@ -14,14 +14,27 @@ export const ALLOWED_MIME = new Set(["application/pdf", "image/jpeg", "image/png
 export function getStorageProvider(): StorageProvider {
   const provider = (process.env.STORAGE_PROVIDER || "local").toLowerCase();
   if (provider === "r2") {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createR2StorageProvider } = require("./r2");
-    return createR2StorageProvider();
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mod = require("./r2") as typeof import("./r2");
+      return mod.createR2StorageProvider();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(
+        `STORAGE_PROVIDER=r2 but R2 adapter failed to load (${msg}). Install @aws-sdk/client-s3 and @aws-sdk/s3-request-presigner, or set STORAGE_PROVIDER=local.`
+      );
+    }
   }
   return createLocalStorageProvider();
 }
 
-export function buildStorageKey(clinicId: string, patientId: string, labOrderId: string | null, documentId: string, ext: string) {
+export function buildStorageKey(
+  clinicId: string,
+  patientId: string,
+  labOrderId: string | null,
+  documentId: string,
+  ext: string
+) {
   const safeExt = ext.replace(/[^a-z0-9]/gi, "").slice(0, 8) || "bin";
   const orderPart = labOrderId || "no-order";
   return `clinics/${clinicId}/patients/${patientId}/labs/${orderPart}/${documentId}.${safeExt}`;
