@@ -1,0 +1,18 @@
+model BloodDonor {
+  id String @id @default(cuid())
+  clinicId String
+  name String
+  bloodGroup String
+  phone String @default("")
+  donorCode String @default("")
+  lastDonationDate DateTime?
+  status String @default("Eligible")
+  notes String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic Clinic @relation(fields:[clinicId],references:[id],onDelete:Restrict)
+  @@index([clinicId])
+  @@index([bloodGroup])
+  @@index([status])
+  @@index([phone])
+}
