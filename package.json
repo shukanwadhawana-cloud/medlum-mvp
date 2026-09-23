@@ -52,7 +52,8 @@
     "test:p2-02": "node scripts/verify-p2-02-ipd-bed-lifecycle.mjs",
     "test:owner-full-access": "node scripts/verify-owner-full-access.mjs",
     "test:p2-03": "node scripts/verify-p2-03-ipd-investigation-review.mjs",
-    "test:p2-04": "node scripts/verify-p2-04-emergency-ipd-admission.mjs"
+    "test:p2-04": "node scripts/verify-p2-04-emergency-ipd-admission.mjs",
+    "test:p2-05": "node scripts/verify-p2-05-ipd-handover.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
