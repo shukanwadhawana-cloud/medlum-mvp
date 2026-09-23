@@ -75,6 +75,8 @@ jobs:
         run: npm run test:p1-security-regression
       - name: Verify P2-01 IPD discharge lifecycle
         run: npm run test:p2-01
+      - name: Verify owner full-access entitlement
+        run: npm run test:owner-full-access
       - name: Verify P2-02 IPD bed lifecycle
         run: npm run test:p2-02
       - name: Verify P2-03 IPD investigation review
