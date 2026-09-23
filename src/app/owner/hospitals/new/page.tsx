@@ -9,7 +9,7 @@ function ConnectTelegram({ clinicId }: { clinicId: string }) {
   return <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="font-medium">Connect facility Telegram</p><p className="mt-1 text-sm text-slate-600">Generate a one-time secure link, open it in Telegram, and press Start. No chat ID needs to be copied manually.</p><button type="button" onClick={connect} disabled={busy} className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy?"Preparing…":"Connect Telegram"}</button>{link&&<a href={link} target="_blank" rel="noreferrer" className="mt-3 block break-all text-sm font-medium text-[#c2183a]">Open Telegram to connect →</a>}{error&&<p className="mt-2 text-sm text-red-700">{error}</p>}</div>;
 }
 
-export default function NewFacilityPage {
+export default function NewFacilityPage() {
   const [form, setForm] = useState({name:"",facilityType:"HOSPITAL",subscriptionModel:"BOTH",ownerName:"",facilityOwnerEmail:"",doctorInCharge:"",licenseNumber:"",registrationNumber:"",address:"",city:"",state:"",pincode:"",phone:"",email:"",telegramToken:""});
   const [busy,setBusy]=useState(false); const [error,setError]=useState(""); const [done,setDone]=useState<any>(null);
   const change=(e:React.ChangeEvent<HTMLInputElement|HTMLSelectElement>)=>setForm(f=>({...f,[e.target.name]:e.target.value}));
