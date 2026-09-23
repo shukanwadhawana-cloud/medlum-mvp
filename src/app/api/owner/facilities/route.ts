@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { isMedlumOwnerEmail } from "@/lib/owner";
 import { encryptSecret } from "@/lib/secret-crypto";
 import { saveClinicSetup } from "@/lib/clinic-products";
+import { ensureFacilityTelegramWebhook } from "@/lib/facility-telegram";
 
 async function owner() {
   const session = await getSession();
@@ -75,6 +76,20 @@ export async function POST(req: Request) {
   });
 
   await saveClinicSetup(clinic.id, { facilityType, subscriptionModel, licenseNumber, registrationNumber, ownerName, doctorInCharge, address, city, state, pincode, phone, email, onboardingCompleted: true });
+
+  // Outbound facility notifications work independently of the webhook. If the
+  // global Telegram webhook secret is configured, also register this facility's
+  // bot on its own opaque clinic-scoped endpoint.
+  if (telegram) {
+    try {
+      await ensureFacilityTelegramWebhook(clinic.id);
+    } catch (error) {
+      console.error("[MedLum Facility Telegram] webhook registration skipped", {
+        clinicId: clinic.id,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
 
   return NextResponse.json({
     success: true,
