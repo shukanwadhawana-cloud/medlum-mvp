@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { createHash, randomBytes } from "crypto";
 import { decryptSecret } from "@/lib/secret-crypto";
 
 const TELEGRAM_TIMEOUT_MS = 10_000;
@@ -51,6 +52,35 @@ export async function sendFacilityTelegramMessage(clinicId: string, text: string
     }).catch(() => undefined);
     return { sent: false, reason: "FACILITY_TELEGRAM_SEND_FAILED" };
   }
+}
+
+export async function createFacilityTelegramConnection(clinicId: string): Promise<{ botUsername: string; deepLink: string; expiresAt: Date }> {
+  const integration = await prisma.facilityTelegramIntegration.findUnique({
+    where: { clinicId },
+    select: { botUsername: true, encryptedToken: true, enabled: true },
+  });
+  if (!integration || !integration.enabled) throw new Error("FACILITY_TELEGRAM_NOT_CONFIGURED");
+  let botUsername = integration.botUsername;
+  if (!botUsername) {
+    const token = decryptSecret(integration.encryptedToken);
+    const me = await telegramRequest<{ username?: string }>(token, "getMe");
+    if (!me?.username) throw new Error("FACILITY_TELEGRAM_BOT_INVALID");
+    botUsername = me.username;
+  }
+  const code = randomBytes(24).toString("base64url");
+  const codeHash = createHash("sha256").update(code).digest("hex");
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  await prisma.facilityTelegramIntegration.update({
+    where: { clinicId },
+    data: {
+      botUsername,
+      chatId: "",
+      status: "PENDING",
+      connectionCodeHash: codeHash,
+      connectionExpiresAt: expiresAt,
+    },
+  });
+  return { botUsername, deepLink: `https://t.me/${botUsername}?start=${encodeURIComponent(code)}`, expiresAt };
 }
 
 export async function verifyFacilityTelegram(clinicId: string): Promise<{ username: string }> {
