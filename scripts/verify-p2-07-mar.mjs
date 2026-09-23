@@ -11,18 +11,18 @@ const ci=fs.readFileSync(".github/workflows/ci.yml","utf8");
 
 for (const x of [
   "model MedicationAdministration",
-  "patientId String",
-  "prescriptionId String",
-  "administeringMemberId String",
-  "medicationName String",
-  "dose String",
-  "doseUnit String",
-  "route String",
-  "scheduledAt DateTime",
-  "actualAt DateTime?",
-  "status String",
-  "reason String",
-  "notes String",
+  "patientId",
+  "prescriptionId",
+  "administeringMemberId",
+  "medicationName",
+  "dose",
+  "doseUnit",
+  "route",
+  "scheduledAt",
+  "actualAt",
+  "status",
+  "reason",
+  "notes",
   "@@unique([prescriptionId, medicationText, scheduledAt])"
 ]) assert(schema.includes(x), "MAR schema contract missing: "+x);
 
