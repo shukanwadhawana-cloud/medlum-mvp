@@ -78,7 +78,7 @@ if (dbUrl) {
     await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS "MedicationAdministration" CASCADE');
     const migrationStatements = migration.split(/;\s*(?=(?:CREATE|ALTER))/).map((x) => x.trim()).filter(Boolean);
     for (const statement of migrationStatements) await prisma.$executeRawUnsafe(statement);
-    const migrationTable = await prisma.$queryRawUnsafe('SELECT to_regclass(\'"MedicationAdministration"\') AS table_name');
+    const migrationTable = await prisma.$queryRawUnsafe("SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'MedicationAdministration') AS exists");
     assert.equal(migrationTable[0]?.table_name, "MedicationAdministration", "P2-07 migration must create the MAR table cleanly");
     const clinic = await prisma.clinic.create({ data: { name: "P2-07 MAR Test "+suffix } });
     const doctor = await prisma.doctor.create({ data: { name: "MAR Nurse", email: "mar-"+suffix+"@test.local", passwordHash: "test", clinicName: clinic.name, phone: "9000000000" } });
