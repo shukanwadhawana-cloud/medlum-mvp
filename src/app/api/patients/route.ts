@@ -79,11 +79,13 @@ export async function GET(req: Request) {
 
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
   const visible =
-    setup?.subscriptionModel === "OPD"
-      ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD")
-      : setup?.subscriptionModel === "IPD"
-        ? patients.filter((p) => parseCareSetting(p.notes) === "IPD")
-        : patients;
+    membership.role === "Owner"
+      ? patients
+      : setup?.subscriptionModel === "OPD"
+        ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD")
+        : setup?.subscriptionModel === "IPD"
+          ? patients.filter((p) => parseCareSetting(p.notes) === "IPD")
+          : patients;
 
   return NextResponse.json(
     { patients: visible.map(serialize) },
