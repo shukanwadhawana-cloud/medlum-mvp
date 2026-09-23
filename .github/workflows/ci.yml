@@ -83,6 +83,8 @@ jobs:
         run: npm run test:p2-03
       - name: Verify P2-04 Emergency to IPD admission continuity
         run: npm run test:p2-04
+      - name: Verify P2-05 IPD receiving-team handover
+        run: npm run test:p2-05
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
