@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { requireClinicalModule } from "@/lib/clinic-products";
+import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 
 async function getContext() {
   const session = await getSession();
@@ -128,13 +130,148 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ success: false, error: "id required" }, { status: 400 });
+
+    if (String(body.action || "") === "admit-to-ipd") {
+      const access = await requireClinicalModule(ctx.session.doctorId, "IPD");
+      if (!access.allowed || access.clinicId !== ctx.clinicId) {
+        return NextResponse.json({ success: false, error: "IPD access is not included in this clinic's subscription." }, { status: 403 });
+      }
+      const membership = await requireActiveClinicMembership(ctx.session.doctorId);
+      const actorRole = membership?.role || "Consultant";
+      const admittingRoles = ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"];
+      if (!membership || !admittingRoles.includes(actorRole)) {
+        return NextResponse.json({ success: false, error: "You are not authorized to admit patients to IPD." }, { status: 403 });
+      }
+
+      const requestedRoom = String(body.roomNumber || "").trim();
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const emergency = await tx.emergencyCase.findFirst({
+            where: { id, clinicId: ctx.clinicId },
+            select: { id: true, clinicId: true, patientId: true, status: true },
+          });
+          if (!emergency) return { status: 404, body: { success: false, error: "Emergency case not found." } };
+          if (emergency.status === "Admitted") {
+            return { status: 409, body: { success: false, error: "Emergency case is already admitted to IPD." } };
+          }
+          if (!emergency.patientId) {
+            return { status: 409, body: { success: false, error: "This emergency case has no linked patient and cannot be admitted to IPD." } };
+          }
+          if (!["Open", "In Treatment", "Observation"].includes(emergency.status)) {
+            return { status: 409, body: { success: false, error: "This emergency case is not eligible for IPD admission." } };
+          }
+
+          const patient = await tx.patient.findFirst({
+            where: { id: emergency.patientId, clinicId: ctx.clinicId, deletedAt: null },
+          });
+          if (!patient) {
+            return { status: 404, body: { success: false, error: "Linked patient was not found in this clinic." } };
+          }
+          const careSetting = parseCareSetting(patient.notes);
+          if (patient.status !== "ACTIVE" || careSetting === "IPD") {
+            return { status: 409, body: { success: false, error: careSetting === "IPD" ? "Linked patient is already active IPD." : "Linked patient is not eligible for IPD admission." } };
+          }
+
+          if (requestedRoom) {
+            const members = await tx.clinicMember.findMany({
+              where: { clinicId: ctx.clinicId, isActive: true },
+              select: { doctorId: true },
+            });
+            const roomLogs = await tx.auditLog.findMany({
+              where: { doctorId: { in: members.map((m) => m.doctorId) }, entity: "HospitalRoom" },
+              orderBy: { createdAt: "desc" },
+              take: 3000,
+            });
+            const roomExists = roomLogs.some((log) => {
+              const meta = typeof log.meta === "string" ? JSON.parse(log.meta || "{}") : (log.meta || {});
+              return String(meta.clinicId || "") === String(ctx.clinicId) && String(meta.roomNumber || "").trim() === requestedRoom;
+            });
+            if (!roomExists) {
+              return { status: 404, body: { success: false, error: "Destination room is not in the hospital directory." } };
+            }
+
+            const activePatients = await tx.patient.findMany({
+              where: { clinicId: ctx.clinicId, status: "ACTIVE", deletedAt: null },
+              select: { id: true, notes: true },
+            });
+            const occupied = activePatients.some((p) =>
+              p.id !== patient.id &&
+              parseCareSetting(p.notes) === "IPD" &&
+              String(parsePatientProfile(p.notes).roomNumber || "").trim() === requestedRoom
+            );
+            if (occupied) {
+              return { status: 409, body: { success: false, error: "Destination room is already occupied by another active IPD patient." } };
+            }
+          }
+
+          const profile = parsePatientProfile(patient.notes);
+          const nextProfile = { ...profile, careSetting: "IPD", ...(requestedRoom ? { roomNumber: requestedRoom } : {}) };
+          await tx.patient.update({
+            where: { id: patient.id },
+            data: { notes: encodePatientNotes(cleanPatientNotes(patient.notes), "IPD", nextProfile) },
+          });
+
+          await tx.emergencyCase.update({
+            where: { id: emergency.id },
+            data: { status: "Admitted", disposition: "IPD", updatedAt: new Date() },
+          });
+
+          const audit = await tx.auditLog.create({
+            data: {
+              doctorId: ctx.session.doctorId,
+              action: "EMERGENCY_IPD_ADMISSION",
+              entity: "EmergencyCase",
+              entityId: emergency.id,
+              meta: JSON.stringify({
+                clinicId: ctx.clinicId,
+                patientId: patient.id,
+                actorRole,
+                fromCareSetting: careSetting,
+                toCareSetting: "IPD",
+                roomNumber: requestedRoom || null,
+              }),
+            },
+          });
+
+          return {
+            status: 200,
+            body: {
+              success: true,
+              emergencyCaseId: emergency.id,
+              patientId: patient.id,
+              status: "Admitted",
+              careSetting: "IPD",
+              roomNumber: requestedRoom || null,
+              auditId: audit.id,
+            },
+          };
+        }, { isolationLevel: "Serializable" });
+
+        return NextResponse.json(result.body, { status: result.status });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+          return NextResponse.json({ success: false, error: "The admission conflicted with another concurrent admission. Please retry." }, { status: 409 });
+        }
+        throw e;
+      }
+    }
+
     const existing = await prisma.$queryRaw<any[]>(
-      Prisma.sql`SELECT "id","notes" FROM "EmergencyCase" WHERE "id"=${id} AND "clinicId"=${ctx.clinicId} LIMIT 1`
+      Prisma.sql`SELECT "id","status","notes" FROM "EmergencyCase" WHERE "id"=${id} AND "clinicId"=${ctx.clinicId} LIMIT 1`
     );
     if (!existing.length) {
       return NextResponse.json({ success: false, error: "Case not found" }, { status: 404 });
     }
-    const status = statuses.includes(String(body.status)) ? String(body.status) : null;
+
+    const requestedStatus = body.status !== undefined ? String(body.status) : null;
+    if (requestedStatus === "Admitted") {
+      return NextResponse.json({ success: false, error: "Use the explicit Admit to IPD action for admission." }, { status: 409 });
+    }
+    if (existing[0].status === "Admitted" && requestedStatus && requestedStatus !== "Admitted") {
+      return NextResponse.json({ success: false, error: "An admitted emergency case cannot be moved out of Admitted through this action." }, { status: 409 });
+    }
+
+    const status = requestedStatus && statuses.includes(requestedStatus) ? requestedStatus : null;
     const level = triage.includes(String(body.triageLevel)) ? String(body.triageLevel) : null;
     const disposition = body.disposition !== undefined ? String(body.disposition) : null;
     let notes: string | null = null;
@@ -145,11 +282,10 @@ export async function PATCH(req: Request) {
       const freeText = body.notes !== undefined ? String(body.notes || "") : prev.freeText || "";
       notes = encodeNotes(freeText, clinical);
     }
-    const closedAt =
-      status === "Discharged" || status === "Transferred" ? new Date() : null;
+    const closedAt = status === "Discharged" || status === "Transferred" ? new Date() : null;
     if (status) {
       await prisma.$executeRaw(
-        Prisma.sql`UPDATE "EmergencyCase" SET "status"=${status},"updatedAt"=NOW()${closedAt ? Prisma.sql`,"closedAt"=${closedAt}` : Prisma.empty} WHERE "id"=${id} AND "clinicId"=${ctx.clinicId}`
+        Prisma.sql`UPDATE "EmergencyCase" SET "status"=${status},"updatedAt"=NOW()${closedAt ? Prisma.sql`, "closedAt"=${closedAt}` : Prisma.empty} WHERE "id"=${id} AND "clinicId"=${ctx.clinicId}`
       );
     }
     if (level) {
