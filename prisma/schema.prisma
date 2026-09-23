@@ -46,6 +46,7 @@ model Clinic {
   abdmEvents         AbdmEvent[]
   emergencyCases     EmergencyCase[]
   medicalDocuments   MedicalDocument[]
+  medicationAdministrations MedicationAdministration[]
 
   @@index([name])
   @@index([isActive])
@@ -66,6 +67,7 @@ model ClinicMember {
   updatedAt     DateTime  @updatedAt
   clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   doctor        Doctor    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  medicationAdministrations MedicationAdministration[]
 
   @@unique([clinicId, doctorId])
   @@index([clinicId])
@@ -140,7 +142,6 @@ model Patient {
   encounters        Encounter[]
   labOrders         LabOrder[]
   dispensings       Dispensing[]
-  medicationAdministrations MedicationAdministration[]
   diagnosticOrders  DiagnosticOrder[]
   bloodRequests     BloodRequest[]
   insurancePolicies InsurancePolicy[]
@@ -150,7 +151,6 @@ model Patient {
   abdmCareContexts  AbdmCareContext[]
   emergencyCases    EmergencyCase[]
   medicalDocuments  MedicalDocument[]
-  medicationAdministrations MedicationAdministration[]
 
   @@index([doctorId])
   @@index([clinicId])
