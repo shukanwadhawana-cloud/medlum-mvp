@@ -16,7 +16,8 @@ ok(summary.includes('action:"discharge"'), "Discharge action sends the existing 
 ok(summary.includes('window.confirm('), "Final discharge requires explicit confirmation");
 ok(summary.includes('type==="Discharge Summary"'), "Final discharge control is exposed only for Discharge Summary");
 ok(summary.includes('disabled={saving||discharging}'), "Save/discharge controls prevent concurrent double submission");
-ok(!summary.match(/const save[\s\S]*?fetch\("\/api\/patients\/lifecycle"/), "Saving a summary does not silently call the discharge lifecycle");
+const saveSection = summary.slice(summary.indexOf("const save="), summary.indexOf("const discharge="));
+ok(!saveSection.includes('fetch("/api/patients/lifecycle"'), "Saving a summary does not silently call the discharge lifecycle");
 ok(summary.includes('setSelected(null)') && summary.includes('await load()'), "Successful discharge clears the selected active patient and refreshes IPD state");
 
 ok(ipd.includes('parseCareSetting(p.notes)==="IPD"&&p.status==="ACTIVE"'), "IPD census is limited to active IPD patients");
