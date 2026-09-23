@@ -37,6 +37,9 @@ export async function POST(req: Request) {
   if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
 
   if (action === "discharge") {
+    if (patient.status === "DISCHARGED") {
+      return NextResponse.json({ success: false, error: "Patient is already discharged" }, { status: 409 });
+    }
     const updated = await prisma.patient.update({
       where: { id: patient.id },
       data: { status: "DISCHARGED" },
