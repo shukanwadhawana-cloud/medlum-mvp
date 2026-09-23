@@ -46,6 +46,7 @@ model Clinic {
   abdmEvents         AbdmEvent[]
   emergencyCases     EmergencyCase[]
   medicalDocuments   MedicalDocument[]
+  medicationAdministrations MedicationAdministration[]
 
   @@index([name])
   @@index([isActive])
@@ -66,6 +67,7 @@ model ClinicMember {
   updatedAt     DateTime  @updatedAt
   clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   doctor        Doctor    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  medicationAdministrations MedicationAdministration[]
 
   @@unique([clinicId, doctorId])
   @@index([clinicId])
@@ -149,6 +151,7 @@ model Patient {
   abdmCareContexts  AbdmCareContext[]
   emergencyCases    EmergencyCase[]
   medicalDocuments  MedicalDocument[]
+  medicationAdministrations MedicationAdministration[]
 
   @@index([doctorId])
   @@index([clinicId])
@@ -206,6 +209,7 @@ model Encounter {
   prescriptions    Prescription[]
   labOrders        LabOrder[]
   diagnosticOrders DiagnosticOrder[]
+  medicationAdministrations MedicationAdministration[]
 
   @@index([doctorId])
   @@index([patientId])
@@ -226,6 +230,7 @@ model Prescription {
   patient     Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   encounter   Encounter?   @relation(fields: [encounterId], references: [id], onDelete: SetNull)
   dispensings Dispensing[]
+  medicationAdministrations MedicationAdministration[]
 
   @@index([doctorId])
   @@index([patientId])
@@ -369,6 +374,39 @@ model Dispensing {
   @@index([patientId])
   @@index([prescriptionId])
   @@index([status])
+}
+
+model MedicationAdministration {
+  id                    String        @id @default(cuid())
+  clinicId              String
+  patientId             String
+  prescriptionId        String
+  encounterId           String?
+  administeringMemberId String
+  medicationText        String
+  medicationName        String
+  dose                  String
+  doseUnit              String
+  route                 String
+  scheduledAt           DateTime
+  actualAt              DateTime?
+  status                String        @default("SCHEDULED")
+  reason                String        @default("")
+  notes                 String        @default("")
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  clinic                Clinic        @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient               Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  prescription          Prescription  @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  encounter             Encounter?    @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  administeringMember   ClinicMember  @relation(fields: [administeringMemberId], references: [id], onDelete: Restrict)
+
+  @@unique([prescriptionId, medicationText, scheduledAt])
+  @@index([clinicId, patientId])
+  @@index([prescriptionId])
+  @@index([encounterId])
+  @@index([administeringMemberId])
+  @@index([scheduledAt, status])
 }
 
 model DiagnosticOrder {
