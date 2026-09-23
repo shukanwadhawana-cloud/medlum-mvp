@@ -50,6 +50,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: "Hospital license and registration numbers are required." }, { status: 400 });
   if (telegramToken && !process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY)
     return NextResponse.json({ success: false, error: "Telegram encryption is not configured on the server." }, { status: 500 });
+  if (telegramToken && !telegramChatId)
+    return NextResponse.json({ success: false, error: "Telegram notification chat ID is required when a facility bot token is provided." }, { status: 400 });
 
   let telegram: { username: string; verified: boolean } | null = null;
   if (telegramToken) {
