@@ -47,6 +47,7 @@ model Clinic {
   emergencyCases     EmergencyCase[]
   medicalDocuments   MedicalDocument[]
   medicationAdministrations MedicationAdministration[]
+  telegramIntegration FacilityTelegramIntegration?
 
   @@index([name])
   @@index([isActive])
@@ -659,6 +660,22 @@ model AuthRateLimit {
   key     String   @id
   count   Int      @default(0)
   resetAt DateTime
+}
+
+model FacilityTelegramIntegration {
+  id             String   @id @default(cuid())
+  clinicId       String   @unique
+  botUsername    String   @default("")
+  encryptedToken String
+  chatId         String   @default("")
+  enabled        Boolean  @default(true)
+  status         String   @default("CONNECTED")
+  lastVerifiedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
 
 model TelegramIdentity {
