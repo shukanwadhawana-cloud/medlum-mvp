@@ -81,6 +81,8 @@ jobs:
         run: npm run test:p2-02
       - name: Verify P2-03 IPD investigation review
         run: npm run test:p2-03
+      - name: Verify P2-04 Emergency to IPD admission continuity
+        run: npm run test:p2-04
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
