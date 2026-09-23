@@ -10,11 +10,14 @@ import { formatIst } from "@/lib/time";
 import { ClinicalVitalsPanel } from "@/components/ClinicalVitalsPanel";
 import { ClinicalNotesPanel } from "@/components/ClinicalNotesPanel";
 import { ClinicalOrdersPanel } from "@/components/ClinicalOrdersPanel";
+import { ClinicalRxPanel } from "@/components/ClinicalRxPanel";
+import { ClinicalProblemsPanel } from "@/components/ClinicalProblemsPanel";
 
-type TabId = "overview" | "notes" | "orders" | "rx" | "vitals" | "discharge" | "billing";
+type TabId = "overview" | "problems" | "notes" | "orders" | "rx" | "vitals" | "discharge" | "billing";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "overview", label: "Overview" },
+  { id: "overview", label: "Cover sheet" },
+  { id: "problems", label: "Problems" },
   { id: "notes", label: "Clinical notes" },
   { id: "orders", label: "Orders" },
   { id: "rx", label: "Medications" },
@@ -177,6 +180,9 @@ export default function PatientClinicalChartPage() {
           <div className="flex flex-wrap gap-2 border-t px-3 py-2 bg-[#f8f6fa]">
             <Link href={`/patients/${id}`} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Full record</Link>
             <Link href={`/patients/${id}`} className="h-8 px-2.5 rounded-lg bg-[#c2183a] text-white text-[11px] font-medium inline-flex items-center">New consult</Link>
+            <button type="button" onClick={() => setTab("orders")} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Order labs / imaging</button>
+            <button type="button" onClick={() => setTab("rx")} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Prescribe</button>
+            <button type="button" onClick={() => setTab("notes")} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Add note</button>
             <Link href="/labs" className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Labs queue</Link>
             <Link href="/prescriptions" className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Prescriptions</Link>
             {careSetting === "IPD" && (
@@ -205,7 +211,7 @@ export default function PatientClinicalChartPage() {
 
         {tab === "overview" && (
           <div className="grid gap-3 lg:grid-cols-2">
-            <Section title="Problems / chief complaint">
+            <Section title="Cover sheet · problems / chief complaint">
               {latestEncounter?.chiefComplaint || profile.chiefComplaint ? (
                 <p className="text-sm whitespace-pre-wrap">{latestEncounter?.chiefComplaint || profile.chiefComplaint}</p>
               ) : (
@@ -302,6 +308,15 @@ export default function PatientClinicalChartPage() {
           </div>
         )}
 
+        {tab === "problems" && (
+          <ClinicalProblemsPanel
+            patientId={String(id)}
+            encounters={encounters}
+            profile={profile}
+            onSaved={async () => { await load(); }}
+          />
+        )}
+
         {tab === "notes" && (
           <ClinicalNotesPanel
             patientId={String(id)}
@@ -320,24 +335,11 @@ export default function PatientClinicalChartPage() {
         )}
 
         {tab === "rx" && (
-          <Section title="Prescriptions / medications" action={<Link href="/prescriptions" className="text-[11px] text-[#c2183a] font-medium">Manage Rx</Link>}>
-            {prescriptions.length === 0 ? <Empty text="No prescriptions on file." /> : (
-              <ul className="space-y-3">
-                {prescriptions.map((r: any) => (
-                  <li key={r.id} className="rounded-lg border p-3 text-xs">
-                    <div className="flex justify-between gap-2 mb-1">
-                      <span className="font-semibold">Prescription</span>
-                      <span className="text-gray-500">{formatIst(r.createdAt)}</span>
-                    </div>
-                    <p className="whitespace-pre-wrap text-sm">{r.medicines}</p>
-                    {r.advice && <p className="mt-1 text-gray-600 whitespace-pre-wrap"><b>Advice:</b> {r.advice}</p>}
-                    <Link href={`/prescriptions/print?id=${encodeURIComponent(r.id)}`} className="inline-block mt-2 text-[#c2183a] font-medium">Print clinical Rx</Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="text-[11px] text-gray-400 mt-3">Inpatient scheduled MAR / dose administration is not part of this chart view.</p>
-          </Section>
+          <ClinicalRxPanel
+            patientId={String(id)}
+            prescriptions={prescriptions}
+            onSaved={async () => { await load(); }}
+          />
         )}
 
         {tab === "vitals" && (
@@ -349,7 +351,7 @@ export default function PatientClinicalChartPage() {
         )}
 
         {tab === "discharge" && (
-          <Section title="Discharge / IPD summary" action={<Link href="/ipd-summaries" className="text-[11px] text-[#c2183a] font-medium">Summaries</Link>}>
+          <Section title="Disposition / discharge / IPD summary" action={<Link href="/ipd-summaries" className="text-[11px] text-[#c2183a] font-medium">Summaries</Link>}>
             <p className="text-xs text-gray-600 mb-3">
               Use IPD summaries for formal discharge documentation and clinical print. Working diagnosis on file:{" "}
               <b>{profile.workingDiagnosis || profile.diagnosis || latestEncounter?.diagnosis || "—"}</b>
@@ -357,6 +359,7 @@ export default function PatientClinicalChartPage() {
             <div className="flex flex-wrap gap-2">
               <Link href="/ipd-summaries" className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium inline-flex items-center">Open IPD summaries</Link>
               <Link href="/ipd/print" className="h-9 px-3 rounded-lg border text-xs font-medium inline-flex items-center">IPD print</Link>
+              <button type="button" onClick={() => setTab("notes")} className="h-9 px-3 rounded-lg border text-xs font-medium">Discharge note</button>
             </div>
           </Section>
         )}
