@@ -38,14 +38,21 @@ export async function POST(req: Request) {
   const phone = String(body.phone || "").trim();
   const email = String(body.email || "").trim();
   const ownerName = String(body.ownerName || "").trim();
+  const facilityOwnerEmail = String(body.facilityOwnerEmail || "").trim().toLowerCase();
   const doctorInCharge = String(body.doctorInCharge || "").trim();
   const licenseNumber = String(body.licenseNumber || "").trim();
   const registrationNumber = String(body.registrationNumber || "").trim();
   const telegramToken = String(body.telegramToken || "").trim();
   const telegramChatId = String(body.telegramChatId || "").trim();
 
-  if (!name || !ownerName || !doctorInCharge || !address || !city || !state || !pincode)
-    return NextResponse.json({ success: false, error: "Facility name, owner, doctor in charge and complete address are required." }, { status: 400 });
+  if (!name || !ownerName || !facilityOwnerEmail || !doctorInCharge || !address || !city || !state || !pincode)
+    return NextResponse.json({ success: false, error: "Facility name, facility owner email, doctor in charge and complete address are required." }, { status: 400 });
+  if (isMedlumOwnerEmail(facilityOwnerEmail) && facilityOwnerEmail !== user.email.toLowerCase())
+    return NextResponse.json({ success: false, error: "The Enterprise Master Owner cannot be assigned as owner of another person's facility." }, { status: 400 });
+
+  const facilityOwner = await prisma.doctor.findUnique({ where: { email: facilityOwnerEmail }, select: { id: true, email: true } });
+  if (!facilityOwner)
+    return NextResponse.json({ success: false, error: "Facility owner must already have a MedLum doctor account. Create/sign in that doctor account first, then provision the facility." }, { status: 400 });
   if (facilityType === "HOSPITAL" && (!licenseNumber || !registrationNumber))
     return NextResponse.json({ success: false, error: "Hospital license and registration numbers are required." }, { status: 400 });
   if (telegramToken && !process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY)
@@ -67,7 +74,7 @@ export async function POST(req: Request) {
       data: { name, address, phone, email, registrationNo: registrationNumber, isActive: true }
     });
     await tx.clinicMember.create({
-      data: { clinicId: created.id, doctorId: user.id, role: "Owner", designation: "Master Owner", isActive: true }
+      data: { clinicId: created.id, doctorId: facilityOwner.id, role: "Owner", designation: "Facility Owner", isActive: true }
     });
     if (telegram) {
       await tx.facilityTelegramIntegration.create({
@@ -95,6 +102,6 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     success: true,
-    facility: { ...clinic, facilityType, subscriptionModel, ownerName, doctorInCharge, licenseNumber, registrationNumber, telegram: telegram ? { botUsername: telegram.username, chatId: telegramChatId, status: "CONNECTED" } : null }
+    facility: { ...clinic, facilityType, subscriptionModel, ownerName, facilityOwnerEmail: facilityOwner.email, doctorInCharge, licenseNumber, registrationNumber, telegram: telegram ? { botUsername: telegram.username, chatId: telegramChatId, status: "CONNECTED" } : null }
   }, { status: 201 });
 }
