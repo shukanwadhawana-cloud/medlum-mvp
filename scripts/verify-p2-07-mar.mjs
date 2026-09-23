@@ -76,7 +76,7 @@ if (dbUrl) {
   const suffix = Date.now().toString(36);
   try {
     await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS "MedicationAdministration" CASCADE');
-    const migrationStatements = migration.split(/;\\s*(?=(?:CREATE|ALTER))/).map((x) => x.trim()).filter(Boolean);
+    const migrationStatements = migration.split(/;\s*(?=(?:CREATE|ALTER))/).map((x) => x.trim()).filter(Boolean);
     for (const statement of migrationStatements) await prisma.$executeRawUnsafe(statement);
     const migrationTable = await prisma.$queryRawUnsafe('SELECT to_regclass(\'"MedicationAdministration"\') AS table_name');
     assert.equal(migrationTable[0]?.table_name, "MedicationAdministration", "P2-07 migration must create the MAR table cleanly");
