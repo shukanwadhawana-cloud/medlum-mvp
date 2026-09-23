@@ -57,8 +57,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: "Hospital license and registration numbers are required." }, { status: 400 });
   if (telegramToken && !process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY)
     return NextResponse.json({ success: false, error: "Telegram encryption is not configured on the server." }, { status: 500 });
-  if (telegramToken && !telegramChatId)
-    return NextResponse.json({ success: false, error: "Telegram notification chat ID is required when a facility bot token is provided." }, { status: 400 });
 
   let telegram: { username: string; verified: boolean } | null = null;
   if (telegramToken) {
@@ -78,7 +76,7 @@ export async function POST(req: Request) {
     });
     if (telegram) {
       await tx.facilityTelegramIntegration.create({
-        data: { clinicId: created.id, botUsername: telegram.username, encryptedToken: encryptSecret(telegramToken), chatId: telegramChatId, status: "CONNECTED", lastVerifiedAt: new Date() }
+        data: { clinicId: created.id, botUsername: telegram.username, encryptedToken: encryptSecret(telegramToken), chatId: telegramChatId, status: telegramChatId ? "CONNECTED" : "PENDING", lastVerifiedAt: telegramChatId ? new Date() : null }
       });
     }
     return created;
@@ -102,6 +100,6 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     success: true,
-    facility: { ...clinic, facilityType, subscriptionModel, ownerName, facilityOwnerEmail: facilityOwner.email, doctorInCharge, licenseNumber, registrationNumber, telegram: telegram ? { botUsername: telegram.username, chatId: telegramChatId, status: "CONNECTED" } : null }
+    facility: { ...clinic, facilityType, subscriptionModel, ownerName, facilityOwnerEmail: facilityOwner.email, doctorInCharge, licenseNumber, registrationNumber, telegram: telegram ? { botUsername: telegram.username, chatId: telegramChatId, status: telegramChatId ? "CONNECTED" : "PENDING" } : null }
   }, { status: 201 });
 }
