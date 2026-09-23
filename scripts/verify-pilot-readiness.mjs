@@ -35,6 +35,11 @@ const shell = read("src/components/AppShell.tsx");
 if (shell.includes('{ href: "/dashboard", label: "Home"')) throw new Error("Duplicate Home navigation must not return beside MedLum");
 if (!shell.includes('href="/dashboard"') || !shell.includes("MedLum")) throw new Error("MedLum dashboard brand link missing");
 
+const patientDetail = read("src/app/patients/[id]/page.tsx");
+const consultReset = 'setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });';
+if (!patientDetail.includes(consultReset)) throw new Error("Successful consultation save must clear the consultation form");
+if (!patientDetail.includes("setSelectedLabs([])") || !patientDetail.includes("setSelectedDiagnostics([])")) throw new Error("Successful consultation save must clear selected lab/diagnostic orders");
+
 const deployment = read("docs/DEPLOYMENT_RENDER.md");
 if (!deployment.includes("medlum-mvp.onrender.com")) throw new Error("Canonical Render deployment is not documented");
 

@@ -97,6 +97,9 @@ export default function PatientDetailPage() {
       if (amt > 0) await apiAddInvoice({ patientId: id, items: [{ description: "Consultation fee", category: "Service", quantity: 1, unitPrice: amt }], note: form.diagnosis ? `Consultation: ${form.diagnosis}` : "Consultation fee" });
       setMsg("Consultation saved.");
       setShowConsult(false);
+      setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
+      setSelectedLabs([]);
+      setSelectedDiagnostics([]);
       await load();
     } catch {
       setError("Could not save consultation");
