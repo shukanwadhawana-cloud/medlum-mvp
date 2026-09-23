@@ -48,7 +48,8 @@
     "postinstall": "prisma generate",
     "test:telegram-otp": "node scripts/verify-telegram-otp.mjs",
     "test:lab-documents": "node scripts/verify-lab-documents.mjs",
-    "test:p2-01": "node scripts/verify-p2-01-ipd-discharge.mjs"
+    "test:p2-01": "node scripts/verify-p2-01-ipd-discharge.mjs",
+    "test:p2-02": "node scripts/verify-p2-02-ipd-bed-lifecycle.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",

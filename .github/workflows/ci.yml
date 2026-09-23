@@ -75,6 +75,8 @@ jobs:
         run: npm run test:p1-security-regression
       - name: Verify P2-01 IPD discharge lifecycle
         run: npm run test:p2-01
+      - name: Verify P2-02 IPD bed lifecycle
+        run: npm run test:p2-02
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
