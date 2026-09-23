@@ -3,6 +3,7 @@
  * Never trust client-supplied clinicId/doctorId for scope.
  */
 import { prisma } from "@/lib/db";
+import { isMedlumOwnerEmail } from "@/lib/owner";
 
 export type ClinicRole =
   | "Owner"
@@ -52,15 +53,18 @@ export async function requireActiveClinicMembership(
       isActive: true,
       clinic: { isActive: true },
     },
-    select: { id: true, clinicId: true, doctorId: true, role: true },
+    select: { id: true, clinicId: true, doctorId: true, role: true, doctor: { select: { email: true } } },
     orderBy: { createdAt: "asc" },
   });
   if (!membership) return null;
+  const role = isMedlumOwnerEmail(membership.doctor.email)
+    ? "Owner"
+    : normalizeClinicRole(membership.role);
   return {
     membershipId: membership.id,
     clinicId: membership.clinicId,
     doctorId: membership.doctorId,
-    role: normalizeClinicRole(membership.role),
+    role,
   };
 }
 
