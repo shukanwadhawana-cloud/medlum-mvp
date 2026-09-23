@@ -53,7 +53,8 @@
     "test:owner-full-access": "node scripts/verify-owner-full-access.mjs",
     "test:p2-03": "node scripts/verify-p2-03-ipd-investigation-review.mjs",
     "test:p2-04": "node scripts/verify-p2-04-emergency-ipd-admission.mjs",
-    "test:p2-05": "node scripts/verify-p2-05-ipd-handover.mjs"
+    "test:p2-05": "node scripts/verify-p2-05-ipd-handover.mjs",
+    "test:p2-06": "node scripts/verify-p2-06-ipd-medication-dispensing.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",

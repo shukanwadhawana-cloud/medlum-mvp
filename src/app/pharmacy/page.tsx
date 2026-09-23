@@ -84,7 +84,7 @@ export default function PharmacyPage() {
             const d = data.dispensings.find((x) => x.prescriptionId === p.id);
             return <div key={p.id} className="rounded-xl border p-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div><div className="font-medium">{p.patientName}</div><div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{p.medicines}</div><div className="mt-1 text-xs text-slate-400">{new Date(p.createdAt).toLocaleString()}</div></div>
+                <div><div className="flex items-center gap-2"><div className="font-medium">{p.patientName}</div>{p.isIpd&&<span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">IPD Medication Indent</span>}</div><div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{p.medicines}</div><div className="mt-1 text-xs text-slate-400">Prescription {p.id} · {new Date(p.createdAt).toLocaleString()}</div></div>
                 {!d ? <button onClick={() => queuePrescription(p.id)} className="rounded-lg border px-3 py-2 text-sm">Send to pharmacy</button> : <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs">{d.status}</span>{d.status === "Pending" && <button onClick={() => updateDispensing(d.id, "Dispensed")} className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white">Mark dispensed</button>}</div>}
               </div>
             </div>;
