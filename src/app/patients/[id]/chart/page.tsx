@@ -9,6 +9,7 @@ import { apiGetPatientDetail } from "@/lib/api";
 import { formatIst } from "@/lib/time";
 import { ClinicalVitalsPanel } from "@/components/ClinicalVitalsPanel";
 import { ClinicalNotesPanel } from "@/components/ClinicalNotesPanel";
+import { ClinicalOrdersPanel } from "@/components/ClinicalOrdersPanel";
 
 type TabId = "overview" | "notes" | "orders" | "rx" | "vitals" | "discharge" | "billing";
 
@@ -104,7 +105,6 @@ export default function PatientClinicalChartPage() {
   const appointments = data?.appointments || [];
 
   const activeLabs = labs.filter((l: any) => LAB_ACTIVE.has(String(l.status || "")));
-  const historyLabs = labs.filter((l: any) => !LAB_ACTIVE.has(String(l.status || "")));
   const latestEncounter = encounters[0];
   const latestVitals = encounters.find(
     (e: any) => e.bp || e.pulse || e.temperature || e.spo2 || e.weight || e.height
@@ -311,63 +311,12 @@ export default function PatientClinicalChartPage() {
         )}
 
         {tab === "orders" && (
-          <div className="grid gap-3 lg:grid-cols-2">
-            <Section title="Laboratory — active">
-              {activeLabs.length === 0 ? <Empty text="No active labs." /> : (
-                <ul className="divide-y text-xs">
-                  {activeLabs.map((l: any) => (
-                    <li key={l.id} className="py-2 flex justify-between gap-2">
-                      <div>
-                        <p className="font-medium">{l.testName}</p>
-                        <p className="text-gray-500">{l.category || "Lab"}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-medium">{l.status}</p>
-                        <p className="text-gray-500">{formatIst(l.orderedAt)}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Section>
-            <Section title="Laboratory — history">
-              {historyLabs.length === 0 ? <Empty text="No completed labs." /> : (
-                <ul className="divide-y text-xs">
-                  {historyLabs.slice(0, 20).map((l: any) => (
-                    <li key={l.id} className="py-2">
-                      <div className="flex justify-between gap-2">
-                        <p className="font-medium">{l.testName}</p>
-                        <span className="text-gray-500">{l.status}</span>
-                      </div>
-                      {l.result && <p className="text-gray-600 mt-0.5 whitespace-pre-wrap">{l.result}</p>}
-                      <div className="flex gap-2 mt-1">
-                        <span className="text-gray-400">{formatIst(l.orderedAt)}</span>
-                        <Link href={`/labs/print?id=${encodeURIComponent(l.id)}`} className="text-[#c2183a] font-medium">Print</Link>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Section>
-            <Section title="Radiology / diagnostics" action={<Link href="/diagnostics" className="text-[11px] text-[#c2183a] font-medium">Diagnostics</Link>}>
-              {diagnostics.length === 0 ? <Empty text="No imaging orders." /> : (
-                <ul className="divide-y text-xs">
-                  {diagnostics.map((d: any) => (
-                    <li key={d.id} className="py-2 flex justify-between gap-2">
-                      <div>
-                        <p className="font-medium">{d.studyName}</p>
-                        <p className="text-gray-500">{[d.modality, d.bodyPart].filter(Boolean).join(" · ")}</p>
-                      </div>
-                      <div className="text-right">
-                        <p>{d.status}</p>
-                        <p className="text-gray-500">{formatIst(d.orderedAt || d.createdAt)}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Section>
-          </div>
+          <ClinicalOrdersPanel
+            patientId={String(id)}
+            labs={labs}
+            diagnostics={diagnostics}
+            onSaved={async () => { await load(); }}
+          />
         )}
 
         {tab === "rx" && (
