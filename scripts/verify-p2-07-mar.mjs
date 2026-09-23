@@ -37,7 +37,7 @@ for (const x of [
   'status === "ADMINISTERED"',
   "actualAt",
   'entity: "MedicationAdministration"',
-  "isolationLevel: "Serializable"",
+  'isolationLevel: "Serializable"',
   'code === "P2034"',
   'code === "P2002"',
   "administeringMemberId: member.id",
