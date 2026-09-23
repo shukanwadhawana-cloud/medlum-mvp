@@ -6,6 +6,7 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
+import { sendFacilityTelegramMessage } from "@/lib/facility-telegram";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_LENGTH = 6;
@@ -244,7 +245,17 @@ export async function issueLoginOtp(params: {
 
   let delivery: OtpDeliveryResult;
   try {
-    if (identity?.telegramChatId) {
+    let facilitySent = false;
+    if (params.clinicId) {
+      const facilityDelivery = await sendFacilityTelegramMessage(
+        params.clinicId,
+        `MedLum login verification code\n\nYour verification code is: ${code}\n\nThis code expires in 5 minutes.\n\nIf you did not request this code, ignore this message.`
+      );
+      facilitySent = facilityDelivery.sent;
+    }
+    if (facilitySent) {
+      delivery = { channel: "telegram" };
+    } else if (identity?.telegramChatId) {
       await sendTelegramMessage(
         identity.telegramChatId,
         `MedLum login verification code\n\nYour verification code is: ${code}\n\nThis code expires in 5 minutes.\n\nIf you did not request this code, ignore this message.`
