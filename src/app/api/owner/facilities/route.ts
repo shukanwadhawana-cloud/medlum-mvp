@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { isMedlumOwnerEmail } from "@/lib/owner";
 import { encryptSecret } from "@/lib/secret-crypto";
+import { saveClinicSetup } from "@/lib/clinic-products";
 
 async function owner() {
   const session = await getSession();
@@ -70,6 +71,7 @@ export async function POST(req: Request) {
         data: { clinicId: created.id, botUsername: telegram.username, encryptedToken: encryptSecret(telegramToken), chatId: telegramChatId, status: "CONNECTED", lastVerifiedAt: new Date() }
       });
     }
+    await saveClinicSetup(created.id, { facilityType, subscriptionModel, licenseNumber, registrationNumber, ownerName, doctorInCharge, address, city, state, pincode, phone, email, onboardingCompleted: true });
     return created;
   });
 
