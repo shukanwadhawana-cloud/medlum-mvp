@@ -1,1 +1,1 @@
-PLACEHOLDER
+FILE:/home/workdir/artifacts/ipd-page-full-restore.tsx
