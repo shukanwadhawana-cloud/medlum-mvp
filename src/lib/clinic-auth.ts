@@ -100,6 +100,10 @@ export function canManagePharmacy(role: ClinicRole): boolean {
   return role === "Owner" || role === "Admin" || role === "Manager" || role === "Pharmacy";
 }
 
+export function canAdministerMedication(role: ClinicRole): boolean {
+  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Consultant" || role === "Doctor" || role === "RMO" || role === "Nurse";
+}
+
 /**
  * Resolve a patient that belongs to the member's clinic (or legacy doctor-owned row).
  * Rejects cross-clinic IDs.
