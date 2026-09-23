@@ -17,12 +17,13 @@ async function owner() {
   return doctor;
 }
 
-export async function POST(_req: Request, { params }: { params: { clinicId: string } }) {
+export async function POST(_req: Request, {
+  const { clinicId } = await params; params }: { params: Promise<{ clinicId: string }> }) {
   const user = await owner();
   if (!user) return NextResponse.json({ success: false, error: "Master Owner access required." }, { status: 403 });
 
   const integration = await prisma.facilityTelegramIntegration.findUnique({
-    where: { clinicId: params.clinicId },
+    where: { clinicId: clinicId },
     select: { clinicId: true, enabled: true },
   });
   if (!integration?.enabled) {
@@ -30,12 +31,12 @@ export async function POST(_req: Request, { params }: { params: { clinicId: stri
   }
 
   try {
-    await ensureFacilityTelegramWebhook(params.clinicId);
-    const connection = await createFacilityTelegramConnection(params.clinicId);
+    await ensureFacilityTelegramWebhook(clinicId);
+    const connection = await createFacilityTelegramConnection(clinicId);
     return NextResponse.json({ success: true, ...connection });
   } catch (error) {
     console.error("[MedLum Facility Telegram] connection setup failed", {
-      clinicId: params.clinicId,
+      clinicId: clinicId,
       reason: error instanceof Error ? error.message : "unknown",
     });
     return NextResponse.json({ success: false, error: "Could not prepare the Telegram connection. Check the facility Telegram configuration." }, { status: 500 });

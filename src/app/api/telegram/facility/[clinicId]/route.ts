@@ -16,13 +16,14 @@ async function send(token: string, chatId: string, text: string) {
   if (!response.ok || !payload?.ok) throw new Error(String(payload?.description || "Telegram send failed"));
 }
 
-export async function POST(req: Request, { params }: { params: { clinicId: string } }) {
+export async function POST(req: Request, {
+  const { clinicId } = await params; params }: { params: Promise<{ clinicId: string }> }) {
   const expected = String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
   const supplied = req.headers.get("x-telegram-bot-api-secret-token") || "";
   if (!expected || supplied !== expected) return NextResponse.json({ ok: false }, { status: 401 });
 
   const integration = await prisma.facilityTelegramIntegration.findUnique({
-    where: { clinicId: params.clinicId },
+    where: { clinicId: clinicId },
     select: { encryptedToken: true, chatId: true, enabled: true, status: true, connectionCodeHash: true, connectionExpiresAt: true },
   });
   if (!integration || !integration.enabled || integration.status === "DISABLED") {
@@ -52,7 +53,7 @@ export async function POST(req: Request, { params }: { params: { clinicId: strin
     if (!valid) return NextResponse.json({ ok: true });
 
     await prisma.facilityTelegramIntegration.update({
-      where: { clinicId: params.clinicId },
+      where: { clinicId: clinicId },
       data: {
         chatId,
         status: "CONNECTED",
@@ -70,7 +71,7 @@ export async function POST(req: Request, { params }: { params: { clinicId: strin
       );
     } catch {
       await prisma.facilityTelegramIntegration.update({
-        where: { clinicId: params.clinicId },
+        where: { clinicId: clinicId },
         data: { status: "ERROR" },
       }).catch(() => undefined);
     }
@@ -85,7 +86,7 @@ export async function POST(req: Request, { params }: { params: { clinicId: strin
       await send(decryptSecret(integration.encryptedToken), chatId, "MedLum facility Telegram is connected and ready for notifications.");
     } catch {
       await prisma.facilityTelegramIntegration.update({
-        where: { clinicId: params.clinicId },
+        where: { clinicId: clinicId },
         data: { status: "ERROR" },
       }).catch(() => undefined);
     }
