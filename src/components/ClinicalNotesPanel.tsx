@@ -11,6 +11,8 @@ const NOTE_TYPES = [
   "Nursing Care Note",
   "Procedure Note",
   "Case Summary",
+  "Referral / Consult",
+  "Discharge Note",
 ];
 
 export function ClinicalNotesPanel({
