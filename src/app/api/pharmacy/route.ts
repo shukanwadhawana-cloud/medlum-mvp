@@ -88,7 +88,9 @@ export async function POST(req: Request) {
           return { status: 200, body: { success: true, dispensing } };
         }, { isolationLevel: "Serializable" });
         if (result.status !== 200) return NextResponse.json(result.body, { status: result.status });
-        await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Dispensing", entityId: result.body.dispensing.id, clinicId: membership.clinicId, meta: { prescriptionId, patientId: result.body.dispensing.patientId, status: "Pending", outcome: "Pending" } });
+        const dispensing = result.body.dispensing;
+        if (!dispensing) return NextResponse.json({ success: false, error: "Dispensing record was not created" }, { status: 500 });
+        await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Dispensing", entityId: dispensing.id, clinicId: membership.clinicId, meta: { prescriptionId, patientId: dispensing.patientId, status: "Pending", outcome: "Pending" } });
         return NextResponse.json(result.body);
       } catch (e: any) {
         if (e?.code === "P2034") return NextResponse.json({ success: false, error: "A concurrent dispensing request was detected. Please refresh the pharmacy queue." }, { status: 409 });
@@ -141,8 +143,10 @@ export async function PATCH(req: Request) {
           return { status: 200, body: { success: true, dispensing: updated, stockChanges: [] } };
         }, { isolationLevel: "Serializable" });
         if (result.status !== 200) return NextResponse.json(result.body, { status: result.status });
-        const outcome = result.body.dispensing.status;
-        await writeAudit({ doctorId: session.doctorId, action: outcome === "Dispensed" ? "dispense" : "update", entity: "Dispensing", entityId: id, clinicId: membership.clinicId, meta: { status: outcome, outcome, prescriptionId: result.body.dispensing.prescriptionId, patientId: result.body.dispensing.patientId, stockChanges: result.body.stockChanges } });
+        const dispensing = result.body.dispensing;
+        if (!dispensing) return NextResponse.json({ success: false, error: "Dispensing record was not updated" }, { status: 500 });
+        const outcome = dispensing.status;
+        await writeAudit({ doctorId: session.doctorId, action: outcome === "Dispensed" ? "dispense" : "update", entity: "Dispensing", entityId: id, clinicId: membership.clinicId, meta: { status: outcome, outcome, prescriptionId: dispensing.prescriptionId, patientId: dispensing.patientId, stockChanges: result.body.stockChanges } });
         return NextResponse.json(result.body);
       } catch (e: any) {
         if (e?.code === "P2034") return NextResponse.json({ success: false, error: "A concurrent dispensing update was detected. Please refresh and reconcile the pharmacy record." }, { status: 409 });
