@@ -6,8 +6,11 @@ import { sendFacilityTelegramMessage } from "@/lib/facility-telegram";
 
 export const runtime = "nodejs";
 
-export async function POST(_req: Request, {
-  const { clinicId } = await params; params }: { params: Promise<{ clinicId: string }> }) {
+export async function POST(
+  _req: Request,
+  { params }: { params: Promise<{ clinicId: string }> }
+) {
+  const { clinicId } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
 
@@ -24,7 +27,11 @@ export async function POST(_req: Request, {
 
   const result = await sendFacilityTelegramMessage(
     clinicId,
-    `MedLum test notification\n\nFacility: ${facility.name}\n\nFacility Telegram routing is working.`
+    `MedLum test notification
+
+Facility: ${facility.name}
+
+Facility Telegram routing is working.`
   );
 
   if (!result.sent) {
