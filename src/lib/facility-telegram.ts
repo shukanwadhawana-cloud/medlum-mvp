@@ -29,7 +29,7 @@ export async function sendFacilityTelegramMessage(clinicId: string, text: string
     where: { clinicId },
     select: { encryptedToken: true, chatId: true, enabled: true, status: true },
   });
-  if (!integration?.enabled || integration.status !== "CONNECTED") return { sent: false, reason: "FACILITY_TELEGRAM_NOT_CONNECTED" };
+  if (!integration?.enabled || integration.status === "DISABLED") return { sent: false, reason: "FACILITY_TELEGRAM_NOT_CONNECTED" };
   if (!integration.chatId) return { sent: false, reason: "FACILITY_TELEGRAM_CHAT_MISSING" };
 
   try {
