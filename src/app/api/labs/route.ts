@@ -120,6 +120,17 @@ export async function PATCH(req: Request) {
     // Tenant isolation: order must belong to a patient in this clinic
     const existing = await prisma.labOrder.findFirst({ where: { id, patient: { clinicId } } });
     if (!existing) return NextResponse.json({ success: false, error: "Lab order not found" }, { status: 404 });
+    if (status === "Reviewed") {
+      if (existing.status === "Reviewed" || existing.status === "Completed") {
+        return NextResponse.json({ success: false, error: "Investigation is already clinically reviewed." }, { status: 409 });
+      }
+      if (!["Resulted", "Result Available", "Awaiting Review"].includes(existing.status)) {
+        return NextResponse.json({ success: false, error: "Investigation must have an available result before review." }, { status: 409 });
+      }
+      if (!String(existing.result || body.result || "").trim()) {
+        return NextResponse.json({ success: false, error: "A result is required before clinical review." }, { status: 400 });
+      }
+    }
     const result = RESULT_STATUSES.has(status)
       ? String(body.result || existing.result || "")
       : existing.result;
