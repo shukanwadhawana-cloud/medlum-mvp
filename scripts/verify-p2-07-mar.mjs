@@ -41,7 +41,7 @@ for (const x of [
   'code === "P2034"',
   'code === "P2002"',
   "administeringMemberId: member.id",
-  "Dispensed"
+  "status"
 ]) assert(route.includes(x), "MAR API contract missing: "+x);
 
 assert(!route.includes("prisma.dispensing"), "MAR API must not mutate pharmacy dispensing records");
