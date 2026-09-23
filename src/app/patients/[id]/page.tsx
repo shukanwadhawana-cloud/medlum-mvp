@@ -140,6 +140,7 @@ export default function PatientDetailPage() {
             )}
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href={`/patients/${id}/chart`} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium inline-flex items-center">Clinical chart</Link>
             <button type="button" onClick={() => setShowConsult(true)} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">New consult</button>
             <button type="button" onClick={() => setShowFollowUp(true)} className="h-9 px-3 rounded-lg border text-xs font-medium">Follow-up</button>
             <Link href="/patients" className="h-9 px-3 rounded-lg border text-xs font-medium inline-flex items-center">Back</Link>
@@ -277,13 +278,10 @@ export default function PatientDetailPage() {
             {followError && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{followError}</div>}
             <form onSubmit={scheduleFollowUp} className="space-y-3">
               <div><label className="text-xs text-gray-500">Date</label><input required type="date" value={follow.date} onChange={(e) => setFollow({ ...follow, date: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs text-gray-500">Time</label><input required type="time" value={follow.time} onChange={(e) => setFollow({ ...follow, time: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
-                <div><label className="text-xs text-gray-500">Type</label><input value={follow.type} onChange={(e) => setFollow({ ...follow, type: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
-              </div>
+              <div><label className="text-xs text-gray-500">Time</label><input required type="time" value={follow.time} onChange={(e) => setFollow({ ...follow, time: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowFollowUp(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
-                <button type="submit" disabled={followSaving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium">{followSaving ? "Scheduling…" : "Schedule"}</button>
+                <button type="submit" disabled={followSaving} className="flex-1 h-11 rounded-lg bg-[#140a1f] text-white text-sm font-medium disabled:opacity-60">{followSaving ? "Saving…" : "Schedule"}</button>
               </div>
             </form>
           </Modal>
@@ -293,27 +291,29 @@ export default function PatientDetailPage() {
   );
 }
 
+function Sec({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border bg-white overflow-hidden">
+      <div className="px-3 py-2 border-b bg-[#f8f6fa] text-xs font-semibold uppercase tracking-wide text-gray-600">{title}</div>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return <p className="px-3 py-4 text-xs text-gray-400">{text}</p>;
+}
+
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-3">
-      <div className="bg-white rounded-2xl w-full max-w-lg p-4 shadow-xl max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-base font-semibold">{title}</h3>
-          <button type="button" onClick={onClose} className="text-gray-400 text-lg">×</button>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3 print:hidden">
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-4 shadow-xl">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h3 className="font-semibold text-base">{title}</h3>
+          <button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button>
         </div>
         {children}
       </div>
     </div>
   );
-}
-function Sec({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-      <div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">{title}</h3></div>
-      {children}
-    </div>
-  );
-}
-function Empty({ text }: { text: string }) {
-  return <div className="p-4 text-center text-gray-400 text-xs">{text}</div>;
 }
