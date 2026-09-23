@@ -18,10 +18,9 @@ export default function PatientsPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiGetPatients();
-      const list = Array.isArray(data) ? data : data?.patients || [];
+      const list = await apiGetPatients();
       setPatients(list);
-      setEncounters(Array.isArray(data) ? [] : data?.encounters || []);
+      setEncounters([]);
     } catch (e: any) {
       setError(e?.message || "Could not load patients");
       setPatients([]);
