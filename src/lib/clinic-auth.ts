@@ -3,8 +3,6 @@
  * Never trust client-supplied clinicId/doctorId for scope.
  */
 import { prisma } from "@/lib/db";
-import { isMedlumOwnerEmail } from "@/lib/owner";
-
 export type ClinicRole =
   | "Owner"
   | "Admin"
@@ -35,7 +33,7 @@ const ROLE_ALIASES: Record<string, ClinicRole> = {
   Owner: "Owner", Admin: "Admin", Manager: "Manager", Consultant: "Consultant",
   Doctor: "Doctor", RMO: "RMO", Nurse: "Nurse", Pharmacy: "Pharmacy",
   Laboratory: "Laboratory", Billing: "Billing", Receptionist: "Receptionist", Staff: "Staff",
-  MasterOwner: "Owner", "Lab Tech": "Laboratory", Lab: "Laboratory", Pharmacist: "Pharmacy",
+"Lab Tech": "Laboratory", Lab: "Laboratory", Pharmacist: "Pharmacy",
 };
 
 export function normalizeClinicRole(role: string): ClinicRole {
@@ -57,14 +55,15 @@ export async function requireActiveClinicMembership(
     orderBy: { createdAt: "asc" },
   });
   if (!membership) return null;
-  const role = isMedlumOwnerEmail(membership.doctor.email)
-    ? "Owner"
-    : normalizeClinicRole(membership.role);
+  // Enterprise Master Owner status is global and is intentionally NOT
+  // inferred from a clinic membership. A person is a facility Owner only
+  // when that clinic explicitly grants the Owner membership. This keeps
+  // enterprise and facility scopes non-interchangeable.
   return {
     membershipId: membership.id,
     clinicId: membership.clinicId,
     doctorId: membership.doctorId,
-    role,
+    role: normalizeClinicRole(membership.role),
   };
 }
 
