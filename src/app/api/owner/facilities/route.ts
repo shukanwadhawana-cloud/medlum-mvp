@@ -71,9 +71,10 @@ export async function POST(req: Request) {
         data: { clinicId: created.id, botUsername: telegram.username, encryptedToken: encryptSecret(telegramToken), chatId: telegramChatId, status: "CONNECTED", lastVerifiedAt: new Date() }
       });
     }
-    await saveClinicSetup(created.id, { facilityType, subscriptionModel, licenseNumber, registrationNumber, ownerName, doctorInCharge, address, city, state, pincode, phone, email, onboardingCompleted: true });
     return created;
   });
+
+  await saveClinicSetup(clinic.id, { facilityType, subscriptionModel, licenseNumber, registrationNumber, ownerName, doctorInCharge, address, city, state, pincode, phone, email, onboardingCompleted: true });
 
   return NextResponse.json({
     success: true,
