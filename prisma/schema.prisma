@@ -663,19 +663,22 @@ model AuthRateLimit {
 }
 
 model FacilityTelegramIntegration {
-  id             String   @id @default(cuid())
-  clinicId       String   @unique
-  botUsername    String   @default("")
-  encryptedToken String
-  chatId         String   @default("")
-  enabled        Boolean  @default(true)
-  status         String   @default("CONNECTED")
-  lastVerifiedAt DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(cuid())
+  clinicId             String   @unique
+  botUsername          String   @default("")
+  encryptedToken       String
+  chatId               String   @default("")
+  enabled              Boolean  @default(true)
+  status               String   @default("PENDING")
+  connectionCodeHash   String?
+  connectionExpiresAt  DateTime?
+  lastVerifiedAt       DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  clinic               Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
   @@index([status])
+  @@index([connectionExpiresAt])
 }
 
 model TelegramIdentity {
