@@ -2,8 +2,10 @@ import { mkdir, writeFile, readFile, unlink, access } from "fs/promises";
 import path from "path";
 import type { StorageProvider, StoredObjectMeta } from "./types";
 
+const DEFAULT_ROOT = path.join(process.cwd(), ".medlum-storage");
+
 function rootDir() {
-  return process.env.STORAGE_LOCAL_PATH || path.join(process.cwd(), ".medlum-storage");
+  return process.env.STORAGE_LOCAL_PATH || DEFAULT_ROOT;
 }
 
 export function createLocalStorageProvider(): StorageProvider {
