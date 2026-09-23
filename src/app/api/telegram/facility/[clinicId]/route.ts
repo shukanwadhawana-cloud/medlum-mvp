@@ -16,14 +16,17 @@ async function send(token: string, chatId: string, text: string) {
   if (!response.ok || !payload?.ok) throw new Error(String(payload?.description || "Telegram send failed"));
 }
 
-export async function POST(req: Request, {
-  const { clinicId } = await params; params }: { params: Promise<{ clinicId: string }> }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ clinicId: string }> }
+) {
+  const { clinicId } = await params;
   const expected = String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
   const supplied = req.headers.get("x-telegram-bot-api-secret-token") || "";
   if (!expected || supplied !== expected) return NextResponse.json({ ok: false }, { status: 401 });
 
   const integration = await prisma.facilityTelegramIntegration.findUnique({
-    where: { clinicId: clinicId },
+    where: { clinicId },
     select: { encryptedToken: true, chatId: true, enabled: true, status: true, connectionCodeHash: true, connectionExpiresAt: true },
   });
   if (!integration || !integration.enabled || integration.status === "DISABLED") {
@@ -37,7 +40,6 @@ export async function POST(req: Request, {
 
   if (!chatId) return NextResponse.json({ ok: true });
 
-  // First connection: only a fresh, one-time deep-link code can claim the facility bot.
   if (!integration.chatId && integration.status === "PENDING" && command.startsWith("/start")) {
     const suppliedCode = command.slice("/start".length).trim();
     const expectedHash = integration.connectionCodeHash || "";
@@ -53,7 +55,7 @@ export async function POST(req: Request, {
     if (!valid) return NextResponse.json({ ok: true });
 
     await prisma.facilityTelegramIntegration.update({
-      where: { clinicId: clinicId },
+      where: { clinicId },
       data: {
         chatId,
         status: "CONNECTED",
@@ -71,14 +73,13 @@ export async function POST(req: Request, {
       );
     } catch {
       await prisma.facilityTelegramIntegration.update({
-        where: { clinicId: clinicId },
+        where: { clinicId },
         data: { status: "ERROR" },
       }).catch(() => undefined);
     }
     return NextResponse.json({ ok: true });
   }
 
-  // Once connected, never let an arbitrary Telegram chat replace the configured destination.
   if (!integration.chatId || chatId !== integration.chatId) return NextResponse.json({ ok: true });
 
   if (command === "/start") {
@@ -86,7 +87,7 @@ export async function POST(req: Request, {
       await send(decryptSecret(integration.encryptedToken), chatId, "MedLum facility Telegram is connected and ready for notifications.");
     } catch {
       await prisma.facilityTelegramIntegration.update({
-        where: { clinicId: clinicId },
+        where: { clinicId },
         data: { status: "ERROR" },
       }).catch(() => undefined);
     }
