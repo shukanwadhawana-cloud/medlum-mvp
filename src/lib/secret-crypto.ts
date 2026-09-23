@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 function key(): Buffer {
   const raw = String(process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY || "");
-  if (!raw) throw new Error("MEDLUM_TELEGRAM_ENCRYPTION_KEY is not configured");
+  if (!raw) {\n    const fallback = String(process.env.NEXTAUTH_SECRET || "");\n    if (fallback) return crypto.createHash("sha256").update("medlum:telegram:" + fallback).digest();\n    throw new Error("Telegram encryption requires MEDLUM_TELEGRAM_ENCRYPTION_KEY or NEXTAUTH_SECRET");\n  }
   const decoded = Buffer.from(raw, "base64");
   if (decoded.length === 32) return decoded;
   const hex = Buffer.from(raw, "hex");
