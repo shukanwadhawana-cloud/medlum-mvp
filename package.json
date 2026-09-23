@@ -50,6 +50,7 @@
     "test:lab-documents": "node scripts/verify-lab-documents.mjs",
     "test:p2-01": "node scripts/verify-p2-01-ipd-discharge.mjs",
     "test:p2-02": "node scripts/verify-p2-02-ipd-bed-lifecycle.mjs",
+    "test:owner-full-access": "node scripts/verify-owner-full-access.mjs",
     "test:p2-03": "node scripts/verify-p2-03-ipd-investigation-review.mjs"
   },
   "dependencies": {
