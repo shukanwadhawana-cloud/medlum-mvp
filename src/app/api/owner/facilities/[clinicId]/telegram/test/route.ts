@@ -6,7 +6,8 @@ import { sendFacilityTelegramMessage } from "@/lib/facility-telegram";
 
 export const runtime = "nodejs";
 
-export async function POST(_req: Request, { params }: { params: { clinicId: string } }) {
+export async function POST(_req: Request, {
+  const { clinicId } = await params; params }: { params: Promise<{ clinicId: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
 
@@ -18,11 +19,11 @@ export async function POST(_req: Request, { params }: { params: { clinicId: stri
     return NextResponse.json({ success: false, error: "Master Owner access required." }, { status: 403 });
   }
 
-  const facility = await prisma.clinic.findUnique({ where: { id: params.clinicId }, select: { name: true } });
+  const facility = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { name: true } });
   if (!facility) return NextResponse.json({ success: false, error: "Facility not found." }, { status: 404 });
 
   const result = await sendFacilityTelegramMessage(
-    params.clinicId,
+    clinicId,
     `MedLum test notification\n\nFacility: ${facility.name}\n\nFacility Telegram routing is working.`
   );
 
