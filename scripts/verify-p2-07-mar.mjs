@@ -79,7 +79,7 @@ if (dbUrl) {
     const migrationStatements = migration.split(/;\s*(?=(?:CREATE|ALTER))/).map((x) => x.trim()).filter(Boolean);
     for (const statement of migrationStatements) await prisma.$executeRawUnsafe(statement);
     const migrationTable = await prisma.$queryRawUnsafe("SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'MedicationAdministration') AS exists");
-    assert.equal(migrationTable[0]?.table_name, "MedicationAdministration", "P2-07 migration must create the MAR table cleanly");
+    assert.equal(migrationTable[0]?.exists, true, "P2-07 migration must create the MAR table cleanly");
     const clinic = await prisma.clinic.create({ data: { name: "P2-07 MAR Test "+suffix } });
     const doctor = await prisma.doctor.create({ data: { name: "MAR Nurse", email: "mar-"+suffix+"@test.local", passwordHash: "test", clinicName: clinic.name, phone: "9000000000" } });
     const member = await prisma.clinicMember.create({ data: { clinicId: clinic.id, doctorId: doctor.id, role: "Nurse", designation: "Nurse", staffCode: "NUR-0001" } });
