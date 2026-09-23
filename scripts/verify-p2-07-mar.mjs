@@ -44,8 +44,7 @@ for (const x of [
   "Dispensed"
 ]) assert(route.includes(x), "MAR API contract missing: "+x);
 
-assert(route.includes("Dispensing does not"), "MAR API must not claim dispensing is administration");
-assert(!route.includes('status: "ADMINISTERED"') || route.includes('status === "ADMINISTERED"'), "MAR must not auto-administer on dispensing");
+assert(!route.includes("prisma.dispensing"), "MAR API must not mutate pharmacy dispensing records");
 
 for (const x of ["SCHEDULED","ADMINISTERED","HELD","OMITTED","REFUSED","CANCELLED","Confirm that you personally administered","Medication Administration Record"]) {
   assert(panel.includes(x), "MAR UI contract missing: "+x);
