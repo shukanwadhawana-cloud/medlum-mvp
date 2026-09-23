@@ -8,6 +8,7 @@ import { useDoctor } from "@/components/DoctorProvider";
 import { apiGetPatientDetail } from "@/lib/api";
 import { formatIst } from "@/lib/time";
 import { ClinicalVitalsPanel } from "@/components/ClinicalVitalsPanel";
+import { ClinicalNotesPanel } from "@/components/ClinicalNotesPanel";
 
 type TabId = "overview" | "notes" | "orders" | "rx" | "vitals" | "discharge" | "billing";
 
@@ -302,27 +303,11 @@ export default function PatientClinicalChartPage() {
         )}
 
         {tab === "notes" && (
-          <Section title="Encounter notes & documentation">
-            {encounters.length === 0 ? (
-              <Empty text="No clinical notes yet. Use New consult on the patient record." />
-            ) : (
-              <div className="space-y-3">
-                {encounters.map((e: any) => (
-                  <article key={e.id} className="rounded-lg border p-3 text-xs">
-                    <div className="flex flex-wrap justify-between gap-2 mb-1">
-                      <span className="font-semibold text-sm">{e.date || formatIst(e.createdAt, { dateOnly: true })}</span>
-                      <span className="text-gray-500">{formatIst(e.createdAt)}</span>
-                    </div>
-                    {e.chiefComplaint && <p><b>Chief complaint:</b> {e.chiefComplaint}</p>}
-                    {e.clinicalNotes && <p className="mt-1 whitespace-pre-wrap"><b>Notes:</b> {e.clinicalNotes}</p>}
-                    {e.assessment && <p className="mt-1 whitespace-pre-wrap"><b>Assessment:</b> {e.assessment}</p>}
-                    {e.diagnosis && <p className="mt-1"><b>Diagnosis:</b> {e.diagnosis}</p>}
-                    {e.plan && <p className="mt-1 whitespace-pre-wrap"><b>Plan:</b> {e.plan}</p>}
-                  </article>
-                ))}
-              </div>
-            )}
-          </Section>
+          <ClinicalNotesPanel
+            patientId={String(id)}
+            encounters={encounters}
+            onSaved={async () => { await load(); }}
+          />
         )}
 
         {tab === "orders" && (
