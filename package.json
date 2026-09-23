@@ -47,7 +47,8 @@
     "db:push": "echo 'db push disabled for production safety; use npm run db:migrate:deploy' && exit 1",
     "postinstall": "prisma generate",
     "test:telegram-otp": "node scripts/verify-telegram-otp.mjs",
-    "test:lab-documents": "node scripts/verify-lab-documents.mjs"
+    "test:lab-documents": "node scripts/verify-lab-documents.mjs",
+    "test:p2-01": "node scripts/verify-p2-01-ipd-discharge.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
