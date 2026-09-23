@@ -151,6 +151,7 @@ model Patient {
   abdmCareContexts  AbdmCareContext[]
   emergencyCases    EmergencyCase[]
   medicalDocuments  MedicalDocument[]
+  medicationAdministrations MedicationAdministration[]
 
   @@index([doctorId])
   @@index([clinicId])
