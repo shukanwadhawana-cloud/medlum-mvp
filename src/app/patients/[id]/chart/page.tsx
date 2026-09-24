@@ -15,8 +15,10 @@ import { ClinicalProblemsPanel } from "@/components/ClinicalProblemsPanel";
 import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";
 import { ClinicalIOPanel } from "@/components/ClinicalIOPanel";
 import { ClinicalDischargePanel } from "@/components/ClinicalDischargePanel";
+import { ClinicalReferralPanel } from "@/components/ClinicalReferralPanel";
+import { ClinicalReportsPanel } from "@/components/ClinicalReportsPanel";
 
-type TabId = "overview" | "problems" | "notes" | "orders" | "rx" | "vitals" | "io" | "discharge" | "billing";
+type TabId = "overview" | "problems" | "notes" | "orders" | "rx" | "vitals" | "io" | "discharge" | "referral" | "report" | "billing";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Cover sheet" },
@@ -27,6 +29,8 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "vitals", label: "Vitals" },
   { id: "io", label: "Intake / Output" },
   { id: "discharge", label: "Discharge summary" },
+  { id: "referral", label: "Referral" },
+  { id: "report", label: "Report" },
   { id: "billing", label: "Billing" },
 ];
 
@@ -393,6 +397,29 @@ export default function PatientClinicalChartPage() {
             profile={profile}
             careSetting={careSetting}
             onSaved={async () => { await load(); }}
+          />
+        )}
+
+        {tab === "referral" && (
+          <ClinicalReferralPanel
+            patientId={String(id)}
+            encounters={encounters}
+            labs={labs}
+            diagnostics={diagnostics}
+            profile={profile}
+            onSaved={async () => { await load(); }}
+          />
+        )}
+
+        {tab === "report" && (
+          <ClinicalReportsPanel
+            patientId={String(id)}
+            patient={p}
+            encounters={encounters}
+            labs={labs}
+            diagnostics={diagnostics}
+            prescriptions={prescriptions}
+            careSetting={careSetting}
           />
         )}
 
