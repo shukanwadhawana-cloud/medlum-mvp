@@ -404,6 +404,7 @@ model MedicationAdministration {
   dose                  String
   doseUnit              String
   route                 String
+  frequency             String        @default("OD")
   scheduledAt           DateTime
   actualAt              DateTime?
   status                String        @default("SCHEDULED")
