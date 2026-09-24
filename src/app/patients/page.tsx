@@ -13,6 +13,7 @@ export default function PatientsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [careFilter, setCareFilter] = useState<"ALL" | "OPD" | "IPD">("ALL");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,14 +48,15 @@ export default function PatientsPage() {
   }, [encounters]);
 
   const filtered = useMemo(() => {
+    const scoped = careFilter === "ALL" ? patients : patients.filter((p) => String(p.careSetting || "OPD").toUpperCase() === careFilter);
     const q = search.trim().toLowerCase();
-    if (!q) return patients;
-    return patients.filter((p) =>
+    if (!q) return scoped;
+    return scoped.filter((p) =>
       [p.name, p.phone, p.id, p.uhid, p.registrationNo, p.careSetting]
         .filter(Boolean)
         .some((x) => String(x).toLowerCase().includes(q))
     );
-  }, [patients, search]);
+  }, [patients, search, careFilter]);
 
   if (authLoading || !doctor) {
     return (
@@ -89,7 +91,20 @@ export default function PatientsPage() {
 
         {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="grid lg:grid-cols-[150px_1fr] gap-3">
+          <aside className="bg-white rounded-xl border shadow-sm p-2 h-fit lg:sticky lg:top-24">
+            <p className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Care setting</p>
+            {([["ALL","All patients"],["OPD","OPD"],["IPD","IPD"]] as const).map(([key,label]) => (
+              <button key={key} type="button" onClick={() => setCareFilter(key)}
+                className={`w-full text-left px-3 py-2.5 rounded-lg text-xs mb-1 border-l-2 ${careFilter===key ? "border-[#c2183a] bg-red-50 text-[#c2183a] font-semibold" : "border-transparent text-gray-600 hover:bg-gray-50"}`}>
+                {label}
+              </button>
+            ))}
+            <div className="mt-3 border-t pt-2 px-2 text-[10px] text-gray-400">
+              OPD and IPD remain separate workflows, while the patient record is the shared identity.
+            </div>
+          </aside>
+          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           {loading ? (
             <div className="p-6 text-center text-gray-400 text-sm">Loading patients…</div>
           ) : filtered.length === 0 ? (
@@ -172,10 +187,10 @@ export default function PatientsPage() {
                         New consultation
                       </Link>
                       <Link
-                        href={`/patients/${p.id}`}
+                        href={String(p.careSetting || "OPD").toUpperCase() === "IPD" ? `/ipd/${p.id}` : `/patients/${p.id}`}
                         className="h-8 px-3 rounded-lg bg-[#140a1f] text-white text-[11px] font-medium inline-flex items-center"
                       >
-                        Open Patient
+                        {String(p.careSetting || "OPD").toUpperCase() === "IPD" ? "Open IPD workspace" : "Open Patient"}
                       </Link>
                     </div>
                   </div>
@@ -183,6 +198,8 @@ export default function PatientsPage() {
               })}
             </div>
           )}
+        </div>
+          </div>
         </div>
       </div>
     </AppShell>
