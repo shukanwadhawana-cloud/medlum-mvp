@@ -1,12 +1,8 @@
-name: Apply Duty Workforce Files
+name: Apply Duty Workforce (noop trigger)
 on:
   workflow_dispatch:
 jobs:
-  apply:
+  noop:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - name: Note
-        run: echo "Trigger apply via next commit payload files - see duty-workforce artifacts"
+      - run: echo "Duty workforce schema is applied via restore-schema + migrate-deploy"
