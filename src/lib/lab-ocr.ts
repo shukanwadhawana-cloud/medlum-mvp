@@ -48,7 +48,7 @@ const LAB_ALIASES: Record<string, string[]> = {
   Calcium: ["calcium", "ca"],
   Magnesium: ["magnesium", "mg"],
   Phosphorus: ["phosphorus", "phosphate", "phos"],
-  Uric Acid: ["uric acid", "uric"],
+  "Uric Acid": ["uric acid", "uric"],
   Amylase: ["amylase"],
   Lipase: ["lipase"],
   Ferritin: ["ferritin"],
