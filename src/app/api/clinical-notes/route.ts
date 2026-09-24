@@ -6,14 +6,13 @@ import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
 
 const NOTE_TYPES = new Set([
-  "Consultant Note",
   "Progress Note",
   "Initial Assessment",
+  "Procedure Note",
   "Case Summary",
-  "Discharge Summary",
-  "Nursing Assessment",
-  "RMO Note",
-  "Other",
+  "Referral",
+  "Consent",
+  "Discharge Note",
 ]);
 
 function publicNote(n: any) {
@@ -23,6 +22,7 @@ function publicNote(n: any) {
     patientId: n.patientId,
     encounterId: n.encounterId,
     noteType: n.noteType,
+    authorRole: n.authorRole,
     title: n.title,
     content: n.content,
     status: n.status,
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const patientId = String(body.patientId || "").trim();
     const content = String(body.content || "").trim();
-    const noteType = String(body.noteType || "Consultant Note").trim();
+    const noteType = String(body.noteType || "Progress Note").trim();
     const title = String(body.title || "").trim();
     const encounterId = body.encounterId ? String(body.encounterId) : null;
     const submit = body.submit === true;
@@ -109,6 +109,7 @@ export async function POST(req: Request) {
         patientId,
         encounterId,
         authorDoctorId: session.doctorId,
+        authorRole: membership.role,
         noteType,
         title,
         content,
