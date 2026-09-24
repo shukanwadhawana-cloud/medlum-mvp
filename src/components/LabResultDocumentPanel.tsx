@@ -97,7 +97,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           ? "Report already exists. Review the OCR draft below."
           : data.ocr?.status === "DRAFT"
             ? "Report uploaded. OCR draft is ready for human verification."
-            : "Report uploaded. OCR could not produce a draft; enter the result manually."
+            : "Report uploaded, but OCR did not produce a usable structured draft. Diagnostic OCR output is retained for investigation; no clinical result was written."
       );
       setPhase("ready");
       await load();
