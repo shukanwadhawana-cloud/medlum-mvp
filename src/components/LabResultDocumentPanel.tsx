@@ -229,7 +229,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
 
           {selectedStatus === "FAILED" && (
             <p className="mt-2 text-[11px] text-amber-700">
-              OCR did not produce a usable draft. Use the existing manual result entry for this order.
+              OCR did not produce a usable structured draft. The OCR diagnostic text is retained for investigation; no clinical result was written.
             </p>
           )}
 
