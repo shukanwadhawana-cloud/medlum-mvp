@@ -97,7 +97,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           ? "Report already exists. Review the OCR draft below."
           : data.ocr?.status === "DRAFT"
             ? "Report uploaded. OCR draft is ready for human verification."
-            : "Report uploaded. OCR could not produce a draft; enter the result manually."
+            : "Report uploaded, but OCR did not produce a usable structured draft. Diagnostic OCR output is retained for investigation; no clinical result was written."
       );
       setPhase("ready");
       await load();
@@ -229,7 +229,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
 
           {selectedStatus === "FAILED" && (
             <p className="mt-2 text-[11px] text-amber-700">
-              OCR did not produce a usable draft. Use the existing manual result entry for this order.
+              OCR did not produce a usable structured draft. The OCR diagnostic text is retained for investigation; no clinical result was written.
             </p>
           )}
 
