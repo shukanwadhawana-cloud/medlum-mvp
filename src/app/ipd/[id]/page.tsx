@@ -26,7 +26,7 @@ export default function IPDPatientWorkspace(){
  const[contact,setContact]=useState({name:"",relationship:"",phone:"",alternatePhone:""}); const[vitals,setVitals]=useState({bp:"",pulse:"",rr:"",spo2:"",temperature:""});
  const[structured,setStructured]=useState({dateTime:new Date().toISOString().slice(0,16),diagnosis:"",hpi:"",allergy:"",examTime:"",cns:"",cvs:"",rs:"",perAbdomen:"",assessment:"",workingDiagnosis:"",treatmentGiven:"",course:"",procedures:"",investigations:"",dischargeTreatment:"",followUpDate:""});
  const[error,setError]=useState(""),[msg,setMsg]=useState(""),[saving,setSaving]=useState(false),[showTransfer,setShowTransfer]=useState(false),[transferRoom,setTransferRoom]=useState("");
- const load=useCallback(async()=>{const r=await fetch("/api/ipd",{credentials:"include",cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`Could not load IPD workspace (${r.status})`);const ps=d.patients||[];setPatients(ps);setRooms(d.rooms||[]);setHandoverOptions(d.handoverOptions||[]);if(d.currentDepartment)setDepartment(d.currentDepartment);const fresh=ps.find((p:any)=>p.id===patientId);if(fresh)setSelected(fresh)},[patientId]);
+ const load=useCallback(async()=>{const r=await fetch("/api/ipd",{credentials:"include",cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`Could not load IPD workspace (${r.status})`);const ps=d.patients||[];setPatients(ps);setRooms(d.rooms||[]);setHandoverOptions(d.handoverOptions||[]);if(d.currentRole)setCurrentRole(d.currentRole);if(d.currentDepartment)setDepartment(d.currentDepartment);const fresh=ps.find((p:any)=>p.id===patientId);if(fresh)setSelected(fresh)},[patientId]);
  useEffect(()=>{if(!authLoading&&doctor)load().catch(e=>setError(e.message))},[authLoading,doctor,load]);
  useEffect(()=>{if(selected?.emergencyContact)setContact({...{name:"",relationship:"",phone:"",alternatePhone:""},...selected.emergencyContact})},[selected]);
  const post=async(body:any)=>{const r=await fetch("/api/ipd",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok||d.success!==true)throw new Error(d.error||`Could not save IPD record (${r.status})`);return d};
@@ -57,7 +57,7 @@ export default function IPDPatientWorkspace(){
     <div className="flex-1">
       <label className="block text-[10px] font-semibold text-gray-500 mb-1">Clinical / Nursing documentation</label>
       <select value={activeSection} onChange={e=>setActiveSection(e.target.value)} className="w-full h-10 px-3 rounded-lg border text-xs">
-        {(doctor?.role==="Nurse"||doctor?.designation==="Nurse" ? NURSING_SECTIONS : CLINICAL_SECTIONS).map(x=><option key={x}>{x}</option>)}
+        {(currentRole==="Nurse" ? NURSING_SECTIONS : CLINICAL_SECTIONS).map(x=><option key={x}>{x}</option>)}
       </select>
     </div>
   </div>
