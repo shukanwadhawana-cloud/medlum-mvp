@@ -15,7 +15,7 @@ function formatUhid(value: string | null | undefined): string {
   return raw.toUpperCase();
 }
 
-function serialize(p: any) {
+function serialize(p: any, latestVitals: any = null) {
   const profile = parsePatientProfile(p.notes);
   return {
     id: p.id,
@@ -36,6 +36,7 @@ function serialize(p: any) {
     admissionDate: profile.admissionDate || (profile.careSetting === "IPD" ? p.createdAt.toISOString() : null),
     deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
     ...profile,
+    latestVitals,
     createdAt: p.createdAt.toISOString(),
   };
 }
@@ -100,8 +101,40 @@ export async function GET(req: Request) {
           ? patients.filter((p) => parseCareSetting(p.notes) === "IPD")
           : patients;
 
+  const visibleIds = visible.map((p) => p.id);
+  const [encounters, vitalLogs] = await Promise.all([
+    visibleIds.length ? prisma.encounter.findMany({ where: { patientId: { in: visibleIds } }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
+    visibleIds.length
+      ? prisma.auditLog.findMany({
+          where: { entity: "NursingVital", entityId: { in: visibleIds } },
+          orderBy: { createdAt: "desc" },
+          take: Math.min(visibleIds.length * 5, 2500),
+        })
+      : Promise.resolve([]),
+  ]);
+  const latestVitalsByPatient = new Map<string, any>();
+  for (const e of encounters) {
+    if (latestVitalsByPatient.has(e.patientId)) continue;
+    if (e.bp || e.pulse || e.rr || e.spo2 || e.temperature || e.weight || e.height) {
+      latestVitalsByPatient.set(e.patientId, {
+        bp: e.bp, pulse: e.pulse, rr: e.rr, spo2: e.spo2, temperature: e.temperature,
+        weight: e.weight, height: e.height, recordedAt: e.createdAt.toISOString(), source: "OPD",
+      });
+    }
+  }
+  for (const log of vitalLogs) {
+    if (latestVitalsByPatient.has(log.entityId || "")) continue;
+    let meta: any = {};
+    try { meta = JSON.parse(log.meta || "{}"); } catch {}
+    latestVitalsByPatient.set(log.entityId || "", {
+      bp: String(meta.bp || ""), pulse: String(meta.pulse || ""), rr: String(meta.rr || ""),
+      spo2: String(meta.spo2 || ""), temperature: String(meta.temperature || ""),
+      recordedAt: log.createdAt.toISOString(), source: "IPD",
+    });
+  }
+
   return NextResponse.json(
-    { patients: visible.map(serialize) },
+    { patients: visible.map((p) => serialize(p, latestVitalsByPatient.get(p.id) || null)) },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
