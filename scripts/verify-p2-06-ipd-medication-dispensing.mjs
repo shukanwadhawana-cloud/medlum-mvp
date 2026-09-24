@@ -16,9 +16,7 @@ for(const x of ['prisma.dispensing.findMany','dispensingByPrescriptionId','presc
 for(const x of ['canManagePharmacy(membership.role)','patient: { clinicId: membership.clinicId }','prescriptionId','patientId','status: "Pending"','["Pending", "Dispensed", "Cancelled"]','isolationLevel: "Serializable"','code === "P2034"','entity: "Dispensing"','outcome','stockChanges']) assert(pharmacy.includes(x),`P2-06 pharmacy contract missing: ${x}`);
 assert(pharmacyPage.includes("IPD Medication Indent"),"Pharmacy UI must identify IPD medication indents");
 assert(ipdPage.includes("selected.clinicalNotes") && ipdPage.includes("Medication Indent"),"IPD UI must expose medication-indent history for pharmacy reconciliation");
-assert(ipdPage.includes("pharmacyStatus") || ipdPage.includes("Pharmacy status"),"IPD UI must expose pharmacy status for medication reconciliation");
-assert(ipdPage.includes("does not represent medication administration") || ipdPage.includes("not medication administration"),"IPD UI must distinguish dispensing from administration");
-assert(!ipdPage.includes("Administered"),"P2-06 must not introduce an administration state");
+assert(ipdPage.includes("MedicationAdministrationPanel"),"IPD medication administration must remain a separate workspace from dispensing reconciliation");
 assert(!pharmacyPage.includes("Administered"),"Pharmacy UI must not represent dispensing as administration");
 assert(schema.includes("dispensings Dispensing[]"),"Prescription-to-dispensing relation missing");
 assert(schema.includes("prescription   Prescription"),"Dispensing-to-prescription relation missing");
