@@ -301,22 +301,6 @@ export default function PatientDetailPage() {
             onChanged={load}
           />
 
-          <Sec title="Clinical Timeline">
-            {!timeline.length ? <Empty text="No clinical activity yet." /> : timeline.map((x, i) => (
-              <div key={`${x.kind}-${x.date}-${i}`} className="px-3 py-3 border-b last:border-0 flex gap-3">
-                <div className="w-2 rounded-full bg-[#c2183a] shrink-0" />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-2 items-center">
-                    <span className="text-[11px] uppercase tracking-wide text-gray-400">{x.kind}</span>
-                    <span className="text-xs text-gray-400">{x.date}</span>
-                  </div>
-                  <p className="text-sm font-medium mt-0.5">{x.title}</p>
-                  {x.detail && <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{x.detail}</p>}
-                </div>
-              </div>
-            ))}
-          </Sec>
-
           <Sec title="Consultations">
             {!data.encounters?.length ? <Empty text="No consultations yet." /> : data.encounters.map((e: any) => (
               <div key={e.id} className="px-3 py-2.5 border-b last:border-0">
