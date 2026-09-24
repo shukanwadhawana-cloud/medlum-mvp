@@ -56,7 +56,8 @@
     "test:p2-05": "node scripts/verify-p2-05-ipd-handover.mjs",
     "test:p2-06": "node scripts/verify-p2-06-ipd-medication-dispensing.mjs",
     "test:p2-07": "node scripts/verify-p2-07-mar.mjs",
-    "test:clinical-signing": "node scripts/verify-clinical-signing.mjs"
+    "test:clinical-signing": "node scripts/verify-clinical-signing.mjs",
+    "test:record-confirmation": "node scripts/verify-record-confirmation.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
