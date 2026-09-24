@@ -1,0 +1,10 @@
+ALTER TABLE "Encounter" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'CONFIRMED';
+ALTER TABLE "Encounter" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3);
+ALTER TABLE "Encounter" ADD COLUMN IF NOT EXISTS "cancelledBy" TEXT;
+ALTER TABLE "Encounter" ADD COLUMN IF NOT EXISTS "cancellationReason" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Prescription" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'CONFIRMED';
+ALTER TABLE "Prescription" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3);
+ALTER TABLE "Prescription" ADD COLUMN IF NOT EXISTS "cancelledBy" TEXT;
+ALTER TABLE "Prescription" ADD COLUMN IF NOT EXISTS "cancellationReason" TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS "Encounter_status_idx" ON "Encounter"("status");
+CREATE INDEX IF NOT EXISTS "Prescription_status_idx" ON "Prescription"("status");
