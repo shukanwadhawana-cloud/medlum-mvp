@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 
-const page=fs.readFileSync("src/app/ipd/page.tsx","utf8");
+const page=fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const labs=fs.readFileSync("src/app/api/labs/route.ts","utf8");
 
 for (const x of ["selected.investigationOrders","Investigation Results","Mark reviewed",'status:"Reviewed"',"credentials:\"include\"","patientId!==selected.id"])
