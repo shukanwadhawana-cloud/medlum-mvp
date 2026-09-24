@@ -65,6 +65,7 @@ export async function GET(req: Request) {
       dose: a.dose,
       doseUnit: a.doseUnit,
       route: a.route,
+      frequency: a.frequency,
       scheduledAt: a.scheduledAt.toISOString(),
       actualAt: iso(a.actualAt),
       status: a.status,
@@ -95,12 +96,13 @@ export async function POST(req: Request) {
     const dose = String(body.dose || "").trim();
     const doseUnit = String(body.doseUnit || "").trim();
     const route = String(body.route || "").trim();
+    const frequency = String(body.frequency || "OD").trim();
     const scheduledAt = new Date(String(body.scheduledAt || ""));
     const status = String(body.status || "SCHEDULED").trim();
     const reason = String(body.reason || "").trim();
     const notes = String(body.notes || "").trim();
 
-    if (!patientId || !prescriptionId || !medicationText || !medicationName || !dose || !doseUnit || !route || Number.isNaN(scheduledAt.getTime())) {
+    if (!patientId || !prescriptionId || !medicationText || !medicationName || !dose || !doseUnit || !route || !frequency || Number.isNaN(scheduledAt.getTime())) {
       return NextResponse.json({ success: false, error: "Patient, medication order, medication, dose, unit, route and scheduled time are required." }, { status: 400 });
     }
     if (status !== "SCHEDULED") return NextResponse.json({ success: false, error: "New medication-administration events must start in SCHEDULED state." }, { status: 400 });
@@ -133,6 +135,7 @@ export async function POST(req: Request) {
             dose,
             doseUnit,
             route,
+            frequency,
             scheduledAt,
             status: "SCHEDULED",
             reason: "",
@@ -144,7 +147,7 @@ export async function POST(req: Request) {
       if (administration.status !== 200) return NextResponse.json(administration.body, { status: administration.status });
       const created = administration.body.administration;
       if (!created) return NextResponse.json({ success: false, error: "Medication administration was not created." }, { status: 500 });
-      await writeAudit({ doctorId: session.doctorId, action: "schedule", entity: "MedicationAdministration", entityId: created.id, clinicId: access.clinicId, meta: { patientId, prescriptionId, medicationName, dose, doseUnit, route, scheduledAt: scheduledAt.toISOString(), status: "SCHEDULED" } });
+      await writeAudit({ doctorId: session.doctorId, action: "schedule", entity: "MedicationAdministration", entityId: created.id, clinicId: access.clinicId, meta: { patientId, prescriptionId, medicationName, dose, doseUnit, route, frequency, scheduledAt: scheduledAt.toISOString(), status: "SCHEDULED" } });
       return NextResponse.json(administration.body);
     } catch (e: any) {
       if (e?.code === "P2002") return NextResponse.json({ success: false, error: "This medication dose is already scheduled for that prescription and time." }, { status: 409 });
@@ -204,7 +207,7 @@ export async function PATCH(req: Request) {
       if (result.status !== 200) return NextResponse.json(result.body, { status: result.status });
       const updated = result.body.administration;
       if (!updated) return NextResponse.json({ success: false, error: "Medication administration was not updated." }, { status: 500 });
-      await writeAudit({ doctorId: session.doctorId, action: status === "ADMINISTERED" ? "administer" : "update", entity: "MedicationAdministration", entityId: id, clinicId: access.clinicId, meta: { patientId: updated.patientId, prescriptionId: updated.prescriptionId, medicationName: updated.medicationName, dose: updated.dose, doseUnit: updated.doseUnit, route: updated.route, scheduledAt: updated.scheduledAt.toISOString(), actualAt: updated.actualAt?.toISOString() || null, status, reason, notes: updated.notes } });
+      await writeAudit({ doctorId: session.doctorId, action: status === "ADMINISTERED" ? "administer" : "update", entity: "MedicationAdministration", entityId: id, clinicId: access.clinicId, meta: { patientId: updated.patientId, prescriptionId: updated.prescriptionId, medicationName: updated.medicationName, dose: updated.dose, doseUnit: updated.doseUnit, route: updated.route, frequency: updated.frequency, scheduledAt: updated.scheduledAt.toISOString(), actualAt: updated.actualAt?.toISOString() || null, status, reason, notes: updated.notes } });
       return NextResponse.json(result.body);
     } catch (e: any) {
       if (e?.code === "P2034") return NextResponse.json({ success: false, error: "A concurrent medication administration was detected. Please refresh before recording the dose." }, { status: 409 });
