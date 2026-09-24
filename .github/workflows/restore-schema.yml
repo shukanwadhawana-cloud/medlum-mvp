@@ -11,7 +11,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Restore schema from e688577 and apply Duty
+      - name: Restore schema from e688577 and apply Duty workforce
         run: |
           git show e6885770a100bf757a01f8af072b6c62c62f8bd2:prisma/schema.prisma > prisma/schema.prisma
           python3 << 'PY'
@@ -26,12 +26,14 @@ jobs:
           new = """  telegramIntegration FacilityTelegramIntegration?
             clinicalNotes      ClinicalNote[]
             dutyAttendanceEvents DutyAttendanceEvent[]
+            dutyAttendanceRequests DutyAttendanceRequest[]
 
             // MedLum Duty — per-hospital geofence (campus punch)
             dutyLat            Float?
             dutyLng            Float?
             dutyRadiusMeters   Int       @default(200)
             dutyEnabled        Boolean   @default(false)
+            dutyGraceMinutes   Int       @default(10)
 
             @@index([name])
             @@index([isActive])
@@ -45,6 +47,7 @@ jobs:
             @@unique([clinicId, doctorId])"""
           new_m = """  medicationAdministrations MedicationAdministration[]
             dutyAttendanceEvents DutyAttendanceEvent[]
+            dutyAttendanceRequests DutyAttendanceRequest[]
 
             @@unique([clinicId, doctorId])"""
           if old_m not in text:
@@ -77,11 +80,65 @@ jobs:
             @@index([doctorId, punchedAt])
             @@index([clinicId, type, punchedAt])
           }
+
+          model DutyAttendanceRequest {
+            id               String       @id @default(cuid())
+            clinicId         String
+            memberId         String
+            doctorId         String
+            requestType      String
+            status           String       @default("PENDING")
+            dayDate          DateTime     @db.Date
+            requestedInAt    DateTime?
+            requestedOutAt   DateTime?
+            reason           String       @default("")
+            reviewerDoctorId String?
+            reviewerNote     String       @default("")
+            reviewedAt       DateTime?
+            createdAt        DateTime     @default(now())
+            updatedAt        DateTime     @updatedAt
+            clinic           Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+            member           ClinicMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+            @@index([clinicId, status])
+            @@index([memberId, dayDate])
+            @@index([clinicId, createdAt])
+          }
           """
           if "model DutyAttendanceEvent" not in text:
             text = text.rstrip() + duty
+          elif "model DutyAttendanceRequest" not in text:
+            text = text.rstrip() + """
+
+          model DutyAttendanceRequest {
+            id               String       @id @default(cuid())
+            clinicId         String
+            memberId         String
+            doctorId         String
+            requestType      String
+            status           String       @default("PENDING")
+            dayDate          DateTime     @db.Date
+            requestedInAt    DateTime?
+            requestedOutAt   DateTime?
+            reason           String       @default("")
+            reviewerDoctorId String?
+            reviewerNote     String       @default("")
+            reviewedAt       DateTime?
+            createdAt        DateTime     @default(now())
+            updatedAt        DateTime     @updatedAt
+            clinic           Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+            member           ClinicMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+            @@index([clinicId, status])
+            @@index([memberId, dayDate])
+            @@index([clinicId, createdAt])
+          }
+          """
           open("prisma/schema.prisma", "w").write(text)
-          print("schema restored", len(text), "DutyAttendanceEvent" in text)
+          print("schema restored", len(text))
+          print("DutyAttendanceEvent", "model DutyAttendanceEvent" in text)
+          print("DutyAttendanceRequest", "model DutyAttendanceRequest" in text)
+          print("dutyGraceMinutes", "dutyGraceMinutes" in text)
           PY
       - name: Commit and push
         run: |
@@ -89,5 +146,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add prisma/schema.prisma
           git diff --staged --quiet && echo "No changes" && exit 0
-          git commit -m "fix(schema): restore full Prisma schema + MedLum Duty from e688577"
+          git commit -m "feat(duty): full Prisma schema with DutyAttendanceRequest + dutyGraceMinutes"
           git push
