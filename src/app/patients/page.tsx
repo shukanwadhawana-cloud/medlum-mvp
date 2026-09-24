@@ -136,7 +136,12 @@ export default function PatientsPage() {
                       )}
                       {p.allergies && (
                         <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 text-[11px]">
-                          ⚠ {p.allergies}
+                          ⚠ Allergy: {p.allergies}
+                        </span>
+                      )}
+                      {p.latestVitals && (
+                        <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px]">
+                          Vitals: BP {p.latestVitals.bp || "—"} · P {p.latestVitals.pulse || "—"} · SpO₂ {p.latestVitals.spo2 || "—"} · RR {p.latestVitals.rr || "—"}
                         </span>
                       )}
                       {latest?.diagnosis && (
