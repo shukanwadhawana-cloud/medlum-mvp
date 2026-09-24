@@ -47,12 +47,14 @@ function escapeRegExp(value: string) {
 
 function extractCandidates(text: string): Record<string, string> {
   const out: Record<string, string> = {};
-  const normalized = text.replace(/\r/g, "\n").replace(/[|]+/g, " ").replace(/\u00a0/g, " ");
+  const normalized = text.replace(/\r/g, "
+").replace(/[|]+/g, " ").replace(/\u00a0/g, " ");
 
   for (const [canonical, aliases] of Object.entries(LAB_ALIASES)) {
     for (const alias of aliases) {
       const re = new RegExp(
-        "(?:^|[\\n\\t ]+)" +
+        "(?:^|[\
+\\t ]+)" +
           escapeRegExp(alias) +
           "(?:\\s*[:=\\-]\\s*|\\s+)" +
           "([<>]?[0-9]+(?:[.,][0-9]+)?)",
@@ -70,7 +72,9 @@ function extractCandidates(text: string): Record<string, string> {
 
 async function ocrImage(data: Buffer): Promise<string> {
   const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng", 1, {\n    workerPath: process.cwd() + "/node_modules/tesseract.js/src/worker-script/node/index.js",\n  });
+  const worker = await createWorker("eng", 1, {
+    workerPath: process.cwd() + "/node_modules/tesseract.js/src/worker-script/node/index.js",
+  });
   try {
     const result = await worker.recognize(data);
     return String(result?.data?.text || "");
@@ -93,7 +97,8 @@ async function extractPdf(data: Buffer): Promise<{ text: string; scannedOcrText:
       page.cleanup();
     }
 
-    const text = textParts.join("\n");
+    const text = textParts.join("
+");
     if (Object.keys(extractCandidates(text)).length > 0) {
       return { text, scannedOcrText: "", pagesOcr: 0 };
     }
@@ -133,7 +138,8 @@ async function extractPdf(data: Buffer): Promise<{ text: string; scannedOcrText:
       page.cleanup();
     }
 
-    return { text, scannedOcrText: ocrParts.join("\n"), pagesOcr: maxPagesForOcr };
+    return { text, scannedOcrText: ocrParts.join("
+"), pagesOcr: maxPagesForOcr };
   } finally {
     await document.destroy();
   }
@@ -154,7 +160,8 @@ export async function extractLabOcrDraft(data: Buffer, mimeType: string): Promis
 
     if (mimeType === "application/pdf") {
       const pdf = await extractPdf(data);
-      text = [pdf.text, pdf.scannedOcrText].filter(Boolean).join("\n");
+      text = [pdf.text, pdf.scannedOcrText].filter(Boolean).join("
+");
       if (pdf.pagesOcr > 0) {
         warnings.push("PDF had no usable text-layer values; OCR fallback scanned up to " + pdf.pagesOcr + " page(s).");
       }
