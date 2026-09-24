@@ -223,7 +223,8 @@ model Encounter {
 
   @@index([doctorId])
   @@index([patientId])
-  @@index([appointmentId])
+  @@index([appointmentId])  rr               String            @default("")
+
 }
 
 model Prescription {
