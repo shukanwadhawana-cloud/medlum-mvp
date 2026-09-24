@@ -6,6 +6,7 @@ const route=fs.readFileSync("src/app/api/ipd/medications/route.ts","utf8");
 const panel=fs.readFileSync("src/components/ipd/MedicationAdministrationPanel.tsx","utf8");
 const ipd=fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const migration=fs.readFileSync("prisma/migrations/20260923_p2_07_mar/migration.sql","utf8");
+const frequencyMigration=fs.readFileSync("prisma/migrations/20260924233000_medication_frequency/migration.sql","utf8");
 const pkg=fs.readFileSync("package.json","utf8");
 const ci=fs.readFileSync(".github/workflows/ci.yml","utf8");
 
@@ -23,6 +24,7 @@ for (const x of [
   "status",
   "reason",
   "notes",
+  "frequency",
   "@@unique([prescriptionId, medicationText, scheduledAt])"
 ]) assert(schema.includes(x), "MAR schema contract missing: "+x);
 
@@ -78,6 +80,7 @@ if (dbUrl) {
     await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS "MedicationAdministration" CASCADE');
     const migrationStatements = migration.split(/;\s*(?=(?:CREATE|ALTER))/).map((x) => x.trim()).filter(Boolean);
     for (const statement of migrationStatements) await prisma.$executeRawUnsafe(statement);
+    await prisma.$executeRawUnsafe(frequencyMigration);
     const migrationTable = await prisma.$queryRawUnsafe("SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'MedicationAdministration') AS exists");
     assert.equal(migrationTable[0]?.exists, true, "P2-07 migration must create the MAR table cleanly");
     const clinic = await prisma.clinic.create({ data: { name: "P2-07 MAR Test "+suffix } });
