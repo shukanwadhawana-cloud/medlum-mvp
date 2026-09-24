@@ -32,7 +32,7 @@ export default function PatientDetailPage() {
   const [clinicalNotes, setClinicalNotes] = useState<any[]>([]);
   const [showNoteComposer, setShowNoteComposer] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [noteType, setNoteType] = useState("Consultant Note");
+  const [noteType, setNoteType] = useState("Progress Note");
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -166,7 +166,7 @@ export default function PatientDetailPage() {
   };
 
   const resetNoteComposer = () => {
-    setEditingNoteId(null); setNoteType("Consultant Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(false);
+    setEditingNoteId(null); setNoteType("Progress Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(false);
   };
 
   const saveClinicalNote = async (submit: boolean) => {
@@ -326,7 +326,7 @@ export default function PatientDetailPage() {
           <Sec title="Clinical Notes & Final Signing">
             <div className="px-3 py-3 border-b">
               <p className="text-xs text-gray-500 mb-2">Every clinical action requires confirmation. Drafts can be cancelled and deleted; submitted/final records can be cancelled with an audit trail.</p>
-              <button type="button" onClick={() => { setEditingNoteId(null); setNoteType("Consultant Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(true); }} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium">
+              <button type="button" onClick={() => { setEditingNoteId(null); setNoteType("Progress Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(true); }} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium">
                 + New clinical note / summary
               </button>
             </div>
@@ -335,7 +335,7 @@ export default function PatientDetailPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium">{n.noteType}{n.title ? ` · ${n.title}` : ""}</p>
-                    <p className="text-[11px] text-gray-400">{n.status} · {new Date(n.createdAt).toLocaleString()}</p>
+                    <p className="text-[11px] text-gray-400">{n.status} · {n.authorRole || "Clinical staff"} · {new Date(n.createdAt).toLocaleString()}</p>
                   </div>
                   {n.status === "DRAFT" && n.author?.id === doctor?.id && (
                     <div className="flex gap-1.5">
@@ -353,7 +353,7 @@ export default function PatientDetailPage() {
                 </div>
                 <p className="text-xs text-gray-700 mt-2 whitespace-pre-wrap">{n.content}</p>
                 <div className="text-[10px] text-gray-500 mt-2 space-y-0.5">
-                  <p>Author: {n.author?.name || "Unknown"}</p>
+                  <p>Author: {n.author?.name || "Unknown"}{n.authorRole ? " · Role: " + n.authorRole : ""}</p>
                   {n.verifier && <p>Final verifier: {n.verifier.name} · {n.finalizedAt ? new Date(n.finalizedAt).toLocaleString() : ""}</p>}
                   {n.status === "FINAL" && <><p className="font-medium">LOCKED FINAL · hash {String(n.finalHash || "").slice(0, 16)}…</p><button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="mt-1 px-2.5 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel final record</button></>}
                 </div>
@@ -440,9 +440,9 @@ export default function PatientDetailPage() {
             {noteError && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{noteError}</div>}
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500">Document type</label>
+                <label className="text-xs text-gray-500">Document type</label><p className="text-[11px] text-gray-500 mt-0.5">Document type and author role are separate. Consultants, RMOs and Nursing staff can each create Progress Notes or Initial Assessments.</p>
                 <select value={noteType} onChange={(e) => setNoteType(e.target.value)} className="w-full h-10 px-3 rounded-lg border text-sm">
-                  {["Consultant Note","Progress Note","Initial Assessment","Case Summary","Discharge Summary","Nursing Assessment","RMO Note","Other"].map(x => <option key={x}>{x}</option>)}
+                  {["Progress Note","Initial Assessment","Procedure Note","Case Summary","Referral","Consent","Discharge Note"].map(x => <option key={x}>{x}</option>)}
                 </select>
               </div>
               <div><label className="text-xs text-gray-500">Title</label><input value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} className="w-full h-10 px-3 rounded-lg border text-sm" placeholder="Optional title" /></div>
