@@ -113,20 +113,26 @@ export async function GET(req: Request) {
       : Promise.resolve([]),
   ]);
   const latestVitalsByPatient = new Map<string, any>();
+  const considerVitals = (patientId: string, vitals: any) => {
+    if (!patientId) return;
+    const existing = latestVitalsByPatient.get(patientId);
+    const nextTime = new Date(vitals.recordedAt || 0).getTime();
+    const existingTime = new Date(existing?.recordedAt || 0).getTime();
+    if (!existing || nextTime >= existingTime) latestVitalsByPatient.set(patientId, vitals);
+  };
+  // Current snapshot = newest valid vitals across OPD encounters and IPD nursing rounds.
   for (const e of encounters) {
-    if (latestVitalsByPatient.has(e.patientId)) continue;
     if (e.bp || e.pulse || e.rr || e.spo2 || e.temperature || e.weight || e.height) {
-      latestVitalsByPatient.set(e.patientId, {
+      considerVitals(e.patientId, {
         bp: e.bp, pulse: e.pulse, rr: e.rr, spo2: e.spo2, temperature: e.temperature,
         weight: e.weight, height: e.height, recordedAt: e.createdAt.toISOString(), source: "OPD",
       });
     }
   }
   for (const log of vitalLogs) {
-    if (latestVitalsByPatient.has(log.entityId || "")) continue;
     let meta: any = {};
     try { meta = JSON.parse(log.meta || "{}"); } catch {}
-    latestVitalsByPatient.set(log.entityId || "", {
+    considerVitals(log.entityId || "", {
       bp: String(meta.bp || ""), pulse: String(meta.pulse || ""), rr: String(meta.rr || ""),
       spo2: String(meta.spo2 || ""), temperature: String(meta.temperature || ""),
       recordedAt: log.createdAt.toISOString(), source: "IPD",
