@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
     const joinToken = createJoinToken();
     const provider = getVideoProvider();
-    const meetingUrl = createVideoMeetingUrl("pending");
+    const meetingUrl = createVideoMeetingUrl();
     const created = await prisma.telemedicineSession.create({
       data: {
         doctorId: session.doctorId,
@@ -143,25 +143,7 @@ export async function POST(req: Request) {
       select: sessionSelect,
     });
 
-    if (provider === "jitsi" && meetingUrl) {
-      const finalMeetingUrl = meetingUrl.replace("medlum-pending-", `medlum-${created.id}-`);
-      const updated = await prisma.telemedicineSession.update({
-        where: { id: created.id },
-        data: { meetingUrl: finalMeetingUrl },
-        select: sessionSelect,
-      });
-      return NextResponse.json(
-        {
-          success: true,
-          session: updated,
-          patientName: patientName || peerLabel || "Peer consultant",
-          joinToken,
-          sessionKind,
-        },
-        { status: 201 }
-      );
-    }
-
+    // meetingUrl is final high-entropy room (mirotalk/jitsi); no PHI in path
     return NextResponse.json(
       {
         success: true,
