@@ -139,6 +139,7 @@ export default function LabsPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showAdd, setShowAdd] = useState(false);
   const [resultOrder, setResultOrder] = useState<LabOrder | null>(null);
+  const [documentOrder, setDocumentOrder] = useState<LabOrder | null>(null);
   const [form, setForm] = useState({ patientId: "", testName: "", category: "Laboratory", notes: "" });
   const [result, setResult] = useState("");
   const [cbcParams, setCbcParams] = useState<
@@ -414,6 +415,13 @@ export default function LabsPage() {
                             <Link href={`/labs/print?id=${encodeURIComponent(o.id)}`} className="text-center text-[11px] font-medium text-gray-600">
                               Print
                             </Link>
+                            <button
+                              type="button"
+                              onClick={() => setDocumentOrder(o)}
+                              className="rounded-lg border border-[#c2183a]/30 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#c2183a]"
+                            >
+                              Upload report
+                            </button>
                             {isActiveStatus(o.status) && (
                               <button
                                 type="button"
@@ -503,6 +511,36 @@ export default function LabsPage() {
         </div>
       )}
 
+      {documentOrder && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
+          <div className="max-h-[90vh] w-full max-w-md overflow-auto rounded-2xl bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold">Upload lab report</h3>
+                <p className="text-xs text-gray-500">
+                  {documentOrder.patientName} · {documentOrder.testName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDocumentOrder(null)}
+                className="rounded-lg border px-2 py-1 text-xs"
+              >
+                Close
+              </button>
+            </div>
+            <LabResultDocumentPanel
+              labOrderId={documentOrder.id}
+              patientId={documentOrder.patientId}
+              onVerified={async () => {
+                await load();
+                setDocumentOrder(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {resultOrder && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
           <div className="max-h-[90vh] w-full max-w-md overflow-auto rounded-2xl bg-white p-4 shadow-xl">
@@ -539,12 +577,9 @@ export default function LabsPage() {
               <LabResultDocumentPanel
                 labOrderId={resultOrder.id}
                 patientId={resultOrder.patientId}
-                onOcrCandidates={(draft) => {
-                  if (cbcParams.length > 0) {
-                    setParamValues((prev) => ({ ...prev, ...draft }));
-                  } else {
-                    setResult((prev) => prev || Object.entries(draft).map(([k, v]) => `${k}: ${v}`).join("\n"));
-                  }
+                onVerified={async () => {
+                  await load();
+                  setResultOrder(null);
                 }}
               />
               <div className="flex gap-2">
