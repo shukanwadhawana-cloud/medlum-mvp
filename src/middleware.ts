@@ -83,7 +83,7 @@ export function middleware(req: NextRequest) {
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set(
     "Permissions-Policy",
-    'camera=(self "https://meet.jit.si" "https://medlum-mirotalk-p2p.onrender.com"), microphone=(self "https://meet.jit.si" "https://medlum-mirotalk-p2p.onrender.com"), geolocation=(), payment=()'
+    'camera=(self "https://meet.jit.si" "https://medlum-mirotalk-p2p.onrender.com"), microphone=(self "https://meet.jit.si" "https://medlum-mirotalk-p2p.onrender.com"), geolocation=(self), payment=()'
   );
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
