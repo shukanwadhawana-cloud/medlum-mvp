@@ -16,14 +16,14 @@ const checks = [
   ["Author and verifier are distinct relations", /@relation\("ClinicalNoteAuthor"\)/.test(schema) && /@relation\("ClinicalNoteVerifier"\)/.test(schema)],
   ["Clinical signing API exists", route.includes("export async function PATCH") && route.includes('action === "finalize"')],
   ["Self-verification is blocked", route.includes("current.authorDoctorId === session.doctorId")],
-  ["Final signer role is restricted", helper.includes("CLINICAL_VERIFIER_ROLES") && route.includes("canFinalizeClinicalNote"),
+  ["Final signer role is restricted", helper.includes("CLINICAL_VERIFIER_ROLES") && route.includes("canFinalizeClinicalNote")],
   ["Final note integrity is hashed", route.includes("contentHash") && route.includes("finalHash") && helper.includes("createHash")],
   ["Finalization is race-safe", route.includes("Serializable") && route.includes("verifierDoctorId: null") && route.includes("version: current.version")],
-  ["Final notes cannot be edited", route.includes('current.status !== "DRAFT"') && route.includes("Submitted or final notes cannot be edited"),
+  ["Final notes cannot be edited", route.includes('current.status !== "DRAFT"') && route.includes("Submitted or final notes cannot be edited")],
   ["Audit trail records final sign", route.includes('action: "FINAL_SIGN"')],
   ["API client exposes submit/finalize", api.includes("apiSubmitClinicalNote") && api.includes("apiFinalizeClinicalNote")],
   ["UI exposes second verification", patientUi.includes("Second verify + final sign") && patientUi.includes("The author cannot approve their own document")],
-  ["UI exposes locked FINAL state", patientUi.includes("LOCKED FINAL") && patientUi.includes("finalHash"),
+  ["UI exposes locked FINAL state", patientUi.includes("LOCKED FINAL") && patientUi.includes("finalHash")],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);
