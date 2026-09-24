@@ -1,6 +1,11 @@
 name: Patch Duty Schema
+
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/patch-duty-schema.yml"
+
 jobs:
   patch:
     runs-on: ubuntu-latest
