@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
 import { createHash, randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
