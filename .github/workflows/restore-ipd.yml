@@ -1,0 +1,27 @@
+name: Restore IPD page
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore IPD page from 8f5ce70 and fix MLC placeholder
+        run: |
+          git checkout 8f5ce708db8438606e8a12cc4614679463e68d2e -- "src/app/ipd/[id]/page.tsx"
+          python3 -c "
+          s=open('src/app/ipd/[id]/page.tsx').read()
+          s=s.replace('placeholder=\"MLC number\"','placeholder=\"MLC number (if applicable)\"')
+          open('src/app/ipd/[id]/page.tsx','w').write(s)
+          assert 'MLC number (if applicable)' in s
+          print('IPD page restored and MLC fixed', len(s))
+          "
+          git config user.name "shukanwadhawana-cloud"
+          git config user.email "shukanwadhawana@gmail.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git commit -m "fix(ipd): restore full IPD page + MLC number (if applicable)" || echo "no change"
+          git push origin HEAD:main
