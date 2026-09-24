@@ -187,37 +187,47 @@ export default function PatientClinicalChartPage() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 border-t px-3 py-2 bg-[#f8f6fa]">
-            <Link href={`/patients/${id}`} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Full record</Link>
-            <Link href={`/patients/${id}`} className="h-8 px-2.5 rounded-lg bg-[#c2183a] text-white text-[11px] font-medium inline-flex items-center">New consult</Link>
-            <button type="button" onClick={() => setTab("orders")} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Order labs / imaging</button>
-            <button type="button" onClick={() => setTab("rx")} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Prescribe</button>
-            <button type="button" onClick={() => setTab("notes")} className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Add note</button>
-            <Link href="/labs" className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Labs queue</Link>
-            <Link href="/prescriptions" className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">Prescriptions</Link>
-            {careSetting === "IPD" && (
-              <Link href="/ipd-summaries" className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">IPD summaries</Link>
-            )}
-            <Link href="/ipd" className="h-8 px-2.5 rounded-lg border bg-white text-[11px] font-medium inline-flex items-center">IPD board</Link>
-          </div>
+
         </div>
 
-        <div className="overflow-x-auto -mx-1 px-1">
-          <div className="inline-flex min-w-full gap-1 rounded-xl border bg-white p-1">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition ${
-                  tab === t.id ? "bg-[#140a1f] text-white" : "text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <div className="grid gap-3 lg:grid-cols-[13rem_minmax(0,1fr)] items-start">
+          <aside className="rounded-xl border bg-white p-2 lg:sticky lg:top-3">
+            <div className="px-2 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Quick actions</p>
+              <p className="mt-0.5 text-[11px] text-gray-400">Actions create or update the chart. The chart itself stays in the main panel.</p>
+            </div>
+            <div className="space-y-1">
+              <Link href={`/patients/${id}`} className="flex min-h-9 items-center rounded-lg bg-[#c2183a] px-2.5 text-xs font-semibold text-white">New consult</Link>
+              <button type="button" onClick={() => setTab("orders")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Order labs / imaging</button>
+              <button type="button" onClick={() => setTab("rx")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Prescribe</button>
+              <button type="button" onClick={() => setTab("notes")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Add note</button>
+              <Link href="/labs" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Labs queue</Link>
+              <Link href="/prescriptions" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Prescriptions</Link>
+              {careSetting === "IPD" && (
+                <Link href="/ipd-summaries" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">IPD summaries</Link>
+              )}
+              <Link href="/ipd" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">IPD board</Link>
+              <Link href={`/patients/${id}`} className="flex min-h-9 items-center rounded-lg border bg-[#f8f6fa] px-2.5 text-xs font-medium">Full record</Link>
+            </div>
+          </aside>
+
+          <main className="min-w-0">
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div className="inline-flex min-w-full gap-1 rounded-xl border bg-white p-1">
+                {TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTab(t.id)}
+                    className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                      tab === t.id ? "bg-[#140a1f] text-white" : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
         {tab === "overview" && (
           <div className="grid gap-3 lg:grid-cols-2">
@@ -331,6 +341,10 @@ export default function PatientClinicalChartPage() {
           <ClinicalNotesPanel
             patientId={String(id)}
             encounters={encounters}
+            labs={labs}
+            diagnostics={diagnostics}
+            prescriptions={prescriptions}
+            profile={profile}
             onSaved={async () => { await load(); }}
           />
         )}
@@ -469,6 +483,8 @@ export default function PatientClinicalChartPage() {
             )}
           </Section>
         )}
+          </main>
+        </div>
       </div>
     </AppShell>
   );
