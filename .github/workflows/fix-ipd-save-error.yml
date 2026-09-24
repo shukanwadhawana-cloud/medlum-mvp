@@ -1,0 +1,61 @@
+name: Fix IPD save error handling
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply IPD failed-save handling contracts
+        run: |
+          python3 << 'PY'
+          path = "src/app/ipd/[id]/page.tsx"
+          s = open(path).read()
+          # 1) Shared run() must isolate post-save refresh failure
+          old_run = 'const run=async(body:any,success:string)=>{setSaving(true);setError("");setMsg("");try{await post(body);setMsg(success);await load();return true}catch(e:any){setMsg("");setError(e.message||"Could not save IPD record");return false}finally{setSaving(false)}};'
+          new_run = 'const run=async(body:any,success:string)=>{setSaving(true);setError("");setMsg("");try{await post(body);try{await load()}catch(e:any){setError(e.message||"Saved, but the IPD workspace could not be refreshed.");return true}setMsg(success);return true}catch(e:any){setMsg("");setError(e.message||"Could not save IPD record");return false}finally{setSaving(false)}};'
+          if old_run not in s:
+              # try a more flexible match
+              import re
+              m = re.search(r'const run=async\(body:any,success:string\)=>\{[^;]+\};', s)
+              if not m:
+                  raise SystemExit('run() not found')
+              s = s[:m.start()] + new_run + s[m.end():]
+              print('run() replaced via regex')
+          else:
+              s = s.replace(old_run, new_run)
+              print('run() replaced exact')
+          # 2) Accessible alert/status live regions
+          s = s.replace(
+              'error&&<div role="alert" className="mb-3 bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>',
+              'error&&<div role="alert" aria-live="assertive" className="mb-3 bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>'
+          )
+          s = s.replace(
+              'msg&&<div role="status" className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{msg}</div>',
+              'msg&&<div role="status" aria-live="polite" className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{msg}</div>'
+          )
+          checks = [
+              'd.success!==true',
+              '!r.ok||d.success!==true',
+              'setMsg("");setError(e.message||"Could not save IPD record")',
+              'try{await load()}catch(e:any){setError(e.message||"Saved, but the IPD workspace could not be refreshed.',
+              'role="alert" aria-live="assertive"',
+              'role="status" aria-live="polite"',
+              'if(!(await run({action:"clinical-note"',
+              'if(!(await run({action:"lab-order"',
+              'if(!(await run({action:"vitals"',
+              'if(!(await run({action:"register"',
+          ]
+          missing = [c for c in checks if c not in s]
+          if missing:
+              raise SystemExit('still missing: ' + str(missing))
+          open(path, 'w').write(s)
+          print('IPD save-error handling PASS locally, len', len(s))
+          PY
+          git config user.name "shukanwadhawana-cloud"
+          git config user.email "shukanwadhawana@gmail.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git commit -m "fix(ipd): failed-save handling — refresh isolation + aria-live alerts" || echo nochange
+          git push origin HEAD:main
