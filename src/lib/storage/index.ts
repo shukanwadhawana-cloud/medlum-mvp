@@ -34,11 +34,12 @@ export function getStorageProvider(): StorageProvider {
       );
     }
   }
-  // Local filesystem is not durable on serverless (ENOENT under /var/task).
-  if (isServerlessRuntime() || process.env.NODE_ENV === "production") {
-    throw new Error(
-      "Secure medical document storage is not configured. Set STORAGE_PROVIDER=r2 with R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET (and optional R2_ENDPOINT). Local filesystem storage is not available on production/serverless hosts."
-    );
+  // Local filesystem is not available on production/serverless hosts (not durable).
+  // Prefer explicit R2 when configured; otherwise zero-cost processed provider.
+  if (provider === "processed" || isServerlessRuntime() || process.env.NODE_ENV === "production") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require("./processed") as typeof import("./processed");
+    return mod.createProcessedStorageProvider();
   }
   return createLocalStorageProvider();
 }
