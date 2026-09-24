@@ -6,7 +6,7 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
 import AbhaPatientPanel from "@/components/AbhaPatientPanel";
-import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment, apiCreateLabOrder, apiCreateDiagnosticOrder, apiGetClinicalNotes, apiCreateClinicalNote, apiSaveClinicalDraft, apiSubmitClinicalNote, apiFinalizeClinicalNote } from "@/lib/api";
+import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment, apiCreateLabOrder, apiCreateDiagnosticOrder, apiGetClinicalNotes, apiCreateClinicalNote, apiSaveClinicalDraft, apiSubmitClinicalNote, apiFinalizeClinicalNote, apiCancelRecord } from "@/lib/api";
 
 type TimelineItem = { date: string; kind: string; title: string; detail?: string; sort: number };
 
@@ -143,6 +143,16 @@ export default function PatientDetailPage() {
     setClinicalNotes(await apiGetClinicalNotes(id));
   };
 
+  const cancelRecord = async (entity: string, recordId: string) => {
+    const reason = window.prompt("Enter the reason for cancellation:");
+    if (!reason?.trim()) return;
+    const res = await apiCancelRecord(entity, recordId, reason.trim());
+    if (!res.success) { setMsg(res.error || "Could not cancel record"); return; }
+    setMsg(res.deleted ? "Draft cancelled and deleted." : "Record cancelled. The cancellation is retained in the audit trail.");
+    await load();
+    setClinicalNotes(await apiGetClinicalNotes(id));
+  };
+
   const finalSignClinicalNote = async (noteId: string) => {
     const res = await apiFinalizeClinicalNote(noteId);
     if (!res.success) { setMsg(res.error || "Could not final-sign note"); return; }
@@ -237,6 +247,7 @@ export default function PatientDetailPage() {
             {!data.encounters?.length ? <Empty text="No consultations yet." /> : data.encounters.map((e: any) => (
               <div key={e.id} className="px-3 py-2.5 border-b last:border-0">
                 <p className="text-xs text-gray-400">{e.date}</p>
+                <div className="flex items-center justify-between gap-2"><span className="text-[11px] text-gray-400">{e.status || "CONFIRMED"}</span>{e.status !== "CANCELLED" && <button type="button" onClick={() => cancelRecord("Encounter", e.id)} className="px-2 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>}</div>
                 {e.chiefComplaint && <p className="text-sm mt-0.5"><b>Complaint:</b> {e.chiefComplaint}</p>}
                 {e.diagnosis && <p className="text-sm"><b>Dx:</b> {e.diagnosis}</p>}
                 {e.assessment && <p className="text-xs text-gray-600"><b>Assessment:</b> {e.assessment}</p>}
@@ -249,7 +260,7 @@ export default function PatientDetailPage() {
           <Sec title="Lab Orders & Results">
             {!data.labOrders?.length ? <Empty text="No lab orders." /> : data.labOrders.map((l: any) => (
               <div key={l.id} className="px-3 py-2.5 border-b last:border-0">
-                <p className="text-sm font-medium">{l.testName} <span className="text-xs text-gray-400 font-normal">{l.status}</span></p>
+                <div className="flex items-center justify-between gap-2"><p className="text-sm font-medium">{l.testName} <span className="text-xs text-gray-400 font-normal">{l.status}</span></p>{l.status !== "Cancelled" && <button type="button" onClick={() => cancelRecord("LabOrder", l.id)} className="px-2 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>}</div>
                 {l.result && <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{l.result}</p>}
               </div>
             ))}
@@ -258,7 +269,7 @@ export default function PatientDetailPage() {
           <Sec title="Diagnostics & Reports">
             {!data.diagnosticOrders?.length ? <Empty text="No diagnostics." /> : data.diagnosticOrders.map((d: any) => (
               <div key={d.id} className="px-3 py-2.5 border-b last:border-0">
-                <p className="text-sm font-medium">{d.studyName} <span className="text-xs text-gray-400 font-normal">{d.modality} · {d.status}</span></p>
+                <div className="flex items-center justify-between gap-2"><p className="text-sm font-medium">{d.studyName} <span className="text-xs text-gray-400 font-normal">{d.modality} · {d.status}</span></p>{d.status !== "Cancelled" && <button type="button" onClick={() => cancelRecord("DiagnosticOrder", d.id)} className="px-2 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>}</div>
                 {d.impression && <p className="text-xs text-gray-600 mt-0.5">{d.impression}</p>}
               </div>
             ))}
@@ -266,7 +277,7 @@ export default function PatientDetailPage() {
 
           <Sec title="Clinical Notes & Final Signing">
             <div className="px-3 py-3 border-b">
-              <p className="text-xs text-gray-500 mb-2">Clinical documentation uses two-person finalization: the author cannot final-sign their own note.</p>
+              <p className="text-xs text-gray-500 mb-2">Every clinical action requires confirmation. Drafts can be cancelled and deleted; submitted/final records can be cancelled with an audit trail.</p>
               <button type="button" onClick={() => { setEditingNoteId(null); setNoteType("Consultant Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(true); }} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium">
                 + New clinical note / summary
               </button>
@@ -282,17 +293,21 @@ export default function PatientDetailPage() {
                     <div className="flex gap-1.5">
                       <button type="button" onClick={() => { setEditingNoteId(n.id); setNoteType(n.noteType); setNoteTitle(n.title || ""); setNoteContent(n.content); setNoteError(""); setShowNoteComposer(true); }} className="px-2.5 py-1.5 rounded-lg border text-[11px]">Edit draft</button>
                       <button type="button" onClick={() => submitClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Submit for verification</button>
+                      <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel draft</button>
                     </div>
                   )}
                   {n.status === "PENDING_VERIFICATION" && n.author?.id !== doctor?.id && (
-                    <button type="button" onClick={() => finalSignClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Second verify + final sign</button>
+                    <div className="flex gap-1.5">
+                      <button type="button" onClick={() => finalSignClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Second verify + final sign</button>
+                      <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>
+                    </div>
                   )}
                 </div>
                 <p className="text-xs text-gray-700 mt-2 whitespace-pre-wrap">{n.content}</p>
                 <div className="text-[10px] text-gray-500 mt-2 space-y-0.5">
                   <p>Author: {n.author?.name || "Unknown"}</p>
                   {n.verifier && <p>Final verifier: {n.verifier.name} · {n.finalizedAt ? new Date(n.finalizedAt).toLocaleString() : ""}</p>}
-                  {n.status === "FINAL" && <p className="font-medium">LOCKED FINAL · hash {String(n.finalHash || "").slice(0, 16)}…</p>}
+                  {n.status === "FINAL" && <><p className="font-medium">LOCKED FINAL · hash {String(n.finalHash || "").slice(0, 16)}…</p><button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="mt-1 px-2.5 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel final record</button></>}
                 </div>
               </div>
             ))}
@@ -302,7 +317,7 @@ export default function PatientDetailPage() {
             {!data.prescriptions?.length ? <Empty text="No prescriptions." /> : data.prescriptions.map((r: any) => (
               <div key={r.id} className="px-3 py-2.5 border-b last:border-0">
                 <p className="text-xs text-gray-400">{new Date(r.createdAt).toLocaleDateString()}</p>
-                <p className="text-sm whitespace-pre-wrap">{r.medicines}</p>
+                <div className="flex items-center justify-between gap-2"><p className="text-sm whitespace-pre-wrap">{r.medicines}</p>{r.status !== "CANCELLED" && <button type="button" onClick={() => cancelRecord("Prescription", r.id)} className="px-2 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>}</div>
                 {r.advice && <p className="text-xs text-gray-600 mt-0.5">{r.advice}</p>}
               </div>
             ))}
@@ -343,7 +358,7 @@ export default function PatientDetailPage() {
               <div><label className="text-xs text-gray-500">Bill amount (₹)</label><input type="number" min="0" step="1" value={form.billAmount} onChange={(e) => setForm({ ...form, billAmount: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowConsult(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
-                <button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Save Consultation"}</button>
+                <button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Confirm & Save Consultation"}</button>
               </div>
             </form>
           </Modal>
