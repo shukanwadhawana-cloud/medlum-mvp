@@ -11,7 +11,7 @@ import LabResultDocumentPanel from "@/components/LabResultDocumentPanel";
 import { formatIst } from "@/lib/time";
 import { parseCareSetting } from "@/lib/patient-metadata";
 
-type Patient = { id: string; name: string; uhid?: string; registrationNo?: string };
+type Patient = { id: string; name: string; uhid?: string; registrationNo?: string; notes?: string };
 type LabOrder = {
   id: string;
   patientId: string;
