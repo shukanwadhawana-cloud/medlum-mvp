@@ -66,8 +66,8 @@ function buildCsp(): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://api.eka.care https://meet.jit.si wss://meet.jit.si",
-    "frame-src 'self' https://meet.jit.si https://*.jit.si https://api.razorpay.com https://checkout.razorpay.com",
+    "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com https://api.eka.care https://meet.jit.si wss://meet.jit.si https://medlum-mirotalk-p2p.onrender.com wss://medlum-mirotalk-p2p.onrender.com",
+    "frame-src 'self' https://meet.jit.si https://*.jit.si https://medlum-mirotalk-p2p.onrender.com https://api.razorpay.com https://checkout.razorpay.com",
     "media-src 'self' blob:",
     "worker-src 'self' blob:",
   ].join("; ");
@@ -83,7 +83,7 @@ export function middleware(req: NextRequest) {
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set(
     "Permissions-Policy",
-    'camera=(self "https://meet.jit.si"), microphone=(self "https://meet.jit.si"), geolocation=(), payment=()'
+    'camera=(self "https://meet.jit.si" "https://medlum-mirotalk-p2p.onrender.com"), microphone=(self "https://meet.jit.si" "https://medlum-mirotalk-p2p.onrender.com"), geolocation=(), payment=()'
   );
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
