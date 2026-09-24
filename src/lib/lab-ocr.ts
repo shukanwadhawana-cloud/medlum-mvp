@@ -70,7 +70,7 @@ function extractCandidates(text: string): Record<string, string> {
 
 async function ocrImage(data: Buffer): Promise<string> {
   const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng");
+  const worker = await createWorker("eng", 1, {\n    workerPath: process.cwd() + "/node_modules/tesseract.js/src/worker-script/node/index.js",\n  });
   try {
     const result = await worker.recognize(data);
     return String(result?.data?.text || "");
