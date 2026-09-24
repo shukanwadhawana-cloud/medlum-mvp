@@ -1,5 +1,6 @@
 /**
- * Optional Saniddhi outbound adapter for MedLum Duty.
+ * Optional Saniddhi outbound adapter (your internal attendance build).
+ * When Saniddhi is not reachable, MedLum Duty runs fully natively (PeopleStrong-style).
  * Credentials via env only — never commit secrets.
  *
  * SANIDDHI_BASE_URL=
@@ -31,10 +32,6 @@ export function isSaniddhiConfigured(): boolean {
   return Boolean(process.env.SANIDDHI_BASE_URL?.trim() && process.env.SANIDDHI_API_KEY?.trim());
 }
 
-/**
- * Push a MedLum Duty event to Saniddhi when configured.
- * Failures do not roll back MedLum attendance (MedLum is source of truth).
- */
 export async function pushPunchToSaniddhi(payload: SaniddhiPunchPayload): Promise<SaniddhiSyncResult> {
   const base = process.env.SANIDDHI_BASE_URL?.trim().replace(/\/+$/, "");
   const key = process.env.SANIDDHI_API_KEY?.trim();
