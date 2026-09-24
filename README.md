@@ -55,3 +55,6 @@ Render is the canonical production deployment for this repository. Vercel is not
 ## Runner diagnostic
 
 This harmless marker is used to verify that GitHub-hosted Actions can execute a public-repository workflow independently of private-repository billing configuration.
+
+
+Record lifecycle: clinical records require explicit confirmation; drafts may be deleted on cancellation, while submitted/final records are cancelled with an auditable retained state.
