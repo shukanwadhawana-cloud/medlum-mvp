@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 const route=fs.readFileSync("src/app/api/ipd/route.ts","utf8");
-const page=fs.readFileSync("src/app/ipd/page.tsx","utf8");
+const page=fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const pkg=fs.readFileSync("package.json","utf8");
 const ci=fs.readFileSync(".github/workflows/ci.yml","utf8");
 const p201=fs.readFileSync("scripts/verify-p2-01-ipd-discharge.mjs","utf8");
