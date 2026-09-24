@@ -26,12 +26,12 @@ function MoreSidebar({ open, onClose, pathname, onLogout, isOwner }: { open: boo
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted || !open) return null;
-  const groups = [{ label: "Clinical", items: primaryNav }, { label: "Operations & settings", items: operationsNav }];
+  const groups = [{ label: "Operations & settings", items: operationsNav }];
   return createPortal(
     <div className="fixed inset-0 z-[60]">
       <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={onClose} />
       <aside className="absolute right-0 top-0 flex h-full w-[min(22rem,92vw)] flex-col bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3"><p className="text-sm font-semibold text-[#140a1f]">All modules</p><button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button></div>
+        <div className="flex items-center justify-between border-b px-4 py-3"><p className="text-sm font-semibold text-[#140a1f]">Menu</p><button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button></div>
         <div className="flex-1 overflow-y-auto p-3">
           {groups.map((group) => (
             <div key={group.label} className="mb-4">
@@ -41,7 +41,6 @@ function MoreSidebar({ open, onClose, pathname, onLogout, isOwner }: { open: boo
               ))}
             </div>
           ))}
-          {isOwner && <Link href="/owner" onClick={onClose} className="mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm text-[#140a1f]"><Icon name="owner" size={16} /><span>Owner dashboard</span></Link>}
         </div>
         <div className="border-t p-3"><button type="button" onClick={() => { onClose(); onLogout(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white">Logout</button></div>
       </aside>
