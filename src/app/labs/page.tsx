@@ -9,6 +9,7 @@ import { apiCreateLabOrder, apiGetLabOrders, apiGetPatients, apiUpdateLabOrder }
 import { LAB_CATALOG } from "@/lib/diagnostic-catalog";
 import LabResultDocumentPanel from "@/components/LabResultDocumentPanel";
 import { formatIst } from "@/lib/time";
+import { parseCareSetting } from "@/lib/patient-metadata";
 
 type Patient = { id: string; name: string; uhid?: string; registrationNo?: string };
 type LabOrder = {
@@ -135,6 +136,7 @@ export default function LabsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [orders, setOrders] = useState<LabOrder[]>([]);
   const [queueTab, setQueueTab] = useState<"active" | "history">("active");
+  const [careSetting, setCareSetting] = useState<"OPD" | "IPD">("OPD");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showAdd, setShowAdd] = useState(false);
@@ -191,7 +193,16 @@ export default function LabsPage() {
     return list;
   }, [orders, queueTab, search]);
 
-  const groups = useMemo(() => groupByPatient(filtered), [filtered]);
+  const visibleOrders = useMemo(() => {
+    const patientById = new Map(patients.map((p) => [p.id, p]));
+    return filtered.filter((o) => {
+      const patient = patientById.get(o.patientId);
+      const setting = parseCareSetting(patient?.notes || "") === "IPD" ? "IPD" : "OPD";
+      return setting === careSetting;
+    });
+  }, [filtered, patients, careSetting]);
+
+  const groups = useMemo(() => groupByPatient(visibleOrders), [visibleOrders]);
 
   const counts = useMemo(
     () => ({
@@ -329,6 +340,25 @@ export default function LabsPage() {
         </div>
       </div>
 
+      <div className="mb-3 rounded-xl border bg-gray-50 p-1">
+        <div className="grid grid-cols-2 gap-1" role="tablist" aria-label="Laboratory care setting">
+          {(["OPD", "IPD"] as const).map((setting) => (
+            <button
+              key={setting}
+              type="button"
+              role="tab"
+              aria-selected={careSetting === setting}
+              onClick={() => setCareSetting(setting)}
+              className={`min-h-10 rounded-lg px-3 text-sm font-semibold transition ${
+                careSetting === setting ? "bg-white text-[#140a1f] shadow-sm" : "text-gray-500"
+              }`}
+            >
+              {setting}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -360,13 +390,15 @@ export default function LabsPage() {
       <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
         {groups.length === 0 ? (
           <div className="p-8 text-center text-sm text-gray-500">
-            {queueTab === "active" ? "No active laboratory work." : "No historical investigations in this view."}
+            {queueTab === "active"
+              ? `No active ${careSetting} laboratory work.`
+              : `No historical ${careSetting} investigations in this view.`}
           </div>
         ) : (
           <div className="divide-y">
             {groups.map((g) => {
               const groupKey = `${g.patientId}::${g.encounterId || "none"}`;
-              const open = expanded[groupKey] ?? true;
+              const open = expanded[groupKey] ?? (careSetting === "OPD");
               return (
                 <div key={groupKey} className="p-3">
                   <button
@@ -382,7 +414,7 @@ export default function LabsPage() {
                         <span className="font-medium text-gray-700">{g.encounterType}</span>
                         {g.encounterId ? ` · ${g.encounterId.slice(0, 8)}` : ""}
                         {" · "}
-                        {g.orders.length} test{g.orders.length === 1 ? "" : "s"}
+                        {g.orders.length} investigation{g.orders.length === 1 ? "" : "s"}
                         {g.pendingCount > 0 ? ` · ${g.pendingCount} pending` : ""}
                       </p>
                     </div>
