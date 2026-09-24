@@ -204,6 +204,7 @@ model Encounter {
   pulse            String            @default("")
   temperature      String            @default("")
   spo2             String            @default("")
+  rr               String            @default("")
   weight           String            @default("")
   height           String            @default("")
   status           String            @default("CONFIRMED")
@@ -223,7 +224,7 @@ model Encounter {
 
   @@index([doctorId])
   @@index([patientId])
-  @@index([appointmentId])  rr               String            @default("")
+  @@index([appointmentId])
 
 }
 
