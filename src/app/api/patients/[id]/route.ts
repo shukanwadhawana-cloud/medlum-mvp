@@ -26,10 +26,62 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const billingDetail = canViewBillingDetail(membership.role);
   const billingSummary = canViewBillingSummary(membership.role);
 
-  const appointments = await prisma.appointment.findMany({
-    where: { patientId: id },
-    orderBy: { createdAt: "desc" },
-  });
+  const [appointments, latestEncounterVital, latestNursingVital] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { patientId: id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.encounter.findFirst({
+      where: {
+        patientId: id,
+        OR: [
+          { bp: { not: "" } },
+          { pulse: { not: "" } },
+          { rr: { not: "" } },
+          { spo2: { not: "" } },
+          { temperature: { not: "" } },
+          { weight: { not: "" } },
+          { height: { not: "" } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.auditLog.findFirst({
+      where: { entity: "NursingVital", entityId: id },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  let latestVitals: any = null;
+  if (latestEncounterVital) {
+    latestVitals = {
+      bp: latestEncounterVital.bp,
+      pulse: latestEncounterVital.pulse,
+      rr: latestEncounterVital.rr,
+      spo2: latestEncounterVital.spo2,
+      temperature: latestEncounterVital.temperature,
+      weight: latestEncounterVital.weight,
+      height: latestEncounterVital.height,
+      recordedAt: latestEncounterVital.createdAt.toISOString(),
+      source: "OPD",
+    };
+  }
+  if (latestNursingVital) {
+    let meta: any = {};
+    try { meta = JSON.parse(latestNursingVital.meta || "{}"); } catch {}
+    const nursingVitals = {
+      bp: String(meta.bp || ""),
+      pulse: String(meta.pulse || ""),
+      rr: String(meta.rr || ""),
+      spo2: String(meta.spo2 || ""),
+      temperature: String(meta.temperature || ""),
+      recordedAt: latestNursingVital.createdAt.toISOString(),
+      source: "IPD",
+    };
+    if (!latestVitals || new Date(nursingVitals.recordedAt).getTime() > new Date(latestVitals.recordedAt).getTime()) {
+      latestVitals = nursingVitals;
+    }
+  }
 
   const base = {
     patient: {
@@ -40,6 +92,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       phone: patient.phone,
       bp: patient.bp,
       allergies: patient.allergies,
+      latestVitals,
       notes: fullClinical ? patient.notes : "",
       uhid: patient.uhid || "",
       registrationNo: patient.registrationNo || "",
