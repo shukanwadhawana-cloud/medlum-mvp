@@ -24,21 +24,30 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$VERCEL_TOKEN" ]; then
-            echo "VERCEL_TOKEN is not configured in GitHub Actions. Vercel production deployment is managed by the connected Vercel project; skipping the legacy token-based deploy step."
-            exit 0
+            echo "VERCEL_TOKEN is not configured; relying on the connected Vercel Git integration."
+          else
+            npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
           fi
-          npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
-      - name: Verify production catalog endpoint
+      - name: Verify production serves exact Git SHA
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
-          set -e
+          set -euo pipefail
+          URL="https://medlum-mvp.vercel.app/api/health"
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            BODY="$(curl -fsS --max-time 20 https://medlum-mvp.vercel.app/api/investigation-catalog-version || true)"
+            BODY="$(curl -fsS --max-time 20 "$URL" || true)"
             echo "$BODY"
-            if echo "$BODY" | grep -q 'expanded-specialty-v2'; then
-              echo "Production investigation catalog is live."
+            DEPLOYED_SHA="$(printf '%s' "$BODY" | node -e '
+              let s="";
+              process.stdin.on("data",d=>s+=d);
+              process.stdin.on("end",()=>{try{console.log(JSON.parse(s).gitSha||"")}catch{console.log("")}})
+            ')"
+            if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
+              echo "Vercel production is serving the exact triggering commit."
               exit 0
             fi
+            echo "Waiting for Vercel production to serve $EXPECTED_SHA (currently $DEPLOYED_SHA)."
             sleep 15
           done
-          echo "Production catalog endpoint did not expose the new catalog."
+          echo "Vercel production did not expose the expected Git SHA."
           exit 1
