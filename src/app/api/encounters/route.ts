@@ -77,7 +77,7 @@ export async function POST(req: Request) {
       const note = content
         ? await tx.clinicalNote.create({
             data: {
-              clinicId: patient.clinicId!,
+              clinicId: membership.clinicId,
               patientId,
               encounterId: encounter.id,
               authorDoctorId: session.doctorId,
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
         : null;
       return { encounter, note };
     });
-    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Encounter", entityId: result.encounter.id, clinicId: patient.clinicId, meta: { patientId, clinicalNoteId: result.note?.id || null, signingStatus: result.note?.status || null } });
+    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Encounter", entityId: result.encounter.id, clinicId: membership.clinicId, meta: { patientId, clinicalNoteId: result.note?.id || null, signingStatus: result.note?.status || null } });
     return NextResponse.json({ success: true, encounter: result.encounter, clinicalNote: result.note });
   } catch (e) {
     console.error("create encounter", e);
