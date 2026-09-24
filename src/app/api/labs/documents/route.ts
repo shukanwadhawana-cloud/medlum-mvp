@@ -165,7 +165,7 @@ export async function POST(req: Request) {
     } catch {
       ocrStatus = "FAILED";
       ocrDraft = JSON.stringify({ candidates: {}, warnings: [], machineExtracted: true, verified: false });
-      ocrMessage = "OCR assist failed; enter results manually.";
+      ocrMessage = "OCR processing failed. The report was not converted into clinical truth; diagnostic status is retained for investigation.";
     }
 
     const doc = await prisma.medicalDocument.create({
