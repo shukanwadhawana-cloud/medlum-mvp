@@ -198,7 +198,6 @@ export default function PatientsPage() {
               })}
             </div>
           )}
-        </div>
           </div>
         </div>
       </div>
