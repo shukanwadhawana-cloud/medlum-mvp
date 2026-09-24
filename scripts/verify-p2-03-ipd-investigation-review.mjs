@@ -4,8 +4,9 @@ import assert from "node:assert/strict";
 const page=fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const labs=fs.readFileSync("src/app/api/labs/route.ts","utf8");
 
-for (const x of ["selected.investigationOrders","Investigation Results","Mark reviewed",'status:"Reviewed"',"credentials:\"include\"","patientId!==selected.id"])
+for (const x of ["Investigation Results","Mark reviewed",'status:"Reviewed"',"credentials:\"include\"","patientId!==selected.id"])
   assert(page.includes(x),`P2-03 UI regression missing: ${x}`);
+assert(page.includes("selected.investigationOrders") || page.includes("selected?.investigationOrders"),"P2-03 UI regression missing: selected.investigationOrders");
 
 for (const x of ['if (status === "Reviewed")',"already clinically reviewed","must have an available result before review","A result is required before clinical review.","existing.status === \"Reviewed\" || existing.status === \"Completed\"","entity: \"LabOrder\""])
   assert(labs.includes(x),`P2-03 API regression missing: ${x}`);
