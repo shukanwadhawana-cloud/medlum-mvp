@@ -11,6 +11,8 @@ import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounte
 type TimelineItem = { date: string; kind: string; title: string; detail?: string; sort: number };
 
 const COMMON_LAB_TESTS = ["CBC", "LFT", "KFT", "Lipid Profile", "HbA1c", "TSH", "Urine Routine", "Blood Sugar"];
+const CONSULT_DRAFT_KEY_PREFIX = "medlum:consult-draft:";
+
 const COMMON_DIAGNOSTICS = [
   { studyName: "Chest X-ray", modality: "X-ray" },
   { studyName: "Ultrasound Abdomen", modality: "Ultrasound" },
@@ -50,6 +52,8 @@ export default function PatientDetailPage() {
   });
   const [selectedLabs, setSelectedLabs] = useState<string[]>([]);
   const [selectedDiagnostics, setSelectedDiagnostics] = useState<string[]>([]);
+  const [hasConsultDraft, setHasConsultDraft] = useState(false);
+  const [consultDraftSavedAt, setConsultDraftSavedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -65,6 +69,18 @@ export default function PatientDetailPage() {
     if (!doctor) { router.replace("/login"); return; }
     void load();
   }, [authLoading, doctor, load, router]);
+
+  const consultDraftKey = id ? CONSULT_DRAFT_KEY_PREFIX + id : "";
+
+  useEffect(() => {
+    if (!consultDraftKey || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(consultDraftKey);
+      if (!raw) { setHasConsultDraft(false); setConsultDraftSavedAt(null); return; }
+      const draft = JSON.parse(raw);
+      if (draft?.form) { setHasConsultDraft(true); setConsultDraftSavedAt(draft.savedAt || null); }
+    } catch { window.localStorage.removeItem(consultDraftKey); setHasConsultDraft(false); setConsultDraftSavedAt(null); }
+  }, [consultDraftKey]);
 
   const p = data?.patient;
   const lastEncounter = data?.encounters?.[0];
@@ -83,6 +99,35 @@ export default function PatientDetailPage() {
     (data.invoices || []).forEach((i: any) => items.push({ date: new Date(i.createdAt).toLocaleDateString(), kind: "Billing", title: `₹${i.amount}`, detail: i.note || "Fee", sort: new Date(i.createdAt).getTime() }));
     return items.sort((a, b) => b.sort - a.sort);
   }, [data]);
+
+  const saveConsultDraft = () => {
+    if (!consultDraftKey || typeof window === "undefined") return;
+    const savedAt = new Date().toISOString();
+    window.localStorage.setItem(consultDraftKey, JSON.stringify({ form, selectedLabs, selectedDiagnostics, savedAt }));
+    setHasConsultDraft(true); setConsultDraftSavedAt(savedAt);
+    setMsg("Consultation saved as draft on this device. It has not been added to the clinical record.");
+  };
+
+  const restoreConsultDraft = () => {
+    if (!consultDraftKey || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(consultDraftKey); if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft?.form) setForm(draft.form);
+      if (Array.isArray(draft.selectedLabs)) setSelectedLabs(draft.selectedLabs);
+      if (Array.isArray(draft.selectedDiagnostics)) setSelectedDiagnostics(draft.selectedDiagnostics);
+      setShowConsult(true); setMsg("Draft restored. Review it before confirming and saving.");
+    } catch { setMsg("Could not restore the consultation draft."); }
+  };
+
+  const cancelConsultDraft = () => {
+    if (!window.confirm("Cancel this consultation draft?\n\nThe unsaved consultation will be discarded from this device and will not be added to the clinical record.")) return;
+    if (consultDraftKey) window.localStorage.removeItem(consultDraftKey);
+    setHasConsultDraft(false); setConsultDraftSavedAt(null);
+    setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
+    setSelectedLabs([]); setSelectedDiagnostics([]); setShowConsult(false);
+    setMsg("Consultation draft cancelled and discarded.");
+  };
 
   const handleSaveConsult = async (e: React.FormEvent) => {
     e.preventDefault(); setError(""); setSaving(true);
@@ -105,7 +150,9 @@ export default function PatientDetailPage() {
       if (form.medicines.trim()) await apiAddPrescriptionWithEncounter({ patientId: id, patientName: data?.patient?.name || "", medicines: form.medicines.trim(), advice: form.advice.trim(), encounterId: enc.encounter.id });
       const amt = parseFloat(form.billAmount);
       if (amt > 0) await apiAddInvoice({ patientId: id, items: [{ description: "Consultation fee", category: "Service", quantity: 1, unitPrice: amt }], note: form.diagnosis ? `Consultation: ${form.diagnosis}` : "Consultation fee" });
-      setMsg("Consultation saved.");
+      if (consultDraftKey) window.localStorage.removeItem(consultDraftKey);
+      setHasConsultDraft(false); setConsultDraftSavedAt(null);
+      setMsg("Consultation confirmed and saved.");
       setShowConsult(false);
       setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
       setSelectedLabs([]);
@@ -194,6 +241,7 @@ export default function PatientDetailPage() {
           <div className="flex flex-wrap gap-2">
             <Link href={`/patients/${id}/chart`} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium inline-flex items-center">Clinical chart</Link>
             <button type="button" onClick={() => setShowConsult(true)} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">New consult</button>
+            {hasConsultDraft && <button type="button" onClick={restoreConsultDraft} className="h-9 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium">Restore draft</button>}
             <button type="button" onClick={() => setShowFollowUp(true)} className="h-9 px-3 rounded-lg border text-xs font-medium">Follow-up</button>
             <Link href="/patients" className="h-9 px-3 rounded-lg border text-xs font-medium inline-flex items-center">Back</Link>
           </div>
