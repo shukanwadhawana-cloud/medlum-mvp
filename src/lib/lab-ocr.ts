@@ -104,7 +104,7 @@ async function extractPdf(
       const content = await page.getTextContent();
       textParts.push(
         content.items
-          .map((item: { str?: string }) => item.str || "")
+          .map((item) => ("str" in item ? item.str : ""))
           .join(" ")
       );
       page.cleanup();
@@ -151,7 +151,7 @@ async function extractPdf(
       const { canvas, context } = factory.create(viewport.width, viewport.height);
 
       await page.render({
-        canvasContext: context,
+        canvasContext: context as any,
         viewport,
         canvasFactory: factory,
       }).promise;
