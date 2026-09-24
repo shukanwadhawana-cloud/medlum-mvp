@@ -7,6 +7,7 @@ import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic
 /**
  * Human verification of OCR draft.
  * ACCEPT / CORRECT → may write LabOrder.result
+ * MANUAL → clinician-entered result after OCR failure
  * REJECT → mark document unusable; do not write clinical result
  * OCR draft is preserved forever (machine evidence).
  */
@@ -25,8 +26,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "").toUpperCase();
-  if (!["ACCEPT", "CORRECT", "REJECT"].includes(action)) {
-    return NextResponse.json({ success: false, error: "action must be ACCEPT, CORRECT, or REJECT" }, { status: 400 });
+  if (!["ACCEPT", "CORRECT", "MANUAL", "REJECT"].includes(action)) {
+    return NextResponse.json({ success: false, error: "action must be ACCEPT, CORRECT, MANUAL, or REJECT" }, { status: 400 });
   }
 
   const doc = await prisma.medicalDocument.findFirst({
@@ -36,7 +37,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (doc.ocrStatus === "VERIFIED" || doc.ocrStatus === "REJECTED") {
     return NextResponse.json({ success: false, error: `Document already ${doc.ocrStatus}` }, { status: 409 });
   }
-  if (doc.ocrStatus !== "DRAFT" && action !== "REJECT") {
+  if (doc.ocrStatus !== "DRAFT" && action !== "MANUAL" && action !== "REJECT") {
     return NextResponse.json({
       success: false,
       error: "Only DRAFT OCR output can be accepted or corrected. Run OCR first or reject as unusable.",
@@ -78,7 +79,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const verifiedValues: Record<string, string> =
-    action === "CORRECT" && body.values && typeof body.values === "object"
+    action === "MANUAL"
+      ? {}
+      : action === "CORRECT" && body.values && typeof body.values === "object"
       ? Object.fromEntries(
           Object.entries(body.values as Record<string, unknown>)
             .map(([k, v]) => [String(k).slice(0, 80), String(v ?? "").trim().slice(0, 40)])
@@ -114,6 +117,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         verified: true,
         verificationAction: action,
         machineExtracted: true,
+        manualResult: action === "MANUAL",
+          ? String(body.resultText || "").trim().slice(0, 4000)
+          : undefined,
       }),
     },
   });
@@ -132,7 +138,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   await writeAudit({
     doctorId: session.doctorId,
-    action: action === "CORRECT" ? "LAB_DOCUMENT_OCR_CORRECTED" : "LAB_DOCUMENT_OCR_VERIFIED",
+    action:
+      action === "CORRECT"
+        ? "LAB_DOCUMENT_OCR_CORRECTED"
+        : action === "MANUAL"
+          ? "LAB_DOCUMENT_MANUAL_RESULT_VERIFIED"
+          : "LAB_DOCUMENT_OCR_VERIFIED",
     entity: "MedicalDocument",
     entityId: doc.id,
     meta: {
