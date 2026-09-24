@@ -50,12 +50,14 @@ model Clinic {
   telegramIntegration FacilityTelegramIntegration?
   clinicalNotes      ClinicalNote[]
   dutyAttendanceEvents DutyAttendanceEvent[]
+  dutyAttendanceRequests DutyAttendanceRequest[]
 
   // MedLum Duty — per-hospital geofence (campus punch)
   dutyLat            Float?
   dutyLng            Float?
   dutyRadiusMeters   Int       @default(200)
   dutyEnabled        Boolean   @default(false)
+  dutyGraceMinutes   Int       @default(10)
 
   @@index([name])
   @@index([isActive])
@@ -78,6 +80,7 @@ model ClinicMember {
   doctor        Doctor    @relation(fields: [doctorId], references: [id], onDelete: Restrict)
   medicationAdministrations MedicationAdministration[]
   dutyAttendanceEvents DutyAttendanceEvent[]
+  dutyAttendanceRequests DutyAttendanceRequest[]
 
   @@unique([clinicId, doctorId])
   @@index([clinicId])
@@ -1017,4 +1020,28 @@ model DutyAttendanceEvent {
   @@index([memberId, punchedAt])
   @@index([doctorId, punchedAt])
   @@index([clinicId, type, punchedAt])
+}
+
+model DutyAttendanceRequest {
+  id               String       @id @default(cuid())
+  clinicId         String
+  memberId         String
+  doctorId         String
+  requestType      String
+  status           String       @default("PENDING")
+  dayDate          DateTime     @db.Date
+  requestedInAt    DateTime?
+  requestedOutAt   DateTime?
+  reason           String       @default("")
+  reviewerDoctorId String?
+  reviewerNote     String       @default("")
+  reviewedAt       DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  clinic           Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  member           ClinicMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@index([clinicId, status])
+  @@index([memberId, dayDate])
+  @@index([clinicId, createdAt])
 }
