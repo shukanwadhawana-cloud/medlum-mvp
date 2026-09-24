@@ -88,7 +88,7 @@ export default function PatientDetailPage() {
   const p = data?.patient;
   const lastEncounter = data?.encounters?.[0];
   const lastVitals = lastEncounter
-    ? [lastEncounter.bp && `BP ${lastEncounter.bp}`, lastEncounter.pulse && `P ${lastEncounter.pulse}`, lastEncounter.temperature && `T ${lastEncounter.temperature}`, lastEncounter.spo2 && `SpO2 ${lastEncounter.spo2}`, lastEncounter.weight && `Wt ${lastEncounter.weight}`].filter(Boolean).join(" · ")
+    ? [lastEncounter.bp && `BP ${lastEncounter.bp}`, lastEncounter.pulse && `P ${lastEncounter.pulse}`, lastEncounter.spo2 && `SpO₂ ${lastEncounter.spo2}`, lastEncounter.rr && `RR ${lastEncounter.rr}`, lastEncounter.temperature && `T ${lastEncounter.temperature}`, lastEncounter.weight && `Wt ${lastEncounter.weight}`].filter(Boolean).join(" · ")
     : "";
 
   const timeline = useMemo(() => {
@@ -127,7 +127,7 @@ export default function PatientDetailPage() {
     if (!window.confirm("Cancel this consultation draft?\n\nThe unsaved consultation will be discarded from this device and will not be added to the clinical record.")) return;
     if (consultDraftKey) window.localStorage.removeItem(consultDraftKey);
     setHasConsultDraft(false); setConsultDraftSavedAt(null);
-    setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
+    setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", rr: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
     setSelectedLabs([]); setSelectedDiagnostics([]); setShowConsult(false);
     setMsg("Consultation draft cancelled and discarded.");
   };
@@ -135,7 +135,7 @@ export default function PatientDetailPage() {
   const handleSaveConsult = async (e: React.FormEvent) => {
     e.preventDefault(); setError(""); setSaving(true);
     try {
-      const enc = await apiCreateEncounter({ patientId: id, appointmentId, chiefComplaint: form.chiefComplaint, clinicalNotes: form.clinicalNotes, diagnosis: form.diagnosis, assessment: form.assessment, plan: form.plan, followUpDate: form.followUpDate || undefined, bp: form.bp, pulse: form.pulse, temperature: form.temperature, spo2: form.spo2, weight: form.weight, height: form.height });
+      const enc = await apiCreateEncounter({ patientId: id, appointmentId, chiefComplaint: form.chiefComplaint, clinicalNotes: form.clinicalNotes, diagnosis: form.diagnosis, assessment: form.assessment, plan: form.plan, followUpDate: form.followUpDate || undefined, bp: form.bp, pulse: form.pulse, rr: form.rr, temperature: form.temperature, spo2: form.spo2, weight: form.weight, height: form.height });
       if (!enc.success || !enc.encounter) { setError(enc.error || "Could not save consultation"); return; }
       if (selectedLabs.length) {
         const labResults = await Promise.all(selectedLabs.map((testName) => apiCreateLabOrder({ patientId: id, testName, category: "Laboratory", encounterId: enc.encounter.id })));
@@ -157,7 +157,7 @@ export default function PatientDetailPage() {
       setHasConsultDraft(false); setConsultDraftSavedAt(null);
       setMsg("Consultation confirmed and saved.");
       setShowConsult(false);
-      setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
+      setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", rr: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
       setSelectedLabs([]);
       setSelectedDiagnostics([]);
       await load();
@@ -235,6 +235,22 @@ export default function PatientDetailPage() {
           <div>
             <h2 className="text-lg font-semibold">{p.name}</h2>
             <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
+        <section className="mb-3 bg-white rounded-xl border shadow-sm p-3 print:border-0 print:shadow-none">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="font-semibold text-sm">Cover Sheet · Current Clinical Snapshot</h3>
+              <p className="text-[10px] text-gray-500">Latest recorded vitals and allergy status for this patient.</p>
+            </div>
+            {lastEncounter?.createdAt && <span className="text-[10px] text-gray-500">Recorded {new Date(lastEncounter.createdAt).toLocaleString("en-IN")}</span>}
+          </div>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">BP</p><p className="text-sm font-semibold">{lastEncounter?.bp || p.bp || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="text-sm font-semibold">{lastEncounter?.pulse || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="text-sm font-semibold">{lastEncounter?.spo2 || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Respiratory Rate</p><p className="text-sm font-semibold">{lastEncounter?.rr || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Allergy</p><p className="text-sm font-semibold ${p.allergies ? "text-red-700" : ""}">{p.allergies || "No known allergy recorded"}</p></div>
+          </div>
+        </section>
             <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[11px] text-gray-500 sm:grid-cols-2">
               <span><b className="text-gray-600">UHID:</b> {p.uhid || "—"}</span>
               <span><b className="text-gray-600">MedLum ID:</b> {p.medlumId || "—"}</span>
@@ -420,9 +436,11 @@ export default function PatientDetailPage() {
               <div><label className="text-xs text-gray-500">Chief complaint</label><input value={form.chiefComplaint} onChange={(e) => setForm({ ...form, chiefComplaint: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               <div><label className="text-xs text-gray-500">Diagnosis</label><input value={form.diagnosis} onChange={(e) => setForm({ ...form, diagnosis: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               <div><label className="text-xs text-gray-500">Clinical notes</label><textarea value={form.clinicalNotes} onChange={(e) => setForm({ ...form, clinicalNotes: e.target.value })} className="w-full min-h-[72px] px-3 py-2 rounded-lg border text-sm" /></div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <div><label className="text-xs text-gray-500">BP</label><input value={form.bp} onChange={(e) => setForm({ ...form, bp: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
                 <div><label className="text-xs text-gray-500">Pulse</label><input value={form.pulse} onChange={(e) => setForm({ ...form, pulse: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
+                <div><label className="text-xs text-gray-500">SpO₂</label><input value={form.spo2} onChange={(e) => setForm({ ...form, spo2: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
+                <div><label className="text-xs text-gray-500">Respiratory Rate</label><input value={form.rr} onChange={(e) => setForm({ ...form, rr: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               </div>
               <div><label className="text-xs text-gray-500">Medicines</label><textarea value={form.medicines} onChange={(e) => setForm({ ...form, medicines: e.target.value })} className="w-full min-h-[64px] px-3 py-2 rounded-lg border text-sm" placeholder="One per line" /></div>
               <div><label className="text-xs text-gray-500">Laboratory investigations <span className="text-[10px] text-gray-400">({visibleLabs.length} available)</span></label><input value={labSearch} onChange={(e)=>setLabSearch(e.target.value)} placeholder="Type any lab or category to search…" className="mt-1 w-full h-10 px-3 rounded-lg border text-sm"/><div className="mt-1 max-h-72 overflow-y-auto rounded-lg border p-1">{visibleLabs.map((t)=><div key={t.id} className="flex items-center gap-1 text-xs px-1.5 py-1"><label className="flex-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedLabs.includes(t.name)} onChange={(e)=>setSelectedLabs(prev=>e.target.checked?[...prev,t.name]:prev.filter(x=>x!==t.name))}/><span>{t.name}</span><span className="ml-1 text-[9px] text-gray-400">{t.category}</span></label><button type="button" aria-label={favoriteLabs.includes(t.name)?"Remove lab favorite":"Favorite lab"} onClick={()=>{const n=favoriteLabs.includes(t.name)?favoriteLabs.filter(x=>x!==t.name):[...favoriteLabs,t.name];setFavoriteLabs(n);window.localStorage.setItem(labFavoriteKey,JSON.stringify(n));}} className="px-1">{favoriteLabs.includes(t.name)?"★":"☆"}</button></div>)}</div></div><div><label className="text-xs text-gray-500">Radiology / diagnostic investigations <span className="text-[10px] text-gray-400">({visibleDiagnostics.length} available)</span></label><input value={diagnosticSearch} onChange={(e)=>setDiagnosticSearch(e.target.value)} placeholder="Type imaging, modality or body part…" className="mt-1 w-full h-10 px-3 rounded-lg border text-sm"/><div className="mt-1 max-h-72 overflow-y-auto rounded-lg border p-1">{visibleDiagnostics.map((d)=><div key={d.id} className="flex items-center gap-1 text-xs px-1.5 py-1"><label className="flex-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedDiagnostics.includes(d.name)} onChange={(e)=>setSelectedDiagnostics(prev=>e.target.checked?[...prev,d.name]:prev.filter(x=>x!==d.name))}/><span>{d.name}</span><span className="ml-1 text-[9px] text-gray-400">{d.category} · {d.modality}</span></label><button type="button" aria-label={favoriteDiagnostics.includes(d.name)?"Remove diagnostic favorite":"Favorite diagnostic"} onClick={()=>{const n=favoriteDiagnostics.includes(d.name)?favoriteDiagnostics.filter(x=>x!==d.name):[...favoriteDiagnostics,d.name];setFavoriteDiagnostics(n);window.localStorage.setItem(diagnosticFavoriteKey,JSON.stringify(n));}} className="px-1">{favoriteDiagnostics.includes(d.name)?"★":"☆"}</button></div>)}</div></div><div><label className="text-xs text-gray-500">Bill amount (₹)</label><input type="number" min="0" step="1" value={form.billAmount} onChange={(e) => setForm({ ...form, billAmount: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
