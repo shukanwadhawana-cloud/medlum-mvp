@@ -26,4 +26,4 @@ ENV SESSION_SECRET=
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "for i in 1 2 3 4 5; do npx prisma migrate deploy && exec npm start; echo "Prisma migration attempt $i failed; retrying in 5s..."; sleep 5; done; echo "Prisma migrations failed after 5 attempts"; exit 1"]
