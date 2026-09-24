@@ -81,6 +81,9 @@ if (dbUrl) {
     const migrationStatements = migration.split(/;\s*(?=(?:CREATE|ALTER))/).map((x) => x.trim()).filter(Boolean);
     for (const statement of migrationStatements) await prisma.$executeRawUnsafe(statement);
     await prisma.$executeRawUnsafe(frequencyMigration);
+    await prisma.$executeRawUnsafe('ALTER TABLE "MedicationAdministration" ADD COLUMN IF NOT EXISTS "frequency" TEXT NOT NULL DEFAULT \'OD\'');
+    const frequencyColumn = await prisma.$queryRawUnsafe("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'MedicationAdministration' AND column_name = 'frequency') AS exists");
+    assert.equal(frequencyColumn[0]?.exists, true, "MAR frequency column must exist before database invariants run");
     const migrationTable = await prisma.$queryRawUnsafe("SELECT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'MedicationAdministration') AS exists");
     assert.equal(migrationTable[0]?.exists, true, "P2-07 migration must create the MAR table cleanly");
     const clinic = await prisma.clinic.create({ data: { name: "P2-07 MAR Test "+suffix } });
