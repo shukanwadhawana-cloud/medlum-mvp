@@ -106,6 +106,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         pulse: e.pulse,
         temperature: e.temperature,
         spo2: e.spo2,
+        rr: e.rr,
         weight: e.weight,
         height: e.height,
         doctorId: e.doctorId,
