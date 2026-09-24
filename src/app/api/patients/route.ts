@@ -22,6 +22,9 @@ function serialize(p: any) {
     status: p.status || "ACTIVE",
     uhid: p.uhid || "",
     registrationNo: p.registrationNo || "",
+    // Keep the database id private/technical while exposing a stable, human-facing MedLum ID.
+    medlumId: `MLD-${String(p.id || "").slice(-8).toUpperCase()}`,
+    admissionDate: profile.admissionDate || (profile.careSetting === "IPD" ? p.createdAt.toISOString() : null),
     deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
     ...profile,
     createdAt: p.createdAt.toISOString(),
@@ -29,10 +32,11 @@ function serialize(p: any) {
 }
 
 function generateUhid(clinicId: string): string {
-  // BRADMA-style short UHID: clinic prefix + date + random
-  const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const rand = Math.floor(Math.random() * 9000 + 1000);
-  return `ML-${day.slice(2)}-${rand}`;
+  // Human-facing UHID: stable date component + six-digit sequence-like random suffix.
+  // The database primary key remains the canonical technical identifier.
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, "").slice(2);
+  const rand = Math.floor(Math.random() * 900000 + 100000);
+  return `UHID-${day}-${rand}`;
 }
 
 export async function GET(req: Request) {
