@@ -1,0 +1,56 @@
+name: Patch Duty Schema
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch prisma schema for Duty workforce
+        run: |
+          set -euo pipefail
+          SCHEMA=prisma/schema.prisma
+          if ! grep -q 'dutyGraceMinutes' "$SCHEMA"; then
+            sed -i 's/dutyEnabled        Boolean   @default(false)/dutyEnabled        Boolean   @default(false)\n  dutyGraceMinutes   Int       @default(10)/' "$SCHEMA"
+          fi
+          if ! grep -q 'dutyAttendanceRequests' "$SCHEMA"; then
+            sed -i 's/dutyAttendanceEvents DutyAttendanceEvent\[\]/dutyAttendanceEvents DutyAttendanceEvent[]\n  dutyAttendanceRequests DutyAttendanceRequest[]/' "$SCHEMA"
+          fi
+          if ! grep -q 'model DutyAttendanceRequest' "$SCHEMA"; then
+            cat >> "$SCHEMA" << 'EOF'
+
+model DutyAttendanceRequest {
+  id               String       @id @default(cuid())
+  clinicId         String
+  memberId         String
+  doctorId         String
+  requestType      String
+  status           String       @default("PENDING")
+  dayDate          DateTime     @db.Date
+  requestedInAt    DateTime?
+  requestedOutAt   DateTime?
+  reason           String       @default("")
+  reviewerDoctorId String?
+  reviewerNote     String       @default("")
+  reviewedAt       DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  clinic           Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  member           ClinicMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@index([clinicId, status])
+  @@index([memberId, dayDate])
+  @@index([clinicId, createdAt])
+}
+EOF
+          fi
+          grep -n 'dutyGraceMinutes\|DutyAttendanceRequest\|dutyAttendanceRequests' "$SCHEMA" | head -20
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add prisma/schema.prisma
+          git commit -m "feat(duty): Prisma schema DutyAttendanceRequest + dutyGraceMinutes" || exit 0
+          git push origin HEAD:main
