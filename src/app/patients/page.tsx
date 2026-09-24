@@ -103,26 +103,19 @@ export default function PatientsPage() {
                 return (
                   <div key={p.id} className="p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <Link href={`/patients/${p.id}`} className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1">
                         <p className="font-semibold text-sm truncate">{p.name}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           {p.age} yrs · {p.gender} · {p.phone} · {p.careSetting || "OPD"}
                         </p>
-                        <p className="text-[10px] text-gray-400 mt-1">MedLum ID: {p.id}</p>
-                      </Link>
-                      <div className="flex shrink-0 gap-1.5">
-                        <Link
-                          href={`/patients/${p.id}`}
-                          className="h-8 px-2.5 rounded-lg bg-[#c2183a] text-white text-xs font-medium flex items-center"
-                        >
-                          Open Patient
-                        </Link>
-                        <Link
-                          href={`/patients/${p.id}/chart`}
-                          className="h-8 px-2.5 rounded-lg border text-xs font-medium flex items-center"
-                        >
-                          Clinical chart
-                        </Link>
+                        <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[10px] text-gray-500 sm:grid-cols-2">
+                          <span className="font-medium text-gray-600">UHID: {p.uhid || "—"}</span>
+                          <span className="font-medium text-gray-600">MedLum ID: {p.medlumId || "—"}</span>
+                          {p.careSetting === "IPD" && (
+                            <span>Admission: {p.admissionDate ? new Date(p.admissionDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span>
+                          )}
+                          {p.registrationNo && <span>Registration: {p.registrationNo}</span>}
+                        </div>
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -160,24 +153,24 @@ export default function PatientsPage() {
                     ) : (
                       <p className="mt-2 text-xs text-gray-400">No consultation recorded</p>
                     )}
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2 flex flex-wrap justify-end gap-2">
                       <Link
                         href={`/patients/${p.id}`}
-                        className="px-2.5 py-1.5 rounded-lg border text-[11px] font-medium"
+                        className="h-8 px-3 rounded-lg border text-[11px] font-medium inline-flex items-center"
                       >
                         Review history
                       </Link>
                       <Link
                         href={`/patients/${p.id}`}
-                        className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px] font-medium"
+                        className="h-8 px-3 rounded-lg bg-[#c2183a] text-white text-[11px] font-medium inline-flex items-center"
                       >
                         New consultation
                       </Link>
                       <Link
-                        href={`/patients/${p.id}/chart`}
-                        className="px-2.5 py-1.5 rounded-lg border text-[11px] font-medium"
+                        href={`/patients/${p.id}`}
+                        className="h-8 px-3 rounded-lg bg-[#140a1f] text-white text-[11px] font-medium inline-flex items-center"
                       >
-                        Clinical chart
+                        Open Patient
                       </Link>
                     </div>
                   </div>
