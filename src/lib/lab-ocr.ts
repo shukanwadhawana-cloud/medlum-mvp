@@ -154,7 +154,7 @@ async function extractPdf(
         canvasContext: context as any,
         viewport,
         canvasFactory: factory,
-      }).promise;
+      } as any).promise;
 
       ocrParts.push(await ocrImage(canvas.toBuffer("image/png")));
 
