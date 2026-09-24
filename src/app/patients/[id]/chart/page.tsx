@@ -12,8 +12,10 @@ import { ClinicalNotesPanel } from "@/components/ClinicalNotesPanel";
 import { ClinicalOrdersPanel } from "@/components/ClinicalOrdersPanel";
 import { ClinicalRxPanel } from "@/components/ClinicalRxPanel";
 import { ClinicalProblemsPanel } from "@/components/ClinicalProblemsPanel";
+import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";
+import { ClinicalIOPanel } from "@/components/ClinicalIOPanel";
 
-type TabId = "overview" | "problems" | "notes" | "orders" | "rx" | "vitals" | "discharge" | "billing";
+type TabId = "overview" | "problems" | "notes" | "orders" | "rx" | "vitals" | "io" | "discharge" | "billing";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Cover sheet" },
@@ -22,6 +24,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "orders", label: "Orders" },
   { id: "rx", label: "Medications" },
   { id: "vitals", label: "Vitals" },
+  { id: "io", label: "Intake / Output" },
   { id: "discharge", label: "Discharge" },
   { id: "billing", label: "Billing" },
 ];
@@ -335,15 +338,44 @@ export default function PatientClinicalChartPage() {
         )}
 
         {tab === "rx" && (
-          <ClinicalRxPanel
-            patientId={String(id)}
-            prescriptions={prescriptions}
-            onSaved={async () => { await load(); }}
-          />
+          <div className="space-y-3">
+            <ClinicalRxPanel
+              patientId={String(id)}
+              prescriptions={prescriptions}
+              onSaved={async () => { await load(); }}
+            />
+            {careSetting === "IPD" ? (
+              <section className="overflow-hidden rounded-xl border bg-white">
+                <div className="border-b bg-[#f8f6fa] px-3 py-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    Medication administration record (IPD)
+                  </h3>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Schedule and record given / held / refused doses for this inpatient. Authorised clinical roles only.
+                  </p>
+                </div>
+                <div className="p-3">
+                  <MedicationAdministrationPanel patient={p} />
+                </div>
+              </section>
+            ) : (
+              <p className="text-[11px] text-gray-400 px-1">
+                Inpatient MAR is available when this patient is on the IPD census (care setting IPD).
+              </p>
+            )}
+          </div>
         )}
 
         {tab === "vitals" && (
           <ClinicalVitalsPanel
+            patientId={String(id)}
+            encounters={encounters}
+            onSaved={async () => { await load(); }}
+          />
+        )}
+
+        {tab === "io" && (
+          <ClinicalIOPanel
             patientId={String(id)}
             encounters={encounters}
             onSaved={async () => { await load(); }}
