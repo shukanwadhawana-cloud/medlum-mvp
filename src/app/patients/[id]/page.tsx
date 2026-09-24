@@ -39,7 +39,7 @@ export default function PatientDetailPage() {
   const [follow, setFollow] = useState({ date: "", time: "10:00", type: "Follow-up" });
   const [form, setForm] = useState({
     chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "",
-    bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "",
+    bp: "", pulse: "", rr: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "",
   });
   const [selectedLabs, setSelectedLabs] = useState<string[]>([]);
   const [selectedDiagnostics, setSelectedDiagnostics] = useState<string[]>([]);
