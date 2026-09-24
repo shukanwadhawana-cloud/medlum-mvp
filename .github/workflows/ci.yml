@@ -89,6 +89,8 @@ jobs:
         run: npm run test:p2-06
       - name: Verify P2-07 MAR
         run: npm run test:p2-07
+      - name: Verify clinical double-verification and final signing
+        run: npm run test:clinical-signing
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public

@@ -48,6 +48,7 @@ model Clinic {
   medicalDocuments   MedicalDocument[]
   medicationAdministrations MedicationAdministration[]
   telegramIntegration FacilityTelegramIntegration?
+  clinicalNotes      ClinicalNote[]
 
   @@index([name])
   @@index([isActive])
@@ -105,6 +106,8 @@ model Doctor {
   telegramLinkChallenges TelegramLinkChallenge[]
   emergencyCases         EmergencyCase[]
   uploadedDocuments      MedicalDocument[]
+  authoredClinicalNotes   ClinicalNote[]      @relation("ClinicalNoteAuthor")
+  verifiedClinicalNotes   ClinicalNote[]      @relation("ClinicalNoteVerifier")
 
   @@index([isActive])
 }
@@ -153,6 +156,7 @@ model Patient {
   emergencyCases    EmergencyCase[]
   medicalDocuments  MedicalDocument[]
   medicationAdministrations MedicationAdministration[]
+  clinicalNotes     ClinicalNote[]
 
   @@index([doctorId])
   @@index([clinicId])
@@ -211,6 +215,7 @@ model Encounter {
   labOrders        LabOrder[]
   diagnosticOrders DiagnosticOrder[]
   medicationAdministrations MedicationAdministration[]
+  signedClinicalNotes ClinicalNote[]
 
   @@index([doctorId])
   @@index([patientId])
@@ -596,6 +601,40 @@ model InsuranceClaim {
   @@index([status])
 }
 
+
+model ClinicalNote {
+  id                String    @id @default(cuid())
+  clinicId          String
+  patientId         String
+  encounterId       String?
+  authorDoctorId    String
+  verifierDoctorId  String?
+  noteType          String    @default("Consultant Note")
+  title             String    @default("")
+  content           String
+  status            String    @default("DRAFT")
+  version           Int       @default(1)
+  contentHash       String    @default("")
+  finalHash         String    @default("")
+  submittedAt       DateTime?
+  verifiedAt        DateTime?
+  finalizedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  clinic            Clinic    @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient           Patient   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  encounter         Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+  author            Doctor    @relation("ClinicalNoteAuthor", fields: [authorDoctorId], references: [id], onDelete: Restrict)
+  verifier          Doctor?   @relation("ClinicalNoteVerifier", fields: [verifierDoctorId], references: [id], onDelete: Restrict)
+
+  @@index([clinicId, patientId, createdAt])
+  @@index([authorDoctorId])
+  @@index([verifierDoctorId])
+  @@index([status])
+  @@index([encounterId])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   doctorId  String?
@@ -675,7 +714,7 @@ model FacilityTelegramIntegration {
   lastVerifiedAt       DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
-  clinic               Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic               Clinic   @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([status])
   @@index([connectionExpiresAt])

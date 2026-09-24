@@ -6,7 +6,7 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
 import AbhaPatientPanel from "@/components/AbhaPatientPanel";
-import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment, apiCreateLabOrder, apiCreateDiagnosticOrder } from "@/lib/api";
+import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment, apiCreateLabOrder, apiCreateDiagnosticOrder, apiGetClinicalNotes, apiCreateClinicalNote, apiSaveClinicalDraft, apiSubmitClinicalNote, apiFinalizeClinicalNote } from "@/lib/api";
 
 type TimelineItem = { date: string; kind: string; title: string; detail?: string; sort: number };
 
@@ -27,6 +27,14 @@ export default function PatientDetailPage() {
   const router = useRouter();
   const { doctor, loading: authLoading } = useDoctor();
   const [data, setData] = useState<any>(null);
+  const [clinicalNotes, setClinicalNotes] = useState<any[]>([]);
+  const [showNoteComposer, setShowNoteComposer] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteType, setNoteType] = useState("Consultant Note");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteContent, setNoteContent] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteError, setNoteError] = useState("");
   const [loading, setLoading] = useState(true);
   const [showConsult, setShowConsult] = useState(!!appointmentId);
   const [showFollowUp, setShowFollowUp] = useState(false);
@@ -46,7 +54,9 @@ export default function PatientDetailPage() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    setData(await apiGetPatientDetail(id));
+    const [detail, notes] = await Promise.all([apiGetPatientDetail(id), apiGetClinicalNotes(id)]);
+    setData(detail);
+    setClinicalNotes(notes);
     setLoading(false);
   }, [id]);
 
@@ -106,6 +116,38 @@ export default function PatientDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const resetNoteComposer = () => {
+    setEditingNoteId(null); setNoteType("Consultant Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(false);
+  };
+
+  const saveClinicalNote = async (submit: boolean) => {
+    setNoteError(""); setNoteSaving(true);
+    try {
+      const res = editingNoteId
+        ? await apiSaveClinicalDraft({ id: editingNoteId, content: noteContent, title: noteTitle, noteType })
+        : await apiCreateClinicalNote({ patientId: id, noteType, title: noteTitle, content: noteContent, submit });
+      if (!res.success) { setNoteError(res.error || "Could not save clinical note"); return; }
+      setMsg(submit ? "Clinical note submitted for second-clinician verification." : "Clinical note saved as draft.");
+      resetNoteComposer();
+      setClinicalNotes(await apiGetClinicalNotes(id));
+    } catch { setNoteError("Could not save clinical note"); }
+    finally { setNoteSaving(false); }
+  };
+
+  const submitClinicalNote = async (noteId: string) => {
+    const res = await apiSubmitClinicalNote(noteId);
+    if (!res.success) { setMsg(res.error || "Could not submit note"); return; }
+    setMsg("Note is awaiting verification by a different clinician.");
+    setClinicalNotes(await apiGetClinicalNotes(id));
+  };
+
+  const finalSignClinicalNote = async (noteId: string) => {
+    const res = await apiFinalizeClinicalNote(noteId);
+    if (!res.success) { setMsg(res.error || "Could not final-sign note"); return; }
+    setMsg("Clinical note final-signed and locked.");
+    setClinicalNotes(await apiGetClinicalNotes(id));
   };
 
   const scheduleFollowUp = async (e: React.FormEvent) => {
@@ -222,6 +264,40 @@ export default function PatientDetailPage() {
             ))}
           </Sec>
 
+          <Sec title="Clinical Notes & Final Signing">
+            <div className="px-3 py-3 border-b">
+              <p className="text-xs text-gray-500 mb-2">Clinical documentation uses two-person finalization: the author cannot final-sign their own note.</p>
+              <button type="button" onClick={() => { setEditingNoteId(null); setNoteType("Consultant Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(true); }} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium">
+                + New clinical note / summary
+              </button>
+            </div>
+            {!clinicalNotes.length ? <Empty text="No separately signed clinical notes yet." /> : clinicalNotes.map((n: any) => (
+              <div key={n.id} className="px-3 py-3 border-b last:border-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">{n.noteType}{n.title ? ` · ${n.title}` : ""}</p>
+                    <p className="text-[11px] text-gray-400">{n.status} · {new Date(n.createdAt).toLocaleString()}</p>
+                  </div>
+                  {n.status === "DRAFT" && n.author?.id === doctor?.id && (
+                    <div className="flex gap-1.5">
+                      <button type="button" onClick={() => { setEditingNoteId(n.id); setNoteType(n.noteType); setNoteTitle(n.title || ""); setNoteContent(n.content); setNoteError(""); setShowNoteComposer(true); }} className="px-2.5 py-1.5 rounded-lg border text-[11px]">Edit draft</button>
+                      <button type="button" onClick={() => submitClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Submit for verification</button>
+                    </div>
+                  )}
+                  {n.status === "PENDING_VERIFICATION" && n.author?.id !== doctor?.id && (
+                    <button type="button" onClick={() => finalSignClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Second verify + final sign</button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-700 mt-2 whitespace-pre-wrap">{n.content}</p>
+                <div className="text-[10px] text-gray-500 mt-2 space-y-0.5">
+                  <p>Author: {n.author?.name || "Unknown"}</p>
+                  {n.verifier && <p>Final verifier: {n.verifier.name} · {n.finalizedAt ? new Date(n.finalizedAt).toLocaleString() : ""}</p>}
+                  {n.status === "FINAL" && <p className="font-medium">LOCKED FINAL · hash {String(n.finalHash || "").slice(0, 16)}…</p>}
+                </div>
+              </div>
+            ))}
+          </Sec>
+
           <Sec title="Prescriptions">
             {!data.prescriptions?.length ? <Empty text="No prescriptions." /> : data.prescriptions.map((r: any) => (
               <div key={r.id} className="px-3 py-2.5 border-b last:border-0">
@@ -270,6 +346,30 @@ export default function PatientDetailPage() {
                 <button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Save Consultation"}</button>
               </div>
             </form>
+          </Modal>
+        )}
+
+        {showNoteComposer && p && (
+          <Modal title={editingNoteId ? "Edit clinical note draft" : "New clinical note / summary"} onClose={resetNoteComposer}>
+            {noteError && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{noteError}</div>}
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500">Document type</label>
+                <select value={noteType} onChange={(e) => setNoteType(e.target.value)} className="w-full h-10 px-3 rounded-lg border text-sm">
+                  {["Consultant Note","Progress Note","Initial Assessment","Case Summary","Discharge Summary","Nursing Assessment","RMO Note","Other"].map(x => <option key={x}>{x}</option>)}
+                </select>
+              </div>
+              <div><label className="text-xs text-gray-500">Title</label><input value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} className="w-full h-10 px-3 rounded-lg border text-sm" placeholder="Optional title" /></div>
+              <div><label className="text-xs text-gray-500">Clinical content</label><textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} className="w-full min-h-[180px] px-3 py-2 rounded-lg border text-sm" placeholder="Write the clinical note or summary…" /></div>
+              <div className="rounded-lg bg-amber-50 text-amber-800 text-xs px-3 py-2">
+                Final signing requires a second active clinician. The author cannot approve their own document. Once FINAL, the content is locked; later corrections must be documented as a new/addendum note.
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={resetNoteComposer} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
+                <button type="button" disabled={noteSaving || !noteContent.trim()} onClick={() => saveClinicalNote(false)} className="flex-1 h-11 rounded-lg border text-sm disabled:opacity-60">Save draft</button>
+                {!editingNoteId && <button type="button" disabled={noteSaving || !noteContent.trim()} onClick={() => saveClinicalNote(true)} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">Submit for verification</button>}
+              </div>
+            </div>
           </Modal>
         )}
 
