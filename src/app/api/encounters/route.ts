@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { hashClinicalNote } from "@/lib/clinical-signing";
 
 async function getSharedPatient(patientId: string, doctorId: string) {
   const membership = await requireActiveClinicMembership(doctorId);
@@ -46,19 +47,53 @@ export async function POST(req: Request) {
       else if (appt.status === "Scheduled") await prisma.appointment.update({ where: { id: appointmentId }, data: { status: "Completed" } });
     }
 
-    const encounter = await prisma.encounter.create({
-      data: {
-        doctorId: session.doctorId, patientId, appointmentId,
-        date: String(body.date || new Date().toISOString().slice(0, 10)),
-        chiefComplaint: String(body.chiefComplaint || ""), clinicalNotes: String(body.clinicalNotes || ""),
-        diagnosis: String(body.diagnosis || ""), assessment: String(body.assessment || ""), plan: String(body.plan || ""),
-        followUpDate: body.followUpDate ? String(body.followUpDate) : null,
-        bp: String(body.bp || ""), pulse: String(body.pulse || ""), temperature: String(body.temperature || ""),
-        spo2: String(body.spo2 || ""), weight: String(body.weight || ""), height: String(body.height || ""),
-      },
+    const date = String(body.date || new Date().toISOString().slice(0, 10));
+    const clinicalNotes = String(body.clinicalNotes || "");
+    const diagnosis = String(body.diagnosis || "");
+    const assessment = String(body.assessment || "");
+    const plan = String(body.plan || "");
+    const chiefComplaint = String(body.chiefComplaint || "");
+    const content = [
+      chiefComplaint && `Chief complaint: ${chiefComplaint}`,
+      clinicalNotes && `Clinical notes:\n${clinicalNotes}`,
+      diagnosis && `Diagnosis: ${diagnosis}`,
+      assessment && `Assessment:\n${assessment}`,
+      plan && `Plan:\n${plan}`,
+      body.followUpDate ? `Follow-up: ${String(body.followUpDate)}` : "",
+      body.bp || body.pulse || body.temperature || body.spo2 || body.weight || body.height
+        ? `Vitals: BP ${String(body.bp || "—")}; Pulse ${String(body.pulse || "—")}; Temp ${String(body.temperature || "—")}; SpO2 ${String(body.spo2 || "—")}; Weight ${String(body.weight || "—")}; Height ${String(body.height || "—")}`
+        : "",
+    ].filter(Boolean).join("\n\n").trim();
+    const result = await prisma.$transaction(async (tx) => {
+      const encounter = await tx.encounter.create({
+        data: {
+          doctorId: session.doctorId, patientId, appointmentId,
+          date, chiefComplaint, clinicalNotes, diagnosis, assessment, plan,
+          followUpDate: body.followUpDate ? String(body.followUpDate) : null,
+          bp: String(body.bp || ""), pulse: String(body.pulse || ""), temperature: String(body.temperature || ""),
+          spo2: String(body.spo2 || ""), weight: String(body.weight || ""), height: String(body.height || ""),
+        },
+      });
+      const note = content
+        ? await tx.clinicalNote.create({
+            data: {
+              clinicId: patient.clinicId!,
+              patientId,
+              encounterId: encounter.id,
+              authorDoctorId: session.doctorId,
+              noteType: "Consultant Note",
+              title: `Consultation ${date}`,
+              content,
+              status: "DRAFT",
+              version: 1,
+              contentHash: hashClinicalNote(content, 1),
+            },
+          })
+        : null;
+      return { encounter, note };
     });
-    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Encounter", entityId: encounter.id, meta: { patientId } });
-    return NextResponse.json({ success: true, encounter });
+    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Encounter", entityId: result.encounter.id, clinicId: patient.clinicId, meta: { patientId, clinicalNoteId: result.note?.id || null, signingStatus: result.note?.status || null } });
+    return NextResponse.json({ success: true, encounter: result.encounter, clinicalNote: result.note });
   } catch (e) {
     console.error("create encounter", e);
     return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
