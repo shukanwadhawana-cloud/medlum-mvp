@@ -1,10 +1,13 @@
 /**
  * MedLum Duty — hospital-scoped, geofenced attendance.
  * IST presentation; clinicId is the tenant boundary.
+ * Patterns adapted from Sannidhi (geofence, regularization, admin desk) for continuous hospital duty.
  */
 
 export type DutyPunchType = "IN" | "OUT";
 export type DutyPunchSource = "SELF" | "ADMIN";
+export type DutyRequestType = "REGULARIZE" | "LEAVE";
+export type DutyRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 const ADMIN_ROLES = new Set(["Owner", "Admin", "Manager"]);
 
@@ -64,4 +67,25 @@ export function evaluateGeofence(
 export function formatIst(iso: Date | string) {
   const d = typeof iso === "string" ? new Date(iso) : iso;
   return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+}
+
+export function formatIstTime(iso: Date | string) {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  return d.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
+}
+
+/** IST calendar day start as UTC Date (for punchedAt range queries). */
+export function istDayStartUtc(ref: Date = new Date()): Date {
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const nowIst = new Date(ref.getTime() + istOffsetMs);
+  return new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate()) - istOffsetMs);
+}
+
+export function istDayEndUtc(ref: Date = new Date()): Date {
+  return new Date(istDayStartUtc(ref).getTime() + 24 * 60 * 60 * 1000);
+}
+
+/** YYYY-MM-DD in Asia/Kolkata for dayDate storage. */
+export function istDateKey(ref: Date = new Date()): string {
+  return ref.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
