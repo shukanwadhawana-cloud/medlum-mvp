@@ -23,7 +23,10 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "$VERCEL_TOKEN"
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN is not configured in GitHub Actions. Vercel production deployment is managed by the connected Vercel project; skipping the legacy token-based deploy step."
+            exit 0
+          fi
           npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
       - name: Verify production catalog endpoint
         run: |
