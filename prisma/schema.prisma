@@ -617,7 +617,8 @@ model ClinicalNote {
   encounterId       String?
   authorDoctorId    String
   verifierDoctorId  String?
-  noteType          String    @default("Consultant Note")
+  noteType          String    @default("Progress Note")
+  authorRole        String    @default("Consultant")
   title             String    @default("")
   content           String
   status            String    @default("DRAFT")
