@@ -4,6 +4,10 @@
  * Human verification is required before anything becomes clinical truth.
  */
 
+import { createRequire } from "node:module";
+
+const nodeRequire = createRequire(import.meta.url);
+
 const LAB_ALIASES: Record<string, string[]> = {
   Hemoglobin: ["hemoglobin", "haemoglobin", "hb", "hgb"],
   "Total WBC": ["total wbc", "wbc", "tlc", "total leucocyte", "total leukocyte"],
@@ -52,12 +56,14 @@ function extractCandidates(text: string): Record<string, string> {
     .replace(/[|]+/g, " ")
     .replace(/\u00a0/g, " ");
 
+  // Lab reports are frequently OCR'd as tables where the unit/reference
+  // interval sits between the analyte name and the measured value. Search a
+  // bounded window after each analyte instead of requiring "label: value".
   for (const [canonical, aliases] of Object.entries(LAB_ALIASES)) {
     for (const alias of aliases) {
       const re = new RegExp(
-        "(?:^|[\\n\\t ]+)" +
-          escapeRegExp(alias) +
-          "(?:\\s*[:=\\-]\\s*|\\s+)" +
+        escapeRegExp(alias) +
+          "(?:(?!\\n).){0,120}?" +
           "([<>]?[0-9]+(?:[.,][0-9]+)?)",
         "im"
       );
@@ -73,10 +79,13 @@ function extractCandidates(text: string): Record<string, string> {
 
 async function ocrImage(data: Buffer): Promise<string> {
   const { createWorker } = await import("tesseract.js");
+  const workerPath = nodeRequire.resolve(
+    "tesseract.js/src/worker-script/node/index.js"
+  );
   const worker = await createWorker("eng", 1, {
-    workerPath:
-      process.cwd() +
-      "/node_modules/tesseract.js/src/worker-script/node/index.js",
+    workerPath,
+    cachePath: "/tmp/medlum-tessdata",
+    cacheMethod: "write",
   });
 
   try {
