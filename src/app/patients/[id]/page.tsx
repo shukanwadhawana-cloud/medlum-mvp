@@ -391,6 +391,24 @@ export default function PatientDetailPage() {
 
         {showConsult && p && (
           <Modal title={`Consultation — ${p.name}`} onClose={() => setShowConsult(false)}>
+            <div className="mb-3 rounded-xl border border-[#e8dff0] bg-[#faf7fc] p-3">
+              <p className="text-sm font-semibold text-[#140a1f]">Choose what to do with this consultation</p>
+              <p className="text-xs text-gray-600 mt-1">Nothing is added to the clinical record until you choose <b>Confirm & Save</b>. You can keep an unfinished consultation as a draft or discard it completely.</p>
+              <div className="mt-2 grid gap-1.5 text-[11px] text-gray-600">
+                <div><b>Save as Draft:</b> keeps the unfinished consultation on this device only.</div>
+                <div><b>Cancel & Discard:</b> removes the unfinished consultation and closes this form.</div>
+                <div><b>Confirm & Save:</b> writes the consultation and selected orders to the clinical record.</div>
+              </div>
+            </div>
+            {hasConsultDraft && (
+              <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-amber-900">Saved consultation draft available</p>
+                  <p className="text-[11px] text-amber-800 mt-0.5">Saved {consultDraftSavedAt ? new Date(consultDraftSavedAt).toLocaleString() : "on this device"} · not yet in the clinical record.</p>
+                </div>
+                <button type="button" onClick={restoreConsultDraft} className="shrink-0 px-2.5 py-1.5 rounded-lg bg-amber-700 text-white text-[11px] font-medium">Restore</button>
+              </div>
+            )}
             {error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
             <form onSubmit={handleSaveConsult} className="space-y-3">
               <div><label className="text-xs text-gray-500">Chief complaint</label><input value={form.chiefComplaint} onChange={(e) => setForm({ ...form, chiefComplaint: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
@@ -404,9 +422,14 @@ export default function PatientDetailPage() {
               <div><label className="text-xs text-gray-500">Labs</label><div className="flex flex-wrap gap-1.5 mt-1">{COMMON_LAB_TESTS.map((t) => (<label key={t} className="text-xs border rounded-full px-2 py-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedLabs.includes(t)} onChange={(e) => setSelectedLabs((prev) => e.target.checked ? [...prev, t] : prev.filter((x) => x !== t))} />{t}</label>))}</div></div>
               <div><label className="text-xs text-gray-500">Diagnostics</label><div className="flex flex-wrap gap-1.5 mt-1">{COMMON_DIAGNOSTICS.map((d) => (<label key={d.studyName} className="text-xs border rounded-full px-2 py-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedDiagnostics.includes(d.studyName)} onChange={(e) => setSelectedDiagnostics((prev) => e.target.checked ? [...prev, d.studyName] : prev.filter((x) => x !== d.studyName))} />{d.studyName}</label>))}</div></div>
               <div><label className="text-xs text-gray-500">Bill amount (₹)</label><input type="number" min="0" step="1" value={form.billAmount} onChange={(e) => setForm({ ...form, billAmount: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowConsult(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
-                <button type="submit" disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">{saving ? "Saving…" : "Confirm & Save Consultation"}</button>
+              <div className="rounded-xl border bg-white p-2.5">
+                <p className="text-[11px] font-semibold text-gray-700 mb-2">Consultation actions</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button type="button" onClick={cancelConsultDraft} disabled={saving} className="h-11 rounded-lg border border-red-200 bg-red-50 text-red-700 text-xs font-medium disabled:opacity-60">Cancel & Discard</button>
+                  <button type="button" onClick={() => { saveConsultDraft(); setShowConsult(false); }} disabled={saving} className="h-11 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs font-medium disabled:opacity-60">Save as Draft</button>
+                  <button type="submit" disabled={saving} className="h-11 rounded-lg bg-[#c2183a] text-white text-xs font-semibold disabled:opacity-60">{saving ? "Saving…" : "Confirm & Save"}</button>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-2 text-center">Confirm & Save is the only action that creates the consultation in the clinical record.</p>
               </div>
             </form>
           </Modal>
