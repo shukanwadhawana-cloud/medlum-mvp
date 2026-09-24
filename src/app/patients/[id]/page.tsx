@@ -235,23 +235,7 @@ export default function PatientDetailPage() {
           <div>
             <h2 className="text-lg font-semibold">{p.name}</h2>
             <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
-        <section className="mb-3 bg-white rounded-xl border shadow-sm p-3 print:border-0 print:shadow-none">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h3 className="font-semibold text-sm">Cover Sheet · Current Clinical Snapshot</h3>
-              <p className="text-[10px] text-gray-500">Latest recorded vitals and allergy status for this patient.</p>
-            </div>
-            {lastEncounter?.createdAt && <span className="text-[10px] text-gray-500">Recorded {new Date(lastEncounter.createdAt).toLocaleString("en-IN")}</span>}
-          </div>
-          <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">BP</p><p className="text-sm font-semibold">{lastEncounter?.bp || p.bp || "—"}</p></div>
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="text-sm font-semibold">{lastEncounter?.pulse || "—"}</p></div>
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="text-sm font-semibold">{lastEncounter?.spo2 || "—"}</p></div>
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Respiratory Rate</p><p className="text-sm font-semibold">{lastEncounter?.rr || "—"}</p></div>
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Allergy</p><p className="text-sm font-semibold ${p.allergies ? "text-red-700" : ""}">{p.allergies || "No known allergy recorded"}</p></div>
-          </div>
-        </section>
-            <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[11px] text-gray-500 sm:grid-cols-2">
+        <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[11px] text-gray-500 sm:grid-cols-2">
               <span><b className="text-gray-600">UHID:</b> {p.uhid || "—"}</span>
               <span><b className="text-gray-600">MedLum ID:</b> {p.medlumId || "—"}</span>
               {p.careSetting === "IPD" && (
@@ -268,6 +252,23 @@ export default function PatientDetailPage() {
             <Link href="/patients" className="h-9 px-3 rounded-lg border text-xs font-medium inline-flex items-center">Back</Link>
           </div>
         </div>
+
+        <section className="mb-3 bg-white rounded-xl border shadow-sm p-3 print:border-0 print:shadow-none">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="font-semibold text-sm">Cover Sheet · Current Clinical Snapshot</h3>
+              <p className="text-[10px] text-gray-500">Latest recorded vitals and allergy status for this patient.</p>
+            </div>
+            {lastEncounter?.createdAt && <span className="text-[10px] text-gray-500">Recorded {new Date(lastEncounter.createdAt).toLocaleString("en-IN")}</span>}
+          </div>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">BP</p><p className="text-sm font-semibold">{lastEncounter?.bp || p.bp || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="text-sm font-semibold">{lastEncounter?.pulse || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="text-sm font-semibold">{lastEncounter?.spo2 || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Respiratory Rate</p><p className="text-sm font-semibold">{lastEncounter?.rr || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Allergy</p><p className={`text-sm font-semibold ${p.allergies ? "text-red-700" : ""}`}>{p.allergies || "No known allergy recorded"}</p></div>
+          </div>
+        </section>
 
         <div className="print:block hidden mb-3"><b>Patient:</b> {p.name} · {p.age} yrs · {p.gender} · {p.phone}</div>
         {lastEncounter ? (
