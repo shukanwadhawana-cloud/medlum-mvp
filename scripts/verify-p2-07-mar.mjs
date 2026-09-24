@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 const schema=fs.readFileSync("prisma/schema.prisma","utf8");
 const route=fs.readFileSync("src/app/api/ipd/medications/route.ts","utf8");
 const panel=fs.readFileSync("src/components/ipd/MedicationAdministrationPanel.tsx","utf8");
-const ipd=fs.readFileSync("src/app/ipd/page.tsx","utf8");
+const ipd=fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const migration=fs.readFileSync("prisma/migrations/20260923_p2_07_mar/migration.sql","utf8");
 const pkg=fs.readFileSync("package.json","utf8");
 const ci=fs.readFileSync(".github/workflows/ci.yml","utf8");
