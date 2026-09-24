@@ -57,7 +57,7 @@ const LAB_ALIASES: Record<string, string[]> = {
   CRP: ["crp", "c-reactive protein", "c reactive protein"],
   ESR: ["esr", "erythrocyte sedimentation rate"],
   "Procalcitonin": ["procalcitonin", "pct"],
-  D-Dimer: ["d-dimer", "d dimer", "ddimer"],
+  "D-Dimer": ["d-dimer", "d dimer", "ddimer"],
   Troponin: ["troponin", "hs-troponin", "hs troponin"],
   "NT-proBNP": ["nt-probnp", "nt probnp", "bnp"],
   "Free PSA": ["free psa"],
