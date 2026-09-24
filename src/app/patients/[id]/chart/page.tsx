@@ -14,6 +14,7 @@ import { ClinicalRxPanel } from "@/components/ClinicalRxPanel";
 import { ClinicalProblemsPanel } from "@/components/ClinicalProblemsPanel";
 import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";
 import { ClinicalIOPanel } from "@/components/ClinicalIOPanel";
+import { ClinicalDischargePanel } from "@/components/ClinicalDischargePanel";
 
 type TabId = "overview" | "problems" | "notes" | "orders" | "rx" | "vitals" | "io" | "discharge" | "billing";
 
@@ -25,7 +26,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "rx", label: "Medications" },
   { id: "vitals", label: "Vitals" },
   { id: "io", label: "Intake / Output" },
-  { id: "discharge", label: "Discharge" },
+  { id: "discharge", label: "Discharge summary" },
   { id: "billing", label: "Billing" },
 ];
 
@@ -383,17 +384,16 @@ export default function PatientClinicalChartPage() {
         )}
 
         {tab === "discharge" && (
-          <Section title="Disposition / discharge / IPD summary" action={<Link href="/ipd-summaries" className="text-[11px] text-[#c2183a] font-medium">Summaries</Link>}>
-            <p className="text-xs text-gray-600 mb-3">
-              Use IPD summaries for formal discharge documentation and clinical print. Working diagnosis on file:{" "}
-              <b>{profile.workingDiagnosis || profile.diagnosis || latestEncounter?.diagnosis || "—"}</b>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/ipd-summaries" className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium inline-flex items-center">Open IPD summaries</Link>
-              <Link href="/ipd/print" className="h-9 px-3 rounded-lg border text-xs font-medium inline-flex items-center">IPD print</Link>
-              <button type="button" onClick={() => setTab("notes")} className="h-9 px-3 rounded-lg border text-xs font-medium">Discharge note</button>
-            </div>
-          </Section>
+          <ClinicalDischargePanel
+            patientId={String(id)}
+            patient={p}
+            encounters={encounters}
+            labs={labs}
+            prescriptions={prescriptions}
+            profile={profile}
+            careSetting={careSetting}
+            onSaved={async () => { await load(); }}
+          />
         )}
 
         {tab === "billing" && (
