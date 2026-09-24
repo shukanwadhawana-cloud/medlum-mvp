@@ -13,6 +13,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Patch prisma schema for Duty workforce
         run: |
           set -euo pipefail
@@ -21,7 +23,12 @@ jobs:
             sed -i 's/dutyEnabled        Boolean   @default(false)/dutyEnabled        Boolean   @default(false)\n  dutyGraceMinutes   Int       @default(10)/' "$SCHEMA"
           fi
           if ! grep -q 'dutyAttendanceRequests' "$SCHEMA"; then
+            # Clinic relation
             sed -i 's/dutyAttendanceEvents DutyAttendanceEvent\[\]/dutyAttendanceEvents DutyAttendanceEvent[]\n  dutyAttendanceRequests DutyAttendanceRequest[]/' "$SCHEMA"
+            # Only first occurrence was Clinic; add ClinicMember relation if still missing one
+            if [ "$(grep -c 'dutyAttendanceRequests' "$SCHEMA")" -lt 2 ]; then
+              sed -i 's/  dutyAttendanceEvents DutyAttendanceEvent\[\]\n\n  @@unique(\[clinicId, doctorId\])/  dutyAttendanceEvents DutyAttendanceEvent[]\n  dutyAttendanceRequests DutyAttendanceRequest[]\n\n  @@unique([clinicId, doctorId])/' "$SCHEMA"
+            fi
           fi
           if ! grep -q 'model DutyAttendanceRequest' "$SCHEMA"; then
             cat >> "$SCHEMA" << 'EOF'
