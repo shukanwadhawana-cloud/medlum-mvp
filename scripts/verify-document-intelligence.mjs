@@ -19,6 +19,12 @@ ok(schema.includes("verifiedAt"), "verifiedAt timestamp");
 
 const ocrLib = readFileSync("src/lib/lab-ocr.ts", "utf8");
 ok(ocrLib.includes("DRAFT"), "OCR status DRAFT");
+ok(ocrLib.includes('createWorker("eng"'), "Tesseract image OCR enabled");
+ok(ocrLib.includes('pdfjs-dist/legacy/build/pdf.mjs'), "PDF.js PDF extraction enabled");
+ok(ocrLib.includes('@napi-rs/canvas'), "scanned-PDF rasterization dependency wired");
+ok(!ocrLib.includes("Image OCR is not enabled"), "image OCR is not hard-disabled");
+ok(!ocrLib.includes("Enter results manually"), "OCR failure does not instruct manual-first workflow");
+
 ok(ocrLib.includes("Never invents values") || ocrLib.includes("not verified") || ocrLib.includes("DRAFT"), "OCR lib states draft-only safety");
 
 const upload = readFileSync("src/app/api/labs/documents/route.ts", "utf8");
