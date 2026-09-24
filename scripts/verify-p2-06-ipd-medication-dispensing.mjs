@@ -2,7 +2,7 @@ import fs from "node:fs";
 import assert from "node:assert/strict";
 const route=fs.readFileSync("src/app/api/ipd/route.ts","utf8");
 const pharmacy=fs.readFileSync("src/app/api/pharmacy/route.ts","utf8");
-const ipdPage=fs.readFileSync("src/app/ipd/page.tsx","utf8");
+const ipdPage=fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const pharmacyPage=fs.readFileSync("src/app/pharmacy/page.tsx","utf8");
 const schema=fs.readFileSync("prisma/schema.prisma","utf8");
 const pkg=fs.readFileSync("package.json","utf8");
