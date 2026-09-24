@@ -215,7 +215,7 @@ model Encounter {
   labOrders        LabOrder[]
   diagnosticOrders DiagnosticOrder[]
   medicationAdministrations MedicationAdministration[]
-  clinicalNotes      ClinicalNote[]
+  signedClinicalNotes ClinicalNote[]
 
   @@index([doctorId])
   @@index([patientId])
