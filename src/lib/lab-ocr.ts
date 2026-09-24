@@ -43,6 +43,35 @@ const LAB_ALIASES: Record<string, string[]> = {
   Triglycerides: ["triglycerides", "triglyceride"],
   "HDL Cholesterol": ["hdl", "hdl cholesterol"],
   "LDL Cholesterol": ["ldl", "ldl cholesterol"],
+  "Total Protein": ["total protein", "protein total"],
+  Globulin: ["globulin"],
+  Calcium: ["calcium", "ca"],
+  Magnesium: ["magnesium", "mg"],
+  Phosphorus: ["phosphorus", "phosphate", "phos"],
+  Uric Acid: ["uric acid", "uric"],
+  Amylase: ["amylase"],
+  Lipase: ["lipase"],
+  Ferritin: ["ferritin"],
+  "Vitamin B12": ["vitamin b12", "vit b12", "b12"],
+  Folate: ["folate", "folic acid"],
+  CRP: ["crp", "c-reactive protein", "c reactive protein"],
+  ESR: ["esr", "erythrocyte sedimentation rate"],
+  "Procalcitonin": ["procalcitonin", "pct"],
+  D-Dimer: ["d-dimer", "d dimer", "ddimer"],
+  Troponin: ["troponin", "hs-troponin", "hs troponin"],
+  "NT-proBNP": ["nt-probnp", "nt probnp", "bnp"],
+  "Free PSA": ["free psa"],
+  PSA: ["psa", "prostate specific antigen"],
+  LH: ["lh", "luteinizing hormone"],
+  FSH: ["fsh", "follicle stimulating hormone"],
+  Prolactin: ["prolactin"],
+  Cortisol: ["cortisol"],
+  Insulin: ["insulin"],
+  "Vitamin D": ["vitamin d", "25-oh vitamin d", "25 oh vitamin d"],
+  "Urine Protein": ["urine protein", "protein urine"],
+  "Urine Glucose": ["urine glucose"],
+  "Urine RBC": ["urine rbc", "rbc/hpf"],
+  "Urine WBC": ["urine wbc", "pus cells", "wbc/hpf"],
 };
 
 function escapeRegExp(value: string) {
@@ -54,17 +83,18 @@ function extractCandidates(text: string): Record<string, string> {
   const normalized = text
     .replace(/\r/g, "\n")
     .replace(/[|]+/g, " ")
-    .replace(/\u00a0/g, " ");
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+/g, " ");
 
   // Lab reports are frequently OCR'd as tables where the unit/reference
   // interval sits between the analyte name and the measured value. Search a
   // bounded window after each analyte instead of requiring "label: value".
   for (const [canonical, aliases] of Object.entries(LAB_ALIASES)) {
-    for (const alias of aliases) {
+    for (const alias of aliases.sort((a, b) => b.length - a.length)) {
       const re = new RegExp(
         escapeRegExp(alias) +
           "(?:(?!\\n).){0,120}?" +
-          "([<>]?[0-9]+(?:[.,][0-9]+)?)",
+          "([<>]?[0-9]+(?:[.,][0-9]+)?(?:\\s*(?:mg/dL|g/dL|g/L|mmol/L|µmol/L|U/L|IU/L|mIU/L|ng/mL|pg/mL|ng/dL|mg/L|mm/hr|%|fL|pg|cells/µL|/hpf))?)",
         "im"
       );
       const match = normalized.match(re);
