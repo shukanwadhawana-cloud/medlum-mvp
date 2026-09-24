@@ -31,9 +31,9 @@ const doctorLifecycle =
   (doctorRoom.includes("hangUp") || doctorRoom.includes("Hang up"));
 
 const checks = [
-  ["replaceable provider selection", helper.includes("getVideoProvider") && helper.includes('"external"') && helper.includes('"jitsi"')],
-  ["HTTPS video base URL default", helper.includes("https://meet.jit.si")],
-  ["per-session unpredictable room secret", helper.includes("randomBytes(18)")],
+  ["replaceable provider selection", helper.includes("getVideoProvider") && helper.includes('"external"') && helper.includes('"jitsi"') && helper.includes('"mirotalk"')],
+  ["HTTPS video base URL default", helper.includes("https://meet.jit.si") || helper.includes("medlum-mirotalk-p2p")],
+  ["per-session unpredictable room secret", helper.includes("randomBytes(24)") || helper.includes("randomBytes(18)")],
   ["video URL persisted at session creation", sessions.includes("meetingUrl") && sessions.includes("provider")],
   ["join token remains hashed", sessions.includes("hashJoinToken(joinToken)")],
   ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
@@ -43,6 +43,11 @@ const checks = [
   ["patient video embed", patientRoom.includes("session.meetingUrl")],
 ];
 
+// Ensure no hangup timer / 5-minute auto-end in UI (comments documenting absence are OK)
+const uiOnly = doctorRoom + patientRoom;
+if (/setTimeout\s*\(\s*[^,]+,\s*300\s*\*?\s*1000|hangup.*5\s*min|call will end after 5/i.test(uiOnly)) {
+  failures.push("failed no artificial 5-minute call limit");
+}
 for (const [name, ok] of checks) if (!ok) failures.push(`failed ${name}`);
 
 if (failures.length) {
