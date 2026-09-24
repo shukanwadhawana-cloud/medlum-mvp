@@ -6,7 +6,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const fail = [];
 const ok = (condition, message) => condition ? console.log("OK:", message) : (fail.push(message), console.error("FAIL:", message));
 
-const ipd = read("src/app/ipd/page.tsx");
+const ipd = read("src/app/ipd/[id]/page.tsx");
 
 ok(ipd.includes('d.success!==true'), "IPD POST treats only an explicit success:true response as a successful save");
 ok(ipd.includes('!r.ok||d.success!==true'), "HTTP/API save failures enter the error path");
