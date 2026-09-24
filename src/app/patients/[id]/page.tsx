@@ -5,22 +5,13 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
+import { EXPANDED_LAB_CATALOG, EXPANDED_RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
 import AbhaPatientPanel from "@/components/AbhaPatientPanel";
 import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment, apiCreateLabOrder, apiCreateDiagnosticOrder, apiGetClinicalNotes, apiCreateClinicalNote, apiSaveClinicalDraft, apiSubmitClinicalNote, apiFinalizeClinicalNote, apiCancelRecord } from "@/lib/api";
 
 type TimelineItem = { date: string; kind: string; title: string; detail?: string; sort: number };
 
-const COMMON_LAB_TESTS = ["CBC", "LFT", "KFT", "Lipid Profile", "HbA1c", "TSH", "Urine Routine", "Blood Sugar"];
 const CONSULT_DRAFT_KEY_PREFIX = "medlum:consult-draft:";
-
-const COMMON_DIAGNOSTICS = [
-  { studyName: "Chest X-ray", modality: "X-ray" },
-  { studyName: "Ultrasound Abdomen", modality: "Ultrasound" },
-  { studyName: "CT Head", modality: "CT" },
-  { studyName: "MRI Brain", modality: "MRI" },
-  { studyName: "ECG", modality: "ECG" },
-  { studyName: "2D Echo", modality: "Echo" },
-];
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +43,10 @@ export default function PatientDetailPage() {
   });
   const [selectedLabs, setSelectedLabs] = useState<string[]>([]);
   const [selectedDiagnostics, setSelectedDiagnostics] = useState<string[]>([]);
+  const [labSearch, setLabSearch] = useState("");
+  const [diagnosticSearch, setDiagnosticSearch] = useState("");
+  const [favoriteLabs, setFavoriteLabs] = useState<string[]>([]);
+  const [favoriteDiagnostics, setFavoriteDiagnostics] = useState<string[]>([]);
   const [hasConsultDraft, setHasConsultDraft] = useState(false);
   const [consultDraftSavedAt, setConsultDraftSavedAt] = useState<string | null>(null);
 
@@ -70,7 +65,15 @@ export default function PatientDetailPage() {
     void load();
   }, [authLoading, doctor, load, router]);
 
+  const clinicianKey = doctor?.id ? String(doctor.id) : "current";
+  const labFavoriteKey = `medlum:fav-labs:${clinicianKey}`;
+  const diagnosticFavoriteKey = `medlum:fav-diagnostics:${clinicianKey}`;
+  const visibleLabs = useMemo(() => { const q=labSearch.trim().toLowerCase(); const list=EXPANDED_LAB_CATALOG.filter(x=>!q||x.name.toLowerCase().includes(q)||x.category.toLowerCase().includes(q)); return [...list].sort((a,b)=>Number(favoriteLabs.includes(b.name))-Number(favoriteLabs.includes(a.name))||a.name.localeCompare(b.name)); },[labSearch,favoriteLabs]);
+  const visibleDiagnostics = useMemo(() => { const q=diagnosticSearch.trim().toLowerCase(); const list=EXPANDED_RADIOLOGY_CATALOG.filter(x=>!q||x.name.toLowerCase().includes(q)||x.category.toLowerCase().includes(q)||x.modality.toLowerCase().includes(q)); return [...list].sort((a,b)=>Number(favoriteDiagnostics.includes(b.name))-Number(favoriteDiagnostics.includes(a.name))||a.name.localeCompare(b.name)); },[diagnosticSearch,favoriteDiagnostics]);
+
   const consultDraftKey = id ? CONSULT_DRAFT_KEY_PREFIX + id : "";
+
+  useEffect(() => { if (typeof window === "undefined") return; try { setFavoriteLabs(JSON.parse(window.localStorage.getItem(labFavoriteKey)||"[]")); setFavoriteDiagnostics(JSON.parse(window.localStorage.getItem(diagnosticFavoriteKey)||"[]")); } catch { setFavoriteLabs([]); setFavoriteDiagnostics([]); } }, [labFavoriteKey, diagnosticFavoriteKey]);
 
   useEffect(() => {
     if (!consultDraftKey || typeof window === "undefined") return;
@@ -141,7 +144,7 @@ export default function PatientDetailPage() {
       }
       if (selectedDiagnostics.length) {
         const diagnosticResults = await Promise.all(selectedDiagnostics.map((studyName) => {
-          const study = COMMON_DIAGNOSTICS.find((x) => x.studyName === studyName);
+          const study = EXPANDED_RADIOLOGY_CATALOG.find((x) => x.name === studyName);
           return apiCreateDiagnosticOrder({ patientId: id, studyName, modality: study?.modality || "Other", indication: form.diagnosis || form.chiefComplaint || undefined, encounterId: enc.encounter.id });
         }));
         const failedDiagnostic = diagnosticResults.find((r) => !r.success);
@@ -419,9 +422,7 @@ export default function PatientDetailPage() {
                 <div><label className="text-xs text-gray-500">Pulse</label><input value={form.pulse} onChange={(e) => setForm({ ...form, pulse: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               </div>
               <div><label className="text-xs text-gray-500">Medicines</label><textarea value={form.medicines} onChange={(e) => setForm({ ...form, medicines: e.target.value })} className="w-full min-h-[64px] px-3 py-2 rounded-lg border text-sm" placeholder="One per line" /></div>
-              <div><label className="text-xs text-gray-500">Labs</label><div className="flex flex-wrap gap-1.5 mt-1">{COMMON_LAB_TESTS.map((t) => (<label key={t} className="text-xs border rounded-full px-2 py-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedLabs.includes(t)} onChange={(e) => setSelectedLabs((prev) => e.target.checked ? [...prev, t] : prev.filter((x) => x !== t))} />{t}</label>))}</div></div>
-              <div><label className="text-xs text-gray-500">Diagnostics</label><div className="flex flex-wrap gap-1.5 mt-1">{COMMON_DIAGNOSTICS.map((d) => (<label key={d.studyName} className="text-xs border rounded-full px-2 py-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedDiagnostics.includes(d.studyName)} onChange={(e) => setSelectedDiagnostics((prev) => e.target.checked ? [...prev, d.studyName] : prev.filter((x) => x !== d.studyName))} />{d.studyName}</label>))}</div></div>
-              <div><label className="text-xs text-gray-500">Bill amount (₹)</label><input type="number" min="0" step="1" value={form.billAmount} onChange={(e) => setForm({ ...form, billAmount: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
+              <div><label className="text-xs text-gray-500">Laboratory investigations</label><input value={labSearch} onChange={(e)=>setLabSearch(e.target.value)} placeholder="Type to search labs…" className="mt-1 w-full h-10 px-3 rounded-lg border text-sm"/><div className="mt-1 max-h-44 overflow-y-auto rounded-lg border p-1">{visibleLabs.map((t)=><div key={t.id} className="flex items-center gap-1 text-xs px-1.5 py-1"><label className="flex-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedLabs.includes(t.name)} onChange={(e)=>setSelectedLabs(prev=>e.target.checked?[...prev,t.name]:prev.filter(x=>x!==t.name))}/>{t.name}</label><button type="button" onClick={()=>{const n=favoriteLabs.includes(t.name)?favoriteLabs.filter(x=>x!==t.name):[...favoriteLabs,t.name];setFavoriteLabs(n);window.localStorage.setItem(labFavoriteKey,JSON.stringify(n));}} className="px-1">{favoriteLabs.includes(t.name)?"★":"☆"}</button></div>)}</div></div><div><label className="text-xs text-gray-500">Radiology / diagnostic investigations</label><input value={diagnosticSearch} onChange={(e)=>setDiagnosticSearch(e.target.value)} placeholder="Type to search imaging…" className="mt-1 w-full h-10 px-3 rounded-lg border text-sm"/><div className="mt-1 max-h-44 overflow-y-auto rounded-lg border p-1">{visibleDiagnostics.map((d)=><div key={d.id} className="flex items-center gap-1 text-xs px-1.5 py-1"><label className="flex-1 cursor-pointer"><input type="checkbox" className="mr-1" checked={selectedDiagnostics.includes(d.name)} onChange={(e)=>setSelectedDiagnostics(prev=>e.target.checked?[...prev,d.name]:prev.filter(x=>x!==d.name))}/>{d.name}</label><button type="button" onClick={()=>{const n=favoriteDiagnostics.includes(d.name)?favoriteDiagnostics.filter(x=>x!==d.name):[...favoriteDiagnostics,d.name];setFavoriteDiagnostics(n);window.localStorage.setItem(diagnosticFavoriteKey,JSON.stringify(n));}} className="px-1">{favoriteDiagnostics.includes(d.name)?"★":"☆"}</button></div>)}</div></div><div><label className="text-xs text-gray-500">Bill amount (₹)</label><input type="number" min="0" step="1" value={form.billAmount} onChange={(e) => setForm({ ...form, billAmount: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               <div className="rounded-xl border bg-white p-2.5">
                 <p className="text-[11px] font-semibold text-gray-700 mb-2">Consultation actions</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
