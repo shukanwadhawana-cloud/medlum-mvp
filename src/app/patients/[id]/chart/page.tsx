@@ -18,13 +18,15 @@ import { ClinicalDischargePanel } from "@/components/ClinicalDischargePanel";
 import { ClinicalReferralPanel } from "@/components/ClinicalReferralPanel";
 import { ClinicalReportsPanel } from "@/components/ClinicalReportsPanel";
 
-type TabId = "overview" | "problems" | "notes" | "orders" | "rx" | "vitals" | "io" | "discharge" | "referral" | "report" | "billing";
+type TabId = "overview" | "problems" | "notes" | "orders" | "lab" | "radiology" | "rx" | "vitals" | "io" | "discharge" | "referral" | "report" | "billing";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Cover sheet" },
   { id: "problems", label: "Problems" },
   { id: "notes", label: "Clinical notes" },
   { id: "orders", label: "Orders" },
+  { id: "lab", label: "Lab" },
+  { id: "radiology", label: "Radiology" },
   { id: "rx", label: "Medications" },
   { id: "vitals", label: "Vitals" },
   { id: "io", label: "Intake / Output" },
@@ -338,6 +340,26 @@ export default function PatientClinicalChartPage() {
             patientId={String(id)}
             labs={labs}
             diagnostics={diagnostics}
+            onSaved={async () => { await load(); }}
+          />
+        )}
+
+        {tab === "lab" && (
+          <ClinicalOrdersPanel
+            patientId={String(id)}
+            labs={labs}
+            diagnostics={diagnostics}
+            focus="lab"
+            onSaved={async () => { await load(); }}
+          />
+        )}
+
+        {tab === "radiology" && (
+          <ClinicalOrdersPanel
+            patientId={String(id)}
+            labs={labs}
+            diagnostics={diagnostics}
+            focus="radiology"
             onSaved={async () => { await load(); }}
           />
         )}
