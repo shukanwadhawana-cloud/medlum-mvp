@@ -6,6 +6,15 @@ import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientPr
 import { getClinicSetup, requireClinicalModule } from "@/lib/clinic-products";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
+function formatUhid(value: string | null | undefined): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^UHID-/i.test(raw)) return raw.toUpperCase();
+  const legacy = raw.match(/^ML-(\d{6})-(\d{4,6})$/i);
+  if (legacy) return `UHID-${legacy[1]}-${legacy[2]}`;
+  return raw.toUpperCase();
+}
+
 function serialize(p: any) {
   const profile = parsePatientProfile(p.notes);
   return {
@@ -20,8 +29,8 @@ function serialize(p: any) {
     notes: cleanPatientNotes(p.notes),
     careSetting: profile.careSetting || parseCareSetting(p.notes),
     status: p.status || "ACTIVE",
-    uhid: p.uhid || "",
-    registrationNo: p.registrationNo || "",
+    uhid: formatUhid(p.uhid),
+    registrationNo: formatUhid(p.registrationNo),
     // Keep the database id private/technical while exposing a stable, human-facing MedLum ID.
     medlumId: `MLD-${String(p.id || "").slice(-8).toUpperCase()}`,
     admissionDate: profile.admissionDate || (profile.careSetting === "IPD" ? p.createdAt.toISOString() : null),
