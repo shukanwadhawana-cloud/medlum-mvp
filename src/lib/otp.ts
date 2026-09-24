@@ -44,7 +44,8 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
 export function getCanonicalAppOrigin(): string {
   const explicit = String(process.env.MEDLUM_APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim().replace(/\/$/, "");
   if (explicit.startsWith("http://") || explicit.startsWith("https://")) return explicit;
-  if (process.env.NODE_ENV === "production") return "";\n  const vercelUrl = String(process.env.VERCEL_URL || "").trim().replace(/\/$/, "");
+  if (process.env.NODE_ENV === "production") return "";
+  const vercelUrl = String(process.env.VERCEL_URL || "").trim().replace(/\/$/, "");
   if (vercelUrl) return vercelUrl.startsWith("http") ? vercelUrl : `https://${vercelUrl}`;
   return "http://localhost:3000";
 }

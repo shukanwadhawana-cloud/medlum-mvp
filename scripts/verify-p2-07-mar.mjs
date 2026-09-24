@@ -51,7 +51,7 @@ assert(!route.includes("prisma.dispensing"), "MAR API must not mutate pharmacy d
 for (const x of ["SCHEDULED","ADMINISTERED","HELD","OMITTED","REFUSED","CANCELLED","Confirm that you personally administered","Medication Administration Record"]) {
   assert(panel.includes(x), "MAR UI contract missing: "+x);
 }
-assert(panel.includes('method: "PATCH"'), "MAR UI must use explicit mutation");
+assert(panel.includes('method: "PATCH"') || panel.includes('method:"PATCH"'), "MAR UI must use explicit mutation");
 assert(panel.includes("setError(e.message"), "MAR UI must surface server errors");
 assert(panel.includes('setSelectedPrescriptionId("")'), "MAR UI cancellation must clear local form without a request");
 assert(ipd.includes("MedicationAdministrationPanel"), "MAR panel must be mounted in the existing IPD workspace");
