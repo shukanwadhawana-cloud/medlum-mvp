@@ -117,7 +117,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         verified: true,
         verificationAction: action,
         machineExtracted: true,
-        manualResult: action === "MANUAL",
+        manualResult: action === "MANUAL"
           ? String(body.resultText || "").trim().slice(0, 4000)
           : undefined,
       }),
