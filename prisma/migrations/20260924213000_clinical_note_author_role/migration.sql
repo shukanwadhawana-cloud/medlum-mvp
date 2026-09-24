@@ -9,3 +9,11 @@ SET "noteType" = CASE
   WHEN "noteType" = 'Other' THEN 'Progress Note'
   ELSE "noteType"
 END;
+-- Backfill the stored author role from the author's active clinic membership where available.
+UPDATE "ClinicalNote" n
+SET "authorRole" = COALESCE((
+  SELECT cm."role" FROM "ClinicMember" cm
+  WHERE cm."clinicId" = n."clinicId" AND cm."doctorId" = n."authorDoctorId"
+  ORDER BY cm."isActive" DESC, cm."updatedAt" DESC
+  LIMIT 1
+), 'Consultant');
