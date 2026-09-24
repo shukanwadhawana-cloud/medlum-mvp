@@ -11,6 +11,7 @@ import {
   getStorageProvider,
   storageQuotaBytes,
 } from "@/lib/storage";
+import { extractLabOcrDraft } from "@/lib/lab-ocr";
 
 async function clinicIdFor(doctorId: string) {
   const m = await requireActiveClinicMembership(doctorId);
@@ -143,6 +144,28 @@ export async function POST(req: Request) {
     const provider = getStorageProvider();
     await provider.upload(storageKey, buf, normalizedMime || mimeType);
 
+    let ocrStatus = "NONE";
+    let ocrDraft = "";
+    let ocrExtractedAt: Date | null = null;
+    let ocrMessage = "";
+    try {
+      const assist = await extractLabOcrDraft(buf, normalizedMime || mimeType);
+      ocrStatus = assist.status === "DRAFT" ? "DRAFT" : "FAILED";
+      ocrDraft = JSON.stringify({
+        candidates: assist.draft,
+        rawTextPreview: assist.rawTextPreview,
+        warnings: (assist as { warnings?: string[] }).warnings || [],
+        machineExtracted: true,
+        verified: false,
+      });
+      ocrExtractedAt = new Date();
+      ocrMessage = assist.message;
+    } catch {
+      ocrStatus = "FAILED";
+      ocrDraft = JSON.stringify({ candidates: {}, warnings: [], machineExtracted: true, verified: false });
+      ocrMessage = "OCR assist failed; enter results manually.";
+    }
+
     const doc = await prisma.medicalDocument.create({
       data: {
         id: documentId,
@@ -157,7 +180,9 @@ export async function POST(req: Request) {
         sizeBytes: buf.length,
         checksum,
         uploadedBy: session.doctorId,
-        ocrStatus: "NONE",
+        ocrStatus,
+        ocrDraft,
+        ocrExtractedAt,
       },
     });
 
@@ -166,10 +191,24 @@ export async function POST(req: Request) {
       action: "LAB_DOCUMENT_UPLOADED",
       entity: "MedicalDocument",
       entityId: doc.id,
-      meta: { clinicId, labOrderId, patientId, sizeBytes: buf.length, mimeType: doc.mimeType },
+      meta: { clinicId, labOrderId, patientId, sizeBytes: buf.length, mimeType: doc.mimeType, ocrStatus, storageProvider: provider.name },
     });
+    if (ocrStatus === "DRAFT" || ocrStatus === "FAILED") {
+      await writeAudit({
+        doctorId: session.doctorId,
+        action: "LAB_DOCUMENT_OCR",
+        entity: "MedicalDocument",
+        entityId: doc.id,
+        meta: { clinicId, ocrStatus },
+      });
+    }
 
-    return NextResponse.json({ success: true, document: doc, deduplicated: false });
+    return NextResponse.json({
+      success: true,
+      document: doc,
+      deduplicated: false,
+      ocr: { status: ocrStatus, message: ocrMessage, verified: false },
+    });
   } catch (e) {
     console.error("lab document upload", e instanceof Error ? e.message : e);
     return NextResponse.json(
