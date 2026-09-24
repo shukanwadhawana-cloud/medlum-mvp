@@ -1,0 +1,1 @@
+ALTER TABLE "MedicationAdministration" ADD COLUMN "frequency" TEXT NOT NULL DEFAULT 'OD';
