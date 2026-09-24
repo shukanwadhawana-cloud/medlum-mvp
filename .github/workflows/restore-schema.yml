@@ -1,0 +1,93 @@
+name: Restore Prisma Schema
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore schema from e688577 and apply Duty
+        run: |
+          git show e6885770a100bf757a01f8af072b6c62c62f8bd2:prisma/schema.prisma > prisma/schema.prisma
+          python3 << 'PY'
+          text = open("prisma/schema.prisma").read()
+          old = """  telegramIntegration FacilityTelegramIntegration?
+            clinicalNotes      ClinicalNote[]
+
+            @@index([name])
+            @@index([isActive])
+            @@index([ekaHipId])
+          }"""
+          new = """  telegramIntegration FacilityTelegramIntegration?
+            clinicalNotes      ClinicalNote[]
+            dutyAttendanceEvents DutyAttendanceEvent[]
+
+            // MedLum Duty — per-hospital geofence (campus punch)
+            dutyLat            Float?
+            dutyLng            Float?
+            dutyRadiusMeters   Int       @default(200)
+            dutyEnabled        Boolean   @default(false)
+
+            @@index([name])
+            @@index([isActive])
+            @@index([ekaHipId])
+          }"""
+          if old not in text:
+            raise SystemExit("clinic tail not found")
+          text = text.replace(old, new, 1)
+          old_m = """  medicationAdministrations MedicationAdministration[]
+
+            @@unique([clinicId, doctorId])"""
+          new_m = """  medicationAdministrations MedicationAdministration[]
+            dutyAttendanceEvents DutyAttendanceEvent[]
+
+            @@unique([clinicId, doctorId])"""
+          if old_m not in text:
+            raise SystemExit("member block not found")
+          text = text.replace(old_m, new_m, 1)
+          duty = """
+
+          model DutyAttendanceEvent {
+            id              String       @id @default(cuid())
+            clinicId        String
+            memberId        String
+            doctorId        String
+            type            String
+            punchedAt       DateTime     @default(now())
+            source          String       @default("SELF")
+            lat             Float?
+            lng             Float?
+            accuracyMeters  Float?
+            withinGeofence  Boolean      @default(true)
+            note            String       @default("")
+            adminDoctorId   String?
+            saniddhiSyncAt  DateTime?
+            saniddhiRef     String       @default("")
+            createdAt       DateTime     @default(now())
+            clinic          Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+            member          ClinicMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+            @@index([clinicId, punchedAt])
+            @@index([memberId, punchedAt])
+            @@index([doctorId, punchedAt])
+            @@index([clinicId, type, punchedAt])
+          }
+          """
+          if "model DutyAttendanceEvent" not in text:
+            text = text.rstrip() + duty
+          open("prisma/schema.prisma", "w").write(text)
+          print("schema restored", len(text), "DutyAttendanceEvent" in text)
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add prisma/schema.prisma
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "fix(schema): restore full Prisma schema + MedLum Duty from e688577"
+          git push
