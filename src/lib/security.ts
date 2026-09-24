@@ -27,7 +27,7 @@ export function securityHeaders() {
     ["X-Content-Type-Options", "nosniff"],
     ["X-Frame-Options", "SAMEORIGIN"],
     ["Referrer-Policy", "strict-origin-when-cross-origin"],
-    ["Permissions-Policy", "camera=(self \"https://meet.jit.si\"), microphone=(self \"https://meet.jit.si\"), geolocation=(), payment=()"],
+    ["Permissions-Policy", "camera=(self \"https://meet.jit.si\" \"https://medlum-mirotalk-p2p.onrender.com\"), microphone=(self \"https://meet.jit.si\" \"https://medlum-mirotalk-p2p.onrender.com\"), geolocation=(), payment=()"],
     ["Cross-Origin-Opener-Policy", "same-origin-allow-popups"],
     ["Cross-Origin-Resource-Policy", "same-origin"],
   ] as const;
