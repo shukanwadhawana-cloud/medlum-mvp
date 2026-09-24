@@ -36,7 +36,7 @@ if (shell.includes('{ href: "/dashboard", label: "Home"')) throw new Error("Dupl
 if (!shell.includes('href="/dashboard"') || !shell.includes("MedLum")) throw new Error("MedLum dashboard brand link missing");
 
 const patientDetail = read("src/app/patients/[id]/page.tsx");
-const consultReset = 'setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });';
+const consultReset = 'setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", rr: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });';
 if (!patientDetail.includes(consultReset)) throw new Error("Successful consultation save must clear the consultation form");
 if (!patientDetail.includes("setSelectedLabs([])") || !patientDetail.includes("setSelectedDiagnostics([])")) throw new Error("Successful consultation save must clear selected lab/diagnostic orders");
 
