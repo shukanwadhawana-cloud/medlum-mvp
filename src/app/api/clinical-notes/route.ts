@@ -158,7 +158,7 @@ export async function PATCH(req: Request) {
     if (action === "save-draft") {
       const content = String(body.content || "").trim();
       const title = String(body.title || "").trim();
-      const noteType = String(body.noteType || "Consultant Note").trim();
+      const noteType = String(body.noteType || "Progress Note").trim();
       if (!content) return NextResponse.json({ success: false, error: "Note content is required" }, { status: 400 });
 
       const current = await prisma.clinicalNote.findFirst({ where: { id, clinicId: membership.clinicId } });
