@@ -48,7 +48,7 @@ export default function MedicationAdministrationPanel({ patient }: Props) {
     if(!selectedPrescriptionId||!medicationText||!medicationName||!dose||!route||!frequency||!scheduledAt){setError("Select the medication order and complete medication, dose, frequency, route and scheduled time.");return;}
     setBusy(true);setError("");setMessage("");
     try{
-      const res=await fetch("/api/ipd/medications",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+      const res=await fetch("/api/ipd/medications",{method: "POST",credentials:"include",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({patientId:patient.id,prescriptionId:selectedPrescriptionId,medicationText,medicationName,dose,doseUnit,frequency,route,scheduledAt:new Date(scheduledAt).toISOString(),notes})});
       const body=await res.json().catch(()=>({}));
       if(!res.ok||!body.success)throw new Error(body.error||"Could not schedule dose");
@@ -63,7 +63,7 @@ export default function MedicationAdministrationPanel({ patient }: Props) {
     if(["HELD","OMITTED","REFUSED","CANCELLED"].includes(status)){reason=window.prompt("Reason required for "+status.toLowerCase()+":")?.trim()||"";if(!reason)return;}
     setBusy(true);setError("");setMessage("");
     try{
-      const res=await fetch("/api/ipd/medications",{method:"PATCH",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status,reason})});
+      const res=await fetch("/api/ipd/medications",{method: "PATCH",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status,reason})});
       const body=await res.json().catch(()=>({}));
       if(!res.ok||!body.success)throw new Error(body.error||"Could not update dose");
       setMessage("Medication administration status recorded: "+status);await load();
