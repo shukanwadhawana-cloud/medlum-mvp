@@ -239,7 +239,7 @@ export default function TelemedicinePage() {
         {mode === "peer" && (
           <p className="mt-2 text-[11px] text-gray-500">
             Example: log in on iPhone as host → create peer call → open room. On iPad open the join link (no second
-            account required). Both join the same Jitsi room when the host starts the consultation.
+            account required). Both join the same video room when the host starts the consultation.
           </p>
         )}
       </section>
@@ -262,7 +262,7 @@ export default function TelemedicinePage() {
                     <div className="text-xs text-gray-500">
                       {new Date(s.scheduledAt).toLocaleString()} · {s.status} · {s.sessionKind || "patient"} ·{" "}
                       {s.provider}
-                      {s.meetingUrl ? " · Jitsi ready" : ""}
+                      {s.meetingUrl ? " · Video ready" : ""}
                     </div>
                   </div>
                   <Link
