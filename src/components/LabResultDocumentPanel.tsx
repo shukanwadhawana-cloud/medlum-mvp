@@ -47,6 +47,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [manualResult, setManualResult] = useState("");
 
   async function load() {
     try {
@@ -92,6 +93,11 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       setSelectedDoc(doc);
       const nextValues = candidatesFrom(doc);
       setValues(nextValues);
+      setManualResult(String(data.document?.ocrDraft || "").includes("rawTextPreview")
+        ? (() => {
+            try { return String(JSON.parse(data.document.ocrDraft).rawTextPreview || ""); } catch { return ""; }
+          })()
+        : "");
       setMessage(
         data.deduplicated
           ? "Report already exists. Review the OCR draft below."
@@ -107,7 +113,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     }
   }
 
-  async function verify(action: "ACCEPT" | "CORRECT" | "REJECT") {
+  async function verify(action: "ACCEPT" | "CORRECT" | "REJECT" | "MANUAL") {
     if (!selectedDoc) return;
     setVerifying(true);
     setError("");
@@ -116,6 +122,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       const body: Record<string, unknown> = { action };
       if (action === "CORRECT") body.values = values;
       if (action === "REJECT") body.reason = "Rejected during clinical verification";
+      if (action === "MANUAL") body.resultText = manualResult.trim();
       const res = await fetch(`/api/labs/documents/${selectedDoc.id}/verify`, {
         method: "POST",
         credentials: "include",
@@ -144,6 +151,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const candidateEntries = useMemo(() => Object.entries(values), [values]);
   const selectedStatus = selectedDoc?.ocrStatus || "NONE";
   const canVerify = selectedStatus === "DRAFT" && !verifying;
+  const canManualVerify = selectedStatus === "FAILED" && !verifying && manualResult.trim().length > 0;
 
   return (
     <div className="space-y-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
@@ -228,9 +236,44 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           )}
 
           {selectedStatus === "FAILED" && (
-            <p className="mt-2 text-[11px] text-amber-700">
-              OCR did not produce a usable structured draft. The OCR diagnostic text is retained for investigation; no clinical result was written.
-            </p>
+            <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="text-[11px] font-semibold text-amber-900">
+                OCR could not safely structure this report
+              </p>
+              <p className="text-[10px] text-amber-800">
+                The original report is stored and the extracted text is retained as diagnostic evidence. Nothing has been written as a clinical result yet.
+              </p>
+              {manualResult && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / findings</p>
+                  <textarea
+                    value={manualResult}
+                    onChange={(e) => setManualResult(e.target.value)}
+                    disabled={verifying}
+                    className="mt-1 min-h-28 w-full rounded border bg-white px-2 py-1.5 text-xs"
+                  />
+                </div>
+              )}
+              <p className="text-[10px] text-gray-600">
+                Review the source report and correct the text below if needed, then verify it as the clinical result.
+              </p>
+              <button
+                type="button"
+                disabled={!canManualVerify}
+                onClick={() => void verify("MANUAL")}
+                className="w-full rounded-lg bg-[#c2183a] px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+              >
+                {verifying ? "Verifying…" : "Enter / Correct Result & Verify"}
+              </button>
+              <button
+                type="button"
+                disabled={verifying}
+                onClick={() => void verify("REJECT")}
+                className="w-full rounded-lg border border-red-200 bg-white px-2 py-2 text-[11px] font-medium text-red-700 disabled:opacity-50"
+              >
+                Reject report
+              </button>
+            </div>
           )}
 
           {selectedStatus === "VERIFIED" && (
