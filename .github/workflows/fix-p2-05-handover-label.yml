@@ -1,0 +1,37 @@
+name: Fix P2-05 handover label
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Align handover UI strings with P2-05 verifier
+        run: |
+          python3 << 'PY'
+          path = "src/app/ipd/[id]/page.tsx"
+          s = open(path).read()
+          # Button label the verifier requires
+          s2 = s.replace(
+              '>Handover</button>',
+              '>Transfer / Handover Patient</button>'
+          )
+          # Ensure Cancel appears in handover modal if missing a labeled cancel
+          if 'Transfer / Handover Patient' not in s2:
+              raise SystemExit('failed to set Transfer / Handover Patient label')
+          open(path, 'w').write(s2)
+          print('updated', path, 'len', len(s2))
+          print('has label', 'Transfer / Handover Patient' in s2)
+          print('has action', 'action:"handover"' in s2)
+          print('has receiving', 'receivingMemberId' in s2)
+          print('has confirm', 'Transfer clinical responsibility' in s2)
+          print('has current', 'Current receiving clinician/team' in s2)
+          print('has Cancel', 'Cancel' in s2)
+          PY
+          git config user.name "shukanwadhawana-cloud"
+          git config user.email "shukanwadhawana@gmail.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git commit -m "fix(ipd): P2-05 handover button label Transfer / Handover Patient" || echo nochange
+          git push origin HEAD:main
