@@ -9,8 +9,6 @@ import { EXPANDED_LAB_CATALOG, EXPANDED_RADIOLOGY_CATALOG } from "@/lib/diagnost
 import AbhaPatientPanel from "@/components/AbhaPatientPanel";
 import { apiGetPatientDetail, apiCreateEncounter, apiAddPrescriptionWithEncounter, apiAddInvoice, apiAddAppointment, apiCreateLabOrder, apiCreateDiagnosticOrder, apiGetClinicalNotes, apiCreateClinicalNote, apiSaveClinicalDraft, apiSubmitClinicalNote, apiFinalizeClinicalNote, apiCancelRecord } from "@/lib/api";
 
-type TimelineItem = { date: string; kind: string; title: string; detail?: string; sort: number };
-
 const CONSULT_DRAFT_KEY_PREFIX = "medlum:consult-draft:";
 
 export default function PatientDetailPage() {
@@ -94,17 +92,7 @@ export default function PatientDetailPage() {
       ? [lastEncounter.bp && `BP ${lastEncounter.bp}`, lastEncounter.pulse && `P ${lastEncounter.pulse}`, lastEncounter.spo2 && `SpO₂ ${lastEncounter.spo2}`, lastEncounter.rr && `RR ${lastEncounter.rr}`, lastEncounter.temperature && `T ${lastEncounter.temperature}`, lastEncounter.weight && `Wt ${lastEncounter.weight}`].filter(Boolean).join(" · ")
       : "";
 
-  const timeline = useMemo(() => {
-    if (!data) return [] as TimelineItem[];
-    const items: TimelineItem[] = [];
-    (data.encounters || []).forEach((e: any) => items.push({ date: e.date, kind: "Consult", title: e.diagnosis || e.chiefComplaint || "Consultation", detail: e.clinicalNotes, sort: new Date(e.createdAt).getTime() }));
-    (data.labOrders || []).forEach((l: any) => items.push({ date: new Date(l.orderedAt).toLocaleDateString(), kind: "Lab", title: l.testName, detail: l.result || l.status, sort: new Date(l.orderedAt).getTime() }));
-    (data.diagnosticOrders || []).forEach((d: any) => items.push({ date: new Date(d.orderedAt).toLocaleDateString(), kind: "Dx", title: d.studyName, detail: d.impression || d.status, sort: new Date(d.orderedAt).getTime() }));
-    (data.prescriptions || []).forEach((r: any) => items.push({ date: new Date(r.createdAt).toLocaleDateString(), kind: "Rx", title: "Prescription", detail: r.medicines, sort: new Date(r.createdAt).getTime() }));
-    (data.appointments || []).forEach((a: any) => items.push({ date: a.date, kind: "Appt", title: `${a.type} · ${a.time}`, detail: a.status, sort: new Date(a.createdAt).getTime() }));
-    (data.invoices || []).forEach((i: any) => items.push({ date: new Date(i.createdAt).toLocaleDateString(), kind: "Billing", title: `₹${i.amount}`, detail: i.note || "Fee", sort: new Date(i.createdAt).getTime() }));
-    return items.sort((a, b) => b.sort - a.sort);
-  }, [data]);
+
 
   const saveConsultDraft = () => {
     if (!consultDraftKey || typeof window === "undefined") return;
