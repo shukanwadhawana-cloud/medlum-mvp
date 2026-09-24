@@ -89,6 +89,8 @@ jobs:
         run: npm run test:p2-06
       - name: Verify P2-07 MAR
         run: npm run test:p2-07
+      - name: Verify IPD failed-save handling
+        run: npm run test:ipd-save-error-handling
       - name: Verify clinical double-verification and final signing
         run: npm run test:clinical-signing
       - name: Verify record confirmation and cancellation lifecycle
