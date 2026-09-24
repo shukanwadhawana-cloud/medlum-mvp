@@ -235,11 +235,14 @@ export default function PatientDetailPage() {
           <div>
             <h2 className="text-lg font-semibold">{p.name}</h2>
             <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
-            {(p.uhid || p.registrationNo) && (
-              <p className="text-[11px] text-gray-400 mt-0.5">
-                {p.uhid ? `UHID ${p.uhid}` : ""}{p.uhid && p.registrationNo ? " · " : ""}{p.registrationNo ? `Reg ${p.registrationNo}` : ""}
-              </p>
-            )}
+            <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[11px] text-gray-500 sm:grid-cols-2">
+              <span><b className="text-gray-600">UHID:</b> {p.uhid || "—"}</span>
+              <span><b className="text-gray-600">MedLum ID:</b> {p.medlumId || "—"}</span>
+              {p.careSetting === "IPD" && (
+                <span><b className="text-gray-600">Admission:</b> {p.admissionDate ? new Date(p.admissionDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span>
+              )}
+              {p.registrationNo && <span><b className="text-gray-600">Registration:</b> {p.registrationNo}</span>}
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href={`/patients/${id}/chart`} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium inline-flex items-center">Clinical chart</Link>
