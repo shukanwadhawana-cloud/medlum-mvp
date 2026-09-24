@@ -34,6 +34,8 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    const membership = await requireActiveClinicMembership(session.doctorId);
+    if (!membership) return NextResponse.json({ success: false, error: "No active clinic membership" }, { status: 403 });
     const body = await req.json();
     const patientId = String(body.patientId || "");
     if (!patientId) return NextResponse.json({ success: false, error: "Patient required" }, { status: 400 });
