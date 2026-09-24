@@ -87,9 +87,12 @@ export default function PatientDetailPage() {
 
   const p = data?.patient;
   const lastEncounter = data?.encounters?.[0];
-  const lastVitals = lastEncounter
-    ? [lastEncounter.bp && `BP ${lastEncounter.bp}`, lastEncounter.pulse && `P ${lastEncounter.pulse}`, lastEncounter.spo2 && `SpO₂ ${lastEncounter.spo2}`, lastEncounter.rr && `RR ${lastEncounter.rr}`, lastEncounter.temperature && `T ${lastEncounter.temperature}`, lastEncounter.weight && `Wt ${lastEncounter.weight}`].filter(Boolean).join(" · ")
-    : "";
+  const latestVitals = data?.patient?.latestVitals || null;
+  const lastVitals = latestVitals
+    ? [latestVitals.bp && `BP ${latestVitals.bp}`, latestVitals.pulse && `P ${latestVitals.pulse}`, latestVitals.spo2 && `SpO₂ ${latestVitals.spo2}`, latestVitals.rr && `RR ${latestVitals.rr}`, latestVitals.temperature && `T ${latestVitals.temperature}`, latestVitals.weight && `Wt ${latestVitals.weight}`].filter(Boolean).join(" · ")
+    : lastEncounter
+      ? [lastEncounter.bp && `BP ${lastEncounter.bp}`, lastEncounter.pulse && `P ${lastEncounter.pulse}`, lastEncounter.spo2 && `SpO₂ ${lastEncounter.spo2}`, lastEncounter.rr && `RR ${lastEncounter.rr}`, lastEncounter.temperature && `T ${lastEncounter.temperature}`, lastEncounter.weight && `Wt ${lastEncounter.weight}`].filter(Boolean).join(" · ")
+      : "";
 
   const timeline = useMemo(() => {
     if (!data) return [] as TimelineItem[];
@@ -259,13 +262,13 @@ export default function PatientDetailPage() {
               <h3 className="font-semibold text-sm">Cover Sheet · Current Clinical Snapshot</h3>
               <p className="text-[10px] text-gray-500">Latest recorded vitals and allergy status for this patient.</p>
             </div>
-            {lastEncounter?.createdAt && <span className="text-[10px] text-gray-500">Recorded {new Date(lastEncounter.createdAt).toLocaleString("en-IN")}</span>}
+            {latestVitals?.recordedAt && <span className="text-[10px] text-gray-500">Recorded {new Date(latestVitals.recordedAt).toLocaleString("en-IN")}</span>}
           </div>
           <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">BP</p><p className="text-sm font-semibold">{lastEncounter?.bp || p.bp || "—"}</p></div>
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="text-sm font-semibold">{lastEncounter?.pulse || "—"}</p></div>
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="text-sm font-semibold">{lastEncounter?.spo2 || "—"}</p></div>
-            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Respiratory Rate</p><p className="text-sm font-semibold">{lastEncounter?.rr || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">BP</p><p className="text-sm font-semibold">{latestVitals?.bp || p.bp || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="text-sm font-semibold">{latestVitals?.pulse || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="text-sm font-semibold">{latestVitals?.spo2 || "—"}</p></div>
+            <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Respiratory Rate</p><p className="text-sm font-semibold">{latestVitals?.rr || "—"}</p></div>
             <div className="rounded-lg border px-2.5 py-2"><p className="text-[10px] text-gray-500">Allergy</p><p className={`text-sm font-semibold ${p.allergies ? "text-red-700" : ""}`}>{p.allergies || "No known allergy recorded"}</p></div>
           </div>
         </section>
