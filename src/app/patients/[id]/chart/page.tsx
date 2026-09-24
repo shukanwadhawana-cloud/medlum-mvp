@@ -18,6 +18,8 @@ import { ClinicalDischargePanel } from "@/components/ClinicalDischargePanel";
 import { ClinicalReferralPanel } from "@/components/ClinicalReferralPanel";
 import { ClinicalReportsPanel } from "@/components/ClinicalReportsPanel";
 
+type TimelineItem = { date: string; kind: "Consult" | "Lab" | "Dx" | "Rx" | "Appt" | "Billing"; title: string; detail?: string; sort: number };
+
 type TabId = "overview" | "problems" | "notes" | "orders" | "lab" | "radiology" | "rx" | "vitals" | "io" | "discharge" | "referral" | "report" | "billing";
 
 const TABS: { id: TabId; label: string }[] = [
@@ -117,6 +119,17 @@ export default function PatientClinicalChartPage() {
   const invoices = data?.invoices || [];
   const appointments = data?.appointments || [];
 
+  const clinicalTimeline = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [];
+    encounters.forEach((e: any) => items.push({ date: e.date || formatIst(e.createdAt, { dateOnly: true }), kind: "Consult", title: e.diagnosis || e.chiefComplaint || "Consultation", detail: e.clinicalNotes, sort: new Date(e.createdAt).getTime() }));
+    labs.forEach((l: any) => items.push({ date: formatIst(l.orderedAt, { dateOnly: true }), kind: "Lab", title: l.testName, detail: l.result || l.status, sort: new Date(l.orderedAt).getTime() }));
+    diagnostics.forEach((d: any) => items.push({ date: formatIst(d.orderedAt || d.createdAt, { dateOnly: true }), kind: "Dx", title: d.studyName, detail: d.impression || d.status, sort: new Date(d.orderedAt || d.createdAt).getTime() }));
+    prescriptions.forEach((r: any) => items.push({ date: formatIst(r.createdAt, { dateOnly: true }), kind: "Rx", title: "Prescription", detail: r.medicines, sort: new Date(r.createdAt).getTime() }));
+    appointments.forEach((a: any) => items.push({ date: a.date, kind: "Appt", title: `${a.type} · ${a.time}`, detail: a.status, sort: new Date(a.createdAt).getTime() }));
+    invoices.forEach((i: any) => items.push({ date: formatIst(i.createdAt, { dateOnly: true }), kind: "Billing", title: `₹${i.amount}`, detail: i.note || "Fee", sort: new Date(i.createdAt).getTime() }));
+    return items.sort((a, b) => b.sort - a.sort);
+  }, [encounters, labs, diagnostics, prescriptions, appointments, invoices]);
+
   const activeLabs = labs.filter((l: any) => LAB_ACTIVE.has(String(l.status || "")));
   const latestEncounter = encounters[0];
   const latestVitals = encounters.find(
@@ -208,6 +221,41 @@ export default function PatientClinicalChartPage() {
               )}
               <Link href="/ipd" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">IPD board</Link>
               <Link href={`/patients/${id}`} className="flex min-h-9 items-center rounded-lg border bg-[#f8f6fa] px-2.5 text-xs font-medium">Full record</Link>
+            </div>
+
+            <div className="mt-3 border-t pt-3">
+              <div className="px-2 py-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Clinical timeline</p>
+                <p className="mt-0.5 text-[10px] text-gray-400">One compact view of the patient's activity.</p>
+              </div>
+              <div className="mt-1 max-h-[42vh] overflow-y-auto pr-1">
+                {clinicalTimeline.length === 0 ? (
+                  <p className="px-2 py-2 text-[11px] text-gray-400">No clinical activity yet.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {clinicalTimeline.map((item, index) => {
+                      const target: TabId = item.kind === "Consult" ? "notes" : item.kind === "Lab" ? "lab" : item.kind === "Dx" ? "radiology" : item.kind === "Rx" ? "rx" : item.kind === "Billing" ? "billing" : "overview";
+                      return (
+                        <button
+                          key={`${item.kind}-${item.sort}-${index}`}
+                          type="button"
+                          onClick={() => setTab(target)}
+                          className="group w-full rounded-lg border border-transparent px-2 py-1.5 text-left hover:border-gray-200 hover:bg-gray-50"
+                          title={item.detail || item.title}
+                        >
+                          <div className="flex items-start gap-1.5">
+                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#c2183a]" />
+                            <span className="min-w-0">
+                              <span className="block truncate text-[11px] font-medium text-gray-700">{item.title}</span>
+                              <span className="block text-[9px] text-gray-400">{item.kind} · {item.date}</span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
 
