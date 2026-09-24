@@ -62,8 +62,8 @@ export async function POST(req: Request) {
       assessment && `Assessment:\n${assessment}`,
       plan && `Plan:\n${plan}`,
       body.followUpDate ? `Follow-up: ${String(body.followUpDate)}` : "",
-      body.bp || body.pulse || body.temperature || body.spo2 || body.weight || body.height
-        ? `Vitals: BP ${String(body.bp || "—")}; Pulse ${String(body.pulse || "—")}; Temp ${String(body.temperature || "—")}; SpO2 ${String(body.spo2 || "—")}; Weight ${String(body.weight || "—")}; Height ${String(body.height || "—")}`
+      body.bp || body.pulse || body.rr || body.temperature || body.spo2 || body.weight || body.height
+        ? `Vitals: BP ${String(body.bp || "—")}; Pulse ${String(body.pulse || "—")}; RR ${String(body.rr || "—")}; Temp ${String(body.temperature || "—")}; SpO2 ${String(body.spo2 || "—")}; Weight ${String(body.weight || "—")}; Height ${String(body.height || "—")}`
         : "",
     ].filter(Boolean).join("\n\n").trim();
     const result = await prisma.$transaction(async (tx) => {
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
           doctorId: session.doctorId, patientId, appointmentId,
           date, chiefComplaint, clinicalNotes, diagnosis, assessment, plan,
           followUpDate: body.followUpDate ? String(body.followUpDate) : null,
-          bp: String(body.bp || ""), pulse: String(body.pulse || ""), temperature: String(body.temperature || ""),
+          bp: String(body.bp || ""), pulse: String(body.pulse || ""), rr: String(body.rr || ""), temperature: String(body.temperature || ""),
           spo2: String(body.spo2 || ""), weight: String(body.weight || ""), height: String(body.height || ""),
         },
       });
