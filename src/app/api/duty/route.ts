@@ -205,9 +205,10 @@ export async function POST(req: Request) {
   await writeAudit({
     doctorId: session.doctorId,
     action: isSelf ? "DUTY_SELF_PUNCH" : "DUTY_ADMIN_PUNCH",
-    entityType: "DutyAttendanceEvent",
+    entity: "DutyAttendanceEvent",
     entityId: event.id,
     meta: { type, memberId: target.id, clinicId: target.clinicId, withinGeofence: geo.within },
+    clinicId: target.clinicId,
   });
 
   let saniddhiRef = "";
@@ -269,9 +270,10 @@ export async function PATCH(req: Request) {
   await writeAudit({
     doctorId: session.doctorId,
     action: "DUTY_GEOFENCE_CONFIG",
-    entityType: "Clinic",
+    entity: "Clinic",
     entityId: ctx.clinicId,
     meta: { dutyEnabled, dutyLat, dutyLng, dutyRadiusMeters },
+    clinicId: ctx.clinicId,
   });
 
   return NextResponse.json({ ok: true, dutyEnabled, dutyLat, dutyLng, dutyRadiusMeters });
