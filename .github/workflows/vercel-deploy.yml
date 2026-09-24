@@ -15,18 +15,26 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Verify Vercel production is reachable
+      - name: Verify Vercel production serves triggering commit
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
-          set -e
-          URL="https://medlum-mvp-doc-shukan.vercel.app"
+          set -euo pipefail
+          URL="https://medlum-mvp.vercel.app/api/health"
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            CODE="$(curl -L -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL")"
-            echo "Attempt $i: HTTP $CODE"
-            if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 500 ]; then
-              echo "Production site is reachable."
+            BODY="$(curl -fsS --max-time 20 "$URL" || true)"
+            echo "$BODY"
+            DEPLOYED_SHA="$(printf '%s' "$BODY" | node -e '
+              let s="";
+              process.stdin.on("data",d=>s+=d);
+              process.stdin.on("end",()=>{try{console.log(JSON.parse(s).gitSha||"")}catch{console.log("")}})
+            ')"
+            if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
+              echo "Vercel production is serving the exact CI commit."
               exit 0
             fi
+            echo "Waiting for Vercel production to serve $EXPECTED_SHA (currently $DEPLOYED_SHA)."
             sleep 15
           done
-          echo "Production site did not become reachable."
+          echo "Vercel production did not expose the expected Git SHA."
           exit 1
