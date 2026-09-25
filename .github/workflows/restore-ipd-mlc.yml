@@ -12,27 +12,32 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Restore IPD page from good commit and apply MLC fields
+      - name: Apply P2-02 Transfer IPD patient label
         run: |
           set -euo pipefail
           git config user.name "MedLum CI Bot"
           git config user.email "ci-bot@medlum.local"
-          GOOD=f9b7a5f50a86b56e04fa6db04b5c0c5ccaecea65
-          git show "$GOOD:src/app/ipd/[id]/page.tsx" > /tmp/ipd_good.tsx
           python3 << 'PY'
           from pathlib import Path
-          t = Path("/tmp/ipd_good.tsx").read_text()
-          old = '''    <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Phone" className="h-9 px-2 rounded-lg border"/>\n    <input value={form.allergies} onChange={e=>setForm({...form,allergies:e.target.value})} placeholder="Allergies" className="h-9 px-2 rounded-lg border col-span-2"/>\n    <select value={form.wardType}'''
-          new = '''    <input value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Phone" className="h-9 px-2 rounded-lg border"/>\n    <input value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Address" className="h-9 px-2 rounded-lg border col-span-2"/>\n    <select value={form.idType} onChange={e=>setForm({...form,idType:e.target.value})} className="h-9 px-2 rounded-lg border"><option>Aadhaar</option><option>PAN</option><option>Passport</option><option>Other</option></select>\n    <input value={form.idNumber} onChange={e=>setForm({...form,idNumber:e.target.value})} placeholder="ID number" className="h-9 px-2 rounded-lg border"/>\n    <input value={form.mlcNumber} onChange={e=>setForm({...form,mlcNumber:e.target.value})} placeholder="MLC number (if applicable)" className="h-9 px-2 rounded-lg border"/>\n    <input value={form.prdNumber} onChange={e=>setForm({...form,prdNumber:e.target.value})} placeholder="PRD number" className="h-9 px-2 rounded-lg border"/>\n    <input value={form.allergies} onChange={e=>setForm({...form,allergies:e.target.value})} placeholder="Allergies" className="h-9 px-2 rounded-lg border col-span-2"/>\n    <select value={form.wardType}'''
+          p = Path("src/app/ipd/[id]/page.tsx")
+          t = p.read_text()
+          old = '<h3 className="font-semibold">Transfer bed</h3>'
+          new = '<h3 className="font-semibold">Transfer IPD patient</h3>'
           if old not in t:
-              raise SystemExit("pattern not found in good commit file")
-          fixed = t.replace(old, new, 1)
-          Path("src/app/ipd/[id]/page.tsx").write_text(fixed)
-          assert "MLC number (if applicable)" in fixed
-          assert "use client" in fixed
-          print("ready", len(fixed))
+              if "Transfer IPD patient" in t and "Transfer bed" in t:
+                  print("already applied")
+                  raise SystemExit(0)
+              raise SystemExit("Transfer bed heading not found")
+          p.write_text(t.replace(old, new, 1))
+          assert "Transfer IPD patient" in p.read_text()
+          assert "Transfer bed" in p.read_text()
+          print("P2-02 transfer label applied")
           PY
           git add "src/app/ipd/[id]/page.tsx"
           git status
-          git commit -m "fix(ci): restore full IPD CPRS page with MLC/PRD/address/ID registration fields"
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix(ci): P2-02 transfer modal title Transfer IPD patient"
           git push origin HEAD:main
