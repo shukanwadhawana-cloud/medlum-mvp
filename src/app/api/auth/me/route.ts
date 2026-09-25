@@ -49,6 +49,7 @@ export async function GET() {
     }));
 
     const primary = memberships[0];
+    const hasWorkforceAdmin = isOwner || memberships.some((m) => ["Owner", "Admin", "Manager"].includes(m.role));
 
     return NextResponse.json({
       success: true,
@@ -62,6 +63,7 @@ export async function GET() {
         createdAt: doctor.createdAt.toISOString(),
         memberships,
         primaryRole: isOwner ? "Owner" : primary?.role || "Consultant",
+        hasWorkforceAdmin,
         staffCode: primary?.staffCode || "",
         designation: primary?.designation || "",
         department: primary?.department || "",
