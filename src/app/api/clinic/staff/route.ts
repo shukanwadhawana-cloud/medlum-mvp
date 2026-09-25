@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       include: { doctor: { select: { id: true, name: true, email: true } } },
     });
     if (!target) return NextResponse.json({ error: "Active staff member not found." }, { status: 404 });
-    if (!roleRequiresOtp(target.role)) return NextResponse.json({ error: "Telegram linking is only required for Owner, Admin and Manager accounts." }, { status: 400 });
+    if (!roleRequiresOtp(target.role)) return NextResponse.json({ error: "Telegram linking is not required for this role." }, { status: 400 });
     if (target.role === "Owner" && target.doctorId !== ctx.session.doctorId) {
       return NextResponse.json({ error: "Only the owner can link the owner's Telegram account." }, { status: 403 });
     }
