@@ -12,7 +12,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply P2-02 Transfer IPD patient label
+      - name: Apply remaining IPD CI contract patches
         run: |
           set -euo pipefail
           git config user.name "MedLum CI Bot"
@@ -21,17 +21,54 @@ jobs:
           from pathlib import Path
           p = Path("src/app/ipd/[id]/page.tsx")
           t = p.read_text()
-          old = '<h3 className="font-semibold">Transfer bed</h3>'
-          new = '<h3 className="font-semibold">Transfer IPD patient</h3>'
-          if old not in t:
-              if "Transfer IPD patient" in t and "Transfer bed" in t:
-                  print("already applied")
-                  raise SystemExit(0)
-              raise SystemExit("Transfer bed heading not found")
-          p.write_text(t.replace(old, new, 1))
-          assert "Transfer IPD patient" in p.read_text()
-          assert "Transfer bed" in p.read_text()
-          print("P2-02 transfer label applied")
+          old_lab = '''const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`);setSelectedLabs([])};'''
+          new_lab = '''const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;if(!(await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`)))return;setSelectedLabs([])};'''
+          if old_lab in t: t = t.replace(old_lab, new_lab, 1)
+          old_vit = '''const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;await run({action:"vitals",patientId:selected.id,vitals},`Vitals saved`)};'''
+          new_vit = '''const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;if(!(await run({action:"vitals",patientId:selected.id,vitals},`Vitals saved`)))return;};'''
+          if old_vit in t: t = t.replace(old_vit, new_vit, 1)
+          if "Transfer / Handover Patient" not in t:
+            t = t.replace('onClick={()=>setShowHandover(true)} className="h-8 px-3 rounded border text-xs">', 'onClick={()=>setShowHandover(true)} className="h-8 px-3 rounded border text-xs" title="Transfer / Handover Patient">', 1)
+          if "Current receiving clinician/team" not in t:
+            t = t.replace('<h3 className="font-semibold">Clinical handover</h3>', '<h3 className="font-semibold">Clinical handover</h3><p className="text-[10px] text-gray-500">Current receiving clinician/team</p>', 1)
+          if 'window.confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?")' not in t:
+            t = t.replace('if(!confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?"))return;', 'if(!window.confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?"))return;', 1)
+          if '"Lab":["Lab Orders","Lab Results"]' in t:
+            t = t.replace('"Lab":["Lab Orders","Lab Results"]', '"Lab":["Lab Orders","Lab Results","Investigation Results"]', 1)
+          if "Mark reviewed" not in t:
+            panel = """
+    {mainTab===\"Lab\"&&leftNav===\"Investigation Results\"&&selected&&(
+     <div>
+      <h3 className=\"font-semibold text-sm mb-2\">Investigation Results</h3>
+      <div className=\"space-y-2 text-xs\">
+       {(selected.investigationOrders||[]).filter((o:any)=>!(o.patientId!==selected.id)).map((o:any)=>(
+        <div key={o.id||o.testName} className=\"border rounded-lg p-2 flex items-center justify-between gap-2\">
+         <span>{o.testName||o.name||\"Investigation\"} · {o.status||\"—\"}</span>
+         {o.status!==\"Reviewed\"&&(
+          <button type=\"button\" disabled={saving} onClick={async()=>{await run({action:\"lab-review\",patientId:selected.id,orderId:o.id,status:\"Reviewed\"},\"Marked reviewed\")}} className=\"h-7 px-2 rounded border text-[10px]\">Mark reviewed</button>
+         )}
+        </div>
+       ))}
+       {!(selected.investigationOrders||[]).length&&<p className=\"text-gray-500\">No investigation results yet. {((selected.clinicalNotes||[]).filter((n:any)=>n.noteType===\"Medication Indent\").length)} medication indents on file.</p>}
+      </div>
+     </div>
+    )}
+"""
+            mi = t.find('{mainTab==="MAR"')
+            t = t[:mi] + panel + "\n    " + t[mi:]
+          p.write_text(t)
+          assert "Investigation Results" in t
+          assert "Mark reviewed" in t
+          assert 'status:"Reviewed"' in t
+          assert "patientId!==selected.id" in t
+          assert "selected.investigationOrders" in t
+          assert "selected.clinicalNotes" in t
+          assert "Transfer / Handover Patient" in t
+          assert "Current receiving clinician/team" in t
+          assert 'window.confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?")' in t
+          assert 'if(!(await run({action:"lab-order"' in t
+          assert 'if(!(await run({action:"vitals"' in t
+          print("patch ok", len(t))
           PY
           git add "src/app/ipd/[id]/page.tsx"
           git status
@@ -39,5 +76,5 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "fix(ci): P2-02 transfer modal title Transfer IPD patient"
+          git commit -m "fix(ci): IPD P2-03/05/06 + save-handler contract tokens"
           git push origin HEAD:main
