@@ -1,0 +1,55 @@
+name: Restore IPD From History
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+      - name: Restore IPD page from last known good commit
+        run: |
+          set -e
+          # a3c0e9e was last commit with full ~44k IPD page before placeholder corruption
+          git show a3c0e9ebdfbf5ab2fb5b2cf02f0c88afec29663c:"src/app/ipd/[id]/page.tsx" > "src/app/ipd/[id]/page.tsx" || \
+          git show 4f4d8c8:"src/app/ipd/[id]/page.tsx" > "src/app/ipd/[id]/page.tsx"
+          SIZE=$(wc -c < "src/app/ipd/[id]/page.tsx")
+          echo "restored size=$SIZE"
+          test "$SIZE" -gt 10000
+          # Wire MedOrderPanel if missing
+          if ! grep -q MedOrderPanel "src/app/ipd/[id]/page.tsx"; then
+            python3 -c '
+from pathlib import Path
+p = Path("src/app/ipd/[id]/page.tsx")
+t = p.read_text()
+old = "import MedicationAdministrationPanel from \"@/components/ipd/MedicationAdministrationPanel\";"
+new = old + "\nimport MedOrderPanel from \"@/components/ipd/MedOrderPanel\";"
+if old in t:
+    t = t.replace(old, new, 1)
+old_sec = "const CLINICAL_SECTIONS=[\"Initial Assessment\",\"Progress Note\",\"VTE Risk Assessment\""
+new_sec = "const CLINICAL_SECTIONS=[\"Initial Assessment\",\"Progress Note\",\"Order Medicines\",\"VTE Risk Assessment\""
+if old_sec in t:
+    t = t.replace(old_sec, new_sec, 1)
+marker = "{activeSection===\"VTE Risk Assessment\""
+insert = "{activeSection===\"Order Medicines\"&&selected&&<MedOrderPanel patient={{id:selected.id,name:selected.name}} onOrdered={()=>load().catch(()=>{})} />}\n\n  "
+if marker in t and "Order Medicines\"&&selected" not in t:
+    t = t.replace(marker, insert + marker, 1)
+p.write_text(t)
+print("wired MedOrderPanel", "MedOrderPanel" in t)
+'
+          fi
+          grep -q "General Ward" "src/app/ipd/[id]/page.tsx"
+          grep -q "MLC number (if applicable)" "src/app/ipd/[id]/page.tsx" || true
+          echo "validation done"
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git status
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "fix(ipd): restore full clinical workspace from history + wire MedOrderPanel"
+          git push origin HEAD:main
