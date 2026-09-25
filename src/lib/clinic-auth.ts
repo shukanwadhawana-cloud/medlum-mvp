@@ -33,7 +33,7 @@ const ROLE_ALIASES: Record<string, ClinicRole> = {
   Owner: "Owner", Admin: "Admin", Manager: "Manager", Consultant: "Consultant",
   Doctor: "Doctor", RMO: "RMO", Nurse: "Nurse", Pharmacy: "Pharmacy",
   Laboratory: "Laboratory", Billing: "Billing", Receptionist: "Receptionist", Staff: "Staff",
-"Lab Tech": "Laboratory", Lab: "Laboratory", Pharmacist: "Pharmacy",
+"Lab Tech": "Laboratory", Lab: "Laboratory", Pharmacist: "Pharmacy", Sister: "Nurse",
 };
 
 export function normalizeClinicRole(role: string): ClinicRole {
