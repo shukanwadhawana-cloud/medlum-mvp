@@ -86,7 +86,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isPharmacist = !isOwner && ((doctor?.designation || "").toLowerCase().includes("pharmac") || (doctor?.primaryRole || "").toLowerCase().includes("pharmac"));
   const isLaboratory = !isOwner && ((doctor?.designation || "").toLowerCase().includes("laborator") || (doctor?.designation || "").toLowerCase().includes("lab") || (doctor?.primaryRole || "").toLowerCase().includes("laborator") || (doctor?.primaryRole || "").toLowerCase() === "lab");
   const isNursing = !isOwner && ((doctor?.designation || "").toLowerCase().includes("nurs") || (doctor?.primaryRole || "").toLowerCase().includes("nurs"));
-  const isWorkforceAdmin = Boolean(isOwner || ["Admin","Manager"].includes(doctor?.primaryRole || ""));
+  const isWorkforceAdmin = Boolean(doctor?.hasWorkforceAdmin || isOwner || ["Admin","Manager"].includes(doctor?.primaryRole || ""));
   const primaryNav = isPharmacist ? pharmacistNav : isLaboratory ? laboratoryNav : isNursing ? nursingNav : isWorkforceAdmin ? [{ href: "/workforce", label: "People", icon: "people" }, ...clinicalNav] : clinicalNav;
   const moreActive = moreItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
   return (
