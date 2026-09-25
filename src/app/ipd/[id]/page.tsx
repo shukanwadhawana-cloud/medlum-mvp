@@ -24,7 +24,7 @@ const LEFT_NAV:Record<MainTab,string[]>={
   "Cover Sheet":["Overview"],
   "Dashboard":["Vitals","Problems","Final Diagnosis","Chief-Complaints","Allergies","OPD/IPD Details"],
   "Orders":["Order Medicines","Investigation Indent","Laboratory","Radiology","Procedure"],
-  "Clinical Notes":["Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
+  "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
   "Discharge Summary":["Discharge Summary","DAMA Summary","LAMA Summary","Transfer Summary","Death Summary","Fitness Note"],
   "Lab":["Lab Orders","Lab Results"],
   "Radiology":["Imaging Orders","Imaging Results"],
@@ -44,6 +44,14 @@ export default function IPDPatientWorkspace(){
  const[mainTab,setMainTab]=useState<MainTab>("Cover Sheet"),[leftNav,setLeftNav]=useState("Overview");
  const[currentRole,setCurrentRole]=useState(""),[department,setDepartment]=useState("General Medicine"),[selectedLabs,setSelectedLabs]=useState<string[]>([]),[selectedDiagnostics,setSelectedDiagnostics]=useState<string[]>([]),[diagnosticType,setDiagnosticType]=useState("Chest X-ray");
  const[dxForm,setDxForm]=useState({workingDiagnosis:"",diagnosis:"",icdCode:""});
+ const[noteViewId,setNoteViewId]=useState<string|null>(null);
+ const[sectionPull,setSectionPull]=useState<Record<string,boolean>>({vitals:false,allergies:false,problems:false,diagnosis:false,complaints:false,medications:false,laboratory:false,radiology:false,clinicalNotes:false,orders:false,medicationAdvice:false});
+ const[dischargeForm,setDischargeForm]=useState({
+  dischargeDateTime:"",diagnosis:"",presentingComplaints:"",hpi:"",pastMedicalHistory:"",currentMedication:"",
+  personalHistory:"",familyHistory:"",allergies:"",occupationalHistory:"",onExamination:"",courseInHospital:"",
+  procedure:"",surgery:"",findings:"",conditionOnDischarge:"",tpaPatient:"",investigation:"",medicationsDuringStay:"",
+  advice:"",specialNeeds:"",followUpAdvice:"",ack:false
+ });
  const[error,setError]=useState(""),[msg,setMsg]=useState(""),[saving,setSaving]=useState(false),[showTransfer,setShowTransfer]=useState(false),[transferRoom,setTransferRoom]=useState("");
 
  const load=useCallback(async()=>{const r=await fetch("/api/ipd",{credentials:"include",cache:"no-store"});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||`Could not load IPD workspace (${r.status})`);const ps=d.patients||[];setPatients(ps);setHistory(d.ipdHistory||[]);setRooms(d.rooms||[]);setHandoverOptions(d.handoverOptions||[]);if(d.currentRole)setCurrentRole(d.currentRole);if(d.currentDepartment)setDepartment(d.currentDepartment);const fresh=[...ps,...(d.ipdHistory||[])].find((p:any)=>p.id===patientId);if(fresh){setSelected(fresh);if(fresh.department)setDepartment(fresh.department);if(fresh.workingDiagnosis||fresh.diagnosis||fresh.icdCode)setDxForm({workingDiagnosis:fresh.workingDiagnosis||"",diagnosis:fresh.diagnosis||"",icdCode:fresh.icdCode||""});}},[patientId]);
@@ -57,6 +65,17 @@ export default function IPDPatientWorkspace(){
  const saveNote=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;await run({action:"clinical-note",patientId:selected.id,noteType:note.noteType,title:`${department} · ${note.noteType}`,content:note.content,authorRole:`${doctor?.name||"Clinician"} · ${note.noteType}`},`${note.noteType} saved`)};
  const saveProgress=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;const content=`Progress Note\nAssessment: ${structured.assessment}\nCurrent meds / treatment: ${structured.treatmentGiven}\nPlan / course: ${structured.course}\nAdvice: ${structured.dischargeTreatment}\nVitals: BP ${vitals.bp} | Pulse ${vitals.pulse} | RR ${vitals.rr} | SpO₂ ${vitals.spo2} | Temp ${vitals.temperature}\nAllergy: ${selected.allergies||"NKA"}\nDiagnosis: ${selected.diagnosis||selected.workingDiagnosis||"—"}`;await run({action:"clinical-note",patientId:selected.id,noteType:"Progress Note",title:`${department} · Progress Note`,content,authorRole:`${doctor?.name||"Clinician"} · Progress Note`,vitals},`Progress Note saved`)};
  const saveDiagnosis=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;await run({action:"update-diagnosis",patientId:selected.id,...dxForm},`Diagnosis / ICD saved`)};
+ const saveDischargeStructured=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;const d=dischargeForm;
+  const pulled=[];
+  if(sectionPull.vitals)pulled.push(`Vitals: BP ${vitals.bp||selected.vitals?.bp||"—"} | Pulse ${vitals.pulse||selected.vitals?.pulse||"—"} | RR ${vitals.rr||selected.vitals?.rr||"—"} | SpO₂ ${vitals.spo2||selected.vitals?.spo2||"—"}`);
+  if(sectionPull.allergies)pulled.push(`Allergies: ${d.allergies||selected.allergies||"NKA"}`);
+  if(sectionPull.diagnosis)pulled.push(`Diagnosis: ${d.diagnosis||selected.diagnosis||selected.workingDiagnosis||"—"}`);
+  if(sectionPull.complaints)pulled.push(`Presenting complaints: ${d.presentingComplaints||selected.chiefComplaint||"—"}`);
+  if(sectionPull.medications)pulled.push(`Current medication: ${d.currentMedication||"—"}`);
+  if(sectionPull.laboratory||sectionPull.radiology)pulled.push(`Investigation: ${d.investigation||"—"}`);
+  const content=[`Date and Time of Discharge: ${d.dischargeDateTime||"—"}`,`Diagnosis: ${d.diagnosis}`,`Presenting Complaints: ${d.presentingComplaints}`,`History of Present Illness: ${d.hpi}`,`Past Medical History: ${d.pastMedicalHistory}`,`Current Medication: ${d.currentMedication}`,`Personal History: ${d.personalHistory}`,`Family History: ${d.familyHistory}`,`Allergies: ${d.allergies||selected.allergies||"NKA"}`,`Occupational History: ${d.occupationalHistory}`,`On Examination: ${d.onExamination}`,`Course In Hospital: ${d.courseInHospital}`,`Procedure: ${d.procedure}`,`Surgery: ${d.surgery}`,`Findings: ${d.findings}`,`Condition on Discharge: ${d.conditionOnDischarge}`,`TPA Patient: ${d.tpaPatient||"—"}`,`Investigation: ${d.investigation}`,`Medications During Stay: ${d.medicationsDuringStay}`,`Advice: ${d.advice}`,`Special Needs: ${d.specialNeeds}`,`Follow Up Advice: ${d.followUpAdvice}`,pulled.length?`\n— Pulled sections —\n`+pulled.join("\n"):"",d.ack?"Patient/Attendant acknowledgement recorded.":""].filter(Boolean).join("\n");
+  await run({action:"clinical-note",patientId:selected.id,noteType:leftNav||"Discharge Summary",title:`${department} · ${leftNav||"Discharge Summary"}`,content,authorRole:`${doctor?.name||"Clinician"} · ${leftNav||"Discharge Summary"}`},`${leftNav||"Discharge Summary"} saved`);
+ };
  const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;await run({action:"vitals",patientId:selected.id,vitals},`Vitals saved`)};
  const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`);setSelectedLabs([])};
  const orderRad=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;const tests=selectedDiagnostics.length?selectedDiagnostics:[diagnosticType];await run({action:"diagnostic-order",patientId:selected.id,tests,notes:investigation.notes},`Imaging order placed`);setSelectedDiagnostics([])};
@@ -68,7 +87,7 @@ export default function IPDPatientWorkspace(){
  if(authLoading)return <AppShell><div className="p-6 text-sm text-gray-500">Loading…</div></AppShell>;
  if(!doctor)return <AppShell><div className="p-6 text-sm text-gray-500">Sign in to open the IPD clinical workspace.</div></AppShell>;
 
- if(!clinicalMode)return <AppShell><div className="p-4"><Link href="/ipd" className="text-xs text-[#c2183a] font-medium">← Back to IPD census</Link>{selected?<div className="mt-4 max-w-3xl bg-white rounded-xl border shadow-sm p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-lg font-semibold">{selected.name}</p><p className="text-xs text-gray-500">{selected.age} yrs · {selected.gender} · {selected.wardType||"Ward"} · Bed {selected.roomNumber||"Unassigned"}</p><p className="text-[11px] text-gray-500 mt-1">UHID: {selected.uhid||"—"} · MedLum ID: {selected.medlumId||"—"}</p><p className="text-[11px] text-gray-500">Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleDateString("en-IN"):"—"}</p></div><span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${selected.status==="DISCHARGED"?"bg-gray-100 text-gray-600":"bg-purple-50 text-purple-700"}`}>{selected.status==="DISCHARGED"?"DISCHARGED":"IPD"}</span></div><div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2"><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">BP</p><p className="font-semibold text-sm">{selected.vitals?.bp||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="font-semibold text-sm">{selected.vitals?.pulse||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="font-semibold text-sm">{selected.vitals?.spo2||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">RR</p><p className="font-semibold text-sm">{selected.vitals?.rr||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Allergy</p><p className="font-semibold text-sm text-red-700">{selected.allergies||"No known allergy recorded"}</p></div></div><div className="mt-4 flex flex-wrap gap-2"><Link href={`/ipd/${selected.id}/clinical`} className="h-9 px-4 rounded-lg bg-[#140a1f] text-white text-xs font-semibold inline-flex items-center">Open Clinical Workspace</Link><Link href={`/patients/${selected.id}`} className="h-9 px-4 rounded-lg border text-xs inline-flex items-center">Open Patient Record</Link></div></div>:<div className="mt-4 bg-white rounded-xl border p-6 text-sm text-gray-500">IPD patient could not be found.</div>}</div></AppShell>;
+ if(!clinicalMode)return <AppShell><div className="p-4"><Link href="/ipd" className="text-xs text-[#c2183a] font-medium">← Back to IPD census</Link>{selected?<div className="mt-4 max-w-3xl bg-white rounded-xl border shadow-sm p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-lg font-semibold">{selected.name}</p><p className="text-xs text-gray-500">{selected.age} yrs · {selected.gender} · {selected.wardType||"Ward"} · Bed {selected.roomNumber||"Unassigned"}</p><p className="text-[11px] text-gray-500 mt-1">UHID: {selected.uhid||"—"} · MedLum ID: {selected.medlumId||"—"}</p><p className="text-[11px] text-gray-500">Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleDateString("en-IN"):"—"}</p></div><span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${selected.status==="DISCHARGED"?"bg-gray-100 text-gray-600":"bg-purple-50 text-purple-700"}`}>{selected.status==="DISCHARGED"?"DISCHARGED":"IPD"}</span></div><div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2"><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">BP</p><p className="font-semibold text-sm">{selected.vitals?.bp||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="font-semibold text-sm">{selected.vitals?.pulse||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="font-semibold text-sm">{selected.vitals?.spo2||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">RR</p><p className="font-semibold text-sm">{selected.vitals?.rr||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Allergy</p><p className="font-semibold text-sm text-red-700">{selected.allergies||"No known allergy recorded"}</p></div></div><div className="mt-4 flex flex-wrap gap-2"><Link href={`/ipd/${selected.id}/clinical`} className="h-9 px-4 rounded-lg bg-[#140a1f] text-white text-xs font-semibold inline-flex items-center">Open Clinical Workspace</Link><span className="text-[10px] text-gray-500 self-center">Patient record & notes live inside the clinical workspace</span></div></div>:<div className="mt-4 bg-white rounded-xl border p-6 text-sm text-gray-500">IPD patient could not be found.</div>}</div></AppShell>;
 
  const labOrders=(selected?.labOrders||selected?.investigations||[]).filter((o:any)=>!/x-ray|ct |mri|ultrasound|echo|ecg/i.test(o.testName||o.name||""));
  const radOrders=(selected?.labOrders||selected?.investigations||[]).filter((o:any)=>/x-ray|ct |mri|ultrasound|echo|ecg/i.test(o.testName||o.name||""));
@@ -208,7 +227,45 @@ export default function IPDPatientWorkspace(){
     )}
 
     {/* CLINICAL NOTES */}
-    {mainTab==="Clinical Notes"&&leftNav==="Initial Assessment"&&(
+    {mainTab==="Clinical Notes"&&leftNav==="Note View"&&(
+     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+       <h3 className="font-semibold text-sm">Note View</h3>
+       <div className="flex flex-wrap gap-2 text-[10px]">
+        <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Initial Assessment")}} className="h-7 px-2 rounded border">+ Initial Assessment</button>
+        <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Progress Note")}} className="h-7 px-2 rounded border">+ Progress Note</button>
+        <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Consultant Note")}} className="h-7 px-2 rounded border">+ Consultant Note</button>
+       </div>
+      </div>
+      {noteViewId?(
+       <div className="border rounded-lg p-3 bg-white">
+        <button type="button" onClick={()=>setNoteViewId(null)} className="text-[11px] text-[#c2183a] mb-2">← Back to note list</button>
+        {(()=>{const n=(clinicalNotes||[]).find((x:any)=>(x.id||String(clinicalNotes.indexOf(x)))===noteViewId)||clinicalNotes.find((x:any)=>x.id===noteViewId);if(!n)return <p className="text-xs text-gray-500">Note not found.</p>;return <div><p className="font-semibold text-sm">{n.noteType||n.title||"Note"}</p><p className="text-[10px] text-gray-500 mt-0.5">{n.authorName||n.authorRole||"Clinician"} · {n.createdAt?new Date(n.createdAt).toLocaleString("en-IN"):"—"} · {n.status||"COMPLETED"}</p><pre className="mt-3 whitespace-pre-wrap font-sans text-xs text-gray-800 bg-slate-50 rounded-lg p-3 border">{n.content||"—"}</pre></div>})()}
+       </div>
+      ):(
+       <div className="overflow-auto border rounded-lg">
+        <table className="w-full text-left text-[11px]">
+         <thead className="bg-slate-50 text-gray-600"><tr>
+          <th className="p-2 border-b">Notes Title</th><th className="p-2 border-b">Date of Entry</th><th className="p-2 border-b">Status</th><th className="p-2 border-b">Author</th><th className="p-2 border-b">Action</th>
+         </tr></thead>
+         <tbody>
+          {(clinicalNotes||[]).length?clinicalNotes.map((n:any,i:number)=>{
+            const id=n.id||String(i);
+            return <tr key={id} className="hover:bg-amber-50/60 cursor-pointer" onClick={()=>setNoteViewId(id)}>
+             <td className="p-2 border-b font-medium">{n.noteType||n.title||"Clinical note"}</td>
+             <td className="p-2 border-b">{n.createdAt?new Date(n.createdAt).toLocaleString("en-IN"):"—"}</td>
+             <td className="p-2 border-b"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${(n.status||"COMPLETED")==="UNSIGNED"||(n.status||"")==="UNCOSIGNED"?"bg-amber-100 text-amber-800":"bg-green-50 text-green-700"}`}>{n.status||"COMPLETED"}</span></td>
+             <td className="p-2 border-b">{n.authorName||n.authorRole||"—"}</td>
+             <td className="p-2 border-b"><button type="button" className="text-[#c2183a] font-medium" onClick={(e)=>{e.stopPropagation();setNoteViewId(id)}}>Open</button></td>
+            </tr>}) : <tr><td colSpan={5} className="p-4 text-gray-500">No clinical notes yet. Use left nav to add Initial Assessment, Progress Note, or Consultant Note.</td></tr>}
+         </tbody>
+        </table>
+        <p className="text-[10px] text-gray-500 p-2">Showing {(clinicalNotes||[]).length} note{(clinicalNotes||[]).length===1?"":"s"}</p>
+       </div>
+      )}
+     </div>
+    )}
+        {mainTab==="Clinical Notes"&&leftNav==="Initial Assessment"&&(
      <form onSubmit={saveStructured} className="space-y-3 max-w-2xl">
       <h3 className="font-semibold text-sm">Initial Assessment</h3>
       <div className="grid md:grid-cols-2 gap-2">
@@ -222,6 +279,18 @@ export default function IPDPatientWorkspace(){
        <input value={structured.workingDiagnosis} onChange={e=>setStructured({...structured,workingDiagnosis:e.target.value})} placeholder="Working diagnosis" className="h-9 px-2 rounded-lg border text-xs md:col-span-2"/>
        <textarea value={structured.treatmentGiven} onChange={e=>setStructured({...structured,treatmentGiven:e.target.value})} placeholder="Treatment given" className="min-h-12 px-2 py-1 rounded-lg border text-xs md:col-span-2"/>
       </div>
+      
+      <div className="border rounded-lg p-3 bg-slate-50/80 space-y-2">
+       <p className="text-[11px] font-semibold text-gray-700">Order investigations from assessment</p>
+       <p className="text-[10px] text-gray-500">Select labs / imaging here — same as Orders tab; no need to leave this form.</p>
+       <div className="flex flex-wrap gap-1.5 max-h-24 overflow-auto">{LABS.map(l=><label key={l} className="inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 bg-white"><input type="checkbox" checked={selectedLabs.includes(l)} onChange={()=>setSelectedLabs(selectedLabs.includes(l)?selectedLabs.filter(x=>x!==l):[...selectedLabs,l])}/>{l}</label>)}</div>
+       <div className="flex flex-wrap gap-1.5 max-h-20 overflow-auto">{DIAGNOSTICS.map(d=><label key={d} className="inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 bg-white"><input type="checkbox" checked={selectedDiagnostics.includes(d)} onChange={()=>setSelectedDiagnostics(selectedDiagnostics.includes(d)?selectedDiagnostics.filter(x=>x!==d):[...selectedDiagnostics,d])}/>{d}</label>)}</div>
+       <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={saving||!selectedLabs.length} onClick={async()=>{if(!selected||!selectedLabs.length)return;await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`);setSelectedLabs([])}} className="h-8 px-3 rounded-lg border text-[10px] font-semibold disabled:opacity-50">Place lab order ({selectedLabs.length})</button>
+        <button type="button" disabled={saving||!selectedDiagnostics.length} onClick={async()=>{if(!selected)return;const tests=selectedDiagnostics.length?selectedDiagnostics:[diagnosticType];await run({action:"diagnostic-order",patientId:selected.id,tests,notes:investigation.notes},`Imaging order placed`);setSelectedDiagnostics([])}} className="h-8 px-3 rounded-lg border text-[10px] font-semibold disabled:opacity-50">Place imaging order ({selectedDiagnostics.length})</button>
+       </div>
+      </div>
+
       <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Initial Assessment"}</button>
      </form>
     )}
@@ -260,14 +329,49 @@ export default function IPDPatientWorkspace(){
 
     {/* DISCHARGE */}
     {mainTab==="Discharge Summary"&&(
-     <form onSubmit={(e)=>{setNote({...note,noteType:leftNav});void saveNote(e)}} className="space-y-3 max-w-2xl">
+     <form onSubmit={saveDischargeStructured} className="space-y-3 max-w-3xl">
       <h3 className="font-semibold text-sm">{leftNav}</h3>
-      <textarea value={note.content} onChange={e=>setNote({...note,content:e.target.value,noteType:leftNav})} placeholder={`Enter ${leftNav}…`} className="w-full min-h-48 px-2 py-1 rounded-lg border text-xs"/>
-      <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":`Save ${leftNav}`}</button>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] border rounded-lg p-2 bg-slate-50">
+       {[["vitals","Vitals"],["allergies","Allergies"],["problems","Problems"],["diagnosis","Diagnosis"],["complaints","Complaints"],["medications","Medications"],["laboratory","Laboratory"],["radiology","Radiology"],["clinicalNotes","Clinical Notes"],["orders","Orders"],["medicationAdvice","Medication Advice"]].map(([k,l])=>(
+        <label key={k} className="inline-flex items-center gap-1"><input type="checkbox" checked={!!(sectionPull as any)[k]} onChange={e=>{
+          const on=e.target.checked;setSectionPull({...sectionPull,[k]:on});
+          if(on&&k==="allergies")setDischargeForm(f=>({...f,allergies:f.allergies||selected.allergies||""}));
+          if(on&&k==="diagnosis")setDischargeForm(f=>({...f,diagnosis:f.diagnosis||selected.diagnosis||selected.workingDiagnosis||""}));
+          if(on&&k==="complaints")setDischargeForm(f=>({...f,presentingComplaints:f.presentingComplaints||selected.chiefComplaint||""}));
+        }}/>{l}</label>
+       ))}
+      </div>
+      <div className="grid gap-2 text-xs">
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Date and Time of Discharge</span><input type="datetime-local" value={dischargeForm.dischargeDateTime} onChange={e=>setDischargeForm({...dischargeForm,dischargeDateTime:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Diagnosis</span><input value={dischargeForm.diagnosis} onChange={e=>setDischargeForm({...dischargeForm,diagnosis:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Presenting Complaints</span><textarea value={dischargeForm.presentingComplaints} onChange={e=>setDischargeForm({...dischargeForm,presentingComplaints:e.target.value})} className="min-h-14 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">History of Present Illness</span><textarea value={dischargeForm.hpi} onChange={e=>setDischargeForm({...dischargeForm,hpi:e.target.value})} className="min-h-14 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Past Medical History</span><textarea value={dischargeForm.pastMedicalHistory} onChange={e=>setDischargeForm({...dischargeForm,pastMedicalHistory:e.target.value})} className="min-h-12 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Current Medication</span><textarea value={dischargeForm.currentMedication} onChange={e=>setDischargeForm({...dischargeForm,currentMedication:e.target.value})} className="min-h-12 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Personal History</span><input value={dischargeForm.personalHistory} onChange={e=>setDischargeForm({...dischargeForm,personalHistory:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Family History</span><input value={dischargeForm.familyHistory} onChange={e=>setDischargeForm({...dischargeForm,familyHistory:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Allergies</span><input value={dischargeForm.allergies} onChange={e=>setDischargeForm({...dischargeForm,allergies:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Occupational History</span><input value={dischargeForm.occupationalHistory} onChange={e=>setDischargeForm({...dischargeForm,occupationalHistory:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">On Examination</span><textarea value={dischargeForm.onExamination} onChange={e=>setDischargeForm({...dischargeForm,onExamination:e.target.value})} className="min-h-14 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Course In Hospital</span><textarea value={dischargeForm.courseInHospital} onChange={e=>setDischargeForm({...dischargeForm,courseInHospital:e.target.value})} className="min-h-16 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Procedure</span><input value={dischargeForm.procedure} onChange={e=>setDischargeForm({...dischargeForm,procedure:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Surgery</span><input value={dischargeForm.surgery} onChange={e=>setDischargeForm({...dischargeForm,surgery:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Findings</span><textarea value={dischargeForm.findings} onChange={e=>setDischargeForm({...dischargeForm,findings:e.target.value})} className="min-h-12 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Condition on Discharge</span><input value={dischargeForm.conditionOnDischarge} onChange={e=>setDischargeForm({...dischargeForm,conditionOnDischarge:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">TPA Patient</span><select value={dischargeForm.tpaPatient} onChange={e=>setDischargeForm({...dischargeForm,tpaPatient:e.target.value})} className="h-9 px-2 rounded-lg border"><option value="">Select</option><option value="Yes">Yes</option><option value="No">No</option></select></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Investigation</span><textarea value={dischargeForm.investigation} onChange={e=>setDischargeForm({...dischargeForm,investigation:e.target.value})} className="min-h-12 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Medications During Stay</span><textarea value={dischargeForm.medicationsDuringStay} onChange={e=>setDischargeForm({...dischargeForm,medicationsDuringStay:e.target.value})} className="min-h-12 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Advice</span><textarea value={dischargeForm.advice} onChange={e=>setDischargeForm({...dischargeForm,advice:e.target.value})} className="min-h-12 px-2 py-1 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Special Needs</span><input value={dischargeForm.specialNeeds} onChange={e=>setDischargeForm({...dischargeForm,specialNeeds:e.target.value})} className="h-9 px-2 rounded-lg border"/></label>
+       <label className="grid gap-0.5"><span className="text-[10px] text-gray-500">Follow Up Advice</span><textarea value={dischargeForm.followUpAdvice} onChange={e=>setDischargeForm({...dischargeForm,followUpAdvice:e.target.value})} className="min-h-12 px-2 py-1 rounded-lg border"/></label>
+      </div>
+      <label className="flex items-start gap-2 text-[10px] text-gray-600"><input type="checkbox" checked={dischargeForm.ack} onChange={e=>setDischargeForm({...dischargeForm,ack:e.target.checked})} className="mt-0.5"/><span>I / we have understood and hereby acknowledge receipt of the discharge summary.</span></label>
+      <div className="flex flex-wrap gap-2">
+       <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":`Save ${leftNav}`}</button>
+       <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Note View")}} className="h-9 px-3 rounded-lg border text-xs">View saved notes</button>
+      </div>
      </form>
     )}
-
-    {/* LAB */}
     {mainTab==="Lab"&&leftNav==="Lab Orders"&&(
      <div><h3 className="font-semibold text-sm mb-2">Lab Orders</h3>
       <div className="space-y-2">{labOrders.length?labOrders.map((o:any,i:number)=><div key={i} className="border rounded-lg p-2"><p className="font-medium">{o.testName||o.name}</p><p className="text-[10px] text-gray-500">{o.status||"Ordered"} · {o.orderedAt?new Date(o.orderedAt).toLocaleString("en-IN"):""}</p></div>):<p className="text-gray-500">No lab orders yet. Use Orders → Laboratory.</p>}</div>
