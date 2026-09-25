@@ -37,12 +37,12 @@ export async function POST(req: Request) {
 
     const isOwner = isMedlumOwnerEmail(doctor.email);
     if (!isOwner) {
-      const membership = await prisma.clinicMember.findFirst({
+      const memberships = await prisma.clinicMember.findMany({
         where: { doctorId: doctor.id, isActive: true },
         select: { role: true },
         orderBy: { createdAt: "asc" },
       });
-      if (!roleRequiresOtp(normalizeClinicRole(membership?.role))) {
+      if (!memberships.some((m) => roleRequiresOtp(normalizeClinicRole(m.role)))) {
         return NextResponse.json({
           success: false,
           error: "Telegram linking is only required for privileged accounts.",
