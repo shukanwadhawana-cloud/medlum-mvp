@@ -36,14 +36,16 @@ export async function POST(req: Request) {
     const isOwner = isMedlumOwnerEmail(doctor.email);
     if (!isOwner) await ensurePrimaryClinic(doctor.id, doctor.clinicName);
 
-    const membership = await prisma.clinicMember.findFirst({
+    const memberships = await prisma.clinicMember.findMany({
       where: { doctorId: doctor.id, isActive: true },
       select: { role: true, clinicId: true },
       orderBy: { createdAt: "asc" },
     });
+    const membership = memberships[0];
     const primaryRole = isOwner ? "Owner" : normalizeClinicRole(membership?.role);
+    const requiresPrivilegedOtp = isOwner || memberships.some((m) => roleRequiresOtp(normalizeClinicRole(m.role)));
 
-    if (roleRequiresOtp(primaryRole)) {
+    if (requiresPrivilegedOtp) {
       try {
         const issued = await issueLoginOtp({ doctorId: doctor.id, clinicId: membership?.clinicId });
         return NextResponse.json({
