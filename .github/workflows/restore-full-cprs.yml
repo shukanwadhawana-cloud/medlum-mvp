@@ -1,0 +1,43 @@
+name: Restore Full CPRS IPD Page
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/ipd-cprs-page.b64"
+      - ".github/workflows/restore-full-cprs.yml"
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode and write CPRS page
+        run: |
+          python3 << 'PY'
+          import base64
+          from pathlib import Path
+          parts_dir = Path("scripts/ipd-parts-sm")
+          if parts_dir.exists():
+            data = "".join((parts_dir / f"part_{i}.txt").read_text().strip() for i in range(20) if (parts_dir / f"part_{i}.txt").exists())
+          else:
+            data = Path("scripts/ipd-cprs-page.b64").read_text().strip()
+          content = base64.b64decode(data).decode()
+          assert "MedOrderPanel" in content, "missing MedOrderPanel"
+          assert "MAIN_TABS" in content, "missing MAIN_TABS"
+          assert "LEFT_NAV" in content, "missing LEFT_NAV"
+          assert "Cover Sheet" in content, "missing Cover Sheet"
+          assert "PLACEHOLDER" not in content, "still PLACEHOLDER"
+          out = Path("src/app/ipd/[id]/page.tsx")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(content)
+          print("wrote", len(content), "bytes to", out)
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "feat(cprs): full left-panel Clinical Workspace — Cover Sheet, Labs, Notes, Diagnosis/ICD, Orders, MAR (no mixed snapshot)"
+          git push origin HEAD:main
