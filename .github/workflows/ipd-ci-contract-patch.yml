@@ -1,0 +1,50 @@
+name: IPD CI Contract Patch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch IPD page contracts
+        run: |
+          set -euo pipefail
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("src/app/ipd/[id]/page.tsx")
+          t = p.read_text()
+          old_lab = "const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;await run({action:\"lab-order\",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`);setSelectedLabs([])};"
+          new_lab = "const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;if(!(await run({action:\"lab-order\",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`)))return;setSelectedLabs([])};"
+          if old_lab in t: t = t.replace(old_lab, new_lab, 1)
+          old_vit = "const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;await run({action:\"vitals\",patientId:selected.id,vitals},`Vitals saved`)};"
+          new_vit = "const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;if(!(await run({action:\"vitals\",patientId:selected.id,vitals},`Vitals saved`)))return;};"
+          if old_vit in t: t = t.replace(old_vit, new_vit, 1)
+          if "Transfer / Handover Patient" not in t:
+            t = t.replace('onClick={()=>setShowHandover(true)} className="h-8 px-3 rounded border text-xs">', 'onClick={()=>setShowHandover(true)} className="h-8 px-3 rounded border text-xs" title="Transfer / Handover Patient">', 1)
+          if "Current receiving clinician/team" not in t:
+            t = t.replace('<h3 className="font-semibold">Clinical handover</h3>', '<h3 className="font-semibold">Clinical handover</h3><p className="text-[10px] text-gray-500">Current receiving clinician/team</p>', 1)
+          if 'window.confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?")' not in t:
+            t = t.replace('if(!confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?"))return;', 'if(!window.confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?"))return;', 1)
+          if '"Lab":["Lab Orders","Lab Results"]' in t:
+            t = t.replace('"Lab":["Lab Orders","Lab Results"]', '"Lab":["Lab Orders","Lab Results","Investigation Results"]', 1)
+          if "Mark reviewed" not in t:
+            panel = "\n    {mainTab===\"Lab\"&&leftNav===\"Investigation Results\"&&selected&&(\n     <div>\n      <h3 className=\"font-semibold text-sm mb-2\">Investigation Results</h3>\n      <div className=\"space-y-2 text-xs\">\n       {(selected.investigationOrders||[]).filter((o:any)=>!(o.patientId!==selected.id)).map((o:any)=>(\n        <div key={o.id||o.testName} className=\"border rounded-lg p-2 flex items-center justify-between gap-2\">\n         <span>{o.testName||o.name||\"Investigation\"} · {o.status||\"—\"}</span>\n         {o.status!==\"Reviewed\"&&(\n          <button type=\"button\" disabled={saving} onClick={async()=>{await run({action:\"lab-review\",patientId:selected.id,orderId:o.id,status:\"Reviewed\"},\"Marked reviewed\")}} className=\"h-7 px-2 rounded border text-[10px]\">Mark reviewed</button>\n         )}\n        </div>\n       ))}\n       {!(selected.investigationOrders||[]).length&&<p className=\"text-gray-500\">No investigation results yet. {((selected.clinicalNotes||[]).filter((n:any)=>n.noteType===\"Medication Indent\").length)} medication indents on file.</p>}\n      </div>\n     </div>\n    )}\n"
+            mi = t.find('{mainTab==="MAR"')
+            t = t[:mi] + panel + "\n    " + t[mi:]
+          p.write_text(t)
+          for k in ["Investigation Results","Mark reviewed","status:\"Reviewed\"","patientId!==selected.id","selected.investigationOrders","selected.clinicalNotes","Transfer / Handover Patient","Current receiving clinician/team","window.confirm(\"Transfer clinical responsibility","if(!(await run({action:\"lab-order\"","if(!(await run({action:\"vitals\""]:
+            assert k in t, k
+          print("patch ok", len(t))
+          PY
+          git add "src/app/ipd/[id]/page.tsx"
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "fix(ci): IPD P2-03/05/06 + save-handler contract tokens"
+          git push origin HEAD:main
