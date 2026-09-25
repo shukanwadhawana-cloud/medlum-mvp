@@ -58,14 +58,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#140a1f] text-white">
-        <div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-2.5 sm:px-4 lg:px-6">
-          <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold"><Icon name="brand" size={18} /><span className="text-sm">MedLum</span></Link>
-          <nav className="hidden md:flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">{primaryNav.map((item) => <Link key={item.href} href={item.href} className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs ${isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70"}`}><Icon name={item.icon} size={14} /><span>{item.label}</span></Link>)}</nav>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            {isOwner && <Link href="/owner" className="hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/25" title="Return to owner dashboard"><Icon name="owner" size={14} /><span>Owner</span></Link>}
-            <button type="button" onClick={() => setMoreOpen(true)} className={`inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"}`} title="Open menu"><Icon name="more" size={14} /><span>Menu</span></button>
-            <button type="button" onClick={() => logout()} title="Logout" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-200 hover:bg-white/10 hover:text-red-100"><Icon name="logout" size={14} /><span>Logout</span></button>
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
+          <div className="flex items-center gap-2 py-2.5">
+            <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold"><Icon name="brand" size={18} /><span className="text-sm">MedLum</span></Link>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {isOwner && <Link href="/owner" className="hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/25" title="Return to owner dashboard"><Icon name="owner" size={14} /><span>Owner</span></Link>}
+              <button type="button" onClick={() => setMoreOpen(true)} className={`inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"}`} title="Open menu"><Icon name="more" size={14} /><span>Menu</span></button>
+              <button type="button" onClick={() => logout()} title="Logout" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-200 hover:bg-white/10 hover:text-red-100"><Icon name="logout" size={14} /><span className="hidden sm:inline">Logout</span></button>
+            </div>
           </div>
+          <nav aria-label="Primary navigation" className="-mx-1 flex min-w-0 items-center gap-0.5 overflow-x-auto border-t border-white/10 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {primaryNav.map((item) => <Link key={item.href} href={item.href} className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-2 text-xs ${isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><Icon name={item.icon} size={14} /><span>{item.label}</span></Link>)}
+          </nav>
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-3 py-4 pb-20 sm:px-4 sm:py-5 md:pb-6 lg:px-6 lg:py-6">{children}</main>
