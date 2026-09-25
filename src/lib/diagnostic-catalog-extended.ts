@@ -33,3 +33,5 @@ const unique = (items: DiagnosticCatalogItem[]) => Array.from(new Map(items.map(
 export const LAB_CATALOG = unique([...BASE_LABS, ...EXTRA_LABS]);
 export const RADIOLOGY_CATALOG = unique([...BASE_RADIOLOGY, ...EXTRA_IMAGING]);
 export const DIAGNOSTIC_CATALOG = unique([...LAB_CATALOG, ...RADIOLOGY_CATALOG]);
+export const EXPANDED_LAB_CATALOG = LAB_CATALOG;
+export const EXPANDED_RADIOLOGY_CATALOG = RADIOLOGY_CATALOG;
