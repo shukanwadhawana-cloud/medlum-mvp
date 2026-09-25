@@ -433,7 +433,7 @@ export default function IPDPatientWorkspace(){
    <div className="flex gap-2 justify-end"><button type="button" onClick={()=>setShowRoom(false)} className="h-9 px-3 rounded-lg border text-xs">Cancel</button><button disabled={saving} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs">Add</button></div>
   </form></div>}
 
-  {showTransfer&&selected&&<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><form onSubmit={transferPatient} className="bg-white rounded-xl max-w-sm w-full p-4 space-y-2"><h3 className="font-semibold">Transfer bed</h3>
+  {showTransfer&&selected&&<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><form onSubmit={transferPatient} className="bg-white rounded-xl max-w-sm w-full p-4 space-y-2"><h3 className="font-semibold">Transfer IPD patient</h3>
    <select required value={transferRoom} onChange={e=>setTransferRoom(e.target.value)} className="w-full h-9 px-2 rounded-lg border text-xs"><option value="">Select destination room</option>{rooms.filter((r:any)=>!r.occupied||r.roomNumber===selected.roomNumber).map((r:any)=><option key={r.id} value={r.roomNumber}>Room {r.roomNumber} · {r.roomCategory}</option>)}</select>
    <div className="flex gap-2 justify-end"><button type="button" onClick={()=>setShowTransfer(false)} className="h-9 px-3 rounded-lg border text-xs">Cancel</button><button disabled={saving} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs">Confirm transfer</button></div>
   </form></div>}
