@@ -76,8 +76,18 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
         ((doctor.designation || "").toLowerCase().includes("pharmac") ||
           (doctor.primaryRole || "").toLowerCase().includes("pharmac"))
     );
+    const isLaboratory = Boolean(
+      doctor &&
+        !doctor.isOwner &&
+        ((doctor.designation || "").toLowerCase().includes("laborator") ||
+          (doctor.designation || "").toLowerCase().includes("lab") ||
+          (doctor.primaryRole || "").toLowerCase().includes("laborator") ||
+          (doctor.primaryRole || "").toLowerCase() === "lab")
+    );
     if (isPharmacist && (pathname === "/" || pathname === "/dashboard")) {
       router.replace("/pharmacy");
+    } else if (isLaboratory && (pathname === "/" || pathname === "/dashboard")) {
+      router.replace("/labs");
     }
   }, [checked, loading, doctor, pathname, router]);
 
