@@ -181,6 +181,7 @@ export async function PATCH(req: Request) {
   if (target.role === "Admin" && ctx.membership.role !== "Owner") return NextResponse.json({ error: "Only the clinic owner can manage an Admin." }, { status: 403 });
 
   if (action === "role") {
+    // Staff ID is permanent and is never reassigned on role change.
     const role = typeof body.role === "string" && STAFF_ROLES.includes(body.role as ClinicRole) ? (body.role as ClinicRole) : null;
     if (!role) return NextResponse.json({ error: "Invalid staff role." }, { status: 400 });
     if (role === "Admin" && ctx.membership.role !== "Owner") return NextResponse.json({ error: "Only the clinic owner can assign Admin." }, { status: 403 });
