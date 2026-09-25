@@ -69,7 +69,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold"><Icon name="brand" size={18} /><span className="text-sm">MedLum</span></Link>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {isOwner && <Link href="/owner" className="hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/25" title="Return to owner dashboard"><Icon name="owner" size={14} /><span>Owner</span></Link>}
-              <button type="button" onClick={() => setMoreOpen(true)} className={`hidden lg:inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"}`} title="Open menu"><Icon name="more" size={14} /><span>Menu</span></button>
+              <button type="button" onClick={() => setMoreOpen(true)} className={`hidden md:flex lg:inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"}`} title="Open menu"><Icon name="more" size={14} /><span>Menu</span></button>
               <button type="button" onClick={() => logout()} title="Logout" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-200 hover:bg-white/10 hover:text-red-100"><Icon name="logout" size={14} /><span className="hidden sm:inline">Logout</span></button>
             </div>
           </div>
