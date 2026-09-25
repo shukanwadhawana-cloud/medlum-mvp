@@ -20,7 +20,7 @@ const empty={name:"",age:"",gender:"Male",phone:"",address:"",idType:"Aadhaar",i
 export default function IPDPatientWorkspace(){
  const params=useParams<{id:string}>(); const pathname=usePathname(); const patientId=String(params?.id||""); const clinicalMode=pathname.endsWith("/clinical");
  const{doctor,loading:authLoading}=useDoctor();
- const[patients,setPatients]=useState<any[]>([]),[rooms,setRooms]=useState<any[]>([]),[selected,setSelected]=useState<any>(null),[form,setForm]=useState(empty);
+ const[patients,setPatients]=useState<any[]>([]),[history,setHistory]=useState<any[]>([]),[rooms,setRooms]=useState<any[]>([]),[selected,setSelected]=useState<any>(null),[form,setForm]=useState(empty);
  const[showRegister,setShowRegister]=useState(false),[showRoom,setShowRoom]=useState(false),[showHandover,setShowHandover]=useState(false),[room,setRoom]=useState({roomNumber:"",roomCategory:"General Ward",unitType:"Ward"});
  const[note,setNote]=useState({noteType:"Consultant Note",content:""}),[investigation,setInvestigation]=useState({testName:"CBC",custom:"",notes:""}),[handover,setHandover]=useState({receivingMemberId:"",context:""}),[handoverOptions,setHandoverOptions]=useState<any[]>([]);
  const[contact,setContact]=useState({name:"",relationship:"",phone:"",alternatePhone:""}); const[vitals,setVitals]=useState({bp:"",pulse:"",rr:"",spo2:"",temperature:""});
