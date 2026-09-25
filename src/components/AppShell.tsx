@@ -19,6 +19,9 @@ const clinicalNav = [
 const pharmacistNav = [
   { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" },
 ];
+const laboratoryNav = [
+  { href: "/labs", label: "Labs", icon: "labs" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics" }, { href: "/ipd", label: "IPD", icon: "ipd" },
+];
 const operationsNav = [
   { href: "/billing", label: "Patient billing", icon: "billing" }, { href: "/pricing", label: "Pricing & plans", icon: "billing" }, { href: "/help", label: "Help & FAQs", icon: "reports" }, { href: "/blood-bank", label: "Blood bank", icon: "blood" }, { href: "/insurance", label: "Insurance", icon: "insurance" }, { href: "/reports", label: "Reports", icon: "reports" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/ipd-summaries", label: "IPD summaries", icon: "ipd" }, { href: "/clinic/setup", label: "Hospital / Clinic setup", icon: "clinic" }, { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic" }, { href: "/clinic/tariffs", label: "Tariff / Rate list", icon: "billing" }, { href: "/clinical-assist", label: "AI Assist", icon: "ai" }, { href: "/mvp-blueprint", label: "MVP Blueprint", icon: "reports" }, { href: "/duty", label: "Duty", icon: "duty" }, { href: "/workforce", label: "People & Workforce", icon: "people" }, { href: "/dashboard", label: "Dashboard", icon: "clinic" },
 ];
@@ -57,9 +60,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { doctor, logout } = useDoctor();
   const [moreOpen, setMoreOpen] = useState(false);
   const isOwner = Boolean(doctor?.isOwner);
-  const isPharmacist = !isOwner && (doctor?.designation || "").toLowerCase().includes("pharmac") || !isOwner && (doctor?.primaryRole || "").toLowerCase().includes("pharmac");
+  const isPharmacist = !isOwner && ((doctor?.designation || "").toLowerCase().includes("pharmac") || (doctor?.primaryRole || "").toLowerCase().includes("pharmac"));
+  const isLaboratory = !isOwner && ((doctor?.designation || "").toLowerCase().includes("laborator") || (doctor?.designation || "").toLowerCase().includes("lab") || (doctor?.primaryRole || "").toLowerCase().includes("laborator") || (doctor?.primaryRole || "").toLowerCase() === "lab");
   const isWorkforceAdmin = Boolean(isOwner || ["Admin","Manager"].includes(doctor?.primaryRole || ""));
-  const primaryNav = isPharmacist ? pharmacistNav : isWorkforceAdmin ? [{ href: "/workforce", label: "People", icon: "people" }, ...clinicalNav] : clinicalNav;
+  const primaryNav = isPharmacist ? pharmacistNav : isLaboratory ? laboratoryNav : isWorkforceAdmin ? [{ href: "/workforce", label: "People", icon: "people" }, ...clinicalNav] : clinicalNav;
   const moreActive = moreItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
   return (
     <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
