@@ -26,10 +26,13 @@ jobs:
             data += f.read_text().strip()
           content = base64.b64decode(data).decode()
           assert "MedOrderPanel" in content, "missing MedOrderPanel"
-          assert "Order Medicines" in content, "missing Order Medicines"
+          assert "MAIN_TABS" in content, "missing MAIN_TABS"
+          assert "LEFT_NAV" in content, "missing LEFT_NAV"
+          assert "Cover Sheet" in content, "missing Cover Sheet"
+          assert "PLACEHOLDER" not in content, "still placeholder"
           out = Path("src/app/ipd/[id]/page.tsx")
           out.write_text(content)
-          print("assembled", len(content))
+          print("assembled", len(content), "bytes")
           PY
       - name: Commit
         run: |
@@ -37,5 +40,5 @@ jobs:
           git config user.email "bot@users.noreply.github.com"
           git add "src/app/ipd/[id]/page.tsx"
           git diff --staged --quiet && echo "No changes" && exit 0
-          git commit -m "feat(cprs): assemble full IPD workspace with Order Medicines + Progress Note chips"
+          git commit -m "feat(cprs): assemble full left-panel Clinical Workspace (Cover Sheet / Labs / Notes / Diagnosis ICD / Orders / MAR)"
           git push origin HEAD:main
