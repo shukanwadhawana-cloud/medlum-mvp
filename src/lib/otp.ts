@@ -13,7 +13,7 @@ export type OtpDeliveryResult = { channel: "console" | "telegram"; devCode?: str
 export function generateOtpCode(): string { return String(randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0"); }
 export async function hashOtp(code: string): Promise<string> { return bcrypt.hash(code, 10); }
 export async function verifyOtpHash(code: string, hash: string): Promise<boolean> { return bcrypt.compare(code, hash); }
-export const OTP_REQUIRED_ROLES = new Set(["Owner", "Admin", "Manager", "MasterOwner"]);
+export const OTP_REQUIRED_ROLES = new Set(["Owner", "Admin", "Manager", "MasterOwner", "Consultant", "Doctor", "RMO", "Nurse", "Pharmacy"]);
 export function roleRequiresOtp(role: string | null | undefined): boolean { return !!role && OTP_REQUIRED_ROLES.has(role); }
 function hashLinkToken(token: string): string { return createHash("sha256").update(token).digest("hex"); }
 
