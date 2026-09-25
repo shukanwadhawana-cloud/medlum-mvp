@@ -26,7 +26,6 @@ function isPublicPath(pathname: string) {
   if (PUBLIC.includes(pathname)) return true;
   if (pathname.startsWith("/join/")) return true;
   if (pathname.startsWith("/telemedicine/join")) return true;
-  // Patient portal has its own authentication and must not be redirected by clinical auth.
   if (pathname === "/portal" || pathname.startsWith("/portal/")) return true;
   return false;
 }
@@ -70,6 +69,7 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
       router.replace("/login");
       return;
     }
+
     const isPharmacist = Boolean(
       doctor &&
         !doctor.isOwner &&
@@ -84,10 +84,19 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
           (doctor.primaryRole || "").toLowerCase().includes("laborator") ||
           (doctor.primaryRole || "").toLowerCase() === "lab")
     );
+    const isNursing = Boolean(
+      doctor &&
+        !doctor.isOwner &&
+        ((doctor.designation || "").toLowerCase().includes("nurs") ||
+          (doctor.primaryRole || "").toLowerCase().includes("nurs"))
+    );
+
     if (isPharmacist && (pathname === "/" || pathname === "/dashboard")) {
       router.replace("/pharmacy");
     } else if (isLaboratory && (pathname === "/" || pathname === "/dashboard")) {
       router.replace("/labs");
+    } else if (isNursing && (pathname === "/" || pathname === "/dashboard")) {
+      router.replace("/nursing");
     }
   }, [checked, loading, doctor, pathname, router]);
 
