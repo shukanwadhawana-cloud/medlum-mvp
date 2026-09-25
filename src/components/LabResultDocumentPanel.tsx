@@ -243,17 +243,16 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               <p className="text-[10px] text-amber-800">
                 The original report is stored and the extracted text is retained as diagnostic evidence. Nothing has been written as a clinical result yet.
               </p>
-              {manualResult && (
-                <div>
-                  <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / findings</p>
-                  <textarea
-                    value={manualResult}
-                    onChange={(e) => setManualResult(e.target.value)}
-                    disabled={verifying}
-                    className="mt-1 min-h-28 w-full rounded border bg-white px-2 py-1.5 text-xs"
-                  />
-                </div>
-              )}
+              <div>
+                <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
+                <textarea
+                  value={manualResult}
+                  onChange={(e) => setManualResult(e.target.value)}
+                  disabled={verifying}
+                  placeholder="Review the original report and enter/correct the laboratory findings here. Nothing is saved as a clinical result until you verify it."
+                  className="mt-1 min-h-28 w-full rounded border bg-white px-2 py-1.5 text-xs"
+                />
+              </div>
               <p className="text-[10px] text-gray-600">
                 Review the source report and correct the text below if needed, then verify it as the clinical result.
               </p>
