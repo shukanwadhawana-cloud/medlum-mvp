@@ -114,7 +114,7 @@ export default function LoginPage() {
           <h1 className="text-4xl font-bold text-white">MedLum</h1>
           <p className="mt-3 text-white/70 text-sm leading-relaxed">Hospital & clinic operations — secure privileged access.</p>
         </div>
-        <p className="text-white/40 text-xs">OTP for Owner / Admin / Manager is delivered on Telegram.</p>
+        <p className="text-white/40 text-xs">OTP for privileged administrative and clinical staff is delivered on Telegram.</p>
       </div>
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
@@ -239,7 +239,7 @@ export default function LoginPage() {
               >
                 {linkLoading ? "Preparing Telegram..." : "Connect Telegram before signing in"}
               </button>
-              <p className="text-xs text-gray-500 text-center">Required once for Owner / Admin / Manager accounts.</p>
+              <p className="text-xs text-gray-500 text-center">Required once for Owner, Admin, Manager, Consultant, Doctor, RMO, Sister/Nurse and Pharmacist accounts.</p>
             </form>
           )}
           <div className="mt-8 space-y-3 text-center text-sm">
