@@ -51,7 +51,7 @@ model Clinic {
   clinicalNotes      ClinicalNote[]
   dutyAttendanceEvents DutyAttendanceEvent[]
   dutyAttendanceRequests DutyAttendanceRequest[]
-  workforceRecords    WorkforceRecord[] @relation("ClinicMemberWorkforceRecords")
+  workforceRecords    WorkforceRecord[]
 
   // MedLum Duty — per-hospital geofence (campus punch)
   dutyLat            Float?
@@ -82,7 +82,7 @@ model ClinicMember {
   medicationAdministrations MedicationAdministration[]
   dutyAttendanceEvents DutyAttendanceEvent[]
   dutyAttendanceRequests DutyAttendanceRequest[]
-  workforceRecords    WorkforceRecord[]
+  workforceRecords    WorkforceRecord[] @relation("ClinicMemberWorkforceRecords")
 
   @@unique([clinicId, doctorId])
   @@index([clinicId])
