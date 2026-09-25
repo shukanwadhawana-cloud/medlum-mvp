@@ -20,9 +20,6 @@ export async function POST(req: Request) {
 
   const challenge = await prisma.telegramLinkChallenge.findFirst({ where: { tokenHash: hashToken(token), consumedAt: null, expiresAt: { gt: new Date() } } });
   if (!challenge) { await sendTelegramMessage(String(chat.id), "This MedLum linking link is invalid or expired. Generate a new one from MedLum."); return NextResponse.json({ ok: true }); }
-  const conflict = await prisma.telegramIdentity.findFirst({ where: { OR: [{ telegramUserId: String(from.id) }, { telegramChatId: String(chat.id) }], NOT: { doctorId: challenge.doctorId } } });
-  if (conflict) { await sendTelegramMessage(String(chat.id), "This Telegram account is already linked to a different MedLum user. Unlink it there first."); return NextResponse.json({ ok: true }); }
-
   await prisma.$transaction([
     prisma.telegramIdentity.upsert({ where: { doctorId: challenge.doctorId }, create: { doctorId: challenge.doctorId, telegramUserId: String(from.id), telegramChatId: String(chat.id), telegramUsername: from.username ? String(from.username) : null }, update: { telegramUserId: String(from.id), telegramChatId: String(chat.id), telegramUsername: from.username ? String(from.username) : null } }),
     prisma.telegramLinkChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } }),
