@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import AppShell from "@/components/AppShell";
 import { apiAddPharmacyItem, apiCreateDispensing, apiGetPharmacy, apiUpdateDispensing, apiUpdatePharmacyItem } from "@/lib/api";
 
 export default function PharmacyPage() {
@@ -47,11 +48,13 @@ export default function PharmacyPage() {
     await load();
   }
 
-  const queuedPrescriptionIds = new Set(data.dispensings.map((d) => d.prescriptionId));
   const lowStock = data.items.filter((i) => Number(i.quantity) <= Number(i.reorderLevel));
+  const pending = useMemo(() => data.prescriptions.filter((p) => !data.dispensings.some((d) => d.prescriptionId === p.id || d.status === "Pending" && d.prescriptionId === p.id)), [data]);
+  const pendingDispensing = data.dispensings.filter((d) => d.status === "Pending");
 
   return (
-    <main className="mx-auto max-w-6xl p-4 pb-24 sm:p-6">
+    <AppShell>
+    <main className="mx-auto max-w-6xl p-0">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Pharmacy</h1>
         <p className="mt-1 text-sm text-slate-500">Prescription fulfillment and clinic medicine inventory.</p>
@@ -66,8 +69,8 @@ export default function PharmacyPage() {
         <div className="rounded-2xl border bg-white p-4"><div className="text-xs text-slate-500">Low stock</div><div className="mt-1 text-2xl font-semibold">{lowStock.length}</div></div>
       </section>
 
-      <section className="mb-6 rounded-2xl border bg-white p-4 sm:p-5">
-        <h2 className="text-lg font-semibold">Add medicine to inventory</h2>
+      <section className="mb-6 rounded-2xl border bg-white p-4 sm:p-5 order-3">
+        <h2 className="text-lg font-semibold">Inventory receiving / stock adjustment</h2>
         <p className="mb-4 mt-1 text-xs text-slate-500">Stock is tracked manually for now; prescriptions remain the clinical source of truth.</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[["name","Medicine name"],["genericName","Generic name"],["form","Form"],["batchNumber","Batch number"],["expiryDate","Expiry date"],["quantity","Quantity"],["reorderLevel","Reorder level"],["unit","Unit"]].map(([key,label]) => (
@@ -78,7 +81,7 @@ export default function PharmacyPage() {
       </section>
 
       <section className="mb-6 rounded-2xl border bg-white p-4 sm:p-5">
-        <div className="mb-4 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Dispensing queue</h2><p className="text-xs text-slate-500">Convert existing prescriptions into pharmacy fulfillment records.</p></div></div>
+        <div className="mb-4 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Pharmacist dispensing queue</h2><p className="text-xs text-slate-500">Primary work queue: verify prescription, prepare medication, dispense, and reconcile stock.</p></div></div>
         {loading ? <p className="text-sm text-slate-500">Loading…</p> : data.prescriptions.length === 0 ? <p className="text-sm text-slate-500">No prescriptions yet.</p> : <div className="space-y-3">
           {data.prescriptions.map((p) => {
             const d = data.dispensings.find((x) => x.prescriptionId === p.id);
@@ -100,5 +103,6 @@ export default function PharmacyPage() {
         </div>}
       </section>
     </main>
+  </AppShell>
   );
 }
