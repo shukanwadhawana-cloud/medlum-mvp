@@ -26,7 +26,7 @@ const LEFT_NAV:Record<MainTab,string[]>={
   "Orders":["Order Medicines","Investigation Indent","Laboratory","Radiology","Procedure"],
   "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
   "Discharge Summary":["Discharge Summary","DAMA Summary","LAMA Summary","Transfer Summary","Death Summary","Fitness Note"],
-  "Lab":["Lab Orders","Lab Results"],
+  "Lab":["Lab Orders","Lab Results","Investigation Results"],
   "Radiology":["Imaging Orders","Imaging Results"],
   "MAR":["Medication Administration Record"],
 };
@@ -76,13 +76,13 @@ export default function IPDPatientWorkspace(){
   const content=[`Date and Time of Discharge: ${d.dischargeDateTime||"—"}`,`Diagnosis: ${d.diagnosis}`,`Presenting Complaints: ${d.presentingComplaints}`,`History of Present Illness: ${d.hpi}`,`Past Medical History: ${d.pastMedicalHistory}`,`Current Medication: ${d.currentMedication}`,`Personal History: ${d.personalHistory}`,`Family History: ${d.familyHistory}`,`Allergies: ${d.allergies||selected.allergies||"NKA"}`,`Occupational History: ${d.occupationalHistory}`,`On Examination: ${d.onExamination}`,`Course In Hospital: ${d.courseInHospital}`,`Procedure: ${d.procedure}`,`Surgery: ${d.surgery}`,`Findings: ${d.findings}`,`Condition on Discharge: ${d.conditionOnDischarge}`,`TPA Patient: ${d.tpaPatient||"—"}`,`Investigation: ${d.investigation}`,`Medications During Stay: ${d.medicationsDuringStay}`,`Advice: ${d.advice}`,`Special Needs: ${d.specialNeeds}`,`Follow Up Advice: ${d.followUpAdvice}`,pulled.length?`\n— Pulled sections —\n`+pulled.join("\n"):"",d.ack?"Patient/Attendant acknowledgement recorded.":""].filter(Boolean).join("\n");
   await run({action:"clinical-note",patientId:selected.id,noteType:leftNav||"Discharge Summary",title:`${department} · ${leftNav||"Discharge Summary"}`,content,authorRole:`${doctor?.name||"Clinician"} · ${leftNav||"Discharge Summary"}`},`${leftNav||"Discharge Summary"} saved`);
  };
- const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;await run({action:"vitals",patientId:selected.id,vitals},`Vitals saved`)};
- const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`);setSelectedLabs([])};
+ const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;if(!(await run({action:"vitals",patientId:selected.id,vitals},`Vitals saved`)))return;};
+ const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;if(!(await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`)))return;setSelectedLabs([])};
  const orderRad=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;const tests=selectedDiagnostics.length?selectedDiagnostics:[diagnosticType];await run({action:"diagnostic-order",patientId:selected.id,tests,notes:investigation.notes},`Imaging order placed`);setSelectedDiagnostics([])};
  const register=async(e:React.FormEvent)=>{e.preventDefault();if(!(await run({action:"register",...form},`${form.careSetting} patient registered`)))return;setShowRegister(false);setForm(empty)};
  const addRoom=async(e:React.FormEvent)=>{e.preventDefault();if(!(await run({action:"add-room",...room},`Room ${room.roomNumber} added`)))return;setShowRoom(false);setRoom({roomNumber:"",roomCategory:"General Ward",unitType:"Ward"})};
  const transferPatient=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!transferRoom)return;setSaving(true);try{const r=await post({action:"room-transfer",patientId:selected.id,roomNumber:transferRoom});setMsg(r.success?`Patient transferred to room / bed ${transferRoom}.`:"Transfer completed.");setShowTransfer(false);setTransferRoom("");await load()}catch(e:any){setError(e.message||"Could not transfer patient")}finally{setSaving(false)}};
- const doHandover=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!handover.receivingMemberId)return;if(!confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?"))return;setSaving(true);try{const r=await post({action:"handover",patientId:selected.id,receivingMemberId:handover.receivingMemberId,context:handover.context.trim()});setMsg(r.success?"Clinical responsibility handed over.":"Handover completed.");setShowHandover(false);setHandover({receivingMemberId:"",context:""});await load()}catch(e:any){setError(e.message||"Could not complete handover")}finally{setSaving(false)}};
+ const doHandover=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!handover.receivingMemberId)return;if(!window.confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?"))return;setSaving(true);try{const r=await post({action:"handover",patientId:selected.id,receivingMemberId:handover.receivingMemberId,context:handover.context.trim()});setMsg(r.success?"Clinical responsibility handed over.":"Handover completed.");setShowHandover(false);setHandover({receivingMemberId:"",context:""});await load()}catch(e:any){setError(e.message||"Could not complete handover")}finally{setSaving(false)}};
 
  if(authLoading)return <AppShell><div className="p-6 text-sm text-gray-500">Loading…</div></AppShell>;
  if(!doctor)return <AppShell><div className="p-6 text-sm text-gray-500">Sign in to open the IPD clinical workspace.</div></AppShell>;
@@ -197,7 +197,7 @@ export default function IPDPatientWorkspace(){
       <p>Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleString("en-IN"):"—"}</p>
       <div className="flex gap-2 mt-2">
        <button type="button" onClick={()=>setShowTransfer(true)} className="h-8 px-3 rounded border text-xs">Transfer bed</button>
-       <button type="button" onClick={()=>setShowHandover(true)} className="h-8 px-3 rounded border text-xs">Clinical handover</button>
+       <button type="button" onClick={()=>setShowHandover(true)} className="h-8 px-3 rounded border text-xs" title="Transfer / Handover Patient">Clinical handover</button>
       </div>
      </div>
     )}
@@ -398,6 +398,24 @@ export default function IPDPatientWorkspace(){
     )}
 
     {/* MAR */}
+    
+    {mainTab==="Lab"&&leftNav==="Investigation Results"&&selected&&(
+     <div>
+      <h3 className="font-semibold text-sm mb-2">Investigation Results</h3>
+      <div className="space-y-2 text-xs">
+       {(selected.investigationOrders||[]).filter((o:any)=>!(o.patientId!==selected.id)).map((o:any)=>(
+        <div key={o.id||o.testName} className="border rounded-lg p-2 flex items-center justify-between gap-2">
+         <span>{o.testName||o.name||"Investigation"} · {o.status||"—"}</span>
+         {o.status!=="Reviewed"&&(
+          <button type="button" disabled={saving} onClick={async()=>{await run({action:"lab-review",patientId:selected.id,orderId:o.id,status:"Reviewed"},"Marked reviewed")}} className="h-7 px-2 rounded border text-[10px]">Mark reviewed</button>
+         )}
+        </div>
+       ))}
+       {!(selected.investigationOrders||[]).length&&<p className="text-gray-500">No investigation results yet. {((selected.clinicalNotes||[]).filter((n:any)=>n.noteType==="Medication Indent").length)} medication indents on file.</p>}
+      </div>
+     </div>
+    )}
+
     {mainTab==="MAR"&&selected&&(
      <div><h3 className="font-semibold text-sm mb-3">Medication Administration Record</h3><MedicationAdministrationPanel patient={selected} /></div>
     )}
@@ -438,7 +456,7 @@ export default function IPDPatientWorkspace(){
    <div className="flex gap-2 justify-end"><button type="button" onClick={()=>setShowTransfer(false)} className="h-9 px-3 rounded-lg border text-xs">Cancel</button><button disabled={saving} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs">Confirm transfer</button></div>
   </form></div>}
 
-  {showHandover&&selected&&<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><form onSubmit={doHandover} className="bg-white rounded-xl max-w-sm w-full p-4 space-y-2"><h3 className="font-semibold">Clinical handover</h3>
+  {showHandover&&selected&&<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><form onSubmit={doHandover} className="bg-white rounded-xl max-w-sm w-full p-4 space-y-2"><h3 className="font-semibold">Clinical handover</h3><p className="text-[10px] text-gray-500">Current receiving clinician/team</p>
    <select required value={handover.receivingMemberId} onChange={e=>setHandover({...handover,receivingMemberId:e.target.value})} className="w-full h-9 px-2 rounded-lg border text-xs"><option value="">Select receiving clinician</option>{handoverOptions.map((o:any)=><option key={o.id} value={o.id}>{o.name||o.email}</option>)}</select>
    <textarea value={handover.context} onChange={e=>setHandover({...handover,context:e.target.value})} placeholder="Handover context" className="w-full min-h-16 px-2 py-1 rounded-lg border text-xs"/>
    <div className="flex gap-2 justify-end"><button type="button" onClick={()=>setShowHandover(false)} className="h-9 px-3 rounded-lg border text-xs">Cancel</button><button disabled={saving} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs">Confirm handover</button></div>
