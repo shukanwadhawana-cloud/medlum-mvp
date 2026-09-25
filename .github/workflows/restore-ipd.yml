@@ -10,18 +10,57 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Restore IPD page from 8f5ce70 and fix MLC placeholder
+      - name: Restore complete Clinical Workspace from a3c0e9e
         run: |
-          git checkout 8f5ce708db8438606e8a12cc4614679463e68d2e -- "src/app/ipd/[id]/page.tsx"
+          set -e
+          # a3c0e9e is last complete MedLum IPD clinical workspace before placeholder corruption
+          # (CLINICAL_SECTIONS, NURSING_SECTIONS, followUpConsultant, ipdHistory, DISCHARGED)
+          git show a3c0e9ebdfbf5ab2fb5b2cf02f0c88afec29663c:"src/app/ipd/[id]/page.tsx" > "src/app/ipd/[id]/page.tsx"
+          SIZE=$(wc -c < "src/app/ipd/[id]/page.tsx")
+          echo "restored size=$SIZE"
+          test "$SIZE" -gt 30000
+          grep -q CLINICAL_SECTIONS "src/app/ipd/[id]/page.tsx"
+          grep -q NURSING_SECTIONS "src/app/ipd/[id]/page.tsx"
+          grep -q followUpConsultant "src/app/ipd/[id]/page.tsx"
+          grep -q ipdHistory "src/app/ipd/[id]/page.tsx"
+          grep -q MedicationAdministrationPanel "src/app/ipd/[id]/page.tsx"
+          # Ensure MLC label matches pilot UI verifier
           python3 -c "
-          s=open('src/app/ipd/[id]/page.tsx').read()
-          s=s.replace('placeholder=\"MLC number\"','placeholder=\"MLC number (if applicable)\"')
-          open('src/app/ipd/[id]/page.tsx','w').write(s)
-          assert 'MLC number (if applicable)' in s
-          print('IPD page restored and MLC fixed', len(s))
+          from pathlib import Path
+          p = Path('src/app/ipd/[id]/page.tsx')
+          s = p.read_text()
+          s = s.replace('placeholder=\"MLC number\"', 'placeholder=\"MLC number (if applicable)\"')
+          # Wire MedOrderPanel if component exists and not already imported
+          if Path('src/components/ipd/MedOrderPanel.tsx').exists() and 'MedOrderPanel' not in s:
+              old = 'import MedicationAdministrationPanel from \"@/components/ipd/MedicationAdministrationPanel\";'
+              new = old + '\nimport MedOrderPanel from \"@/components/ipd/MedOrderPanel\";'
+              if old in s:
+                  s = s.replace(old, new, 1)
+              old_sec = 'const CLINICAL_SECTIONS=[\"Initial Assessment\",\"Progress Note\",\"VTE Risk Assessment\"'
+              new_sec = 'const CLINICAL_SECTIONS=[\"Initial Assessment\",\"Progress Note\",\"Order Medicines\",\"VTE Risk Assessment\"'
+              if old_sec in s:
+                  s = s.replace(old_sec, new_sec, 1)
+              marker = '{activeSection===\"VTE Risk Assessment\"'
+              insert = '{activeSection===\"Order Medicines\"&&selected&&<MedOrderPanel patient={{id:selected.id,name:selected.name}} onOrdered={()=>load().catch(()=>{})} />}\n\n  '
+              if marker in s and 'Order Medicines\"&&selected' not in s:
+                  s = s.replace(marker, insert + marker, 1)
+              print('wired MedOrderPanel')
+          p.write_text(s)
+          assert 'CLINICAL_SECTIONS' in s
+          assert 'MLC number (if applicable)' in s or 'mlcNumber' in s
+          print('final size', len(s), 'MedOrderPanel', 'MedOrderPanel' in s)
           "
-          git config user.name "shukanwadhawana-cloud"
-          git config user.email "shukanwadhawana@gmail.com"
+      - name: Commit restored page
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
           git add "src/app/ipd/[id]/page.tsx"
-          git commit -m "fix(ipd): restore full IPD page + MLC number (if applicable)" || echo "no change"
+          git status
+          git diff --staged --stat
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "fix(ipd): restore complete Clinical Workspace from a3c0e9e + MedOrderPanel
+
+          Source: a3c0e9ebdfbf5ab2fb5b2cf02f0c88afec29663c (last complete MedLum IPD page)
+          Preserves CLINICAL_SECTIONS, NURSING_SECTIONS, follow-up consultant, ipdHistory,
+          DISCHARGED status, MAR panel, and wires Order Medicines when MedOrderPanel exists."
           git push origin HEAD:main
