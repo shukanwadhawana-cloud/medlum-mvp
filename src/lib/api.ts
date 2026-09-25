@@ -1,7 +1,7 @@
 /** MedLum API client — cookies + PostgreSQL */
 
-export type ApiMembership = { clinicId: string; clinicName: string; role: "Owner" | "Admin" | "Consultant" | "Staff" };
-export type ApiDoctor = { id: string; name: string; email: string; clinicName: string; phone: string; createdAt: string; memberships?: ApiMembership[]; primaryRole?: ApiMembership["role"]; isOwner?: boolean };
+export type ApiMembership = { clinicId: string; clinicName: string; role: "Owner" | "Admin" | "Consultant" | "Staff"; staffCode?: string; designation?: string; department?: string };
+export type ApiDoctor = { id: string; name: string; email: string; clinicName: string; phone: string; createdAt: string; memberships?: ApiMembership[]; primaryRole?: ApiMembership["role"]; staffCode?: string; designation?: string; department?: string; isOwner?: boolean };
 const opts: RequestInit = { credentials: "include", headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" } };
 async function json<T>(res: Response): Promise<T> { return (await res.json().catch(() => ({}))) as T; }
 async function confirmMutation(action: string, details?: string) { if (typeof window === "undefined") return true; return window.confirm("Confirm " + action + (details ? "\n\n" + details : "") + "\n\nOK = confirm. Cancel = leave unchanged."); }
