@@ -18,14 +18,14 @@ jobs:
           import base64, gzip
           from pathlib import Path
           parts_dir = Path("scripts/ipd-gz")
-          data = "".join((parts_dir / f"g{i}.txt").read_text().strip() for i in range(20) if (parts_dir / f"g{i}.txt").exists())
+          data = "".join((parts_dir / f"g{i}.txt").read_text().strip() for i in range(30) if (parts_dir / f"g{i}.txt").exists())
           print("b64 len", len(data))
           raw = gzip.decompress(base64.b64decode(data))
           content = raw.decode()
           assert "MedOrderPanel" in content, "missing MedOrderPanel"
           assert "MAIN_TABS" in content, "missing MAIN_TABS"
-          assert "LEFT_NAV" in content, "missing LEFT_NAV"
-          assert "Cover Sheet" in content, "missing Cover Sheet"
+          assert "Note View" in content, "missing Note View"
+          assert "saveDischargeStructured" in content, "missing discharge form"
           assert "PLACEHOLDER" not in content, "still PLACEHOLDER"
           out = Path("src/app/ipd/[id]/page.tsx")
           out.parent.mkdir(parents=True, exist_ok=True)
@@ -38,5 +38,5 @@ jobs:
           git config user.email "bot@users.noreply.github.com"
           git add "src/app/ipd/[id]/page.tsx"
           git diff --staged --quiet && echo "No changes" && exit 0
-          git commit -m "feat(cprs): full left-panel Clinical Workspace — Cover Sheet, Labs, Notes, Diagnosis/ICD, Orders, MAR (no mixed snapshot)"
+          git commit -m "feat(cprs): Note View list + structured Discharge Summary + assessment investigations"
           git push origin HEAD:main
