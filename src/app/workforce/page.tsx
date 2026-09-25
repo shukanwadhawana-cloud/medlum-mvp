@@ -1,5 +1,7 @@
 "use client";
 
+// Workforce Hub: persisted, clinic-scoped HRIS/HCM workflows.
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 
