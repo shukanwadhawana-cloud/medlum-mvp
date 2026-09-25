@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
@@ -19,11 +20,11 @@ async function ctx() {
   return member ? { session, member, role: normalizeClinicRole(member.role) } : null;
 }
 
-function cleanData(value: unknown) {
+function cleanData(value: unknown): Prisma.InputJsonValue {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const text = JSON.stringify(value);
   if (text.length > 20000) throw new Error("Record details are too large.");
-  return value as Record<string, unknown>;
+  return value as Prisma.InputJsonValue;
 }
 
 export async function GET(req: Request) {
@@ -85,7 +86,7 @@ export async function PATCH(req: Request) {
   if(!id) return NextResponse.json({error:"Record id is required"},{status:400});
   const existing=await prisma.workforceRecord.findFirst({where:{id,clinicId:c.member.clinicId}});
   if(!existing) return NextResponse.json({error:"Workforce record not found"},{status:404});
-  let data=existing.data as Record<string,unknown>;
+  let data=existing.data as Prisma.InputJsonValue;
   if(body.data!==undefined){try{data=cleanData(body.data);}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Invalid data"},{status:400});}}
   const row=await prisma.workforceRecord.update({where:{id},data:{
     status:typeof body.status==="string"?body.status:existing.status,
