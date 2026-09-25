@@ -1,0 +1,52 @@
+name: Fix Clinic Page Syntax
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/fix-clinic-page.yml"
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix literal \\n in clinic page
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("src/app/clinic/page.tsx")
+          s = p.read_text()
+          bad = ';\\nconst STAFF_ROLE_LABELS'
+          if bad in s:
+              s = s.replace(bad, ';\nconst STAFF_ROLE_LABELS', 1)
+              p.write_text(s)
+              print("fixed")
+          else:
+              print("already ok or different pattern")
+              # also try actual two-line corruption variants
+              if 'STAFF_ROLES' in s and 'STAFF_ROLE_LABELS' in s:
+                  lines = s.splitlines()
+                  for i, line in enumerate(lines):
+                      if 'STAFF_ROLES' in line and '\\n' in line:
+                          lines[i] = line.replace('\\n', '\n')
+                          # split if now multiline in one string
+                          pass
+                  s2 = '\n'.join(lines)
+                  if '\\nconst STAFF_ROLE_LABELS' in s2:
+                      s2 = s2.replace('\\nconst STAFF_ROLE_LABELS', '\nconst STAFF_ROLE_LABELS')
+                  p.write_text(s2)
+                  print("normalized")
+          s = p.read_text()
+          assert '\\nconst STAFF_ROLE_LABELS' not in s, 'still broken'
+          assert 'const STAFF_ROLE_LABELS' in s
+          print("verify ok")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add src/app/clinic/page.tsx
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "fix(clinic): replace literal \\n with real newline so TypeScript builds"
+          git push origin HEAD:main
