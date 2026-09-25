@@ -58,7 +58,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const isOwner = Boolean(doctor?.isOwner);
   const isPharmacist = !isOwner && (doctor?.designation || "").toLowerCase().includes("pharmac") || !isOwner && (doctor?.primaryRole || "").toLowerCase().includes("pharmac");
-  const primaryNav = isPharmacist ? pharmacistNav : clinicalNav;
+  const isWorkforceAdmin = Boolean(isOwner || ["Admin","Manager"].includes(doctor?.primaryRole || ""));
+  const primaryNav = isPharmacist ? pharmacistNav : isWorkforceAdmin ? [{ href: "/workforce", label: "People", icon: "people" }, ...clinicalNav] : clinicalNav;
   const moreActive = moreItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
   return (
     <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
