@@ -68,6 +68,16 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
     if (!checked || loading) return;
     if (!doctor && !isPublicPath(pathname)) {
       router.replace("/login");
+      return;
+    }
+    const isPharmacist = Boolean(
+      doctor &&
+        !doctor.isOwner &&
+        ((doctor.designation || "").toLowerCase().includes("pharmac") ||
+          (doctor.primaryRole || "").toLowerCase().includes("pharmac"))
+    );
+    if (isPharmacist && (pathname === "/" || pathname === "/dashboard")) {
+      router.replace("/pharmacy");
     }
   }, [checked, loading, doctor, pathname, router]);
 
