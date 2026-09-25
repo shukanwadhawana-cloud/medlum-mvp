@@ -204,7 +204,7 @@ export default function IPDPatientWorkspace(){
 
     {/* ORDERS */}
     {mainTab==="Orders"&&leftNav==="Order Medicines"&&selected&&(
-     <div><h3 className="font-semibold text-sm mb-3">Order Medicines</h3><MedOrderPanel patientId={selected.id} patientName={selected.name} /></div>
+     <div><h3 className="font-semibold text-sm mb-3">Order Medicines</h3><MedOrderPanel patient={{ id: selected.id, name: selected.name }} /></div>
     )}
     {mainTab==="Orders"&&leftNav==="Laboratory"&&(
      <form onSubmit={orderLabs} className="space-y-3 max-w-2xl">
