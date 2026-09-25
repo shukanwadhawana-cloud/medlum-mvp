@@ -1,0 +1,54 @@
+name: Fix IPD CPRS Simple
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/fix-ipd-cprs-simple.yml"
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+      - name: Restore and patch
+        run: |
+          set -e
+          git show a3c0e9ebdfbf5ab2fb5b2cf02f0c88afec29663c:"src/app/ipd/[id]/page.tsx" > "src/app/ipd/[id]/page.tsx"
+          python3 -c '
+from pathlib import Path
+p = Path("src/app/ipd/[id]/page.tsx")
+t = p.read_text()
+print("size", len(t))
+assert "PLACEHOLDER" not in t and len(t) > 10000
+if "MedOrderPanel" not in t:
+    t = t.replace(
+        "import MedicationAdministrationPanel from \"@/components/ipd/MedicationAdministrationPanel\";",
+        "import MedicationAdministrationPanel from \"@/components/ipd/MedicationAdministrationPanel\";\nimport MedOrderPanel from \"@/components/ipd/MedOrderPanel\";",
+        1,
+    )
+    t = t.replace(
+        "const CLINICAL_SECTIONS=[\"Initial Assessment\",\"Progress Note\",\"VTE Risk Assessment\",
+        "const CLINICAL_SECTIONS=[\"Initial Assessment\",\"Progress Note\",\"Order Medicines\",\"VTE Risk Assessment\",
+        1,
+    )
+    marker = "{activeSection===\"VTE Risk Assessment\""
+    insert = "{activeSection===\"Order Medicines\"&&selected&&<MedOrderPanel patient={{id:selected.id,name:selected.name}} onOrdered={()=>load().catch(()=>{})} />}\n\n  "
+    if marker in t and "Order Medicines\"&&selected" not in t:
+        t = t.replace(marker, insert + marker, 1)
+    p.write_text(t)
+    print("patched", "MedOrderPanel" in t, "Order Medicines" in t)
+else:
+    print("already patched")
+'
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git status
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "feat(cprs): restore IPD workspace + Order Medicines + MedOrderPanel"
+          git push origin HEAD:main
