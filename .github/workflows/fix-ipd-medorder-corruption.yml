@@ -1,0 +1,79 @@
+name: Fix IPD MedOrderPanel Corruption
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix corrupt MedOrderPanel injection into placeholder attribute
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("src/app/ipd/[id]/page.tsx")
+          text = p.read_text()
+          print("size before", len(text))
+          # Detect stub
+          if len(text) < 5000 or "PLACEHOLDER" in text and "MLC number" not in text:
+              raise SystemExit("page looks like a stub; abort")
+          corrupt_start = text.find('placeholder={activeSection==="Order Medicines"')
+          if corrupt_start >= 0:
+              end_marker = ' className="mt-3 w-full min-h-40'
+              end = text.find(end_marker, corrupt_start)
+              if end < 0:
+                  raise SystemExit("could not find end of corrupt segment")
+              fixed = (
+                  text[:corrupt_start]
+                  + 'placeholder={activeSection==="VTE Risk Assessment"?"Risk factors, bleeding risk, mobility, thrombosis risk and prophylaxis plan\u2026":"Enter clinical documentation\u2026"}'
+                  + text[end:]
+              )
+              text = fixed
+              print("removed corrupt placeholder injection")
+          # Ensure standalone Order Medicines section exists
+          marker = 'activeSection==="Order Medicines"&&selected&&<MedOrderPanel'
+          if marker not in text:
+              insert = '{activeSection==="Order Medicines"&&selected&&<MedOrderPanel patient={{id:selected.id,name:selected.name}} onOrdered={()=>load().catch(()=>{})} />}\n\n  '
+              anchor = '{activeSection==="Medication Administration Record"'
+              if anchor not in text:
+                  anchor = '{activeSection==="VTE Risk Assessment"'
+              if anchor not in text:
+                  raise SystemExit("no insertion anchor")
+              text = text.replace(anchor, insert + anchor, 1)
+              print("inserted Order Medicines section")
+          # Ensure CLINICAL_SECTIONS includes Order Medicines
+          if '"Order Medicines"' not in text:
+              text = text.replace(
+                  '"Progress Note","VTE Risk Assessment"',
+                  '"Progress Note","Order Medicines","VTE Risk Assessment"',
+                  1,
+              )
+              print("added Order Medicines to CLINICAL_SECTIONS")
+          # Ensure MedOrderPanel import
+          if 'import MedOrderPanel from "@/components/ipd/MedOrderPanel"' not in text:
+              old = 'import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";'
+              if old not in text:
+                  raise SystemExit("MAR import missing")
+              text = text.replace(old, old + '\nimport MedOrderPanel from "@/components/ipd/MedOrderPanel";', 1)
+              print("added MedOrderPanel import")
+          # Final checks
+          assert 'placeholder={activeSection==="Order Medicines"' not in text
+          assert 'MedOrderPanel' in text
+          assert '"Order Medicines"' in text
+          assert 'Transfer / Handover Patient' in text
+          assert 'MLC number (if applicable)' in text
+          assert 'Coming Soon' not in text
+          assert len(text) > 20000
+          p.write_text(text)
+          print("size after", len(text))
+          print("OK")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "fix(ipd): remove MedOrderPanel corruption from placeholder; keep full Clinical Workspace"
+          git push origin HEAD:main
