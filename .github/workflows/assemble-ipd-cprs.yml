@@ -1,0 +1,41 @@
+name: Assemble IPD CPRS Page
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/assemble-ipd-cprs.yml"
+      - "scripts/ipd-parts/**"
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble from parts
+        run: |
+          python3 << 'PY'
+          import base64
+          from pathlib import Path
+          parts_dir = Path("scripts/ipd-parts")
+          data = ""
+          for i in range(20):
+            f = parts_dir / f"part_{i}.txt"
+            if not f.exists():
+              break
+            data += f.read_text().strip()
+          content = base64.b64decode(data).decode()
+          assert "MedOrderPanel" in content, "missing MedOrderPanel"
+          assert "Order Medicines" in content, "missing Order Medicines"
+          out = Path("src/app/ipd/[id]/page.tsx")
+          out.write_text(content)
+          print("assembled", len(content))
+          PY
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "feat(cprs): assemble full IPD workspace with Order Medicines + Progress Note chips"
+          git push origin HEAD:main
