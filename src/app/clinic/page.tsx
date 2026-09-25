@@ -5,7 +5,8 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 
 type EkaStatus = { provider: "EKA_ABDM"; configured: boolean; clinicId: string };
-const STAFF_ROLES = ["Admin","Manager","Consultant","Doctor","RMO","Nurse","Pharmacy","Laboratory","Billing","Receptionist","Staff"];\nconst STAFF_ROLE_LABELS: Record<string,string> = { Nurse: "Sister / Nurse", Pharmacy: "Pharmacist" };
+const STAFF_ROLES = ["Admin","Manager","Consultant","Doctor","RMO","Nurse","Pharmacy","Laboratory","Billing","Receptionist","Staff"];
+const STAFF_ROLE_LABELS: Record<string,string> = { Nurse: "Sister / Nurse", Pharmacy: "Pharmacist" };
 const PRIVILEGED_ROLES = ["Owner","Admin","Manager","Consultant","Doctor","RMO","Nurse","Pharmacy"];
 
 export default function ClinicPage() {
