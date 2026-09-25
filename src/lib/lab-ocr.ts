@@ -78,32 +78,84 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
 }
 
+const LAB_UNITS =
+  /(?:mg\\/dL|g\\/dL|g\\/L|mmol\\/L|µmol\\/L|U\\/L|IU\\/L|mIU\\/L|ng\\/mL|pg\\/mL|ng\\/dL|mg\\/L|mm\\/hr|%|fL|pg|cells\\/µL|\\/hpf)/i;
+
+function normalizeOcrLines(text: string): string[] {
+  return text
+    .replace(/\\r/g, "\\n")
+    .replace(/\\u00a0/g, " ")
+    .split("\\n")
+    .map((line) => line.replace(/[|]+/g, " ").replace(/[ \\t]+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function extractValueFromSegment(segment: string): string | null {
+  // Prefer a numeric value that is explicitly followed by a recognised unit.
+  const withUnit = new RegExp(
+    "([<>]?\\d+(?:[.,]\\d+)?)\\s*(" + LAB_UNITS.source + ")",
+    "i"
+  ).exec(segment);
+  if (withUnit?.[1]) return withUnit[1].replace(",", ".") + (withUnit[2] ? " " + withUnit[2] : "");
+
+  // Otherwise take the first standalone numeric token, but do not treat a
+  // reference interval such as 13-17 as the measured result.
+  const numeric = /[<>]?\\d+(?:[.,]\\d+)?/g;
+  for (const match of segment.matchAll(numeric)) {
+    const start = match.index ?? 0;
+    const value = match[0];
+    const before = segment[start - 1] ?? "";
+    const after = segment[start + value.length] ?? "";
+    if (before === "-" || after === "-") continue;
+    return value.replace(",", ".");
+  }
+  return null;
+}
+
 function extractCandidates(text: string): Record<string, string> {
   const out: Record<string, string> = {};
-  const normalized = text
-    .replace(/\r/g, "\n")
-    .replace(/[|]+/g, " ")
-    .replace(/\u00a0/g, " ")
-    .replace(/[ \t]+/g, " ");
+  const lines = normalizeOcrLines(text);
 
-  // Lab reports are frequently OCR'd as tables where the unit/reference
-  // interval sits between the analyte name and the measured value. Search a
-  // bounded window after each analyte instead of requiring "label: value".
+  // OCR output can be a real table, a PDF text layer, or a scanned report.
+  // First inspect each line containing an analyte. If the value is separated
+  // into neighbouring OCR columns/lines, inspect a small bounded window too.
   for (const [canonical, aliases] of Object.entries(LAB_ALIASES)) {
-    for (const alias of aliases.sort((a, b) => b.length - a.length)) {
-      const re = new RegExp(
-        escapeRegExp(alias) +
-          "(?:(?!\\n).){0,120}?" +
-          "([<>]?[0-9]+(?:[.,][0-9]+)?(?:\\s*(?:mg/dL|g/dL|g/L|mmol/L|µmol/L|U/L|IU/L|mIU/L|ng/mL|pg/mL|ng/dL|mg/L|mm/hr|%|fL|pg|cells/µL|/hpf))?)",
-        "im"
-      );
-      const match = normalized.match(re);
-      if (match?.[1]) {
-        out[canonical] = match[1].replace(",", ".");
-        break;
+    const orderedAliases = [...aliases].sort((a, b) => b.length - a.length);
+
+    for (let i = 0; i < lines.length && !out[canonical]; i += 1) {
+      const line = lines[i];
+      for (const alias of orderedAliases) {
+        const aliasRe = new RegExp(
+          "(^|[^a-z0-9])" + escapeRegExp(alias) + "([^a-z0-9]|$)",
+          "i"
+        );
+        const match = aliasRe.exec(line);
+        if (!match) continue;
+
+        // Look after the analyte first. This handles "Hemoglobin 13.2 g/dL"
+        // and "Hemoglobin | 13.2 | g/dL | 13-17".
+        const afterAlias = line.slice(match.index + match[0].length);
+        const direct = extractValueFromSegment(afterAlias);
+        if (direct) {
+          out[canonical] = direct;
+          break;
+        }
+
+        // Some OCR engines place table columns on separate lines. Inspect
+        // only a few adjacent lines to avoid accidentally attaching a distant
+        // patient's/reference value to the analyte.
+        for (let offset = 1; offset <= 2 && i + offset < lines.length; offset += 1) {
+          const nearby = extractValueFromSegment(lines[i + offset]);
+          if (nearby) {
+            out[canonical] = nearby;
+            break;
+          }
+        }
+        if (out[canonical]) break;
       }
     }
   }
+
   return out;
 }
 
