@@ -51,6 +51,7 @@ model Clinic {
   clinicalNotes      ClinicalNote[]
   dutyAttendanceEvents DutyAttendanceEvent[]
   dutyAttendanceRequests DutyAttendanceRequest[]
+  workforceRecords    WorkforceRecord[]
 
   // MedLum Duty — per-hospital geofence (campus punch)
   dutyLat            Float?
@@ -623,6 +624,29 @@ model InsuranceClaim {
   @@index([status])
 }
 
+
+model WorkforceRecord {
+  id          String       @id @default(cuid())
+  clinicId    String
+  memberId    String?
+  module      String
+  recordType  String
+  status      String       @default("DRAFT")
+  title       String
+  data        Json         @default("{}")
+  startAt     DateTime?
+  endAt       DateTime?
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  member      ClinicMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId, module, status])
+  @@index([clinicId, createdAt])
+  @@index([memberId, module])
+  @@index([startAt, endAt])
+}
 
 model ClinicalNote {
   id                String    @id @default(cuid())
