@@ -13,13 +13,16 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   return <svg {...common}>{paths[name] || paths.more}</svg>;
 };
 
-const primaryNav = [
+const clinicalNav = [
   { href: "/opd", label: "OPD", icon: "clinic" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" }, { href: "/emergency", label: "Emergency", icon: "emergency" }, { href: "/labs", label: "Labs", icon: "labs" }, { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics" }, { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy" }, { href: "/telemedicine", label: "Video", icon: "video" },
+];
+const pharmacistNav = [
+  { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" },
 ];
 const operationsNav = [
   { href: "/billing", label: "Patient billing", icon: "billing" }, { href: "/pricing", label: "Pricing & plans", icon: "billing" }, { href: "/help", label: "Help & FAQs", icon: "reports" }, { href: "/blood-bank", label: "Blood bank", icon: "blood" }, { href: "/insurance", label: "Insurance", icon: "insurance" }, { href: "/reports", label: "Reports", icon: "reports" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/ipd-summaries", label: "IPD summaries", icon: "ipd" }, { href: "/clinic/setup", label: "Hospital / Clinic setup", icon: "clinic" }, { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic" }, { href: "/clinic/tariffs", label: "Tariff / Rate list", icon: "billing" }, { href: "/clinical-assist", label: "AI Assist", icon: "ai" }, { href: "/mvp-blueprint", label: "MVP Blueprint", icon: "reports" }, { href: "/duty", label: "Duty", icon: "duty" }, { href: "/dashboard", label: "Dashboard", icon: "clinic" },
 ];
-const moreItems = [...primaryNav, ...operationsNav];
+const moreItems = [...clinicalNav, ...pharmacistNav, ...operationsNav];
 const isActive = (pathname: string, href: string) => pathname === href || (href === "/opd" && pathname.startsWith("/opd")) || (href === "/patients" && pathname.startsWith("/patients/")) || (href === "/telemedicine" && pathname.startsWith("/telemedicine")) || (href === "/help" && pathname.startsWith("/help")) || (href === "/pricing" && pathname.startsWith("/pricing")) || (href === "/more" && pathname.startsWith("/more")) || (href === "/duty" && pathname.startsWith("/duty"));
 
 function MoreSidebar({ open, onClose, pathname, onLogout, isOwner }: { open: boolean; onClose: () => void; pathname: string; onLogout: () => void; isOwner: boolean }) {
@@ -54,6 +57,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { doctor, logout } = useDoctor();
   const [moreOpen, setMoreOpen] = useState(false);
   const isOwner = Boolean(doctor?.isOwner);
+  const isPharmacist = !isOwner && (doctor?.designation || "").toLowerCase().includes("pharmac") || !isOwner && (doctor?.primaryRole || "").toLowerCase().includes("pharmac");
+  const primaryNav = isPharmacist ? pharmacistNav : clinicalNav;
   const moreActive = moreItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
   return (
     <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
