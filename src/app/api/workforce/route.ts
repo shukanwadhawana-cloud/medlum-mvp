@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     const target = await prisma.clinicMember.findFirst({where:{id:memberId,clinicId:c.member.clinicId,isActive:true},select:{id:true}});
     if (!target) return NextResponse.json({error:"Staff member is not active in this clinic."},{status:404});
   }
-  let data: Record<string,unknown>;
+  let data: Prisma.InputJsonValue;
   try { data=cleanData(body.data); } catch(e) { return NextResponse.json({error:e instanceof Error?e.message:"Invalid data"},{status:400}); }
   const row=await prisma.workforceRecord.create({
     data:{clinicId:c.member.clinicId,memberId,module,recordType,status,title,data,startAt:body.startAt?new Date(body.startAt):null,endAt:body.endAt?new Date(body.endAt):null,createdBy:c.session.doctorId}
