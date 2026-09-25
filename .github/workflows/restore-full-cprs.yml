@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "scripts/ipd-cprs-page.b64"
+      - "scripts/ipd-gz/**"
       - ".github/workflows/restore-full-cprs.yml"
 jobs:
   restore:
@@ -12,17 +12,16 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Decode and write CPRS page
+      - name: Decode gzip parts and write CPRS page
         run: |
           python3 << 'PY'
-          import base64
+          import base64, gzip
           from pathlib import Path
-          parts_dir = Path("scripts/ipd-parts-sm")
-          if parts_dir.exists():
-            data = "".join((parts_dir / f"part_{i}.txt").read_text().strip() for i in range(20) if (parts_dir / f"part_{i}.txt").exists())
-          else:
-            data = Path("scripts/ipd-cprs-page.b64").read_text().strip()
-          content = base64.b64decode(data).decode()
+          parts_dir = Path("scripts/ipd-gz")
+          data = "".join((parts_dir / f"g{i}.txt").read_text().strip() for i in range(20) if (parts_dir / f"g{i}.txt").exists())
+          print("b64 len", len(data))
+          raw = gzip.decompress(base64.b64decode(data))
+          content = raw.decode()
           assert "MedOrderPanel" in content, "missing MedOrderPanel"
           assert "MAIN_TABS" in content, "missing MAIN_TABS"
           assert "LEFT_NAV" in content, "missing LEFT_NAV"
