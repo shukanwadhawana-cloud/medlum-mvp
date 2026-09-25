@@ -1,0 +1,86 @@
+name: Fix IPD Placeholder
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/fix-ipd-placeholder.yml"
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 30
+      - name: Restore IPD page and wire CPRS
+        run: |
+          # Restore from commit a3c0e9e (last good full page)
+          git show a3c0e9ebdfbf5ab2fb5b2cf02f0c88afec29663c:src/app/ipd/[id]/page.tsx > "src/app/ipd/[id]/page.tsx" || \
+          git show 4f4d8c8:src/app/ipd/[id]/page.tsx > "src/app/ipd/[id]/page.tsx" || true
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("src/app/ipd/[id]/page.tsx")
+          text = p.read_text()
+          print("restored size", len(text))
+          if "PLACEHOLDER" in text or len(text) < 1000:
+              raise SystemExit("restore failed")
+          if "MedOrderPanel" not in text:
+              old_imp = 'import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";'
+              new_imp = old_imp + '\nimport MedOrderPanel from "@/components/ipd/MedOrderPanel";'
+              if old_imp in text:
+                  text = text.replace(old_imp, new_imp, 1)
+              old_sec = 'const CLINICAL_SECTIONS=["Initial Assessment","Progress Note","VTE Risk Assessment"'
+              new_sec = 'const CLINICAL_SECTIONS=["Initial Assessment","Progress Note","Order Medicines","VTE Risk Assessment"'
+              if old_sec in text:
+                  text = text.replace(old_sec, new_sec, 1)
+              # Add Order Medicines section before VTE
+              marker = '{activeSection==="VTE Risk Assessment"'
+              insert = '{activeSection==="Order Medicines"&&selected&&<MedOrderPanel patient={{id:selected.id,name:selected.name}} onOrdered={()=>load().catch(()=>{})} />}\n\n  '
+              if marker in text and 'activeSection==="Order Medicines"' not in text:
+                  text = text.replace(marker, insert + marker, 1)
+              # Enhance Progress Note with chips if simple form still present
+              old_pn = '''{activeSection==="Progress Note"&&<form onSubmit={saveNote} className="mt-4 border rounded-xl p-3">
+    <h4 className="font-semibold text-sm">Progress Note</h4><p className="text-[10px] text-gray-500 mt-1">{department} · status, events, response and plan</p>
+    <textarea required value={note.content} onChange={e=>setNote({...note,content:e.target.value})} placeholder="Clinical progress, events, response to treatment, current assessment and plan…" className="mt-3 w-full min-h-40 px-3 py-2 rounded-lg border text-xs"/>
+    <button disabled={saving} className="mt-3 h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Progress Note"}</button>
+  </form>}'''
+              new_pn = '''{activeSection==="Progress Note"&&<form onSubmit={saveNote} className="mt-4 border rounded-xl p-3 space-y-3">
+    <div><h4 className="font-semibold text-sm">Progress Note</h4><p className="text-[10px] text-gray-500 mt-1">{department} · CPRS-style sections · assessment · plan · course</p></div>
+    <div className="flex flex-wrap gap-2 text-[10px]">
+      {["Vitals","Allergies","Problems","Diagnosis","Complaints","Medications","Laboratory","Radiology","Clinical Notes","Orders"].map(s=>(
+        <button type="button" key={s} onClick={()=>{
+          const snap = s==="Vitals" ? `Vitals: BP ${selected?.vitals?.bp||"—"} · P ${selected?.vitals?.pulse||"—"} · RR ${selected?.vitals?.rr||"—"} · SpO₂ ${selected?.vitals?.spo2||"—"}` :
+            s==="Allergies" ? `Allergies: ${selected?.allergies||"NKDA"}` :
+            s==="Diagnosis" ? `Diagnosis: ${selected?.diagnosis||selected?.workingDiagnosis||"—"}` :
+            s==="Medications" ? "Medications: (see Order Medicines / MAR)" :
+            `${s}:`;
+          setNote(n=>({...n, content: (n.content? n.content+"\n":"") + snap}));
+        }} className="h-7 px-2 rounded-full border bg-gray-50 hover:bg-gray-100">{s}</button>
+      ))}
+    </div>
+    <textarea required value={note.content} onChange={e=>setNote({...note,content:e.target.value})} placeholder="Assessment · Current meds · Plan · Course · Advice…" className="w-full min-h-40 px-3 py-2 rounded-lg border text-xs"/>
+    <div className="grid md:grid-cols-2 gap-2 text-xs">
+      <input placeholder="Assessment" className="h-8 px-2 rounded border" onBlur={e=>{ if(e.target.value) setNote(n=>({...n, content: n.content + (n.content?"\n":"") + "Assessment: "+e.target.value})) }} />
+      <input placeholder="Current Meds" className="h-8 px-2 rounded border" onBlur={e=>{ if(e.target.value) setNote(n=>({...n, content: n.content + (n.content?"\n":"") + "Current Meds: "+e.target.value})) }} />
+      <input placeholder="Plan" className="h-8 px-2 rounded border" onBlur={e=>{ if(e.target.value) setNote(n=>({...n, content: n.content + (n.content?"\n":"") + "Plan: "+e.target.value})) }} />
+      <input placeholder="Course / Advice" className="h-8 px-2 rounded border" onBlur={e=>{ if(e.target.value) setNote(n=>({...n, content: n.content + (n.content?"\n":"") + "Course/Advice: "+e.target.value})) }} />
+    </div>
+    <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Progress Note"}</button>
+  </form>}'''
+              if old_pn in text:
+                  text = text.replace(old_pn, new_pn, 1)
+                  print("progress note enhanced")
+              p.write_text(text)
+              print("patched", len(text), "MedOrderPanel" in text, "Order Medicines" in text)
+          else:
+              print("already has MedOrderPanel")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "feat(cprs): restore IPD + wire Order Medicines + Progress Note chips"
+          git push origin HEAD:main
