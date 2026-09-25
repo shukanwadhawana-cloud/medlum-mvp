@@ -1,0 +1,73 @@
+name: Patch IPD CPRS Order Medicines
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/patch-ipd-cprs.yml"
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wire MedOrderPanel into IPD clinical workspace
+        run: |
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("src/app/ipd/[id]/page.tsx")
+          text = p.read_text()
+          if "MedOrderPanel" in text and "Order Medicines" in text:
+              print("already patched")
+              raise SystemExit(0)
+          old_imp = 'import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";'
+          new_imp = old_imp + '\nimport MedOrderPanel from "@/components/ipd/MedOrderPanel";'
+          if old_imp not in text:
+              raise SystemExit("import not found")
+          text = text.replace(old_imp, new_imp, 1)
+          old_sec = 'const CLINICAL_SECTIONS=["Initial Assessment","Progress Note","VTE Risk Assessment"'
+          new_sec = 'const CLINICAL_SECTIONS=["Initial Assessment","Progress Note","Order Medicines","VTE Risk Assessment"'
+          if old_sec not in text:
+              raise SystemExit("sections not found")
+          text = text.replace(old_sec, new_sec, 1)
+          old_pn = '''{activeSection==="Progress Note"&&<form onSubmit={saveNote} className="mt-4 border rounded-xl p-3">
+    <h4 className="font-semibold text-sm">Progress Note</h4><p className="text-[10px] text-gray-500 mt-1">{department} · status, events, response and plan</p>
+    <textarea required value={note.content} onChange={e=>setNote({...note,content:e.target.value})} placeholder="Clinical progress, events, response to treatment, current assessment and plan…" className="mt-3 w-full min-h-40 px-3 py-2 rounded-lg border text-xs"/>
+    <button disabled={saving} className="mt-3 h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Progress Note"}</button>
+  </form>}'''
+          new_pn = '''{activeSection==="Progress Note"&&<form onSubmit={saveNote} className="mt-4 border rounded-xl p-3 space-y-3">
+    <div><h4 className="font-semibold text-sm">Progress Note</h4><p className="text-[10px] text-gray-500 mt-1">{department} · CPRS-style sections · assessment · plan · course</p></div>
+    <div className="flex flex-wrap gap-2 text-[10px]">
+      {["Vitals","Allergies","Problems","Diagnosis","Complaints","Medications","Laboratory","Radiology","Clinical Notes","Orders"].map(s=>(
+        <button type="button" key={s} onClick={()=>{
+          const snap = s==="Vitals" ? `Vitals: BP ${selected?.vitals?.bp||"—"} · P ${selected?.vitals?.pulse||"—"} · RR ${selected?.vitals?.rr||"—"} · SpO₂ ${selected?.vitals?.spo2||"—"}` :
+            s==="Allergies" ? `Allergies: ${selected?.allergies||"NKDA / not recorded"}` :
+            s==="Diagnosis" ? `Working diagnosis: ${selected?.workingDiagnosis||selected?.diagnosis||"—"}` :
+            s==="Medications" ? "Medications: (see Order Medicines / MAR)" :
+            `${s}: `;
+          setNote(n=>({...n, content: (n.content? n.content+"\\n":"")+snap}));
+        }} className="px-2 py-1 rounded-full border hover:bg-gray-50">{s}</button>
+      ))}
+    </div>
+    <div className="grid gap-2">
+      <label className="text-[10px] font-semibold text-gray-500">Assessment / Review of Systems<textarea value={note.content} onChange={e=>setNote({...note,content:e.target.value})} required placeholder="S/B … · clinical status · systems · I/O …" className="mt-1 w-full min-h-28 px-3 py-2 rounded-lg border text-xs"/></label>
+    </div>
+    <p className="text-[10px] text-gray-400">Tip: click section chips above to append vitals, allergies, diagnosis from the cover sheet.</p>
+    <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Progress Note"}</button>
+  </form>}
+
+  {activeSection==="Order Medicines"&&selected&&<MedOrderPanel patient={{id:selected.id,name:selected.name}} onOrdered={()=>load().catch(()=>{})} />}'''
+          if old_pn not in text:
+              raise SystemExit("progress note block not found")
+          text = text.replace(old_pn, new_pn, 1)
+          p.write_text(text)
+          print("patched", len(text))
+          PY
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "feat(cprs): Order Medicines section + Progress Note chips on IPD workspace"
+          git push origin HEAD:main
