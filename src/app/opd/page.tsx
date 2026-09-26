@@ -200,21 +200,7 @@ export default function OpdPage() {
         )}
       </section>
 
-      <section className="mb-4 overflow-hidden rounded-2xl border bg-white">
-        <div className="border-b px-4 py-3 font-semibold">Recent OPD encounters</div>
-        {recentEncounters.length === 0 ? (
-          <p className="p-6 text-center text-sm text-gray-400">No encounters yet. Open a patient chart to record a visit.</p>
-        ) : (
-          <div className="divide-y">
-            {recentEncounters.map((e: any) => (
-              <Link key={e.id} href={`/patients/${e.patientId}`} className="block p-3 active:bg-gray-50">
-                <p className="text-sm font-medium">{e.patientName || e.patientId}</p>
-                <p className="mt-0.5 text-xs text-gray-500">{e.date}{e.chiefComplaint ? ` · ${e.chiefComplaint}` : ""}{e.diagnosis ? ` · Dx: ${e.diagnosis}` : ""}</p>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+      <!-- recent encounters removed -->
 
       <p className="pb-6 text-center text-[11px] text-gray-400">
         IPD admissions stay on the <Link href="/ipd" className="text-[#c2183a]">IPD</Link> screen.
