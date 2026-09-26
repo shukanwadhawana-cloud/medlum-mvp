@@ -228,3 +228,59 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     { headers: { "Cache-Control": "no-store" } }
   );
 }
+
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) {
+    return NextResponse.json({ error: "No active clinic membership." }, { status: 403 });
+  }
+
+  const { id } = await ctx.params;
+  const patient = await findAuthorizedPatient(membership, id);
+  if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const body = await req.json().catch(() => ({}));
+  const data: { name?: string; age?: number; gender?: string; phone?: string } = {};
+
+  if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim().slice(0, 200);
+  if (body.age !== undefined && body.age !== null && body.age !== "") {
+    const age = Number(body.age);
+    if (!Number.isFinite(age) || age < 0 || age > 150) {
+      return NextResponse.json({ error: "Age must be between 0 and 150." }, { status: 400 });
+    }
+    data.age = Math.round(age);
+  }
+  if (typeof body.gender === "string" && body.gender.trim()) {
+    const g = body.gender.trim();
+    if (!["Male", "Female", "Other"].includes(g)) {
+      return NextResponse.json({ error: "Gender must be Male, Female, or Other." }, { status: 400 });
+    }
+    data.gender = g;
+  }
+  if (typeof body.phone === "string") data.phone = body.phone.trim().slice(0, 40);
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "No valid demographic fields to update." }, { status: 400 });
+  }
+
+  const updated = await prisma.patient.update({
+    where: { id },
+    data,
+  });
+
+  return NextResponse.json({
+    ok: true,
+    patient: {
+      id: updated.id,
+      name: updated.name,
+      age: updated.age,
+      gender: updated.gender,
+      phone: updated.phone,
+      uhid: updated.uhid,
+      registrationNo: updated.registrationNo,
+    },
+  });
+}
