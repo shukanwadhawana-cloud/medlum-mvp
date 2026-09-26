@@ -16,17 +16,15 @@ const DIAGNOSTICS=["Chest X-ray","Abdominal X-ray","Ultrasound Abdomen","Ultraso
 const DEPARTMENTS=["General Medicine","General Surgery","Gastroenterology","GI Surgery / Surgical Gastroenterology","Cardiology","Cardiothoracic & Vascular Surgery (CTVS)","Neurology","Neurosurgery","Nephrology & Dialysis","Urology","Orthopaedics","Obstetrics & Gynaecology","Paediatrics","Paediatric Surgery","Neonatology","ENT","Ophthalmology","Dermatology & Venereology","Pulmonary / Respiratory Medicine","Critical Care Medicine","Emergency Medicine & Trauma","Endocrinology","Rheumatology","Clinical Haematology","Medical Oncology","Surgical Oncology","Radiation Oncology","Plastic & Reconstructive Surgery","Anaesthesiology","Physical Medicine & Rehabilitation","Psychiatry & Mental Health","Nuclear Medicine","Radiology / Interventional Radiology","Palliative Care","Dental","Other"];
 
 /** CPRS top tabs — only one main panel visible at a time */
-const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","Lab","Radiology","MAR"] as const;
+const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","MAR"] as const;
 type MainTab=typeof MAIN_TABS[number];
 
 /** Left nav items depend on main tab (CPRS pattern) */
 const LEFT_NAV:Record<MainTab,string[]>={
   "Cover Sheet":["Overview","Notes"],
   "Dashboard":["Vitals","Problems","Final Diagnosis","Chief-Complaints","Allergies","OPD/IPD Details"],
-  "Orders":["Order Medicines","Investigation Indent","Laboratory","Radiology","Procedure"],
+  "Orders":["Order Medicines","Laboratory","Radiology","Procedure"],
   "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
-  "Lab":["Lab Orders","Lab Results","Investigation Results"],
-  "Radiology":["Imaging Orders","Imaging Results"],
   "MAR":["Medication Administration Record"],
 };
 
@@ -206,7 +204,7 @@ export default function IPDPatientWorkspace(){
      </div>
     )}
 
-    {/* ORDERS */}
+    {/* ORDERS — all investigations live here */}
     {mainTab==="Orders"&&leftNav==="Order Medicines"&&selected&&(
      <div><h3 className="font-semibold text-sm mb-3">Order Medicines</h3><MedOrderPanel patient={{ id: selected.id, name: selected.name }} /></div>
     )}
@@ -343,7 +341,7 @@ export default function IPDPatientWorkspace(){
      </form>
     )}
 
-    {/* DISCHARGE */}
+    {/* COVER SHEET NOTES */}
     {mainTab==="Cover Sheet"&&leftNav==="Notes"&&(
      <form onSubmit={saveDischargeStructured} className="space-y-3 max-w-3xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -391,12 +389,6 @@ export default function IPDPatientWorkspace(){
        <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Note View")}} className="h-9 px-3 rounded-lg border text-xs">View saved notes</button>
       </div>    </form>
     )}
-    {mainTab==="Lab"&&leftNav==="Lab Orders"&&(
-     <div><h3 className="font-semibold text-sm mb-2">Lab Orders</h3>
-      <div className="space-y-2">{labOrders.length?labOrders.map((o:any,i:number)=><div key={i} className="border rounded-lg p-2"><p className="font-medium">{o.testName||o.name}</p><p className="text-[10px] text-gray-500">{o.status||"Ordered"} · {o.orderedAt?new Date(o.orderedAt).toLocaleString("en-IN"):""}</p></div>):<p className="text-gray-500">No lab orders yet. Use Orders → Laboratory.</p>}</div>
-      <button type="button" onClick={()=>{setMainTab("Orders");setLeftNav("Laboratory")}} className="mt-3 h-8 px-3 rounded border text-xs text-[#c2183a]">+ New lab order</button>
-     </div>
-    )}
     {mainTab==="Lab"&&leftNav==="Lab Results"&&(
      <div><h3 className="font-semibold text-sm mb-2">Lab Results</h3>
       <div className="space-y-2">{labOrders.filter((o:any)=>o.result||o.status==="COMPLETED"||o.status==="RESULTED").length?labOrders.filter((o:any)=>o.result||o.status==="COMPLETED"||o.status==="RESULTED").map((o:any,i:number)=><div key={i} className="border rounded-lg p-2"><p className="font-medium">{o.testName||o.name}</p><pre className="whitespace-pre-wrap font-sans text-[11px] mt-1 bg-gray-50 p-2 rounded">{o.result||"Result available"}</pre></div>):<p className="text-gray-500">No lab results yet.</p>}</div>
@@ -404,12 +396,6 @@ export default function IPDPatientWorkspace(){
     )}
 
     {/* RADIOLOGY */}
-    {mainTab==="Radiology"&&leftNav==="Imaging Orders"&&(
-     <div><h3 className="font-semibold text-sm mb-2">Imaging Orders</h3>
-      <div className="space-y-2">{radOrders.length?radOrders.map((o:any,i:number)=><div key={i} className="border rounded-lg p-2"><p className="font-medium">{o.testName||o.name}</p><p className="text-[10px] text-gray-500">{o.status||"Ordered"}</p></div>):<p className="text-gray-500">No imaging orders yet. Use Orders → Radiology.</p>}</div>
-      <button type="button" onClick={()=>{setMainTab("Orders");setLeftNav("Radiology")}} className="mt-3 h-8 px-3 rounded border text-xs text-[#c2183a]">+ New imaging order</button>
-     </div>
-    )}
     {mainTab==="Radiology"&&leftNav==="Imaging Results"&&(
      <div><h3 className="font-semibold text-sm mb-2">Imaging Results</h3>
       <div className="space-y-2">{radOrders.filter((o:any)=>o.result).length?radOrders.filter((o:any)=>o.result).map((o:any,i:number)=><div key={i} className="border rounded-lg p-2"><p className="font-medium">{o.testName||o.name}</p><pre className="whitespace-pre-wrap font-sans text-[11px] mt-1 bg-gray-50 p-2 rounded">{o.result}</pre></div>):<p className="text-gray-500">No imaging results yet.</p>}</div>
