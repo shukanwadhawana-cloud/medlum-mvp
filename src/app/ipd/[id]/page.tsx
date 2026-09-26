@@ -11,12 +11,12 @@ import MedOrderPanel from "@/components/ipd/MedOrderPanel";
 
 const WARDS=["General Ward","Twin Sharing","Single Sharing","Deluxe Ward","Super Deluxe"];
 const ICUS=["ICU","MICU","SICU","Transplant ICU","PICU","NICU"];
-const NOTE_TYPES=["Consultant Note","RMO Note","Nursing Care Note","Medication Indent","Investigation Indent","Fitness Note","Procedure Note","Transfer Summary","Discharge Summary","Death Summary","Case Summary","DAMA Summary","LAMA Summary"];
+const NOTE_TYPES=["Transfer Summary","Discharge Summary","Pharmacy Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note","Case Summary"];
 const DIAGNOSTICS=["Chest X-ray","Abdominal X-ray","Ultrasound Abdomen","Ultrasound Pelvis","CT Head","CT Chest","CT Abdomen/Pelvis","MRI Brain","MRI Spine","2D Echo","ECG","Holter","TMT","Doppler Study","Mammography","PET-CT","Endoscopy","Colonoscopy","Bronchoscopy","Other Diagnostic"];
 const DEPARTMENTS=["General Medicine","General Surgery","Gastroenterology","GI Surgery / Surgical Gastroenterology","Cardiology","Cardiothoracic & Vascular Surgery (CTVS)","Neurology","Neurosurgery","Nephrology & Dialysis","Urology","Orthopaedics","Obstetrics & Gynaecology","Paediatrics","Paediatric Surgery","Neonatology","ENT","Ophthalmology","Dermatology & Venereology","Pulmonary / Respiratory Medicine","Critical Care Medicine","Emergency Medicine & Trauma","Endocrinology","Rheumatology","Clinical Haematology","Medical Oncology","Surgical Oncology","Radiation Oncology","Plastic & Reconstructive Surgery","Anaesthesiology","Physical Medicine & Rehabilitation","Psychiatry & Mental Health","Nuclear Medicine","Radiology / Interventional Radiology","Palliative Care","Dental","Other"];
 
 /** CPRS top tabs — only one main panel visible at a time */
-const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","MAR"] as const;
+const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","Discharge Summary","MAR"] as const;
 type MainTab=typeof MAIN_TABS[number];
 
 /** Left nav items depend on main tab (CPRS pattern) */
@@ -24,7 +24,8 @@ const LEFT_NAV:Record<MainTab,string[]>={
   "Cover Sheet":["Overview"],
   "Dashboard":["Vitals","Problems","Final Diagnosis","Chief-Complaints","Allergies","OPD/IPD Details"],
   "Orders":["Order Medicines","Laboratory","Radiology","Procedure"],
-  "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary","Hospital Summary"],
+  "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
+  "Discharge Summary":["Transfer Summary","Discharge Summary","Pharmacy Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note","Case Summary"],
   "MAR":["Medication Administration Record"],
 };
 
@@ -350,11 +351,11 @@ export default function IPDPatientWorkspace(){
     )}
 
     {/* COVER SHEET NOTES */}
-    {mainTab==="Clinical Notes"&&leftNav==="Hospital Summary"&&(
+    {mainTab==="Discharge Summary"&&["Transfer Summary","Discharge Summary","Pharmacy Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note","Case Summary"].includes(leftNav)&&(
      <form onSubmit={saveDischargeStructured} className="space-y-3 max-w-3xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
-       <div><h3 className="font-semibold text-sm">Hospital Summary</h3><p className="text-[10px] text-gray-500">Prepare transfer, discharge, DAMA, LAMA, death and other hospital summaries in the same panel.</p></div>
-       <div className="flex gap-2"><select value={coverNoteType} onChange={e=>setCoverNoteType(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{NOTE_TYPES.map(t=><option key={t}>{t}</option>)}</select>{coverNoteType==="Discharge Summary"&&<Link href={`/ipd-summaries/${selected.id}/print`} target="_blank" className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">Print / Save PDF</Link>}</div>
+       <div><h3 className="font-semibold text-sm">{coverNoteType}</h3><p className="text-[10px] text-gray-500">Prepare the selected hospital summary from the patient's complete chart. Discharge finalization is available only for Discharge Summary.</p></div>
+       <div className="flex flex-wrap gap-2"><button type="button" onClick={()=>setCoverNoteType(leftNav)} className="h-9 px-3 rounded-lg bg-slate-50 border text-xs font-medium">{leftNav}</button><select value={coverNoteType} onChange={e=>setCoverNoteType(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{NOTE_TYPES.map(t=><option key={t}>{t}</option>)}</select>{coverNoteType==="Discharge Summary"&&<Link href={`/ipd-summaries/${selected.id}/print`} target="_blank" className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">Print / Save PDF</Link>}</div>
       </div>
       {coverNoteType==="Discharge Summary"&&<div className="border rounded-lg p-3 bg-white space-y-3">
        <div><p className="text-[11px] font-semibold">Administrative / Payer pathway</p><p className="text-[10px] text-gray-500">Choose the parallel clearance route; it does not replace the clinical discharge record.</p></div>
@@ -374,6 +375,7 @@ export default function IPDPatientWorkspace(){
        {patientInvoices.length>0&&<p className="text-[10px] text-gray-500">Invoices: {patientInvoices.map((i:any)=>i.invoiceNumber||"Invoice").join(", ")}</p>}
        {adminStatus&&<p className="text-[10px] text-green-700 font-medium">{adminStatus}</p>}
       </div>}
+      {coverNoteType==="Pharmacy Summary"&&<div className="border rounded-lg p-3 bg-emerald-50/40"><p className="text-[11px] font-semibold">Pharmacy Summary</p><p className="text-[10px] text-gray-600">Use Pull all chart data to bring medication orders, advice and medication indent history into this summary. This does not discharge the patient.</p></div>}
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] border rounded-lg p-2 bg-slate-50"><div className="w-full flex items-center justify-between"><span className="font-semibold text-gray-600">Pull from patient chart</span><button type="button" onClick={pullCompleteChart} className="text-[#c2183a] font-semibold mr-2">Pull all chart data</button><button type="button" onClick={()=>setSectionPull({vitals:true,allergies:true,problems:true,diagnosis:true,complaints:true,medications:true,laboratory:true,radiology:true,clinicalNotes:true,orders:true,medicationAdvice:true})} className="text-[#c2183a] font-semibold">Select all</button></div>
        {[["vitals","Vitals"],["allergies","Allergies"],["problems","Problems"],["diagnosis","Diagnosis"],["complaints","Complaints"],["medications","Medications"],["laboratory","Laboratory"],["radiology","Radiology"],["clinicalNotes","Clinical Notes"],["orders","Orders"],["medicationAdvice","Medication Advice"]].map(([k,l])=>(
         <label key={k} className="inline-flex items-center gap-1"><input type="checkbox" checked={!!(sectionPull as any)[k]} onChange={e=>{
