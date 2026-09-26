@@ -43,7 +43,7 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status") || undefined;
   const memberId = url.searchParams.get("memberId") || undefined;
   const admin = ADMIN_ROLES.includes(c.role);
-  let rows: Awaited<ReturnType<typeof prisma.workforceRecord.findMany>> = [];
+  let rows: any[] = [];
   try {
     rows = await prisma.workforceRecord.findMany({
       where: {
