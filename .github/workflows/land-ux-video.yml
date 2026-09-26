@@ -1,0 +1,46 @@
+name: land-ux-video
+on:
+  workflow_dispatch:
+jobs:
+  land:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Video list refinements
+        run: |
+          set -euo pipefail
+          python3 << 'EOF'
+          from pathlib import Path
+          p = Path("src/app/telemedicine/page.tsx")
+          t = p.read_text()
+          if "showCompleted" in t:
+              print("already done")
+          else:
+              t = t.replace(
+                  '  const [warning, setWarning] = useState("");',
+                  '  const [warning, setWarning] = useState("");\n  const [showCompleted, setShowCompleted] = useState(false);',
+              )
+              t = t.replace(
+                  '<div className="border-b px-4 py-3 font-semibold">Video sessions</div>',
+                  '<div className="border-b px-4 py-3 flex flex-wrap items-center justify-between gap-2"><div className="font-semibold">Video sessions</div><label className="inline-flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer"><input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />Show completed / cancelled</label></div><div className="px-4 py-2 text-[11px] text-gray-500 border-b bg-slate-50">Telemedicine is billable. Duration from startedAt/endedAt. Typical consult 5+ min; no hard cutoff.</div>',
+              )
+              t = t.replace(
+                  "sessions.map((s) => {",
+                  'sessions.filter((s) => { const done = ["Completed", "Cancelled", "Expired"].includes(String(s.status || "")); return showCompleted ? true : !done; }).map((s, idx) => {',
+              )
+              t = t.replace(
+                  '<div className="font-medium">{title}</div>',
+                  '<div className="font-medium"><span className="text-gray-400 text-xs mr-2">{idx + 1}.</span>{title}</div>',
+              )
+              p.write_text(t)
+              print("video updated")
+          EOF
+      - name: Commit
+        run: |
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add src/app/telemedicine/page.tsx
+          git commit -m "feat(ux): video sessions serial numbers + hide completed by default" || exit 0
+          git push origin HEAD:main
