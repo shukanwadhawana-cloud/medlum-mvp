@@ -151,7 +151,7 @@ export default function IPDPatientWorkspace(){
    <nav className="w-48 shrink-0 border-r bg-slate-50/80 p-2 space-y-0.5">
     <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1">{mainTab}</p>
     {(LEFT_NAV[mainTab]||[]).map(item=>(
-     <button key={item} type="button" onClick={()=>setLeftNav(item)}
+     <button key={item} type="button" onClick={()=>{setLeftNav(item);if(mainTab==="Discharge Summary")setCoverNoteType(item)}}
       className={`w-full text-left px-2 py-1.5 rounded-md text-[11px] font-medium ${leftNav===item?"bg-[#140a1f] text-white":"text-gray-700 hover:bg-white"}`}>{item}</button>
     ))}
    </nav>
