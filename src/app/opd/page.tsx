@@ -183,10 +183,10 @@ export default function OpdPage() {
           <p className="p-8 text-center text-sm text-gray-500">{search ? "No matching patient." : "No OPD patients yet."}</p>
         ) : (
           <div className="divide-y">
-            {filtered.map((p) => (
+            {filtered.map((p, idx) => (
               <div key={p.id} className="flex items-start justify-between gap-3 p-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{p.name}</p>
+                  <p className="truncate text-sm font-semibold"><span className="text-gray-400 font-normal mr-2">{idx + 1}.</span>{p.name}</p>
                   <p className="mt-0.5 text-xs text-gray-500">{p.age} yrs · {p.gender}{p.phone ? ` · ${p.phone}` : ""}</p>
                   <p className="mt-1 text-[10px] text-gray-400">ID {p.id}</p>
                 </div>
