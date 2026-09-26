@@ -1,0 +1,39 @@
+name: restore-api-ts
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore api.ts and apply typing fix
+        run: |
+          set -euo pipefail
+          git show 12c8df3f978cf2df612b2034dfbee51bda000acd:src/lib/api.ts > src/lib/api.ts
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/lib/api.ts')
+          t = p.read_text()
+          old = 'isOwner?: boolean };'
+          new = 'isOwner?: boolean; hasWorkforceAdmin?: boolean };'
+          if 'hasWorkforceAdmin' not in t:
+              if old not in t:
+                  raise SystemExit('pattern not found')
+              t = t.replace(old, new, 1)
+              # also allow primaryRole string
+              t = t.replace('primaryRole?: ApiMembership["role"]', 'primaryRole?: ApiMembership["role"] | string', 1)
+              p.write_text(t)
+          print('bytes', len(t.encode()))
+          assert 'hasWorkforceAdmin?: boolean' in t
+          assert t.count('export async function') > 20
+          PY
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add src/lib/api.ts
+          git commit -m "fix(auth): restore full api.ts with hasWorkforceAdmin typing" || echo "no change"
+          git push origin HEAD:main
