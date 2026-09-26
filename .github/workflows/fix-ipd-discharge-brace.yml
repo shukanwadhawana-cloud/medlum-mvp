@@ -1,0 +1,37 @@
+name: fix-ipd-discharge-brace
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fix missing closing brace
+        run: |
+          set -euo pipefail
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path('src/app/ipd/[id]/page.tsx')
+          t = p.read_text()
+          old = 'setMsg(selected.name+" discharged successfully. Opening discharge summary print…");await load();try{window.open("/ipd-summaries/"+selected.id+"/print","_blank","noopener,noreferrer");}catch(_){};'
+          new = 'setMsg(selected.name+" discharged successfully. Opening discharge summary print…");await load();try{window.open("/ipd-summaries/"+selected.id+"/print","_blank","noopener,noreferrer");}catch(_){} };'
+          if old not in t:
+              raise SystemExit('pattern not found')
+          p.write_text(t.replace(old, new, 1))
+          brace = 0
+          for c in p.read_text():
+              if c == '{': brace += 1
+              elif c == '}': brace -= 1
+          if brace != 0:
+              raise SystemExit(f'brace imbalance {brace}')
+          print('fixed ok')
+          PY
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add src/app/ipd/[id]/page.tsx
+          git commit -m "fix(ipd): close finalizeDischarge after print open"
+          git push origin HEAD:main
