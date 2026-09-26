@@ -30,6 +30,8 @@ export default function OpdPage() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "" });
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", age: "", gender: "Male", phone: "" });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -53,6 +55,19 @@ export default function OpdPage() {
   useEffect(() => {
     if (!authLoading && doctor) void reload();
   }, [authLoading, doctor, reload]);
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editId) return;
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      const r = await fetch(`/api/patients/${editId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editForm.name.trim(), age: Number(editForm.age) || 0, gender: editForm.gender, phone: editForm.phone.trim() }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((j as any).error || "Could not update patient");
+      setMsg("Patient details updated."); setEditId(null); await reload();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Could not update patient"); }
+    finally { setSaving(false); }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -192,6 +207,7 @@ export default function OpdPage() {
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
                   <Link href={`/patients/${p.id}`} className="flex h-9 items-center justify-center rounded-lg bg-[#c2183a] px-3 text-xs font-semibold text-white">Open OPD visit</Link>
+                  <button type="button" onClick={() => { setEditId(p.id); setEditForm({ name: p.name, age: String(p.age ?? ""), gender: p.gender || "Male", phone: p.phone || "" }); setErr(""); setMsg(""); }} className="h-8 rounded-lg border px-3 text-[11px] font-medium">Edit</button>
                   <Link href="/billing" className="text-center text-[11px] font-medium text-[#c2183a]">Bill</Link>
                 </div>
               </div>
@@ -200,11 +216,29 @@ export default function OpdPage() {
         )}
       </section>
 
-      <!-- recent encounters removed -->
+      
 
       <p className="pb-6 text-center text-[11px] text-gray-400">
         IPD admissions stay on the <Link href="/ipd" className="text-[#c2183a]">IPD</Link> screen.
       </p>
+      {editId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
+          <form onSubmit={saveEdit} className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl space-y-2">
+            <h3 className="text-base font-semibold">Edit patient details</h3>
+            <p className="text-xs text-gray-500">Correct name, age, gender or phone. Does not create a new patient.</p>
+            <input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" className="w-full h-11 rounded-lg border px-3 text-sm" />
+            <div className="grid grid-cols-2 gap-2">
+              <input required value={editForm.age} onChange={(e) => setEditForm({ ...editForm, age: e.target.value })} placeholder="Age" inputMode="numeric" className="h-11 rounded-lg border px-3 text-sm" />
+              <select value={editForm.gender} onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })} className="h-11 rounded-lg border px-3 text-sm bg-white"><option>Male</option><option>Female</option><option>Other</option></select>
+            </div>
+            <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Phone" className="w-full h-11 rounded-lg border px-3 text-sm" />
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => setEditId(null)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
+              <button disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-semibold disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </AppShell>
   );
 }
