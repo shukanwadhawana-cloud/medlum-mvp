@@ -1,0 +1,35 @@
+name: land-ipd-cover
+on:
+  workflow_dispatch:
+jobs:
+  land:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: IPD cover context
+        run: |
+          set -euo pipefail
+          python3 << 'EOF'
+          from pathlib import Path
+          p = Path("src/app/ipd/[id]/page.tsx")
+          t = p.read_text()
+          if "Latest clinical context" in t:
+              print("already")
+          else:
+              needle = '<div className="mt-4 flex flex-wrap gap-2"><Link href={`/ipd/${selected.id}/clinical`}'
+              insert = '<div className="mt-3 grid md:grid-cols-2 gap-3 text-xs"><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Latest clinical context</p><p className="mt-1"><span className="text-gray-500">Complaint:</span> {selected.chiefComplaint||"—"}</p><p className="mt-0.5"><span className="text-gray-500">Diagnosis:</span> {selected.diagnosis||selected.workingDiagnosis||"—"}</p></div><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Location</p><p className="mt-1">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"—"}</p><p className="mt-0.5 text-gray-500">Department: {selected.department||"—"}</p></div></div>'
+              if needle not in t:
+                  raise SystemExit("needle missing")
+              t = t.replace(needle, insert + needle, 1)
+              p.write_text(t)
+              print("done")
+          EOF
+      - name: Commit
+        run: |
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add "src/app/ipd/[id]/page.tsx"
+          git commit -m "feat(ux): IPD landing cover sheet clinical context" || exit 0
+          git push origin HEAD:main
