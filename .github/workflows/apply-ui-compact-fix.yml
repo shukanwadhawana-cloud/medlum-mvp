@@ -1,0 +1,22 @@
+name: apply-ui-compact-fix
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply UI compact patches
+        run: |
+          set -euo pipefail
+          python3 scripts/apply-ui-compact-patch.py
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add -A
+          git status --short
+          git commit -m "fix(ui): compact Labs/Diagnostics queues, clearer OCR, discharge print" || exit 0
+          git push origin HEAD:main
