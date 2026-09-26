@@ -71,11 +71,15 @@ export default function IPDPatientWorkspace(){
   if(sectionPull.allergies)pulled.push(`Allergies: ${d.allergies||selected.allergies||"NKA"}`);
   if(sectionPull.diagnosis)pulled.push(`Diagnosis: ${d.diagnosis||selected.diagnosis||selected.workingDiagnosis||"—"}`);
   if(sectionPull.complaints)pulled.push(`Presenting complaints: ${d.presentingComplaints||selected.chiefComplaint||"—"}`);
-  if(sectionPull.medications)pulled.push(`Current medication: ${d.currentMedication||"—"}`);
-  if(sectionPull.laboratory||sectionPull.radiology)pulled.push(`Investigation: ${d.investigation||"—"}`);
+  if(sectionPull.medications){const meds=Array.isArray(selected.medicationOrders)?selected.medicationOrders.map((o:any)=>o.name||o.medicine||o.medication||"Medication").join("\n"):d.currentMedication||"—";pulled.push(`Medication Orders:\n${meds}`);}
+  if(sectionPull.laboratory){const labs=(labOrders||[]).map((o:any)=>`${o.testName||o.name||"Laboratory"} — ${o.status||"Ordered"}${o.result?` — Result: ${o.result}`:""}`).join("\n");pulled.push(`Laboratory:\n${labs||d.investigation||"—"}`);}
+  if(sectionPull.radiology){const rads=(radOrders||[]).map((o:any)=>`${o.testName||o.name||"Diagnostic"} — ${o.status||"Ordered"}${o.result?` — Result: ${o.result}`:""}`).join("\n");pulled.push(`Radiology / Diagnostics:\n${rads||"—"}`);}
+  if(sectionPull.clinicalNotes){const notes=(clinicalNotes||[]).slice(0,12).map((n:any)=>`[${n.noteType||n.title||"Clinical Note"}] ${n.content||""}`).join("\n\n");pulled.push(`Previous Clinical Notes:\n${notes||"—"}`);}
+  if(sectionPull.orders){const orders=[...(labOrders||[]),...(radOrders||[])].map((o:any)=>`${o.testName||o.name||"Order"} — ${o.status||"Ordered"}`).join("\n");pulled.push(`Chart Orders:\n${orders||"—"}`);}
   const content=[`Date and Time of Discharge: ${d.dischargeDateTime||"—"}`,`Diagnosis: ${d.diagnosis}`,`Presenting Complaints: ${d.presentingComplaints}`,`History of Present Illness: ${d.hpi}`,`Past Medical History: ${d.pastMedicalHistory}`,`Current Medication: ${d.currentMedication}`,`Personal History: ${d.personalHistory}`,`Family History: ${d.familyHistory}`,`Allergies: ${d.allergies||selected.allergies||"NKA"}`,`Occupational History: ${d.occupationalHistory}`,`On Examination: ${d.onExamination}`,`Course In Hospital: ${d.courseInHospital}`,`Procedure: ${d.procedure}`,`Surgery: ${d.surgery}`,`Findings: ${d.findings}`,`Condition on Discharge: ${d.conditionOnDischarge}`,`TPA Patient: ${d.tpaPatient||"—"}`,`Investigation: ${d.investigation}`,`Medications During Stay: ${d.medicationsDuringStay}`,`Advice: ${d.advice}`,`Special Needs: ${d.specialNeeds}`,`Follow Up Advice: ${d.followUpAdvice}`,pulled.length?`\n— Pulled sections —\n`+pulled.join("\n"):"",d.ack?"Patient/Attendant acknowledgement recorded.":""].filter(Boolean).join("\n");
   await run({action:"clinical-note",patientId:selected.id,noteType:coverNoteType,title:`${department} · ${coverNoteType}`,content,authorRole:`${doctor?.name||"Clinician"} · ${coverNoteType}`},`${coverNoteType} saved`);
  };
+ const finalizeDischarge=async()=>{if(!selected||coverNoteType!=="Discharge Summary"||saving)return;if(!window.confirm("Finalize the Discharge Summary and discharge this patient from the active IPD census? The UHID and complete clinical history will be retained."))return;const d=dischargeForm;const content="Date and Time of Discharge: "+(d.dischargeDateTime||"—")+"\nDiagnosis: "+d.diagnosis+"\nPresenting Complaints: "+d.presentingComplaints+"\nHistory of Present Illness: "+d.hpi+"\nPast Medical History: "+d.pastMedicalHistory+"\nCurrent Medication: "+d.currentMedication+"\nCourse In Hospital: "+d.courseInHospital+"\nProcedure: "+d.procedure+"\nSurgery: "+d.surgery+"\nFindings: "+d.findings+"\nCondition on Discharge: "+d.conditionOnDischarge+"\nInvestigation: "+d.investigation+"\nMedications During Stay: "+d.medicationsDuringStay+"\nAdvice: "+d.advice+"\nFollow Up Advice: "+d.followUpAdvice;const ok=await run({action:"clinical-note",patientId:selected.id,noteType:"Discharge Summary",title:department+" · Discharge Summary",content,authorRole:(doctor?.name||"Clinician")+" · Discharge Summary"},"Final Discharge Summary saved");if(!ok)return;const r=await fetch("/api/patients/lifecycle",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({patientId:selected.id,action:"discharge",reason:"Final Discharge Summary completed"})});const x=await r.json().catch(()=>({}));if(!r.ok||!x.success){setError(x.error||"Could not discharge patient");return;}setMsg(selected.name+" discharged successfully. The active IPD admission is closed; UHID/history is retained.");await load();};
  const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;if(!(await run({action:"vitals",patientId:selected.id,vitals},`Vitals saved`)))return;};
  const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;if(!(await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`)))return;setSelectedLabs([])};
  const orderRad=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;const tests=selectedDiagnostics.length?selectedDiagnostics:[diagnosticType];await run({action:"diagnostic-order",patientId:selected.id,tests,notes:investigation.notes},`Imaging order placed`);setSelectedDiagnostics([])};
@@ -330,7 +334,7 @@ export default function IPDPatientWorkspace(){
      <form onSubmit={(e)=>{setNote({...note,noteType:leftNav});void saveNote(e)}} className="space-y-3 max-w-2xl">
       <h3 className="font-semibold text-sm">{leftNav}</h3>
       <textarea value={note.content} onChange={e=>setNote({...note,content:e.target.value,noteType:leftNav})} placeholder={`Enter ${leftNav}…`} className="w-full min-h-40 px-2 py-1 rounded-lg border text-xs"/>
-      <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":`Save ${coverNoteType} Draft`}</button>
+      <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":`Save ${leftNav}`}</button>
       <div className="mt-4 space-y-2 max-h-64 overflow-auto">
        {clinicalNotes.filter((n:any)=>(n.noteType||"").includes(leftNav.split(" ")[0])||leftNav==="Case Summary").map((n:any,i:number)=>(
         <div key={i} className="border rounded-lg p-2"><p className="font-medium text-[11px]">{n.noteType} · {n.authorName||n.authorRole||""}</p><p className="text-[10px] text-gray-500">{n.createdAt?new Date(n.createdAt).toLocaleString("en-IN"):""}</p><pre className="whitespace-pre-wrap font-sans text-[11px] mt-1">{n.content}</pre></div>
@@ -346,7 +350,7 @@ export default function IPDPatientWorkspace(){
        <div><h3 className="font-semibold text-sm">Cover Sheet · Notes</h3><p className="text-[10px] text-gray-500">Discharge, transfer, death, DAMA/LAMA and other hospital notes are created here.</p></div>
        <select value={coverNoteType} onChange={e=>setCoverNoteType(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{["Discharge Summary","Transfer Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note"].map(t=><option key={t}>{t}</option>)}</select>
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] border rounded-lg p-2 bg-slate-50">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] border rounded-lg p-2 bg-slate-50"><div className="w-full flex items-center justify-between"><span className="font-semibold text-gray-600">Pull from patient chart</span><button type="button" onClick={()=>setSectionPull({vitals:true,allergies:true,problems:true,diagnosis:true,complaints:true,medications:true,laboratory:true,radiology:true,clinicalNotes:true,orders:true,medicationAdvice:true})} className="text-[#c2183a] font-semibold">Select all</button></div>
        {[["vitals","Vitals"],["allergies","Allergies"],["problems","Problems"],["diagnosis","Diagnosis"],["complaints","Complaints"],["medications","Medications"],["laboratory","Laboratory"],["radiology","Radiology"],["clinicalNotes","Clinical Notes"],["orders","Orders"],["medicationAdvice","Medication Advice"]].map(([k,l])=>(
         <label key={k} className="inline-flex items-center gap-1"><input type="checkbox" checked={!!(sectionPull as any)[k]} onChange={e=>{
           const on=e.target.checked;setSectionPull({...sectionPull,[k]:on});
@@ -382,10 +386,10 @@ export default function IPDPatientWorkspace(){
       </div>
       <label className="flex items-start gap-2 text-[10px] text-gray-600"><input type="checkbox" checked={dischargeForm.ack} onChange={e=>setDischargeForm({...dischargeForm,ack:e.target.checked})} className="mt-0.5"/><span>I / we have understood and hereby acknowledge receipt of the discharge summary.</span></label>
       <div className="flex flex-wrap gap-2">
-       <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":`Save ${leftNav}`}</button>
+       <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Note Draft"}</button>
+       {coverNoteType==="Discharge Summary"&&<button type="button" onClick={finalizeDischarge} disabled={saving} className="h-9 px-4 rounded-lg border border-red-300 text-red-700 text-xs font-semibold">{saving?"Finalizing…":"Finalize & Discharge Patient"}</button>}
        <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Note View")}} className="h-9 px-3 rounded-lg border text-xs">View saved notes</button>
-      </div>
-     </form>
+      </div>    </form>
     )}
     {mainTab==="Lab"&&leftNav==="Lab Orders"&&(
      <div><h3 className="font-semibold text-sm mb-2">Lab Orders</h3>
