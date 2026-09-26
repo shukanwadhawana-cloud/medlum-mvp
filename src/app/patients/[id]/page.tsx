@@ -274,6 +274,18 @@ export default function PatientDetailPage() {
           <p className="text-xs text-gray-400 mb-3 print:hidden">No previous consultation recorded.</p>
         )}
 
+        <section className="mb-3 grid gap-3 md:grid-cols-2 print:hidden">
+          <Sec title={"Investigations · "+((data.labOrders||[]).length)+" laboratory · "+((data.diagnosticOrders||[]).length)+" diagnostics"}>
+            <div className="grid gap-2 p-3 text-xs">
+              <div><p className="font-semibold text-gray-700">Laboratory investigations ({(data.labOrders||[]).length})</p>{(data.labOrders||[]).length?<div className="mt-1 space-y-1">{(data.labOrders||[]).slice(0,20).map((o:any)=><div key={o.id} className="flex justify-between gap-2 border-b pb-1"><span>{o.testName}</span><span className="text-gray-400">{o.status||"Ordered"}</span></div>)}</div>:<p className="text-[11px] text-gray-400 mt-1">No laboratory investigations recorded.</p>}</div>
+              <div><p className="font-semibold text-gray-700">Radiology / diagnostics ({(data.diagnosticOrders||[]).length})</p>{(data.diagnosticOrders||[]).length?<div className="mt-1 space-y-1">{(data.diagnosticOrders||[]).slice(0,20).map((o:any)=><div key={o.id} className="flex justify-between gap-2 border-b pb-1"><span>{o.studyName}</span><span className="text-gray-400">{o.status||"Ordered"}</span></div>)}</div>:<p className="text-[11px] text-gray-400 mt-1">No diagnostic investigations recorded.</p>}</div>
+            </div>
+          </Sec>
+          <Sec title={"Diagnoses · "+Array.from(new Set((data.encounters||[]).map((e:any)=>String(e.diagnosis||"").trim()).filter(Boolean))).length}>
+            <div className="p-3 text-xs space-y-1">{Array.from(new Set((data.encounters||[]).map((e:any)=>String(e.diagnosis||"").trim()).filter(Boolean))).slice(0,20).map((dx:any)=><div key={dx} className="border-b pb-1">{dx}</div>)}{!(data.encounters||[]).some((e:any)=>String(e.diagnosis||"").trim())&&<p className="text-[11px] text-gray-400">No diagnosis recorded in encounters.</p>}</div>
+          </Sec>
+        </section>
+
         {msg && <div className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm print:hidden">{msg}</div>}
 
         <div className="space-y-3 print:hidden">
