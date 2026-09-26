@@ -411,7 +411,7 @@ export default function IPDPatientWorkspace(){
       <label className="flex items-start gap-2 text-[10px] text-gray-600"><input type="checkbox" checked={dischargeForm.ack} onChange={e=>setDischargeForm({...dischargeForm,ack:e.target.checked})} className="mt-0.5"/><span>I / we have understood and hereby acknowledge receipt of the discharge summary.</span></label>
       <div className="flex flex-wrap gap-2">
        <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Note Draft"}</button>
-       <button type="button" onClick={finalizeDischarge} disabled={saving} className="h-9 px-4 rounded-lg border border-red-300 text-red-700 text-xs font-semibold">{saving?"Finalizing…":"Finalize & Discharge Patient"}</button>
+       {coverNoteType==="Discharge Summary"&&<button type="button" onClick={finalizeDischarge} disabled={saving} className="h-9 px-4 rounded-lg border border-red-300 text-red-700 text-xs font-semibold">{saving?"Finalizing…":"Discharge Patient"}</button>}
        <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Note View")}} className="h-9 px-3 rounded-lg border text-xs">View saved notes</button>
       </div>    </form>
     )}
