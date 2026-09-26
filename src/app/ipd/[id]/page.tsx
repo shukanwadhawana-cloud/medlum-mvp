@@ -12,6 +12,8 @@ import MedOrderPanel from "@/components/ipd/MedOrderPanel";
 const WARDS=["General Ward","Twin Sharing","Single Sharing","Deluxe Ward","Super Deluxe"];
 const ICUS=["ICU","MICU","SICU","Transplant ICU","PICU","NICU"];
 const NOTE_TYPES=["Transfer Summary","Discharge Summary","Pharmacy Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note","Case Summary"];
+// Preserve the IPD pilot document/indent contract without exposing these as Discharge Summary subnavigation.
+const IPD_PILOT_DOCUMENT_TYPES=["Procedure Note","Medication Indent","Investigation Indent"];
 const DIAGNOSTICS=["Chest X-ray","Abdominal X-ray","Ultrasound Abdomen","Ultrasound Pelvis","CT Head","CT Chest","CT Abdomen/Pelvis","MRI Brain","MRI Spine","2D Echo","ECG","Holter","TMT","Doppler Study","Mammography","PET-CT","Endoscopy","Colonoscopy","Bronchoscopy","Other Diagnostic"];
 const DEPARTMENTS=["General Medicine","General Surgery","Gastroenterology","GI Surgery / Surgical Gastroenterology","Cardiology","Cardiothoracic & Vascular Surgery (CTVS)","Neurology","Neurosurgery","Nephrology & Dialysis","Urology","Orthopaedics","Obstetrics & Gynaecology","Paediatrics","Paediatric Surgery","Neonatology","ENT","Ophthalmology","Dermatology & Venereology","Pulmonary / Respiratory Medicine","Critical Care Medicine","Emergency Medicine & Trauma","Endocrinology","Rheumatology","Clinical Haematology","Medical Oncology","Surgical Oncology","Radiation Oncology","Plastic & Reconstructive Surgery","Anaesthesiology","Physical Medicine & Rehabilitation","Psychiatry & Mental Health","Nuclear Medicine","Radiology / Interventional Radiology","Palliative Care","Dental","Other"];
 
