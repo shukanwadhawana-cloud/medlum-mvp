@@ -48,8 +48,14 @@ export default function WorkforcePage(){
         fetch("/api/clinic/staff",{credentials:"include",cache:"no-store"})
       ]);
       const wj=await wr.json().catch(()=>({})), sj=await st.json().catch(()=>({}));
-      if(!wr.ok) throw new Error(wj.error||"Could not load workforce hub");
-      setRecords(wj.records||[]);setMembers(sj.members||[]);
+      setMembers(Array.isArray(sj.members)?sj.members:[]);
+      if(!wr.ok){
+        setRecords([]);
+        setError(wj.error||"Could not load workforce hub. Staff can still be managed from Clinic → Hospital staff.");
+      } else {
+        setRecords(wj.records||[]);
+        if(wj.warning) setError(String(wj.warning));
+      }
     }catch(e){setError(e instanceof Error?e.message:"Could not load workforce hub");}
     finally{setLoading(false);}
   },[]);
@@ -83,7 +89,7 @@ export default function WorkforcePage(){
     <div className="space-y-4">
       <header>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h1 className="text-xl font-bold">People & Workforce</h1><p className="text-sm text-gray-500">Hospital HRIS + workforce management from hire to exit, with employee self-service and manager approvals.</p></div>
+          <div><h1 className="text-xl font-bold">People & Workforce</h1><p className="text-sm text-gray-500">Hospital HRIS + workforce management from hire to exit, with employee self-service and manager approvals.</p><p className="mt-2 text-xs text-gray-600">To add doctors/nurses/staff accounts: open <a href="/clinic" className="font-semibold text-[#c2183a] underline">Clinic → Hospital staff</a>, create the person, then return here for HR workflows (leave, attendance, payroll notes).</p></div>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
             <Metric label="People" value={String(activePeople)}/><Metric label="Pending" value={String(pending)}/><Metric label="Records" value={String(records.length)}/>
           </div>

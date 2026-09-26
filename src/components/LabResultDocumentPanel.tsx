@@ -238,10 +238,10 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           {selectedStatus === "FAILED" && (
             <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
               <p className="text-[11px] font-semibold text-amber-900">
-                OCR could not safely structure this report
+                Automatic OCR could not structure this report
               </p>
               <p className="text-[10px] text-amber-800">
-                The original report is stored and the extracted text is retained as diagnostic evidence. Nothing has been written as a clinical result yet.
+                The uploaded file is saved. Review any extracted text below, correct it, then verify to write the clinical lab result. Nothing is clinical until you verify.
               </p>
               <div>
                 <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
@@ -249,7 +249,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                   value={manualResult}
                   onChange={(e) => setManualResult(e.target.value)}
                   disabled={verifying}
-                  placeholder="Review the original report and enter/correct the laboratory findings here. Nothing is saved as a clinical result until you verify it."
+                  placeholder="Type or paste the laboratory findings from the report. Verify to save as the clinical result."
                   className="mt-1 min-h-28 w-full rounded border bg-white px-2 py-1.5 text-xs"
                 />
               </div>

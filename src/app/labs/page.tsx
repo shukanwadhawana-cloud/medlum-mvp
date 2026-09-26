@@ -398,7 +398,7 @@ export default function LabsPage() {
           <div className="divide-y">
             {groups.map((g) => {
               const groupKey = `${g.patientId}::${g.encounterId || "none"}`;
-              const open = expanded[groupKey] ?? (careSetting === "OPD");
+              const open = expanded[groupKey] ?? false;
               return (
                 <div key={groupKey} className="p-3">
                   <button
@@ -426,7 +426,7 @@ export default function LabsPage() {
                       {g.orders.map((o) => (
                         <div
                           key={o.id}
-                          className="flex items-start justify-between gap-2 rounded-lg bg-gray-50/80 px-2 py-1.5"
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50/80 px-2 py-1"
                         >
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{o.testName}</p>
@@ -440,40 +440,15 @@ export default function LabsPage() {
                               <p className="mt-1 text-[11px] text-gray-600">{formatResultPreview(o.result)}</p>
                             )}
                           </div>
-                          <div className="flex shrink-0 flex-col gap-1">
-                            <Link href={`/patients/${o.patientId}`} className="text-center text-[11px] font-medium text-[#c2183a]">
-                              Chart
-                            </Link>
-                            <Link href={`/labs/print?id=${encodeURIComponent(o.id)}`} className="text-center text-[11px] font-medium text-gray-600">
-                              Print
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => setDocumentOrder(o)}
-                              className="rounded-lg border border-[#c2183a]/30 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#c2183a]"
-                            >
-                              Upload report
-                            </button>
+                          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                            <Link href={`/patients/${o.patientId}`} className="rounded-md px-2 py-1 text-[11px] font-medium text-[#c2183a]">Chart</Link>
+                            <Link href={`/labs/print?id=${encodeURIComponent(o.id)}`} className="rounded-md px-2 py-1 text-[11px] font-medium text-gray-600">Print</Link>
+                            <button type="button" onClick={() => setDocumentOrder(o)} className="rounded-md border border-[#c2183a]/30 bg-white px-2 py-1 text-[11px] font-semibold text-[#c2183a]">Upload</button>
                             {isActiveStatus(o.status) && (
-                              <button
-                                type="button"
-                                onClick={() => void openResultEntry(o)}
-                                className="rounded-lg bg-[#c2183a] px-2.5 py-1.5 text-[11px] font-semibold text-white"
-                              >
-                                Enter result
-                              </button>
+                              <button type="button" onClick={() => void openResultEntry(o)} className="rounded-md bg-[#c2183a] px-2 py-1 text-[11px] font-semibold text-white">Result</button>
                             )}
                             {o.status === "Ordered" && (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await apiUpdateLabOrder({ id: o.id, status: "Collected" });
-                                  await load();
-                                }}
-                                className="rounded-lg border bg-white px-2.5 py-1.5 text-[11px] font-medium"
-                              >
-                                Mark collected
-                              </button>
+                              <button type="button" onClick={async () => { await apiUpdateLabOrder({ id: o.id, status: "Collected" }); await load(); }} className="rounded-md border bg-white px-2 py-1 text-[11px] font-medium">Collected</button>
                             )}
                           </div>
                         </div>

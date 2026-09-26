@@ -105,7 +105,7 @@ export default function DiagnosticsPage() {
 
     <div className="space-y-2">
       {groups.length === 0 ? <div className="bg-white rounded-xl border p-8 text-center text-gray-500 text-sm">No diagnostic orders for {careSetting} in this view.</div> : groups.map((group) => {
-        const open = expanded[group.patient.id] ?? true;
+        const open = expanded[group.patient.id] ?? false;
         return <div key={group.patient.id} className="bg-white rounded-xl border shadow-sm overflow-hidden">
           <button type="button" onClick={() => setExpanded((x) => ({ ...x, [group.patient.id]: !open }))} className="w-full p-3 text-left flex items-center justify-between gap-3">
             <div className="min-w-0"><p className="font-semibold text-sm truncate">{group.patient.name}</p><p className="text-[11px] text-gray-500">{group.patient.uhid || group.patient.registrationNo || "Patient"} · {group.orders.length} investigation{group.orders.length === 1 ? "" : "s"}</p></div>
