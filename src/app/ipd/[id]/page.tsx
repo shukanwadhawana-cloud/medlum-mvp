@@ -5,27 +5,26 @@ import { usePathname, useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
+import { EXPANDED_LAB_CATALOG, EXPANDED_RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
 import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";
 import MedOrderPanel from "@/components/ipd/MedOrderPanel";
 
 const WARDS=["General Ward","Twin Sharing","Single Sharing","Deluxe Ward","Super Deluxe"];
 const ICUS=["ICU","MICU","SICU","Transplant ICU","PICU","NICU"];
 const NOTE_TYPES=["Consultant Note","RMO Note","Nursing Care Note","Medication Indent","Investigation Indent","Fitness Note","Procedure Note","Transfer Summary","Discharge Summary","Death Summary","Case Summary","DAMA Summary","LAMA Summary"];
-const LABS=["CBC","LFT","RFT / KFT","Lipid Profile","HbA1c","TSH","Urine Routine & Microscopy","Blood Sugar / RBS","Hb","WBC Count","Platelet Count","PT/INR","aPTT","Serum Electrolytes","CRP","ESR","Blood Culture","Urine Culture","Dengue NS1 / IgM","Malaria Test"];
 const DIAGNOSTICS=["Chest X-ray","Abdominal X-ray","Ultrasound Abdomen","Ultrasound Pelvis","CT Head","CT Chest","CT Abdomen/Pelvis","MRI Brain","MRI Spine","2D Echo","ECG","Holter","TMT","Doppler Study","Mammography","PET-CT","Endoscopy","Colonoscopy","Bronchoscopy","Other Diagnostic"];
 const DEPARTMENTS=["General Medicine","General Surgery","Gastroenterology","GI Surgery / Surgical Gastroenterology","Cardiology","Cardiothoracic & Vascular Surgery (CTVS)","Neurology","Neurosurgery","Nephrology & Dialysis","Urology","Orthopaedics","Obstetrics & Gynaecology","Paediatrics","Paediatric Surgery","Neonatology","ENT","Ophthalmology","Dermatology & Venereology","Pulmonary / Respiratory Medicine","Critical Care Medicine","Emergency Medicine & Trauma","Endocrinology","Rheumatology","Clinical Haematology","Medical Oncology","Surgical Oncology","Radiation Oncology","Plastic & Reconstructive Surgery","Anaesthesiology","Physical Medicine & Rehabilitation","Psychiatry & Mental Health","Nuclear Medicine","Radiology / Interventional Radiology","Palliative Care","Dental","Other"];
 
 /** CPRS top tabs — only one main panel visible at a time */
-const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","Discharge Summary","Lab","Radiology","MAR"] as const;
+const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","Lab","Radiology","MAR"] as const;
 type MainTab=typeof MAIN_TABS[number];
 
 /** Left nav items depend on main tab (CPRS pattern) */
 const LEFT_NAV:Record<MainTab,string[]>={
-  "Cover Sheet":["Overview"],
+  "Cover Sheet":["Overview","Notes"],
   "Dashboard":["Vitals","Problems","Final Diagnosis","Chief-Complaints","Allergies","OPD/IPD Details"],
   "Orders":["Order Medicines","Investigation Indent","Laboratory","Radiology","Procedure"],
   "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
-  "Discharge Summary":["Discharge Summary","DAMA Summary","LAMA Summary","Transfer Summary","Death Summary","Fitness Note"],
   "Lab":["Lab Orders","Lab Results","Investigation Results"],
   "Radiology":["Imaging Orders","Imaging Results"],
   "MAR":["Medication Administration Record"],
@@ -43,6 +42,7 @@ export default function IPDPatientWorkspace(){
  const[structured,setStructured]=useState({dateTime:new Date().toISOString().slice(0,16),diagnosis:"",hpi:"",allergy:"",examTime:"",cns:"",cvs:"",rs:"",perAbdomen:"",assessment:"",workingDiagnosis:"",treatmentGiven:"",course:"",procedures:"",investigations:"",dischargeTreatment:"",followUpDate:"",followUpConsultant:""});
  const[mainTab,setMainTab]=useState<MainTab>("Cover Sheet"),[leftNav,setLeftNav]=useState("Overview");
  const[currentRole,setCurrentRole]=useState(""),[department,setDepartment]=useState("General Medicine"),[selectedLabs,setSelectedLabs]=useState<string[]>([]),[selectedDiagnostics,setSelectedDiagnostics]=useState<string[]>([]),[diagnosticType,setDiagnosticType]=useState("Chest X-ray");
+ const[labSearch,setLabSearch]=useState(""),[diagnosticSearch,setDiagnosticSearch]=useState(""),[coverNoteType,setCoverNoteType]=useState("Discharge Summary");
  const[dxForm,setDxForm]=useState({workingDiagnosis:"",diagnosis:"",icdCode:""});
  const[noteViewId,setNoteViewId]=useState<string|null>(null);
  const[sectionPull,setSectionPull]=useState<Record<string,boolean>>({vitals:false,allergies:false,problems:false,diagnosis:false,complaints:false,medications:false,laboratory:false,radiology:false,clinicalNotes:false,orders:false,medicationAdvice:false});
@@ -74,7 +74,7 @@ export default function IPDPatientWorkspace(){
   if(sectionPull.medications)pulled.push(`Current medication: ${d.currentMedication||"—"}`);
   if(sectionPull.laboratory||sectionPull.radiology)pulled.push(`Investigation: ${d.investigation||"—"}`);
   const content=[`Date and Time of Discharge: ${d.dischargeDateTime||"—"}`,`Diagnosis: ${d.diagnosis}`,`Presenting Complaints: ${d.presentingComplaints}`,`History of Present Illness: ${d.hpi}`,`Past Medical History: ${d.pastMedicalHistory}`,`Current Medication: ${d.currentMedication}`,`Personal History: ${d.personalHistory}`,`Family History: ${d.familyHistory}`,`Allergies: ${d.allergies||selected.allergies||"NKA"}`,`Occupational History: ${d.occupationalHistory}`,`On Examination: ${d.onExamination}`,`Course In Hospital: ${d.courseInHospital}`,`Procedure: ${d.procedure}`,`Surgery: ${d.surgery}`,`Findings: ${d.findings}`,`Condition on Discharge: ${d.conditionOnDischarge}`,`TPA Patient: ${d.tpaPatient||"—"}`,`Investigation: ${d.investigation}`,`Medications During Stay: ${d.medicationsDuringStay}`,`Advice: ${d.advice}`,`Special Needs: ${d.specialNeeds}`,`Follow Up Advice: ${d.followUpAdvice}`,pulled.length?`\n— Pulled sections —\n`+pulled.join("\n"):"",d.ack?"Patient/Attendant acknowledgement recorded.":""].filter(Boolean).join("\n");
-  await run({action:"clinical-note",patientId:selected.id,noteType:leftNav||"Discharge Summary",title:`${department} · ${leftNav||"Discharge Summary"}`,content,authorRole:`${doctor?.name||"Clinician"} · ${leftNav||"Discharge Summary"}`},`${leftNav||"Discharge Summary"} saved`);
+  await run({action:"clinical-note",patientId:selected.id,noteType:coverNoteType,title:`${department} · ${coverNoteType}`,content,authorRole:`${doctor?.name||"Clinician"} · ${coverNoteType}`},`${coverNoteType} saved`);
  };
  const saveVitals=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;if(!(await run({action:"vitals",patientId:selected.id,vitals},`Vitals saved`)))return;};
  const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;if(!(await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`)))return;setSelectedLabs([])};
@@ -207,19 +207,31 @@ export default function IPDPatientWorkspace(){
      <div><h3 className="font-semibold text-sm mb-3">Order Medicines</h3><MedOrderPanel patient={{ id: selected.id, name: selected.name }} /></div>
     )}
     {mainTab==="Orders"&&leftNav==="Laboratory"&&(
-     <form onSubmit={orderLabs} className="space-y-3 max-w-2xl">
+     <form onSubmit={orderLabs} className="space-y-3 max-w-3xl">
       <h3 className="font-semibold text-sm">Laboratory Orders</h3>
-      <div className="flex flex-wrap gap-1.5">{LABS.map(l=><button type="button" key={l} onClick={()=>setSelectedLabs(s=>s.includes(l)?s.filter(x=>x!==l):[...s,l])} className={`h-7 px-2 rounded border text-[10px] ${selectedLabs.includes(l)?"bg-[#c2183a] text-white border-[#c2183a]":""}`}>{l}</button>)}</div>
+      <p className="text-[10px] text-gray-500">Search the full MedLum laboratory catalogue and add investigations directly.</p>
+      <div className="relative">
+       <input value={labSearch} onChange={e=>setLabSearch(e.target.value)} placeholder="Type CBC, dengue, malaria, LFT, culture, hormone…" className="w-full h-10 px-3 rounded-lg border text-sm" />
+       {labSearch.trim()&&<div className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border bg-white shadow-lg">{EXPANDED_LAB_CATALOG.filter(x=>{const q=labSearch.trim().toLowerCase();return x.name.toLowerCase().includes(q)||x.category.toLowerCase().includes(q)}).slice(0,40).map(x=><button type="button" key={x.id} onClick={()=>{setSelectedLabs(s=>s.includes(x.name)?s:s.concat(x.name));setLabSearch("")}} className="w-full text-left px-3 py-2 border-b last:border-0 hover:bg-slate-50"><span className="text-xs font-medium">{x.name}</span><span className="ml-2 text-[10px] text-gray-400">{x.category}</span></button>)}</div>}
+      </div>
+      {selectedLabs.length>0&&<div className="flex flex-wrap gap-1.5">{selectedLabs.map(l=><button type="button" key={l} onClick={()=>setSelectedLabs(s=>s.filter(x=>x!==l))} className="h-7 px-2 rounded-full bg-[#c2183a] text-white text-[10px]">{l} ×</button>)}</div>}
+      <p className="text-[10px] text-gray-400">{EXPANDED_LAB_CATALOG.length} laboratory investigations available.</p>
       <textarea value={investigation.notes} onChange={e=>setInvestigation({...investigation,notes:e.target.value})} placeholder="Order notes / clinical indication" className="w-full min-h-16 px-2 py-1 rounded-lg border text-xs"/>
       <button disabled={saving||!selectedLabs.length} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Place lab order"}</button>
      </form>
     )}
     {mainTab==="Orders"&&leftNav==="Radiology"&&(
-     <form onSubmit={orderRad} className="space-y-3 max-w-2xl">
-      <h3 className="font-semibold text-sm">Radiology / Imaging Orders</h3>
-      <div className="flex flex-wrap gap-1.5">{DIAGNOSTICS.map(l=><button type="button" key={l} onClick={()=>setSelectedDiagnostics(s=>s.includes(l)?s.filter(x=>x!==l):[...s,l])} className={`h-7 px-2 rounded border text-[10px] ${selectedDiagnostics.includes(l)?"bg-[#c2183a] text-white border-[#c2183a]":""}`}>{l}</button>)}</div>
+     <form onSubmit={orderRad} className="space-y-3 max-w-3xl">
+      <h3 className="font-semibold text-sm">Radiology / Diagnostic Orders</h3>
+      <p className="text-[10px] text-gray-500">Search the full diagnostic catalogue by study, modality or body part.</p>
+      <div className="relative">
+       <input value={diagnosticSearch} onChange={e=>setDiagnosticSearch(e.target.value)} placeholder="Type CT, MRI, X-ray, echo, ultrasound…" className="w-full h-10 px-3 rounded-lg border text-sm" />
+       {diagnosticSearch.trim()&&<div className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border bg-white shadow-lg">{EXPANDED_RADIOLOGY_CATALOG.filter(x=>{const q=diagnosticSearch.trim().toLowerCase();return x.name.toLowerCase().includes(q)||x.category.toLowerCase().includes(q)||x.modality.toLowerCase().includes(q)}).slice(0,40).map(x=><button type="button" key={x.id} onClick={()=>{setSelectedDiagnostics(s=>s.includes(x.name)?s:s.concat(x.name));setDiagnosticSearch("")}} className="w-full text-left px-3 py-2 border-b last:border-0 hover:bg-slate-50"><span className="text-xs font-medium">{x.name}</span><span className="ml-2 text-[10px] text-gray-400">{x.category} · {x.modality}</span></button>)}</div>}
+      </div>
+      {selectedDiagnostics.length>0&&<div className="flex flex-wrap gap-1.5">{selectedDiagnostics.map(l=><button type="button" key={l} onClick={()=>setSelectedDiagnostics(s=>s.filter(x=>x!==l))} className="h-7 px-2 rounded-full bg-[#c2183a] text-white text-[10px]">{l} ×</button>)}</div>}
+      <p className="text-[10px] text-gray-400">{EXPANDED_RADIOLOGY_CATALOG.length} diagnostic studies available.</p>
       <textarea value={investigation.notes} onChange={e=>setInvestigation({...investigation,notes:e.target.value})} placeholder="Clinical indication" className="w-full min-h-16 px-2 py-1 rounded-lg border text-xs"/>
-      <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Place imaging order"}</button>
+      <button disabled={saving||!selectedDiagnostics.length} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Place imaging order"}</button>
      </form>
     )}
     {mainTab==="Orders"&&(leftNav==="Investigation Indent"||leftNav==="Procedure")&&(
@@ -283,8 +295,8 @@ export default function IPDPatientWorkspace(){
       <div className="border rounded-lg p-3 bg-slate-50/80 space-y-2">
        <p className="text-[11px] font-semibold text-gray-700">Order investigations from assessment</p>
        <p className="text-[10px] text-gray-500">Select labs / imaging here — same as Orders tab; no need to leave this form.</p>
-       <div className="flex flex-wrap gap-1.5 max-h-24 overflow-auto">{LABS.map(l=><label key={l} className="inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 bg-white"><input type="checkbox" checked={selectedLabs.includes(l)} onChange={()=>setSelectedLabs(selectedLabs.includes(l)?selectedLabs.filter(x=>x!==l):[...selectedLabs,l])}/>{l}</label>)}</div>
-       <div className="flex flex-wrap gap-1.5 max-h-20 overflow-auto">{DIAGNOSTICS.map(d=><label key={d} className="inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 bg-white"><input type="checkbox" checked={selectedDiagnostics.includes(d)} onChange={()=>setSelectedDiagnostics(selectedDiagnostics.includes(d)?selectedDiagnostics.filter(x=>x!==d):[...selectedDiagnostics,d])}/>{d}</label>)}</div>
+       <div className="flex flex-wrap gap-1.5 max-h-24 overflow-auto">{EXPANDED_LAB_CATALOG.map(l=><label key={l} className="inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 bg-white"><input type="checkbox" checked={selectedLabs.includes(l.name)} onChange={()=>setSelectedLabs(selectedLabs.includes(l.name)?selectedLabs.filter(x=>x!==l.name):[...selectedLabs,l.name])}/>{l.name}</label>)}</div>
+       <div className="flex flex-wrap gap-1.5 max-h-20 overflow-auto">{EXPANDED_RADIOLOGY_CATALOG.map(d=><label key={d} className="inline-flex items-center gap-1 text-[10px] border rounded px-1.5 py-0.5 bg-white"><input type="checkbox" checked={selectedDiagnostics.includes(d.name)} onChange={()=>setSelectedDiagnostics(selectedDiagnostics.includes(d.name)?selectedDiagnostics.filter(x=>x!==d.name):[...selectedDiagnostics,d.name])}/>{d.name}</label>)}</div>
        <div className="flex flex-wrap gap-2">
         <button type="button" disabled={saving||!selectedLabs.length} onClick={async()=>{if(!selected||!selectedLabs.length)return;await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`);setSelectedLabs([])}} className="h-8 px-3 rounded-lg border text-[10px] font-semibold disabled:opacity-50">Place lab order ({selectedLabs.length})</button>
         <button type="button" disabled={saving||!selectedDiagnostics.length} onClick={async()=>{if(!selected)return;const tests=selectedDiagnostics.length?selectedDiagnostics:[diagnosticType];await run({action:"diagnostic-order",patientId:selected.id,tests,notes:investigation.notes},`Imaging order placed`);setSelectedDiagnostics([])}} className="h-8 px-3 rounded-lg border text-[10px] font-semibold disabled:opacity-50">Place imaging order ({selectedDiagnostics.length})</button>
@@ -318,7 +330,7 @@ export default function IPDPatientWorkspace(){
      <form onSubmit={(e)=>{setNote({...note,noteType:leftNav});void saveNote(e)}} className="space-y-3 max-w-2xl">
       <h3 className="font-semibold text-sm">{leftNav}</h3>
       <textarea value={note.content} onChange={e=>setNote({...note,content:e.target.value,noteType:leftNav})} placeholder={`Enter ${leftNav}…`} className="w-full min-h-40 px-2 py-1 rounded-lg border text-xs"/>
-      <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":`Save ${leftNav}`}</button>
+      <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":`Save ${coverNoteType} Draft`}</button>
       <div className="mt-4 space-y-2 max-h-64 overflow-auto">
        {clinicalNotes.filter((n:any)=>(n.noteType||"").includes(leftNav.split(" ")[0])||leftNav==="Case Summary").map((n:any,i:number)=>(
         <div key={i} className="border rounded-lg p-2"><p className="font-medium text-[11px]">{n.noteType} · {n.authorName||n.authorRole||""}</p><p className="text-[10px] text-gray-500">{n.createdAt?new Date(n.createdAt).toLocaleString("en-IN"):""}</p><pre className="whitespace-pre-wrap font-sans text-[11px] mt-1">{n.content}</pre></div>
@@ -328,9 +340,12 @@ export default function IPDPatientWorkspace(){
     )}
 
     {/* DISCHARGE */}
-    {mainTab==="Discharge Summary"&&(
+    {mainTab==="Cover Sheet"&&leftNav==="Notes"&&(
      <form onSubmit={saveDischargeStructured} className="space-y-3 max-w-3xl">
-      <h3 className="font-semibold text-sm">{leftNav}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+       <div><h3 className="font-semibold text-sm">Cover Sheet · Notes</h3><p className="text-[10px] text-gray-500">Discharge, transfer, death, DAMA/LAMA and other hospital notes are created here.</p></div>
+       <select value={coverNoteType} onChange={e=>setCoverNoteType(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{["Discharge Summary","Transfer Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note"].map(t=><option key={t}>{t}</option>)}</select>
+      </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] border rounded-lg p-2 bg-slate-50">
        {[["vitals","Vitals"],["allergies","Allergies"],["problems","Problems"],["diagnosis","Diagnosis"],["complaints","Complaints"],["medications","Medications"],["laboratory","Laboratory"],["radiology","Radiology"],["clinicalNotes","Clinical Notes"],["orders","Orders"],["medicationAdvice","Medication Advice"]].map(([k,l])=>(
         <label key={k} className="inline-flex items-center gap-1"><input type="checkbox" checked={!!(sectionPull as any)[k]} onChange={e=>{
