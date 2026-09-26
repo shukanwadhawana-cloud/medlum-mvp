@@ -354,9 +354,9 @@ export default function IPDPatientWorkspace(){
      <form onSubmit={saveDischargeStructured} className="space-y-3 max-w-3xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <div><h3 className="font-semibold text-sm">Hospital Summary</h3><p className="text-[10px] text-gray-500">Prepare transfer, discharge, DAMA, LAMA, death and other hospital summaries in the same panel.</p></div>
-       {coverNoteType==="Discharge Summary"&&<Link href={`/ipd-summaries/${selected.id}/print`} target="_blank" className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">Print / Save PDF</Link>}
+       <div className="flex gap-2"><select value={coverNoteType} onChange={e=>setCoverNoteType(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{NOTE_TYPES.map(t=><option key={t}>{t}</option>)}</select>{coverNoteType==="Discharge Summary"&&<Link href={`/ipd-summaries/${selected.id}/print`} target="_blank" className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">Print / Save PDF</Link>}</div>
       </div>
-      <div className="border rounded-lg p-3 bg-white space-y-3">
+      {coverNoteType==="Discharge Summary"&&<div className="border rounded-lg p-3 bg-white space-y-3">
        <div><p className="text-[11px] font-semibold">Administrative / Payer pathway</p><p className="text-[10px] text-gray-500">Choose the parallel clearance route; it does not replace the clinical discharge record.</p></div>
        <div className="flex flex-wrap gap-2">{["Self-pay / Cash","Insurance / TPA","ESIC","Other"].map(p=><button type="button" key={p} onClick={()=>setAdminPathway(p)} className={adminPathway===p?"h-8 px-3 rounded-full border text-[10px] font-semibold bg-[#140a1f] text-white":"h-8 px-3 rounded-full border text-[10px] font-semibold bg-white text-gray-700"}>{p}</button>)}</div>
        {adminPathway==="Insurance / TPA"&&<div className="grid md:grid-cols-2 gap-2">
@@ -373,7 +373,7 @@ export default function IPDPatientWorkspace(){
        {patientPolicies.length>0&&<p className="text-[10px] text-gray-500">Existing patient policies: {patientPolicies.map((p:any)=>p.policyNumber).join(", ")}</p>}
        {patientInvoices.length>0&&<p className="text-[10px] text-gray-500">Invoices: {patientInvoices.map((i:any)=>i.invoiceNumber||"Invoice").join(", ")}</p>}
        {adminStatus&&<p className="text-[10px] text-green-700 font-medium">{adminStatus}</p>}
-      </div>
+      </div>}
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] border rounded-lg p-2 bg-slate-50"><div className="w-full flex items-center justify-between"><span className="font-semibold text-gray-600">Pull from patient chart</span><button type="button" onClick={pullCompleteChart} className="text-[#c2183a] font-semibold mr-2">Pull all chart data</button><button type="button" onClick={()=>setSectionPull({vitals:true,allergies:true,problems:true,diagnosis:true,complaints:true,medications:true,laboratory:true,radiology:true,clinicalNotes:true,orders:true,medicationAdvice:true})} className="text-[#c2183a] font-semibold">Select all</button></div>
        {[["vitals","Vitals"],["allergies","Allergies"],["problems","Problems"],["diagnosis","Diagnosis"],["complaints","Complaints"],["medications","Medications"],["laboratory","Laboratory"],["radiology","Radiology"],["clinicalNotes","Clinical Notes"],["orders","Orders"],["medicationAdvice","Medication Advice"]].map(([k,l])=>(
         <label key={k} className="inline-flex items-center gap-1"><input type="checkbox" checked={!!(sectionPull as any)[k]} onChange={e=>{
