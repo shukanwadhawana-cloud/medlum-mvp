@@ -1,0 +1,97 @@
+name: land-ux-opd-ipd
+on:
+  workflow_dispatch:
+jobs:
+  land:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: OPD edit + IPD cover
+        run: |
+          set -euo pipefail
+          python3 << 'EOF'
+          from pathlib import Path
+
+          p = Path("src/app/opd/page.tsx")
+          t = p.read_text()
+          if "editId" not in t:
+              t = t.replace(
+                  '  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "" });',
+                  '  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "" });\n  const [editId, setEditId] = useState<string | null>(null);\n  const [editForm, setEditForm] = useState({ name: "", age: "", gender: "Male", phone: "" });',
+              )
+              save = '''  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editId) return;
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      const r = await fetch(`/api/patients/${editId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editForm.name.trim(), age: Number(editForm.age) || 0, gender: editForm.gender, phone: editForm.phone.trim() }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Could not update patient");
+      setMsg("Patient details updated."); setEditId(null); await reload();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Could not update patient"); }
+    finally { setSaving(false); }
+  }
+
+'''
+              t = t.replace("  const filtered = useMemo(() => {", save + "  const filtered = useMemo(() => {")
+              t = t.replace("{filtered.map((p) => (", "{filtered.map((p, idx) => (")
+              t = t.replace(
+                  '<p className="truncate text-sm font-semibold">{p.name}</p>',
+                  '<p className="truncate text-sm font-semibold"><span className="text-gray-400 font-normal mr-2">{idx + 1}.</span>{p.name}</p>',
+              )
+              t = t.replace(
+                  '<p className="mt-1 text-[10px] text-gray-400">ID {p.id}</p>',
+                  '<p className="mt-1 text-[10px] text-gray-400">{p.uhid || p.registrationNo || `ID ${p.id.slice(0, 8)}`}</p>',
+              )
+              t = t.replace(
+                  '<Link href={`/patients/${p.id}`} className="flex h-9 items-center justify-center rounded-lg bg-[#c2183a] px-3 text-xs font-semibold text-white">Open OPD visit</Link>\n                  <Link href="/billing" className="text-center text-[11px] font-medium text-[#c2183a]">Bill</Link>',
+                  '<Link href={`/patients/${p.id}`} className="flex h-9 items-center justify-center rounded-lg bg-[#c2183a] px-3 text-xs font-semibold text-white">Open OPD visit</Link>\n                  <button type="button" onClick={() => { setEditId(p.id); setEditForm({ name: p.name, age: String(p.age || ""), gender: p.gender || "Male", phone: p.phone || "" }); }} className="h-8 rounded-lg border px-3 text-[11px] font-medium">Edit</button>\n                  <Link href="/billing" className="text-center text-[11px] font-medium text-[#c2183a]">Bill</Link>',
+              )
+              modal = '''      {editId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
+          <form onSubmit={saveEdit} className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl space-y-2">
+            <h3 className="text-base font-semibold">Edit patient details</h3>
+            <input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" className="w-full h-11 rounded-lg border px-3 text-sm" />
+            <div className="grid grid-cols-2 gap-2">
+              <input required value={editForm.age} onChange={(e) => setEditForm({ ...editForm, age: e.target.value })} placeholder="Age" inputMode="numeric" className="h-11 rounded-lg border px-3 text-sm" />
+              <select value={editForm.gender} onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })} className="h-11 rounded-lg border px-3 text-sm bg-white"><option>Male</option><option>Female</option><option>Other</option></select>
+            </div>
+            <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Phone" className="w-full h-11 rounded-lg border px-3 text-sm" />
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => setEditId(null)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
+              <button disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-semibold disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
+            </div>
+          </form>
+        </div>
+      )}
+'''
+              t = t.replace("    </AppShell>\n  );\n}", modal + "    </AppShell>\n  );\n}")
+              p.write_text(t)
+              print("opd edit added")
+          else:
+              print("opd already")
+
+          p = Path("src/app/ipd/[id]/page.tsx")
+          t = p.read_text()
+          if "Latest clinical context" not in t:
+              needle = '<div className="mt-4 flex flex-wrap gap-2"><Link href={`/ipd/${selected.id}/clinical`}'
+              insert = '<div className="mt-3 grid md:grid-cols-2 gap-3 text-xs"><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Latest clinical context</p><p className="mt-1"><span className="text-gray-500">Complaint:</span> {selected.chiefComplaint||"—"}</p><p className="mt-0.5"><span className="text-gray-500">Diagnosis:</span> {selected.diagnosis||selected.workingDiagnosis||"—"}</p></div><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Location</p><p className="mt-1">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"—"}</p><p className="mt-0.5 text-gray-500">Department: {selected.department||"—"}</p></div></div>'
+              if needle in t:
+                  t = t.replace(needle, insert + needle, 1)
+                  p.write_text(t)
+                  print("ipd context added")
+              else:
+                  print("ipd needle missing")
+          else:
+              print("ipd already")
+          print("ALL_OK")
+          EOF
+      - name: Commit
+        run: |
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add -A
+          git commit -m "feat(ux): OPD demographic edit + serial, IPD cover clinical context" || exit 0
+          git push origin HEAD:main
