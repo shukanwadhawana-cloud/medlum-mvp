@@ -12,11 +12,19 @@ async function ctx() {
   const session = await getSession();
   if (!session) return null;
   const m = await requireActiveClinicMembership(session.doctorId);
-  if (!m?.clinicId) return null;
-  const member = await prisma.clinicMember.findFirst({
-    where: { id: m.membershipId, isActive: true, clinic: { isActive: true } },
-    select: { id:true, clinicId:true, doctorId:true, role:true, staffCode:true, doctor:{select:{name:true,email:true}}, clinic:{select:{id:true,name:true}} }
-  });
+  let member = m?.clinicId
+    ? await prisma.clinicMember.findFirst({
+        where: { id: m.membershipId, isActive: true, clinic: { isActive: true } },
+        select: { id:true, clinicId:true, doctorId:true, role:true, staffCode:true, doctor:{select:{name:true,email:true}}, clinic:{select:{id:true,name:true}} }
+      })
+    : null;
+  if (!member) {
+    member = await prisma.clinicMember.findFirst({
+      where: { doctorId: session.doctorId, isActive: true },
+      select: { id:true, clinicId:true, doctorId:true, role:true, staffCode:true, doctor:{select:{name:true,email:true}}, clinic:{select:{id:true,name:true}} },
+      orderBy: { createdAt: "asc" },
+    });
+  }
   return member ? { session, member, role: normalizeClinicRole(member.role) } : null;
 }
 
@@ -35,17 +43,30 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status") || undefined;
   const memberId = url.searchParams.get("memberId") || undefined;
   const admin = ADMIN_ROLES.includes(c.role);
-  const rows = await prisma.workforceRecord.findMany({
-    where: {
-      clinicId: c.member.clinicId,
-      ...(module ? {module} : {}),
-      ...(status ? {status} : {}),
-      ...(admin ? (memberId ? {memberId} : {}) : {memberId:c.member.id}),
-    },
-    orderBy: {createdAt:"desc"},
-    take: 500,
-    include: {member:{select:{id:true,staffCode:true,role:true,designation:true,department:true,doctor:{select:{name:true,email:true}}}}}
-  });
+  let rows: Awaited<ReturnType<typeof prisma.workforceRecord.findMany>> = [];
+  try {
+    rows = await prisma.workforceRecord.findMany({
+      where: {
+        clinicId: c.member.clinicId,
+        ...(module ? {module} : {}),
+        ...(status ? {status} : {}),
+        ...(admin ? (memberId ? {memberId} : {}) : {memberId:c.member.id}),
+      },
+      orderBy: {createdAt:"desc"},
+      take: 500,
+      include: {member:{select:{id:true,staffCode:true,role:true,designation:true,department:true,doctor:{select:{name:true,email:true}}}}}
+    });
+  } catch (e) {
+    console.error("[workforce] list failed", e instanceof Error ? e.message : e);
+    return NextResponse.json({
+      clinic: c.member.clinic,
+      isAdmin: admin,
+      me: { memberId: c.member.id, staffCode: c.member.staffCode, name: c.member.doctor.name, role: c.role },
+      records: [],
+      counts: {},
+      warning: "Workforce records are not available yet. You can still manage staff from Clinic settings.",
+    });
+  }
   const counts = rows.reduce<Record<string,number>>((a,r)=>{a[r.module]=(a[r.module]||0)+1; return a;},{});
   return NextResponse.json({clinic:c.member.clinic, isAdmin:admin, me:{memberId:c.member.id,staffCode:c.member.staffCode,name:c.member.doctor.name,role:c.role}, records:rows, counts});
 }
