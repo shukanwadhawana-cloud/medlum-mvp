@@ -8,32 +8,25 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Patch emergency page
+      - name: Patch with python
         run: |
           set -euo pipefail
-          python3 -c "
+          python3 <<'EOF'
           from pathlib import Path
-          p = Path('src/app/emergency/page.tsx')
+          p = Path("src/app/emergency/page.tsx")
           t = p.read_text()
-          t = t.replace(chr(36)+'{chr(34))+triageClass(c.triageLevel)}', chr(36)+'{triageClass(c.triageLevel)}')
-          # safer: replace broken fragment
-          bad = '${'+chr(34)+')+triageClass(c.triageLevel)}'
-          good = '${triageClass(c.triageLevel)}'
-          t = t.replace(bad, good)
-          if bad in t or chr(34)+')+triageClass' in t:
-              # alternate encoding
-              import re
-              t = re.sub(r'\$\{\"\)\+triageClass\(c\.triageLevel\)\}', r'${triageClass(c.triageLevel)}', t)
-          if chr(34)+')+triageClass' in t:
-              raise SystemExit('still broken')
-          p.write_text(t)
-          print('fixed')
-          "
-      - name: Commit and push
+          bad = "${" + '"' + ")+triageClass"
+          good = "${" + "triageClass"
+          print("bad count", t.count(bad))
+          if bad not in t:
+              raise SystemExit("pattern not found")
+          p.write_text(t.replace(bad, good))
+          print("ok")
+          EOF
+      - name: Commit
         run: |
           git config user.name "MedLum CI Bot"
           git config user.email "ci-bot@medlum.local"
           git add src/app/emergency/page.tsx
-          git diff --cached --quiet && echo "no change" && exit 0
-          git commit -m "fix(build): repair emergency triageClass template for Vercel"
+          git commit -m "fix(build): repair emergency triageClass so Vercel build passes" || exit 0
           git push origin HEAD:main
