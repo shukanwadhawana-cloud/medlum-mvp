@@ -206,7 +206,9 @@ export default function IPDPatientWorkspace(){
 
     {/* ORDERS — all investigations live here */}
     {mainTab==="Orders"&&leftNav==="Order Medicines"&&selected&&(
-     <div><h3 className="font-semibold text-sm mb-3">Order Medicines</h3><MedOrderPanel patient={{ id: selected.id, name: selected.name }} /></div>
+     <div className="space-y-4"><div><h3 className="font-semibold text-sm mb-3">Order Medicines</h3><MedOrderPanel patient={{ id: selected.id, name: selected.name }} /></div>
+      <div className="rounded-lg border bg-gray-50 p-3"><h4 className="text-xs font-semibold mb-2">Medication Indent History</h4>{(selected.clinicalNotes||[]).filter((n:any)=>n.noteType==="Medication Indent").length?<div className="space-y-2">{(selected.clinicalNotes||[]).filter((n:any)=>n.noteType==="Medication Indent").slice(0,10).map((n:any)=><div key={n.id||n.createdAt} className="rounded border bg-white p-2 text-[10px]"><div className="font-medium">{n.title||"Medication Indent"}</div><pre className="whitespace-pre-wrap font-sans mt-1">{n.content||""}</pre></div>)}</div>:<p className="text-[10px] text-gray-500">No medication indents recorded yet.</p>}</div>
+     </div>
     )}
     {mainTab==="Orders"&&leftNav==="Laboratory"&&(
      <form onSubmit={orderLabs} className="space-y-3 max-w-3xl">
