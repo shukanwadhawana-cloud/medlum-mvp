@@ -213,7 +213,7 @@ export default function IPDPatientWorkspace(){
       <h3 className="font-semibold text-sm">Laboratory Orders</h3>
       <p className="text-[10px] text-gray-500">Search the full MedLum laboratory catalogue and add investigations directly.</p>
       <div className="relative">
-       <input value={labSearch} onChange={e=>setLabSearch(e.target.value)} placeholder="Type CBC, dengue, malaria, LFT, culture, hormone…" className="w-full h-10 px-3 rounded-lg border text-sm" />
+       <input value={labSearch} onChange={e=>setLabSearch(e.target.value)} placeholder="Type CBC, dengue, malaria, LFT, culture, hormone…" className="w-full h-10 px-3 rounded-lg border bg-gray-50 text-sm" />
        {labSearch.trim()&&<div className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border bg-white shadow-lg">{EXPANDED_LAB_CATALOG.filter(x=>{const q=labSearch.trim().toLowerCase();return x.name.toLowerCase().includes(q)||x.category.toLowerCase().includes(q)}).slice(0,40).map(x=><button type="button" key={x.id} onClick={()=>{setSelectedLabs(s=>s.includes(x.name)?s:s.concat(x.name));setLabSearch("")}} className="w-full text-left px-3 py-2 border-b last:border-0 hover:bg-slate-50"><span className="text-xs font-medium">{x.name}</span><span className="ml-2 text-[10px] text-gray-400">{x.category}</span></button>)}</div>}
       </div>
       {selectedLabs.length>0&&<div className="flex flex-wrap gap-1.5">{selectedLabs.map(l=><button type="button" key={l} onClick={()=>setSelectedLabs(s=>s.filter(x=>x!==l))} className="h-7 px-2 rounded-full bg-[#c2183a] text-white text-[10px]">{l} ×</button>)}</div>}
