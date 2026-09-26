@@ -42,18 +42,26 @@ export default function IPDSummaries(){
    if(!selected||type!=="Discharge Summary"||discharging||finalized)return;
    const confirmed=window.confirm(`Finalize the Discharge Summary and discharge ${selected.name} from IPD? This removes the patient from the active IPD census but keeps the UHID and complete clinical record.`);
    if(!confirmed)return;
+   const dischargedId=selected.id;
+   const dischargedName=selected.name;
    setDischarging(true);setError("");setMsg("");
    try{
-     // Final discharge requires the summary to be saved first.
      const content=makeContent(s,"Discharge Summary");
-     const saveR=await fetch("/api/ipd",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"clinical-note",patientId:selected.id,noteType:"Discharge Summary",content,authorRole:`${doctor?.name||"Clinician"} · Discharge Summary`})});
+     const saveR=await fetch("/api/ipd",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"clinical-note",patientId:dischargedId,noteType:"Discharge Summary",content,authorRole:`${doctor?.name||"Clinician"} · Discharge Summary`})});
      const saveD=await saveR.json().catch(()=>({}));
      if(!saveR.ok||!saveD.success)throw new Error(saveD.error||"Could not save final discharge summary");
-     const r=await fetch("/api/patients/lifecycle",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({patientId:selected.id,action:"discharge",reason:"Final Discharge Summary completed"})});
+     const r=await fetch("/api/patients/lifecycle",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({patientId:dischargedId,action:"discharge",reason:"Final Discharge Summary completed"})});
      const d=await r.json().catch(()=>({}));
      if(!r.ok||!d.success)throw new Error(d.error||"Could not discharge patient");
      setFinalized(true);
-     setMsg(`${selected.name} discharged successfully. The final summary is preserved under UHID and is ready to print.`);
+     setMsg(`${dischargedName} discharged successfully. The final summary is preserved under UHID and is ready to print.`);
+     // Refresh the active census immediately; the discharged patient must no longer remain selectable.
+     const freshR=await fetch("/api/ipd",{credentials:"include",cache:"no-store"});
+     const freshD=await freshR.json().catch(()=>({patients:[]}));
+     const active=Array.isArray(freshD.patients)?freshD.patients:[];
+     setPatients(active.filter((p:any)=>p.id!==dischargedId));
+     setSelected(null);
+     setFinalized(false);
    }catch(err:any){setError(err.message||"Discharge failed")}finally{setDischarging(false)}
  };
  if(!doctor)return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading...</div>;
