@@ -389,19 +389,6 @@ export default function IPDPatientWorkspace(){
        <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Note View")}} className="h-9 px-3 rounded-lg border text-xs">View saved notes</button>
       </div>    </form>
     )}
-    {mainTab==="Lab"&&leftNav==="Lab Results"&&(
-     <div><h3 className="font-semibold text-sm mb-2">Lab Results</h3>
-      <div className="space-y-2">{labOrders.filter((o:any)=>o.result||o.status==="COMPLETED"||o.status==="RESULTED").length?labOrders.filter((o:any)=>o.result||o.status==="COMPLETED"||o.status==="RESULTED").map((o:any,i:number)=><div key={i} className="border rounded-lg p-2"><p className="font-medium">{o.testName||o.name}</p><pre className="whitespace-pre-wrap font-sans text-[11px] mt-1 bg-gray-50 p-2 rounded">{o.result||"Result available"}</pre></div>):<p className="text-gray-500">No lab results yet.</p>}</div>
-     </div>
-    )}
-
-    {/* RADIOLOGY */}
-    {mainTab==="Radiology"&&leftNav==="Imaging Results"&&(
-     <div><h3 className="font-semibold text-sm mb-2">Imaging Results</h3>
-      <div className="space-y-2">{radOrders.filter((o:any)=>o.result).length?radOrders.filter((o:any)=>o.result).map((o:any,i:number)=><div key={i} className="border rounded-lg p-2"><p className="font-medium">{o.testName||o.name}</p><pre className="whitespace-pre-wrap font-sans text-[11px] mt-1 bg-gray-50 p-2 rounded">{o.result}</pre></div>):<p className="text-gray-500">No imaging results yet.</p>}</div>
-     </div>
-    )}
-
     {/* MAR */}
     
     {mainTab==="Lab"&&leftNav==="Investigation Results"&&selected&&(
