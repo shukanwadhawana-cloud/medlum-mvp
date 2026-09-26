@@ -391,23 +391,6 @@ export default function IPDPatientWorkspace(){
     )}
     {/* MAR */}
     
-    {mainTab==="Lab"&&leftNav==="Investigation Results"&&selected&&(
-     <div>
-      <h3 className="font-semibold text-sm mb-2">Investigation Results</h3>
-      <div className="space-y-2 text-xs">
-       {(selected.investigationOrders||[]).filter((o:any)=>!(o.patientId!==selected.id)).map((o:any)=>(
-        <div key={o.id||o.testName} className="border rounded-lg p-2 flex items-center justify-between gap-2">
-         <span>{o.testName||o.name||"Investigation"} · {o.status||"—"}</span>
-         {o.status!=="Reviewed"&&(
-          <button type="button" disabled={saving} onClick={async()=>{await run({action:"lab-review",patientId:selected.id,orderId:o.id,status:"Reviewed"},"Marked reviewed")}} className="h-7 px-2 rounded border text-[10px]">Mark reviewed</button>
-         )}
-        </div>
-       ))}
-       {!(selected.investigationOrders||[]).length&&<p className="text-gray-500">No investigation results yet. {((selected.clinicalNotes||[]).filter((n:any)=>n.noteType==="Medication Indent").length)} medication indents on file.</p>}
-      </div>
-     </div>
-    )}
-
     {mainTab==="MAR"&&selected&&(
      <div><h3 className="font-semibold text-sm mb-3">Medication Administration Record</h3><MedicationAdministrationPanel patient={selected} /></div>
     )}
