@@ -1,0 +1,39 @@
+name: fix-emergency-triage
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch emergency page
+        run: |
+          set -euo pipefail
+          python3 -c "
+          from pathlib import Path
+          p = Path('src/app/emergency/page.tsx')
+          t = p.read_text()
+          t = t.replace(chr(36)+'{chr(34))+triageClass(c.triageLevel)}', chr(36)+'{triageClass(c.triageLevel)}')
+          # safer: replace broken fragment
+          bad = '${'+chr(34)+')+triageClass(c.triageLevel)}'
+          good = '${triageClass(c.triageLevel)}'
+          t = t.replace(bad, good)
+          if bad in t or chr(34)+')+triageClass' in t:
+              # alternate encoding
+              import re
+              t = re.sub(r'\$\{\"\)\+triageClass\(c\.triageLevel\)\}', r'${triageClass(c.triageLevel)}', t)
+          if chr(34)+')+triageClass' in t:
+              raise SystemExit('still broken')
+          p.write_text(t)
+          print('fixed')
+          "
+      - name: Commit and push
+        run: |
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add src/app/emergency/page.tsx
+          git diff --cached --quiet && echo "no change" && exit 0
+          git commit -m "fix(build): repair emergency triageClass template for Vercel"
+          git push origin HEAD:main
