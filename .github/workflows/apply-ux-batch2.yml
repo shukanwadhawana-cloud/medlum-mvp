@@ -1,0 +1,288 @@
+name: apply-ux-batch2
+on:
+  workflow_dispatch:
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply remaining UX
+        run: |
+          set -euo pipefail
+          python3 << 'PY'
+          from pathlib import Path
+          import re
+
+          # Fix emergency triage template if broken
+          p = Path('src/app/emergency/page.tsx')
+          t = p.read_text()
+          t = t.replace('${")+triageClass(c.triageLevel)}', '${triageClass(c.triageLevel)}')
+          t = t.replace('className={`text-xs rounded-full px-2 py-1 h-fit ${")+triageClass(c.triageLevel)}`}', 'className={`text-xs rounded-full px-2 py-1 h-fit border ${triageClass(c.triageLevel)}`}')
+          p.write_text(t)
+          print('emergency fix')
+
+          # Patient PATCH API
+          p = Path('src/app/api/patients/[id]/route.ts')
+          t = p.read_text()
+          if 'export async function PATCH' not in t:
+              t += '''
+
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return NextResponse.json({ error: "No active clinic membership." }, { status: 403 });
+  const { id } = await ctx.params;
+  const patient = await findAuthorizedPatient(membership, id);
+  if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const body = await req.json().catch(() => ({}));
+  const data: { name?: string; age?: number; gender?: string; phone?: string } = {};
+  if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim();
+  if (body.age !== undefined && body.age !== null && body.age !== "") {
+    const age = Number(body.age);
+    if (!Number.isFinite(age) || age < 0 || age > 150) return NextResponse.json({ error: "Age must be between 0 and 150." }, { status: 400 });
+    data.age = Math.round(age);
+  }
+  if (typeof body.gender === "string" && body.gender.trim()) data.gender = body.gender.trim();
+  if (typeof body.phone === "string") data.phone = body.phone.trim();
+  if (Object.keys(data).length === 0) return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
+  const updated = await prisma.patient.update({ where: { id }, data });
+  return NextResponse.json({ ok: true, patient: { id: updated.id, name: updated.name, age: updated.age, gender: updated.gender, phone: updated.phone } });
+}
+'''
+              p.write_text(t)
+              print('patch api')
+
+          # OPD serial + edit + remove encounters
+          p = Path('src/app/opd/page.tsx')
+          t = p.read_text()
+          if 'editId' not in t:
+              t = t.replace(
+                  '  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "" });',
+                  '  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "" });\n  const [editId, setEditId] = useState<string | null>(null);\n  const [editForm, setEditForm] = useState({ name: "", age: "", gender: "Male", phone: "" });'
+              )
+              t = t.replace(
+                  '  const filtered = useMemo(() => {',
+                  '''  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editId) return;
+    setSaving(true); setErr(""); setMsg("");
+    try {
+      const r = await fetch(`/api/patients/${editId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editForm.name.trim(), age: Number(editForm.age) || 0, gender: editForm.gender, phone: editForm.phone.trim() }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Could not update patient");
+      setMsg("Patient details updated."); setEditId(null); await reload();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Could not update patient"); }
+    finally { setSaving(false); }
+  }
+
+  const filtered = useMemo(() => {'''
+              )
+          if 'Edit details' not in t:
+              t = t.replace('{filtered.map((p) => (', '{filtered.map((p, idx) => (')
+              t = t.replace(
+                  '''                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{p.name}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{p.age} yrs · {p.gender}{p.phone ? ` · ${p.phone}` : ""}</p>
+                  <p className="mt-1 text-[10px] text-gray-400">ID {p.id}</p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1.5">
+                  <Link href={`/patients/${p.id}`} className="flex h-9 items-center justify-center rounded-lg bg-[#c2183a] px-3 text-xs font-semibold text-white">Open OPD visit</Link>
+                  <Link href="/billing" className="text-center text-[11px] font-medium text-[#c2183a]">Bill</Link>
+                </div>''',
+                  '''                <div className="min-w-0 flex gap-3">
+                  <span className="shrink-0 w-6 text-center text-xs font-semibold text-gray-400 pt-0.5">{idx + 1}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{p.name}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">{p.age} yrs · {p.gender}{p.phone ? ` · ${p.phone}` : ""}</p>
+                    <p className="mt-1 text-[10px] text-gray-400">{p.uhid || p.registrationNo || `ID ${p.id.slice(0, 8)}`}</p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1.5">
+                  <Link href={`/patients/${p.id}`} className="flex h-9 items-center justify-center rounded-lg bg-[#c2183a] px-3 text-xs font-semibold text-white">Open OPD visit</Link>
+                  <button type="button" onClick={() => { setEditId(p.id); setEditForm({ name: p.name, age: String(p.age || ""), gender: p.gender || "Male", phone: p.phone || "" }); }} className="h-8 rounded-lg border px-3 text-[11px] font-medium">Edit details</button>
+                  <Link href="/billing" className="text-center text-[11px] font-medium text-[#c2183a]">Bill</Link>
+                </div>'''
+              )
+          t2, n = re.subn(r'\s*<section className="mb-4 overflow-hidden rounded-2xl border bg-white">\s*<div className="border-b px-4 py-3 font-semibold">Recent OPD encounters</div>.*?</section>', '\n      {/* Recent encounters hidden — use Patient Search / UHID */}', t, count=1, flags=re.S)
+          if n: t = t2
+          if 'editId &&' not in t:
+              t = t.replace('    </AppShell>\n  );\n}', '''      {editId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
+          <form onSubmit={saveEdit} className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl space-y-2">
+            <h3 className="text-base font-semibold">Edit patient details</h3>
+            <input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" className="w-full h-11 rounded-lg border px-3 text-sm" />
+            <div className="grid grid-cols-2 gap-2">
+              <input required value={editForm.age} onChange={(e) => setEditForm({ ...editForm, age: e.target.value })} placeholder="Age" inputMode="numeric" className="h-11 rounded-lg border px-3 text-sm" />
+              <select value={editForm.gender} onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })} className="h-11 rounded-lg border px-3 text-sm bg-white"><option>Male</option><option>Female</option><option>Other</option></select>
+            </div>
+            <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Phone" className="w-full h-11 rounded-lg border px-3 text-sm" />
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => setEditId(null)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
+              <button disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-semibold disabled:opacity-50">{saving ? "Saving…" : "Save"}</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </AppShell>
+  );
+}''')
+          p.write_text(t)
+          print('opd ok')
+
+          # Video sessions filter + serial
+          p = Path('src/app/telemedicine/page.tsx')
+          t = p.read_text()
+          if 'showCompleted' not in t:
+              t = t.replace('  const [warning, setWarning] = useState("");', '  const [warning, setWarning] = useState("");\n  const [showCompleted, setShowCompleted] = useState(false);')
+          if 'Show completed / cancelled' not in t:
+              old = '''      <section className="overflow-hidden rounded-2xl border bg-white">
+        <div className="border-b px-4 py-3 font-semibold">Video sessions</div>
+        <div className="divide-y">
+          {sessions.length === 0 ? (
+            <div className="p-6 text-sm text-gray-500">No video sessions yet.</div>
+          ) : (
+            sessions.map((s) => {
+              const title =
+                s.sessionKind === "peer"
+                  ? s.peerLabel || "Consultant peer call"
+                  : patientNameById.get(s.patientId) || (s.patientId ? `Patient ${s.patientId}` : "Session");
+              return (
+                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div>
+                    <div className="font-medium">{title}</div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(s.scheduledAt).toLocaleString()} · {s.status} · {s.sessionKind || "patient"} ·{" "}
+                      {s.provider}
+                      {s.meetingUrl ? " · Video ready" : ""}
+                    </div>
+                  </div>
+                  <Link
+                    href={`/telemedicine/${encodeURIComponent(s.id)}`}
+                    className="rounded-xl border px-3 py-2 text-xs font-medium"
+                  >
+                    Open room
+                  </Link>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>'''
+              new = '''      <section className="overflow-hidden rounded-2xl border bg-white">
+        <div className="border-b px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="font-semibold">Video sessions</div>
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+            Show completed / cancelled
+          </label>
+        </div>
+        <div className="px-4 py-2 text-[11px] text-gray-500 border-b bg-slate-50">
+          Telemedicine is billable. Track duration after the call; typical minimum consult is 5+ minutes. Charges attach to the patient bill when completed.
+        </div>
+        <div className="divide-y">
+          {(() => {
+            const visible = sessions.filter((s) => {
+              const done = ["Completed", "Cancelled", "Expired"].includes(String(s.status || ""));
+              return showCompleted ? true : !done;
+            });
+            if (visible.length === 0) return <div className="p-6 text-sm text-gray-500">{sessions.length ? "No active sessions. Toggle Show completed for history." : "No video sessions yet."}</div>;
+            return visible.map((s, idx) => {
+              const title = s.sessionKind === "peer" ? s.peerLabel || "Consultant peer call" : patientNameById.get(s.patientId) || (s.patientId ? `Patient ${s.patientId}` : "Session");
+              const started = s.startedAt ? new Date(s.startedAt).getTime() : 0;
+              const ended = s.endedAt ? new Date(s.endedAt).getTime() : 0;
+              const mins = started && ended && ended > started ? Math.round((ended - started) / 60000) : null;
+              const chargeHint = mins != null ? (mins < 5 ? `Duration ${mins} min · below typical billable threshold` : `Duration ${mins} min · billable`) : "Duration pending";
+              return (
+                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div className="flex gap-3 min-w-0">
+                    <span className="shrink-0 w-6 text-center text-xs font-semibold text-gray-400 pt-0.5">{idx + 1}</span>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{title}</div>
+                      <div className="text-xs text-gray-500">{new Date(s.scheduledAt).toLocaleString()} · {s.status} · {s.sessionKind || "patient"} · {s.provider}{s.meetingUrl ? " · Video ready" : ""}</div>
+                      <div className="mt-0.5 text-[11px] text-gray-500">{chargeHint}</div>
+                    </div>
+                  </div>
+                  <Link href={`/telemedicine/${encodeURIComponent(s.id)}`} className="rounded-xl border px-3 py-2 text-xs font-medium shrink-0">Open room</Link>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      </section>'''
+              if old not in t: raise SystemExit('video block missing')
+              t = t.replace(old, new)
+          p.write_text(t)
+          print('video ok')
+
+          # IPD cover sheet landing
+          p = Path('src/app/ipd/[id]/page.tsx')
+          t = p.read_text()
+          if 'Cover Sheet · Current Clinical Snapshot' not in t:
+              marker = 'if(!clinicalMode)return <AppShell>'
+              idx = t.find(marker)
+              end = t.find('</AppShell>;', idx)
+              if idx < 0 or end < 0: raise SystemExit('ipd landing missing')
+              end += len('</AppShell>;')
+              new = '''if(!clinicalMode)return <AppShell><div className="p-4 max-w-4xl mx-auto">
+ <Link href="/ipd" className="text-xs text-[#c2183a] font-medium">← Back to IPD census</Link>
+ {selected?<div className="mt-4 space-y-3">
+  <div className="bg-white rounded-xl border shadow-sm p-4">
+   <div className="flex flex-wrap items-start justify-between gap-3">
+    <div>
+     <p className="text-lg font-semibold">{selected.name}</p>
+     <p className="text-xs text-gray-500">{selected.age} yrs · {selected.gender} · {selected.wardType||"Ward"} · Bed {selected.roomNumber||"Unassigned"}</p>
+     <p className="text-[11px] text-gray-500 mt-1">UHID: {selected.uhid||"—"} · MedLum ID: {selected.medlumId||"—"} · Phone: {selected.phone||"—"}</p>
+     <p className="text-[11px] text-gray-500">Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleString("en-IN"):"—"} · Consultant: {selected.consultantName||"—"}</p>
+    </div>
+    <span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${selected.status==="DISCHARGED"?"bg-gray-100 text-gray-600":"bg-purple-50 text-purple-700"}`}>{selected.status==="DISCHARGED"?"DISCHARGED":"IPD"}</span>
+   </div>
+   <div className="mt-4">
+    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Cover Sheet · Current Clinical Snapshot</p>
+    <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-2">
+     <div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">BP</p><p className="font-semibold text-sm">{selected.vitals?.bp||"—"}</p></div>
+     <div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="font-semibold text-sm">{selected.vitals?.pulse||"—"}</p></div>
+     <div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="font-semibold text-sm">{selected.vitals?.spo2||"—"}</p></div>
+     <div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">RR</p><p className="font-semibold text-sm">{selected.vitals?.rr||"—"}</p></div>
+     <div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Allergy</p><p className="font-semibold text-sm text-red-700">{selected.allergies||"No known allergy recorded"}</p></div>
+    </div>
+   </div>
+   <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs">
+    <div className="rounded-lg border bg-slate-50/60 p-3">
+     <p className="text-[10px] font-semibold text-gray-500 uppercase">Latest clinical context</p>
+     <p className="mt-1"><span className="text-gray-500">Complaint:</span> {selected.chiefComplaint||"—"}</p>
+     <p className="mt-0.5"><span className="text-gray-500">Diagnosis:</span> {selected.diagnosis||selected.workingDiagnosis||"—"}</p>
+    </div>
+    <div className="rounded-lg border bg-slate-50/60 p-3">
+     <p className="text-[10px] font-semibold text-gray-500 uppercase">Location</p>
+     <p className="mt-1">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"—"}</p>
+     <p className="mt-0.5 text-gray-500">Department: {selected.department||"—"}</p>
+    </div>
+   </div>
+   <div className="mt-4 flex flex-wrap gap-2">
+    <Link href={`/ipd/${selected.id}/clinical`} className="h-10 px-4 rounded-lg bg-[#140a1f] text-white text-xs font-semibold inline-flex items-center">Open Clinical Workspace</Link>
+    <Link href={`/patients/${selected.id}`} className="h-10 px-4 rounded-lg border text-xs font-medium inline-flex items-center">Patient chart</Link>
+   </div>
+  </div>
+ </div>:<div className="mt-4 bg-white rounded-xl border p-6 text-sm text-gray-500">IPD patient could not be found.</div>}
+</div></AppShell>;'''
+              t = t[:idx] + new + t[end:]
+              brace = 0
+              for c in t:
+                  if c == '{': brace += 1
+                  elif c == '}': brace -= 1
+              if brace != 0: raise SystemExit(f'ipd brace {brace}')
+              p.write_text(t)
+              print('ipd cover ok')
+          print('ALL_OK')
+          PY
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add -A
+          git status --short
+          git commit -m "fix(ux): OPD edit/serial, video archive, IPD cover sheet, patient PATCH, triage fix" || true
+          git push origin HEAD:main
