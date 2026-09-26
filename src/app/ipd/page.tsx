@@ -124,19 +124,20 @@ export default function IPDCensusPage() {
         {error && <div className="bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
 
         <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
-          <table className="min-w-full text-left text-xs">
+          <p className="sm:hidden px-2 pt-2 text-[10px] text-gray-400">Swipe sideways to see all columns</p>
+          <table className="min-w-[920px] w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-[#f6f4f8] text-[10px] uppercase tracking-wide text-gray-500 border-b">
               <tr>
-                <th className="px-2 py-2">S.No</th>
-                <th className="px-2 py-2">Patient ID</th>
-                <th className="px-2 py-2">Patient Name</th>
-                <th className="px-2 py-2">Age/Gender</th>
-                <th className="px-2 py-2">Date of Admission</th>
-                <th className="px-2 py-2">LOS</th>
-                <th className="px-2 py-2">Ward Location</th>
-                <th className="px-2 py-2">Room / Bed</th>
-                <th className="px-2 py-2">Specialty</th>
-                <th className="px-2 py-2">Action</th>
+                <th className="px-2 py-2 whitespace-nowrap">S.No</th>
+                <th className="px-2 py-2 whitespace-nowrap">Patient ID</th>
+                <th className="px-2 py-2 whitespace-nowrap">Patient Name</th>
+                <th className="px-2 py-2 whitespace-nowrap">Age/Gender</th>
+                <th className="px-2 py-2 whitespace-nowrap">Date of Admission</th>
+                <th className="px-2 py-2 whitespace-nowrap">LOS</th>
+                <th className="px-2 py-2 whitespace-nowrap">Ward Location</th>
+                <th className="px-2 py-2 whitespace-nowrap">Room / Bed</th>
+                <th className="px-2 py-2 whitespace-nowrap">Specialty</th>
+                <th className="px-2 py-2 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y">
