@@ -10,40 +10,109 @@ import { isMedlumOwnerEmail } from "@/lib/owner";
 import { AUTH_LIMITS, authBucketKey, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { issueLoginOtp, roleRequiresOtp } from "@/lib/otp";
 import { normalizeClinicRole } from "@/lib/workflow";
+import { findDoctorByStaffLoginId, isStaffLoginIdFormat, normalizeStaffLoginId } from "@/lib/staff-id";
 
+/**
+ * Staff authentication:
+ * Primary identifier = MedLum Staff Login ID (ClinicMember.staffCode), e.g. CL01038020.
+ * Email remains profile/recovery only. Optional legacy email login for migration safety.
+ */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const email = String(body.email || "").toLowerCase().trim();
     const password = String(body.password || "");
+    const staffIdRaw = String(body.staffId || body.loginId || body.staffCode || "").trim();
+    const emailRaw = String(body.email || "").toLowerCase().trim();
 
-    if (!email || !password) return NextResponse.json({ success: false, error: "Email and password required" }, { status: 400 });
+    const identifier = staffIdRaw || emailRaw;
+    if (!identifier || !password) {
+      return NextResponse.json(
+        { success: false, error: "Staff Login ID and password are required" },
+        { status: 400 }
+      );
+    }
 
-    const rl = await consumeRateLimit(authBucketKey("login", req, email), AUTH_LIMITS.login.limit, AUTH_LIMITS.login.windowMs);
+    const rl = await consumeRateLimit(
+      authBucketKey("login", req, identifier.toLowerCase()),
+      AUTH_LIMITS.login.limit,
+      AUTH_LIMITS.login.windowMs
+    );
     if (!rl.allowed) {
       const { body: b, headers } = rateLimitResponse(rl.retryAfterSec);
       return NextResponse.json(b, { status: 429, headers });
     }
 
-    const doctor = await prisma.doctor.findUnique({ where: { email } });
-    if (!doctor || !(await verifyPassword(password, doctor.passwordHash))) {
-      await writeAudit({ doctorId: doctor?.id, action: "login_failed", entity: "Doctor", entityId: doctor?.id, meta: { email } });
-      return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
+    let doctor: {
+      id: string;
+      name: string;
+      email: string;
+      passwordHash: string;
+      clinicName: string;
+      phone: string;
+      isActive: boolean;
+      createdAt: Date;
+    } | null = null;
+    let resolvedStaffCode = "";
+
+    const looksLikeEmail = identifier.includes("@");
+    const looksLikeStaffId = isStaffLoginIdFormat(identifier) || (!looksLikeEmail && staffIdRaw);
+
+    if (looksLikeStaffId && !looksLikeEmail) {
+      const resolved = await findDoctorByStaffLoginId(identifier);
+      if (resolved) {
+        doctor = resolved.doctor;
+        resolvedStaffCode = resolved.membership?.staffCode || normalizeStaffLoginId(identifier);
+      }
+    } else if (looksLikeEmail) {
+      doctor = await prisma.doctor.findUnique({ where: { email: identifier } });
+    } else {
+      const resolved = await findDoctorByStaffLoginId(identifier);
+      if (resolved) {
+        doctor = resolved.doctor;
+        resolvedStaffCode = resolved.membership?.staffCode || normalizeStaffLoginId(identifier);
+      } else {
+        doctor = await prisma.doctor.findUnique({
+          where: { email: identifier.toLowerCase() },
+        });
+      }
     }
 
-    if (!doctor.isActive) return NextResponse.json({ success: false, error: "This account is deactivated. Contact MedLum support." }, { status: 403 });
+    if (!doctor || !(await verifyPassword(password, doctor.passwordHash))) {
+      await writeAudit({
+        doctorId: doctor?.id,
+        action: "login_failed",
+        entity: "Doctor",
+        entityId: doctor?.id,
+        meta: { identifierType: looksLikeEmail ? "email" : "staffId" },
+      });
+      return NextResponse.json(
+        { success: false, error: "Invalid Staff Login ID or password" },
+        { status: 401 }
+      );
+    }
+
+    if (!doctor.isActive) {
+      return NextResponse.json(
+        { success: false, error: "This account is deactivated. Contact MedLum support." },
+        { status: 403 }
+      );
+    }
 
     const isOwner = isMedlumOwnerEmail(doctor.email);
     if (!isOwner) await ensurePrimaryClinic(doctor.id, doctor.clinicName);
 
     const memberships = await prisma.clinicMember.findMany({
       where: { doctorId: doctor.id, isActive: true },
-      select: { role: true, clinicId: true },
+      select: { role: true, clinicId: true, staffCode: true },
       orderBy: { createdAt: "asc" },
     });
     const membership = memberships[0];
     const primaryRole = isOwner ? "Owner" : normalizeClinicRole(membership?.role);
-    const requiresPrivilegedOtp = isOwner || memberships.some((m) => roleRequiresOtp(normalizeClinicRole(m.role)));
+    if (!resolvedStaffCode) {
+      resolvedStaffCode = memberships.find((m) => m.staffCode)?.staffCode || "";
+    }
+    const requiresPrivilegedOtp =
+      isOwner || memberships.some((m) => roleRequiresOtp(normalizeClinicRole(m.role)));
 
     if (requiresPrivilegedOtp) {
       try {
@@ -55,25 +124,54 @@ export async function POST(req: Request) {
           expiresAt: issued.expiresAt.toISOString(),
           deliveryChannel: issued.delivery.channel,
           ...(issued.delivery.devCode ? { devOtp: issued.delivery.devCode } : {}),
-          doctor: { id: doctor.id, name: doctor.name, email: doctor.email, primaryRole },
+          doctor: {
+            id: doctor.id,
+            name: doctor.name,
+            email: doctor.email,
+            primaryRole,
+            staffCode: resolvedStaffCode,
+          },
         });
       } catch (otpErr) {
         console.error("login otp issue failed", otpErr instanceof Error ? otpErr.message : "error");
-        const message = otpErr instanceof Error && otpErr.message.includes("not linked")
-          ? "Telegram is not linked to this account. Link Telegram first."
-          : "Unable to send verification code. Contact MedLum support if this continues.";
-        return NextResponse.json({ success: false, error: message, requiresTelegramLink: message.includes("not linked") }, { status: 503 });
+        const message =
+          otpErr instanceof Error && otpErr.message.includes("not linked")
+            ? "Telegram is not linked to this account. Link Telegram first."
+            : "Unable to send verification code. Contact MedLum support if this continues.";
+        return NextResponse.json(
+          {
+            success: false,
+            error: message,
+            requiresTelegramLink: message.includes("not linked"),
+          },
+          { status: 503 }
+        );
       }
     }
 
     await createSession({ doctorId: doctor.id, email: doctor.email });
-    await writeAudit({ doctorId: doctor.id, action: "login", entity: isOwner ? "PlatformOwner" : "Doctor", entityId: doctor.id, meta: { isOwner, primaryRole } });
+    await writeAudit({
+      doctorId: doctor.id,
+      action: "login",
+      entity: isOwner ? "PlatformOwner" : "Doctor",
+      entityId: doctor.id,
+      meta: { isOwner, primaryRole, staffCode: resolvedStaffCode },
+    });
 
     return NextResponse.json({
-      success: true, requiresOtp: false, isOwner,
+      success: true,
+      requiresOtp: false,
+      isOwner,
       doctor: {
-        id: doctor.id, name: doctor.name, email: doctor.email, clinicName: isOwner ? "MedLum Platform" : doctor.clinicName,
-        phone: doctor.phone, createdAt: doctor.createdAt.toISOString(), isOwner, primaryRole,
+        id: doctor.id,
+        name: doctor.name,
+        email: doctor.email,
+        clinicName: isOwner ? "MedLum Platform" : doctor.clinicName,
+        phone: doctor.phone,
+        createdAt: doctor.createdAt.toISOString(),
+        isOwner,
+        primaryRole,
+        staffCode: resolvedStaffCode,
       },
     });
   } catch (e) {
