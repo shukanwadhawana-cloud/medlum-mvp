@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { getSession } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
 import { writeAudit } from "@/lib/audit";
@@ -14,10 +15,11 @@ const STAFF_ROLES: ClinicRole[] = [
 async function getManagerContext() {
   const session = await getSession();
   if (!session) return null;
-  const membership = await prisma.clinicMember.findFirst({
-    where: { doctorId: session.doctorId, isActive: true, clinic: { isActive: true } },
+  const selected = await requireActiveClinicMembership(session.doctorId);
+  if (!selected) return null;
+  const membership = await prisma.clinicMember.findUnique({
+    where: { id: selected.membershipId },
     include: { clinic: true },
-    orderBy: { createdAt: "asc" },
   });
   if (!membership || !["Owner", "Admin", "Manager"].includes(membership.role)) return null;
   return { session, membership };
