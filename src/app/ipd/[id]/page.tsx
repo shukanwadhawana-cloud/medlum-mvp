@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname, useParams } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import IpdCoverSheet from "@/components/IpdCoverSheet";
 import { useDoctor } from "@/components/DoctorProvider";
 import { EXPANDED_LAB_CATALOG, EXPANDED_RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
 import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";
@@ -157,7 +158,7 @@ export default function IPDPatientWorkspace(){
  if(authLoading)return <AppShell><div className="p-6 text-sm text-gray-500">Loading…</div></AppShell>;
  if(!doctor)return <AppShell><div className="p-6 text-sm text-gray-500">Sign in to open the IPD clinical workspace.</div></AppShell>;
 
- if(!clinicalMode)return <AppShell><div className="p-4"><Link href="/ipd" className="text-xs text-[#c2183a] font-medium">← Back to IPD census</Link>{selected?<div className="mt-4 max-w-3xl bg-white rounded-xl border shadow-sm p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-lg font-semibold">{selected.name}</p><p className="text-xs text-gray-500">{selected.age} yrs · {selected.gender} · {selected.wardType||"Ward"} · Bed {selected.roomNumber||"Unassigned"}</p><p className="text-[11px] text-gray-500 mt-1">UHID: {selected.uhid||"—"} · MedLum ID: {selected.medlumId||"—"}</p><p className="text-[11px] text-gray-500">Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleDateString("en-IN"):"—"}</p></div><span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${selected.status==="DISCHARGED"?"bg-gray-100 text-gray-600":"bg-purple-50 text-purple-700"}`}>{selected.status==="DISCHARGED"?"DISCHARGED":"IPD"}</span></div><div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2"><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">BP</p><p className="font-semibold text-sm">{selected.vitals?.bp||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="font-semibold text-sm">{selected.vitals?.pulse||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="font-semibold text-sm">{selected.vitals?.spo2||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">RR</p><p className="font-semibold text-sm">{selected.vitals?.rr||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Allergy</p><p className="font-semibold text-sm text-red-700">{selected.allergies||"No known allergy recorded"}</p></div></div><div className="mt-3 grid md:grid-cols-2 gap-3 text-xs"><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Latest clinical context</p><p className="mt-1"><span className="text-gray-500">Complaint:</span> {selected.chiefComplaint||"—"}</p><p className="mt-0.5"><span className="text-gray-500">Diagnosis:</span> {selected.diagnosis||selected.workingDiagnosis||"—"}</p></div><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Location</p><p className="mt-1">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"—"}</p><p className="mt-0.5 text-gray-500">Department: {selected.department||"—"}</p></div></div><div className="mt-4 flex flex-wrap gap-2"><Link href={`/ipd/${selected.id}/clinical`} className="h-9 px-4 rounded-lg bg-[#140a1f] text-white text-xs font-semibold inline-flex items-center">Open Clinical Workspace</Link><span className="text-[10px] text-gray-500 self-center">Patient record & notes live inside the clinical workspace</span></div></div>:<div className="mt-4 bg-white rounded-xl border p-6 text-sm text-gray-500">IPD patient could not be found.</div>}</div></AppShell>;
+ if(!clinicalMode)return <AppShell><div className="p-4"><Link href="/ipd" className="text-xs text-[#c2183a] font-medium">← Back to IPD census</Link>{selected?<div className="mt-4 max-w-5xl bg-white rounded-xl border shadow-sm p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-lg font-semibold">{selected.name}</p><p className="text-xs text-gray-500">{selected.age} yrs · {selected.gender} · {selected.wardType||"Ward"} · Bed {selected.roomNumber||"Unassigned"}</p><p className="text-[11px] text-gray-500 mt-1">UHID: {selected.uhid||"—"} · MedLum ID: {selected.medlumId||"—"}</p><p className="text-[11px] text-gray-500">Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleDateString("en-IN"):"—"}</p></div><span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${selected.status==="DISCHARGED"?"bg-gray-100 text-gray-600":"bg-purple-50 text-purple-700"}`}>{selected.status==="DISCHARGED"?"DISCHARGED":"IPD"}</span></div><div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2"><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">BP</p><p className="font-semibold text-sm">{selected.vitals?.bp||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Pulse</p><p className="font-semibold text-sm">{selected.vitals?.pulse||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">SpO₂</p><p className="font-semibold text-sm">{selected.vitals?.spo2||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">RR</p><p className="font-semibold text-sm">{selected.vitals?.rr||"—"}</p></div><div className="border rounded-lg p-2"><p className="text-[10px] text-gray-500">Allergy</p><p className="font-semibold text-sm text-red-700">{selected.allergies||"No known allergy recorded"}</p></div></div><div className="mt-3 grid md:grid-cols-2 gap-3 text-xs"><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Latest clinical context</p><p className="mt-1"><span className="text-gray-500">Complaint:</span> {selected.chiefComplaint||"—"}</p><p className="mt-0.5"><span className="text-gray-500">Diagnosis:</span> {selected.diagnosis||selected.workingDiagnosis||"—"}</p></div><div className="rounded-lg border bg-slate-50/60 p-3"><p className="text-[10px] font-semibold text-gray-500 uppercase">Location</p><p className="mt-1">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"—"}</p><p className="mt-0.5 text-gray-500">Department: {selected.department||"—"}</p></div></div><div className="mt-4 flex flex-wrap gap-2"><Link href={`/ipd/${selected.id}/clinical`} className="h-9 px-4 rounded-lg bg-[#140a1f] text-white text-xs font-semibold inline-flex items-center">Open Clinical Workspace</Link><span className="text-[10px] text-gray-500 self-center">Patient record & notes live inside the clinical workspace</span></div></div>:<div className="mt-4 bg-white rounded-xl border p-6 text-sm text-gray-500">IPD patient could not be found.</div>}</div></AppShell>;
 
  const labOrders=selected?.labOrders||selected?.investigationOrders||[];
  const radOrders=selected?.diagnosticOrders||[];
@@ -218,22 +219,21 @@ export default function IPDPatientWorkspace(){
    </nav>
    <div className="flex-1 p-4 overflow-auto text-xs">
 
-    {/* COVER SHEET */}
+    {/* COVER SHEET — OPD-parity */}
     {mainTab==="Cover Sheet"&&(
-     <div className="space-y-4">
-      <h3 className="font-semibold text-sm">Cover Sheet · Clinical Snapshot</h3>
-      <div className="grid md:grid-cols-2 gap-3">
-       <div className="border rounded-lg p-3"><p className="font-semibold text-gray-500 mb-1">Problems / Diagnosis</p><p>{selected.diagnosis||selected.workingDiagnosis||"Not recorded"}</p>{selected.icdCode&&<p className="text-[10px] text-gray-500 mt-1">ICD-10: {selected.icdCode}</p>}</div>
-       <div className="border rounded-lg p-3"><p className="font-semibold text-gray-500 mb-1">Allergies</p><p className="text-red-700 font-medium">{selected.allergies||"No Known Allergies"}</p></div>
-       <div className="border rounded-lg p-3"><p className="font-semibold text-gray-500 mb-1">Active Medications</p><p className="text-gray-600">Use Orders → Order Medicines or MAR tab.</p></div>
-       <div className="border rounded-lg p-3"><p className="font-semibold text-gray-500 mb-1">Lab / Radiology</p><p className="text-gray-600">Use Lab and Radiology tabs for orders and results.</p></div>
-      </div>
-      <table className="w-full text-left border text-[11px]"><thead className="bg-slate-50"><tr><th className="p-2 border">Admission</th><th className="p-2 border">Status</th><th className="p-2 border">Ward</th><th className="p-2 border">Bed</th><th className="p-2 border">Consultant</th></tr></thead>
-      <tbody><tr><td className="p-2 border">{selected.admissionDate?new Date(selected.admissionDate).toLocaleString("en-IN"):"—"}</td><td className="p-2 border">{selected.status||"IPD"}</td><td className="p-2 border">{selected.wardType||"—"}</td><td className="p-2 border">{selected.roomNumber||"—"}</td><td className="p-2 border">{selected.consultantName||"—"}</td></tr></tbody></table>
-     </div>
+     <IpdCoverSheet
+      selected={selected}
+      vitals={vitals}
+      labOrders={labOrders}
+      radOrders={radOrders}
+      clinicalNotes={clinicalNotes}
+      onOpenOrders={(left)=>{setMainTab("Orders");setLeftNav(left)}}
+      onOpenNotes={()=>{setMainTab("Clinical Notes");setLeftNav("Note View")}}
+      onOpenVitals={()=>{setMainTab("Dashboard");setLeftNav("Vitals")}}
+     />
     )}
 
-    {/* DASHBOARD sub-panels */}
+{/* DASHBOARD sub-panels */}
     {mainTab==="Dashboard"&&leftNav==="Vitals"&&(
      <form onSubmit={saveVitals} className="space-y-3 max-w-xl">
       <h3 className="font-semibold text-sm">Vitals</h3>
