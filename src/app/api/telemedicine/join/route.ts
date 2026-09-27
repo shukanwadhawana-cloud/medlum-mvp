@@ -15,7 +15,33 @@ export async function GET(req: Request) {
     },
   });
 
-  if (!session) return NextResponse.json({ success: false, error: "Invalid or expired join token." }, { status: 401 });
+  let participant: { id: string; name: string; role: string } | null = null;
+  let resolvedSession = session;
+  if (!resolvedSession) {
+    const invited = await prisma.telemedicineParticipant.findUnique({
+      where: { tokenHash: hashJoinToken(token) },
+      select: {
+        id: true, name: true, role: true, status: true,
+        session: {
+          select: {
+            id: true, doctorId: true, patientId: true, appointmentId: true, clinicId: true,
+            scheduledAt: true, expiresAt: true, status: true, provider: true, meetingUrl: true,
+            startedAt: true, endedAt: true,
+          },
+        },
+      },
+    });
+    if (!invited || invited.status === "REVOKED") {
+      return NextResponse.json({ success: false, error: "Invalid or revoked participant link." }, { status: 401 });
+    }
+    participant = { id: invited.id, name: invited.name, role: invited.role };
+    resolvedSession = invited.session;
+    if (resolvedSession.status === "Active") {
+      await prisma.telemedicineParticipant.update({ where: { id: invited.id }, data: { status: "JOINED", joinedAt: new Date() } });
+    }
+  }
+
+  if (!resolvedSession) return NextResponse.json({ success: false, error: "Invalid or expired join token." }, { status: 401 });
   if (["Cancelled", "Completed", "Expired"].includes(session.status)) {
     return NextResponse.json({ success: false, error: "This telemedicine session is no longer joinable.", status: session.status }, { status: 410 });
   }
