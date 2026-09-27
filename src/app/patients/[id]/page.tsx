@@ -291,7 +291,7 @@ export default function PatientDetailPage() {
             <button type="button" onClick={() => setShowConsult(true)} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">New consult</button>
             {hasConsultDraft && <button type="button" onClick={restoreConsultDraft} className="h-9 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium">Restore draft</button>}
             <button type="button" onClick={() => setShowFollowUp(true)} className="h-9 px-3 rounded-lg border text-xs font-medium">Follow-up</button>
-            {p.careSetting !== "IPD" && <button type="button" onClick={openAdmission} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium">Transfer / Admit</button>}
+            {p.careSetting !== "IPD" && <button type="button" onClick={openAdmission} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium" aria-label="Transfer or admit patient">Transfer / Admit</button>}
             <Link href={`/patients/${id}/print`} className="h-9 px-3 rounded-lg border border-[#c2183a]/30 bg-[#c2183a]/5 text-[#c2183a] text-xs font-medium inline-flex items-center print:hidden">Print OPD Record</Link>
           </div>
         </div>
