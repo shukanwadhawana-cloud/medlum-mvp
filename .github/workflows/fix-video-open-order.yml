@@ -1,0 +1,62 @@
+name: fix-video-open-order
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reorder open before await
+        run: |
+          set -euo pipefail
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("src/app/telemedicine/[id]/page.tsx")
+          t = p.read_text()
+          old = '''  async function openVideoWithMic() {
+    setError("");
+    setPermHint("");
+    try {
+      await requestCameraMic();
+    } catch {
+      setPermHint(
+        "Allow Microphone when the browser asks. If nothing happens: Settings → Safari → Microphone → Allow for this website."
+      );
+    }
+    if (session?.meetingUrl) {
+      openConferenceInNewTab(session.meetingUrl);
+      setMsg("Video opened in a new tab — turn the mic ON in Jitsi (not muted). That is how iPad audio reaches the other phone.");
+    }
+  }'''
+          new = '''  function openVideoWithMic() {
+    setError("");
+    setPermHint("");
+    const url = session?.meetingUrl;
+    if (!url) {
+      setError("Video room is not ready yet. Start the call for the guest first, then try again.");
+      return;
+    }
+    // Open tab FIRST under the user gesture (Safari/iOS blocks delayed window.open).
+    openConferenceInNewTab(url);
+    void requestCameraMic()
+      .then(() => setMsg("Video opened in a new tab. Allow microphone/camera if asked, then join the MiroTalk room."))
+      .catch(() =>
+        setPermHint(
+          "Allow Microphone when the browser asks. Settings → Safari → Microphone → Allow for this website. Then use the mic control inside the video room."
+        )
+      );
+  }'''
+          if old not in t:
+              raise SystemExit("old block not found")
+          p.write_text(t.replace(old, new, 1))
+          print("reordered")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add "src/app/telemedicine/[id]/page.tsx"
+          git commit -m "fix(telemedicine): open MiroTalk tab before mic permission await" || exit 0
+          git push origin HEAD:main
