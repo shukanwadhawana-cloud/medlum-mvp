@@ -29,6 +29,11 @@ export default function PatientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showConsult, setShowConsult] = useState(!!appointmentId);
   const [showFollowUp, setShowFollowUp] = useState(false);
+  const [showAdmission, setShowAdmission] = useState(false);
+  const [admissionSaving, setAdmissionSaving] = useState(false);
+  const [admissionError, setAdmissionError] = useState("");
+  const [admission, setAdmission] = useState({ wardType: "Ward", roomNumber: "", consultantName: "", admissionReason: "" });
+  const [rooms, setRooms] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [followSaving, setFollowSaving] = useState(false);
   const [error, setError] = useState("");
@@ -201,6 +206,52 @@ export default function PatientDetailPage() {
     setClinicalNotes(await apiGetClinicalNotes(id));
   };
 
+  const openAdmission = async () => {
+    setAdmissionError("");
+    setAdmission({ wardType: "Ward", roomNumber: "", consultantName: "", admissionReason: "" });
+    setShowAdmission(true);
+    try {
+      const res = await fetch("/api/ipd", { credentials: "include", cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(json.rooms)) setRooms(json.rooms);
+      else setRooms([]);
+    } catch {
+      setRooms([]);
+    }
+  };
+
+  const submitAdmission = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdmissionSaving(true);
+    setAdmissionError("");
+    try {
+      const res = await fetch("/api/ipd", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "admit",
+          patientId: id,
+          wardType: admission.wardType,
+          unitType: admission.wardType,
+          roomNumber: admission.roomNumber,
+          consultantName: admission.consultantName,
+          admissionReason: admission.admissionReason,
+          admissionDate: new Date().toISOString(),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "Could not admit patient");
+      setShowAdmission(false);
+      setMsg(`Patient admitted to ${json.wardType === "ICU" ? "ICU" : "Ward"}.`);
+      await load();
+    } catch (e) {
+      setAdmissionError(e instanceof Error ? e.message : "Could not admit patient");
+    } finally {
+      setAdmissionSaving(false);
+    }
+  };
+
   const scheduleFollowUp = async (e: React.FormEvent) => {
     e.preventDefault(); setFollowError(""); setFollowSaving(true);
     try {
@@ -240,8 +291,8 @@ export default function PatientDetailPage() {
             <button type="button" onClick={() => setShowConsult(true)} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">New consult</button>
             {hasConsultDraft && <button type="button" onClick={restoreConsultDraft} className="h-9 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium">Restore draft</button>}
             <button type="button" onClick={() => setShowFollowUp(true)} className="h-9 px-3 rounded-lg border text-xs font-medium">Follow-up</button>
+            {p.careSetting !== "IPD" && <button type="button" onClick={openAdmission} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium">Transfer / Admit</button>}
             <Link href={`/patients/${id}/print`} className="h-9 px-3 rounded-lg border border-[#c2183a]/30 bg-[#c2183a]/5 text-[#c2183a] text-xs font-medium inline-flex items-center print:hidden">Print OPD Record</Link>
-            <Link href="/patients" className="h-9 px-3 rounded-lg border text-xs font-medium inline-flex items-center">Back</Link>
           </div>
         </div>
 
@@ -467,6 +518,36 @@ export default function PatientDetailPage() {
                 {!editingNoteId && <button type="button" disabled={noteSaving || !noteContent.trim()} onClick={() => saveClinicalNote(true)} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-60">Submit for verification</button>}
               </div>
             </div>
+          </Modal>
+        )}
+
+        {showAdmission && p && (
+          <Modal title={`Transfer / Admit — ${p.name}`} onClose={() => setShowAdmission(false)}>
+            {admissionError && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{admissionError}</div>}
+            <form onSubmit={submitAdmission} className="space-y-3">
+              <p className="text-xs text-gray-500">Move this active OPD patient into inpatient care without creating a new patient record. The existing OPD consultations and clinical history remain attached.</p>
+              <div>
+                <label className="text-xs text-gray-500">Destination</label>
+                <select value={admission.wardType} onChange={(e) => setAdmission({ ...admission, wardType: e.target.value, roomNumber: "" })} className="w-full h-10 px-3 rounded-lg border text-sm bg-white">
+                  <option value="Ward">Ward</option>
+                  <option value="ICU">ICU</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Bed / Room <span className="text-gray-400">(optional if not yet assigned)</span></label>
+                <select value={admission.roomNumber} onChange={(e) => setAdmission({ ...admission, roomNumber: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm bg-white">
+                  <option value="">Assign later</option>
+                  {rooms.filter((r:any) => !r.occupied).map((r:any) => <option key={r.id || r.roomNumber} value={r.roomNumber}>{r.roomNumber}{r.roomCategory ? ` · ${r.roomCategory}` : ""}{r.unitType ? ` · ${r.unitType}` : ""}</option>)}
+                </select>
+                {!rooms.length && <p className="mt-1 text-[11px] text-gray-400">No hospital rooms are configured yet. You can admit now and assign a room later from IPD.</p>}
+              </div>
+              <input value={admission.consultantName} onChange={(e) => setAdmission({ ...admission, consultantName: e.target.value })} placeholder="Consultant / treating team (optional)" className="w-full h-10 px-3 rounded-lg border text-sm" />
+              <textarea value={admission.admissionReason} onChange={(e) => setAdmission({ ...admission, admissionReason: e.target.value })} placeholder="Reason for admission / clinical indication" rows={3} className="w-full rounded-lg border px-3 py-2 text-sm" />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowAdmission(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
+                <button type="submit" disabled={admissionSaving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-semibold disabled:opacity-60">{admissionSaving ? "Admitting…" : "Confirm admission"}</button>
+              </div>
+            </form>
           </Modal>
         )}
 
