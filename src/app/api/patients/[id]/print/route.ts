@@ -9,7 +9,7 @@ import {
 
 /**
  * OPD clinical print package — same auth + tenant isolation as patient detail.
- * Clinical content only; no billing fields.
+ * Clinical content only; clinician/orderer attribution is intentionally omitted.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -43,22 +43,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const [encounters, prescriptions, labOrders, diagnosticOrders, clinicalNotes, appointments] =
     await Promise.all([
-      prisma.encounter.findMany({
-        where: { patientId: id },
-        orderBy: { createdAt: "asc" },
-      }),
+      prisma.encounter.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),
       prisma.prescription.findMany({
         where: { patientId: id, status: { not: "CANCELLED" } },
         orderBy: { createdAt: "asc" },
       }),
-      prisma.labOrder.findMany({
-        where: { patientId: id },
-        orderBy: { orderedAt: "asc" },
-      }),
-      prisma.diagnosticOrder.findMany({
-        where: { patientId: id },
-        orderBy: { orderedAt: "asc" },
-      }),
+      prisma.labOrder.findMany({ where: { patientId: id }, orderBy: { orderedAt: "asc" } }),
+      prisma.diagnosticOrder.findMany({ where: { patientId: id }, orderBy: { orderedAt: "asc" } }),
       prisma.clinicalNote.findMany({
         where: {
           clinicId: membership.clinicId,
@@ -66,31 +57,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           status: { in: ["FINAL", "VERIFIED", "SUBMITTED"] },
         },
         include: {
-          author: { select: { id: true, name: true } },
-          verifier: { select: { id: true, name: true } },
+          author: { select: { id: true } },
+          verifier: { select: { id: true } },
         },
         orderBy: { createdAt: "asc" },
       }),
-      prisma.appointment.findMany({
-        where: { patientId: id },
-        orderBy: { createdAt: "asc" },
-      }),
+      prisma.appointment.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),
     ]);
-
-  const doctorIds = new Set<string>();
-  for (const e of encounters) if (e.doctorId) doctorIds.add(e.doctorId);
-  for (const r of prescriptions) if (r.doctorId) doctorIds.add(r.doctorId);
-  for (const l of labOrders) if (l.doctorId) doctorIds.add(l.doctorId);
-  for (const d of diagnosticOrders) if (d.doctorId) doctorIds.add(d.doctorId);
-
-  const doctors = doctorIds.size
-    ? await prisma.doctor.findMany({
-        where: { id: { in: [...doctorIds] } },
-        select: { id: true, name: true },
-      })
-    : [];
-  const doctorName: Record<string, string> = {};
-  for (const d of doctors) doctorName[d.id] = d.name || "";
 
   const printable = {
     hospital: {
@@ -129,14 +102,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       rr: e.rr || "",
       weight: e.weight || "",
       height: e.height || "",
-      doctorName: doctorName[e.doctorId] || "",
       createdAt: e.createdAt.toISOString(),
     })),
     prescriptions: prescriptions.map((r) => ({
       id: r.id,
       medicines: r.medicines || "",
       advice: r.advice || "",
-      doctorName: doctorName[r.doctorId] || "",
       createdAt: r.createdAt.toISOString(),
     })),
     labOrders: labOrders.map((l) => ({
@@ -146,7 +117,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       status: l.status || "Ordered",
       result: l.result || "",
       notes: l.notes || "",
-      doctorName: doctorName[l.doctorId] || "",
       orderedAt: l.orderedAt.toISOString(),
       resultedAt: l.resultedAt?.toISOString() || null,
     })),
@@ -160,7 +130,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       findings: d.findings || "",
       impression: d.impression || "",
       notes: d.notes || "",
-      doctorName: doctorName[d.doctorId] || "",
       orderedAt: d.orderedAt.toISOString(),
       reportedAt: d.reportedAt?.toISOString() || null,
     })),
@@ -172,9 +141,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         title: n.title || "",
         content: n.content,
         status: n.status,
-        authorName: n.author?.name || "",
-        authorRole: n.authorRole || "",
-        verifierName: n.verifier?.name || "",
         finalizedAt: n.finalizedAt?.toISOString() || null,
         createdAt: n.createdAt.toISOString(),
       })),
