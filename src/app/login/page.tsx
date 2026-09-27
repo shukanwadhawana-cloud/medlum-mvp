@@ -9,7 +9,7 @@ import { useDoctor } from "@/components/DoctorProvider";
 export default function LoginPage() {
   const router = useRouter();
   const { setDoctor } = useDoctor();
-  const [email, setEmail] = useState("");
+  const [staffId, setStaffId] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [challengeId, setChallengeId] = useState("");
@@ -34,7 +34,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const result = await apiLogin(email, password);
+      const result = await apiLogin(staffId, password);
       if (result.success && result.requiresOtp && result.challengeId && result.doctor) {
         setDoctorId(result.doctor.id);
         setChallengeId(result.challengeId);
@@ -49,7 +49,7 @@ export default function LoginPage() {
           result.error ||
             (result.requiresTelegramLink
               ? "Link Telegram to this account before privileged login."
-              : "Invalid email or password")
+              : "Invalid Staff Login ID or password")
         );
     } catch {
       setError("Unable to reach server. Check your connection.");
@@ -60,10 +60,10 @@ export default function LoginPage() {
 
   const handleTelegramLink = async () => {
     setError("");
-    const emailValue = email.trim();
+    const staffIdValue = staffId.trim();
     const passwordValue = password;
-    if (!emailValue || !passwordValue) {
-      setError("Enter email and password, then connect Telegram.");
+    if (!staffIdValue || !passwordValue) {
+      setError("Enter Staff Login ID and password, then connect Telegram.");
       return;
     }
     setLinkLoading(true);
@@ -72,7 +72,7 @@ export default function LoginPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
-        body: JSON.stringify({ email: emailValue, password: passwordValue }),
+        body: JSON.stringify({ staffId: staffIdValue, password: passwordValue }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || !result.success) {
@@ -201,15 +201,15 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="mt-10 space-y-5">
               {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
               <div>
-                <label className="block text-sm font-medium mb-1.5">Email</label>
+                <label className="block text-sm font-medium mb-1.5">MedLum Staff ID</label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={staffId}
+                  onChange={(e) => setStaffId(e.target.value.toUpperCase())}
                   className="w-full h-12 px-4 rounded-xl border border-gray-200"
-                  placeholder="you@clinic.com"
-                  autoComplete="email"
+                  placeholder="CL01038020"
+                  autoComplete="username"
                 />
               </div>
               <div>
