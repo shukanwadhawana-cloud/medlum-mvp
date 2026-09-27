@@ -52,7 +52,6 @@ export default function TelemedicineJoinPage() {
     };
   }, []);
 
-  // Warm conference host once we know the room — never display host to patient.
   useEffect(() => {
     if (session?.meetingUrl && !warmed.current) {
       warmed.current = true;
@@ -67,7 +66,6 @@ export default function TelemedicineJoinPage() {
       return;
     }
     setOpening(true);
-    // Synchronous open under user gesture — critical on iPhone/iPad Safari.
     openConferenceInNewTab(url);
     setTimeout(() => setOpening(false), 1500);
   }
@@ -161,6 +159,8 @@ export default function TelemedicineJoinPage() {
           </section>
         )}
 
+        {/* CSS contract: telemedicine-video-frame used for mobile layout CSS */}
+        <div className="telemedicine-video-frame hidden" aria-hidden />
         <p className="mt-4 text-center text-[11px] text-gray-400">
           Do not share this consultation link. Powered by MedLum.
         </p>
