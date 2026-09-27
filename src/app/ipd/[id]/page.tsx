@@ -40,16 +40,24 @@ function Icd10Picker({ value, onChange, onDiagnosis }: { value: string; onChange
 
   useEffect(() => {
     const q = value.trim().toUpperCase();
-    if (!q) { setResults([]); return; }
+    if (!q) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
     const timer = window.setTimeout(async () => {
       setLoading(true);
       try {
         const res = await fetch(`/api/icd10?terms=${encodeURIComponent(q)}`, { credentials: "include", cache: "no-store" });
         const data = await res.json().catch(() => ({ results: [] }));
         const next = Array.isArray(data.results) ? data.results : [];
-        setResults(next);
         const exact = next.find((x: any) => String(x.code).toUpperCase() === q);
-        if (exact) onDiagnosis(String(exact.name));
+        if (exact) {
+          onDiagnosis(String(exact.name));
+          setResults([]);
+        } else {
+          setResults(next);
+        }
       } catch {
         setResults([]);
       } finally {
@@ -57,7 +65,7 @@ function Icd10Picker({ value, onChange, onDiagnosis }: { value: string; onChange
       }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [value, onDiagnosis]);
+  }, [value]);
 
   const choose = (item: { code: string; name: string }) => {
     onChange(item.code);
