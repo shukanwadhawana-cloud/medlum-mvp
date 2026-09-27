@@ -38,12 +38,11 @@ const checks = [
   ["join token remains hashed", sessions.includes("hashJoinToken(joinToken)")],
   ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
   ["doctor lifecycle controls", doctorLifecycle],
-  ["doctor video embed", doctorRoom.includes('allow="camera; microphone; fullscreen; display-capture; autoplay"')],
+  ["doctor new-tab join", doctorRoom.includes("openConferenceInNewTab") || doctorRoom.includes("Join video")],
   ["patient waiting room", patientRoom.includes("You're in the waiting room")],
-  ["patient video embed", patientRoom.includes("session.meetingUrl")],
+  ["patient join opens meeting", patientRoom.includes("session.meetingUrl") && (patientRoom.includes("openConferenceInNewTab") || patientRoom.includes("Join video call"))],
 ];
 
-// Ensure no hangup timer / 5-minute auto-end in UI (comments documenting absence are OK)
 const uiOnly = doctorRoom + patientRoom;
 if (/setTimeout\s*\(\s*[^,]+,\s*300\s*\*?\s*1000|hangup.*5\s*min|call will end after 5/i.test(uiOnly)) {
   failures.push("failed no artificial 5-minute call limit");
