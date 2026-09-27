@@ -17,7 +17,6 @@ export default function ClinicPage() {
   const [staffRole,setStaffRole]=useState("Consultant"), [staffPassword,setStaffPassword]=useState("");
   const [telegramLinks,setTelegramLinks]=useState<Record<string,string>>({});
   const [hospitalName,setHospitalName]=useState(""), [hospitalAddress,setHospitalAddress]=useState(""), [hospitalPhone,setHospitalPhone]=useState(""), [hospitalEmail,setHospitalEmail]=useState("");
-  const [hospitalName,setHospitalName]=useState(""), [hospitalAddress,setHospitalAddress]=useState(""), [hospitalPhone,setHospitalPhone]=useState(""), [hospitalEmail,setHospitalEmail]=useState("");
   const [hospitalSaving,setHospitalSaving]=useState(false);
   const [telegramLoading,setTelegramLoading]=useState<string>("");
   const [ekaStatus,setEkaStatus]=useState<EkaStatus|null>(null), [ekaLoading,setEkaLoading]=useState(false), [ekaHipId,setEkaHipId]=useState(""), [ekaName,setEkaName]=useState("");
@@ -49,15 +48,6 @@ export default function ClinicPage() {
     }catch(e){setError(e instanceof Error?e.message:"Could not add hospital.");}finally{setHospitalSaving(false);}
   }
 
-  async function createHospital(e:React.FormEvent){
-    e.preventDefault();setSaving(true);setError("");setMessage("");
-    try{
-      const r=await fetch("/api/clinic",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"create-hospital",name:hospitalName,address:hospitalAddress,phone:hospitalPhone,email:hospitalEmail})});
-      const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Could not add hospital.");
-      setHospitalName("");setHospitalAddress("");setHospitalPhone("");setHospitalEmail("");
-      setMessage("Hospital ""+(j.hospital?.name||hospitalName)+"" added. Open Duty to configure its GPS/geofence and assign staff.");await load();
-    }catch(e){setError(e instanceof Error?e.message:"Could not add hospital.");}finally{setSaving(false);}
-  }
   async function createStaff(e:React.FormEvent){
     e.preventDefault();setSaving(true);setError("");setMessage("");
     try{
