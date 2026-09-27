@@ -119,11 +119,13 @@ export async function requireClinicalModule(doctorId: string, module: ClinicalMo
   // The MedLum platform owner has full access inside the selected active clinic,
   // regardless of that clinic's subscriber-facing product selection. Other users
   // remain governed by the clinic's OPD/IPD subscription entitlement.
-  const doctor = await prisma.doctor.findUnique({
-    where: { id: doctorId },
-    select: { email: true },
+  // Enterprise Master Owner is global and is intentionally NOT inferred as a
+  // facility Owner from clinic membership. Facility Owner remains role-based.
+  const ownerMembership = await prisma.clinicMember.findUnique({
+    where: { id: membership.membershipId },
+    select: { doctor: { select: { email: true } } },
   });
-  if (doctor && isMedlumOwnerEmail(doctor.email)) {
+  if (ownerMembership && isMedlumOwnerEmail(ownerMembership.doctor.email)) {
     return { allowed: true as const, clinicId: membership.clinicId };
   }
   const allowed = await clinicHasModule(membership.clinicId, module);
