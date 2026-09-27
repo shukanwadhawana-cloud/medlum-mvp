@@ -44,14 +44,14 @@ export default function DutyPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [adminMemberId, setAdminMemberId] = useState("");
+  const [adminMemberId, setAdminMemberId] = useState("");\n  const [selectedClinicId, setSelectedClinicId] = useState("");
   const [geoForm, setGeoForm] = useState({ dutyEnabled: false, dutyLat: "", dutyLng: "", dutyRadiusMeters: "200" });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (clinicId?: string) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/duty", { credentials: "include" });
+      const query = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : "";\n      const res = await fetch(`/api/duty${query}`, { credentials: "include" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Failed to load duty status");
       setData(body);
@@ -150,11 +150,11 @@ export default function DutyPage() {
         lng = pos.lng;
         accuracyMeters = pos.accuracyMeters;
       }
-      const res = await fetch("/api/duty", {
+      const res = await fetch("/api/duty",
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type, memberId, lat, lng, accuracyMeters }),
+        body: JSON.stringify({ type, memberId, clinicId: selectedClinicId || data?.selectedClinicId, lat, lng, accuracyMeters }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Punch failed");
