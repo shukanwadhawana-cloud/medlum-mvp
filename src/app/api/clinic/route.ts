@@ -24,6 +24,12 @@ export async function GET() {
     return NextResponse.json({ error: "This clinic is deactivated." }, { status: 403 });
   }
 
+  const facilities = await prisma.clinicMember.findMany({
+    where: { doctorId: ctx.session.doctorId, isActive: true, clinic: { isActive: true } },
+    select: { clinicId: true, role: true, clinic: { select: { id: true, name: true, address: true, isActive: true, dutyEnabled: true, dutyLat: true, dutyLng: true, dutyRadiusMeters: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+
   const members = await prisma.clinicMember.findMany({
     where: { clinicId: ctx.membership.clinicId },
     include: { doctor: { select: { id: true, name: true, email: true, phone: true, clinicName: true, isActive: true, deactivatedAt: true } } },
@@ -42,6 +48,11 @@ export async function GET() {
 
   return NextResponse.json({
     clinic: ctx.membership.clinic,
+    facilities: facilities.map((m) => ({
+      id: m.clinic.id, name: m.clinic.name, address: m.clinic.address, role: m.role,
+      isActive: m.clinic.isActive, dutyEnabled: m.clinic.dutyEnabled,
+      dutyLat: m.clinic.dutyLat, dutyLng: m.clinic.dutyLng, dutyRadiusMeters: m.clinic.dutyRadiusMeters,
+    })),
     facilities: facilities.map((f) => ({ ...f.clinic, role: f.role })),
     currentMember: {
       id: ctx.membership.id,
