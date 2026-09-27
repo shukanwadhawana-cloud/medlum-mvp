@@ -35,7 +35,7 @@ async function membershipCtx(doctorId: string, clinicId?: string) {
 }
 
 /** GET — own status + today's clinic board (admin sees all; staff sees self). */
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const requestedClinicId = new URL(req.url).searchParams.get("clinicId") || undefined;
