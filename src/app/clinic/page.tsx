@@ -16,6 +16,8 @@ export default function ClinicPage() {
   const [staffName,setStaffName]=useState(""), [staffEmail,setStaffEmail]=useState(""), [staffPhone,setStaffPhone]=useState("");
   const [staffRole,setStaffRole]=useState("Consultant"), [staffPassword,setStaffPassword]=useState("");
   const [telegramLinks,setTelegramLinks]=useState<Record<string,string>>({});
+  const [hospitalName,setHospitalName]=useState(""), [hospitalAddress,setHospitalAddress]=useState(""), [hospitalPhone,setHospitalPhone]=useState(""), [hospitalEmail,setHospitalEmail]=useState("");
+  const [hospitalSaving,setHospitalSaving]=useState(false);
   const [telegramLoading,setTelegramLoading]=useState<string>("");
   const [ekaStatus,setEkaStatus]=useState<EkaStatus|null>(null), [ekaLoading,setEkaLoading]=useState(false), [ekaHipId,setEkaHipId]=useState(""), [ekaName,setEkaName]=useState("");
 
@@ -35,6 +37,16 @@ export default function ClinicPage() {
   async function loadEkaStatus(){try{const r=await fetch("/api/interoperability/eka/status",{credentials:"include",cache:"no-store"});const j=await r.json().catch(()=>({}));if(r.ok)setEkaStatus(j);}catch{}}
   useEffect(()=>{void load();},[]);
   useEffect(()=>{if(data?.currentMember&&["Owner","Admin"].includes(data.currentMember.role))void loadEkaStatus();},[data?.currentMember]);
+
+  async function createHospital(e:React.FormEvent){
+    e.preventDefault();setHospitalSaving(true);setError("");setMessage("");
+    try{
+      const r=await fetch("/api/clinic",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"create-hospital",name:hospitalName,address:hospitalAddress,phone:hospitalPhone,facilityEmail:hospitalEmail})});
+      const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Could not add hospital.");
+      setHospitalName("");setHospitalAddress("");setHospitalPhone("");setHospitalEmail("");
+      setMessage("Hospital added: "+(j.clinic?.name||"new facility")+". You are now a "+(j.member?.role||data?.currentMember?.role||"member")+" there. Configure its location from Duty.");await load();
+    }catch(e){setError(e instanceof Error?e.message:"Could not add hospital.");}finally{setHospitalSaving(false);}
+  }
 
   async function createStaff(e:React.FormEvent){
     e.preventDefault();setSaving(true);setError("");setMessage("");
@@ -83,6 +95,20 @@ export default function ClinicPage() {
 
     {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">ABDM / EKA integration</h2><p className="text-xs text-gray-500 mt-1">Connect this clinic to EKA's ABDM facility onboarding flow.</p></div><span className={"rounded-full px-2.5 py-1 text-xs "+(ekaStatus?.configured?"bg-green-100 text-green-700":"bg-amber-100 text-amber-700")}>{ekaStatus?.configured?"Configured":"Not configured"}</span></div>{ekaStatus?.configured?<form onSubmit={onboardEka} className="mt-3 space-y-2"><input required value={ekaHipId} onChange={e=>setEkaHipId(e.target.value)} placeholder="EKA HIP ID" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input value={ekaName} onChange={e=>setEkaName(e.target.value)} placeholder={("Facility name (default: "+(data?.clinic?.name||"clinic")+")")} className="w-full rounded-xl border px-3 py-2.5 text-sm"/><button disabled={ekaLoading||!ekaHipId.trim()} className="w-full rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{ekaLoading?"Connecting…":"Onboard facility with EKA"}</button></form>:<p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">EKA credentials are not configured on this deployment. The rest of MedLum continues to work normally.</p>}</section>}
 
+    {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3">
+      <h2 className="font-semibold">Hospitals / Facilities</h2>
+      <p className="mt-1 text-xs text-gray-500">Your existing MedLum clinic is the default facility. Add additional hospitals here; each gets its own staff membership and independent Punch In geofence.</p>
+      <div className="mt-3 space-y-2">
+        {(data?.facilities||[]).map((f:any)=><div key={f.id} className="rounded-xl border bg-gray-50 p-3 flex items-center justify-between gap-3"><div className="min-w-0"><div className="font-medium truncate">{f.name}{f.id===data?.clinic?.id?<span className="ml-2 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold">DEFAULT</span>:null}</div><div className="text-xs text-gray-500 truncate">{f.address||"No address entered"} · {f.role}</div><div className="text-[11px] text-gray-500 mt-1">{f.dutyEnabled?"Geofence enabled":"Geofence not configured"}</div></div><Link href={"/duty?clinicId="+encodeURIComponent(f.id)} className="shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold">Location</Link></div>)}
+      </div>
+      <form onSubmit={createHospital} className="mt-4 space-y-2">
+        <div className="text-sm font-medium">Add hospital</div>
+        <input required value={hospitalName} onChange={e=>setHospitalName(e.target.value)} placeholder="Hospital / facility name" className="w-full rounded-xl border px-3 py-2.5 text-sm"/>
+        <input value={hospitalAddress} onChange={e=>setHospitalAddress(e.target.value)} placeholder="Address" className="w-full rounded-xl border px-3 py-2.5 text-sm"/>
+        <div className="grid grid-cols-2 gap-2"><input value={hospitalPhone} onChange={e=>setHospitalPhone(e.target.value)} placeholder="Hospital phone" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input type="email" value={hospitalEmail} onChange={e=>setHospitalEmail(e.target.value)} placeholder="Hospital email" className="w-full rounded-xl border px-3 py-2.5 text-sm"/></div>
+        <button disabled={hospitalSaving} className="w-full rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{hospitalSaving?"Adding hospital…":"Add hospital"}</button>
+      </form>
+    </section>}
     {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3"><h2 className="font-semibold">Staff Management</h2><p className="mt-1 text-xs text-gray-500">Create individual hospital logins and assign department roles. Privileged clinical and administrative accounts must have Telegram linked before login.</p><form onSubmit={createStaff} className="mt-3 grid gap-2 md:grid-cols-2"><input required value={staffName} onChange={e=>setStaffName(e.target.value)} placeholder="Full name" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input required type="email" value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="Email (contact / recovery - not login)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input required value={staffPhone} onChange={e=>setStaffPhone(e.target.value)} placeholder="Phone" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input required minLength={8} type="password" value={staffPassword} onChange={e=>setStaffPassword(e.target.value)} placeholder="Initial password (8+ characters)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><select value={staffRole} onChange={e=>setStaffRole(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm bg-white">{STAFF_ROLES.map(r=><option key={r} value={r}>{STAFF_ROLE_LABELS[r]||r}</option>)}</select><button disabled={saving} className="rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{saving?"Creating…":"Create staff account"}</button></form><div className="mt-3 rounded-xl bg-gray-50 p-3 text-xs text-gray-600">For Owner, Admin, Manager, Consultant, Doctor, RMO, Sister/Nurse and Pharmacist accounts, creation prepares a one-time Telegram link automatically. The staff member opens it and presses Start; no Telegram username needs to be typed manually.</div></section>}
 
     {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3"><h2 className="font-semibold">Patient Portal Access</h2><p className="text-xs text-gray-500 mt-1">Create or reset a patient's portal password. Patients only receive read-only access to their own records.</p><PortalForm patients={patients} selected={selected} setSelected={setSelected} saving={saving} setSaving={setSaving} setError={setError} setMessage={setMessage}/><Link href="/portal/login" target="_blank" className="inline-block mt-3 text-xs text-[#c2183a]">Open patient portal login →</Link></section>}
