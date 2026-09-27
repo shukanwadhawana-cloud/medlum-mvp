@@ -29,6 +29,7 @@ ok(schema.includes("dutyEnabled"), "clinic dutyEnabled");
 ok(schema.includes("WorkforceRecord"), "WorkforceRecord preserved");
 
 const api = readFileSync("src/app/api/duty/route.ts", "utf8");
+ok(!api.trim().includes("PLACEHOLDER"), "duty API is not a placeholder");
 ok(api.includes("requireActiveClinicMembership"), "tenant membership gate");
 ok(api.includes("evaluateGeofence"), "geofence check");
 ok(api.includes("DUTY_SELF_PUNCH") || api.includes("DUTY_ADMIN_PUNCH"), "audit actions");
@@ -72,10 +73,10 @@ ok(ui.includes("Admin mark attendance") || ui.includes("Mark IN"), "admin desk m
 ok(ui.includes("Hospital geofence"), "geofence config UI");
 
 const workforce = readFileSync("src/app/workforce/page.tsx", "utf8");
-ok(workforce.includes('"attendance"'), "workforce attendance tab");
+ok(workforce.includes('\"attendance\"'), "workforce attendance tab");
 ok(workforce.includes("/api/duty"), "workforce loads duty API");
 ok(workforce.includes("/api/duty") || workforce.includes("Open full Duty desk"), "workforce connects to duty");
-ok(workforce.includes('"attendance"') || workforce.includes("Attendance"), "workforce has attendance tab");
+ok(workforce.includes('\"attendance\"') || workforce.includes("Attendance"), "workforce has attendance tab");
 ok(true, "workforce attendance board optional enhancement");
 
 const lib = readFileSync("src/lib/duty.ts", "utf8");
