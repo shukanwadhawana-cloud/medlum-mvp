@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { formatIst } from "@/lib/time";
 import { letterheadStyle, showMedlumFooter } from "@/lib/print-layout";
 
@@ -53,6 +52,7 @@ export default function OpdPatientPrintPage() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
+    document.title = "OPD Clinical Record";
     if (!patientId) {
       setErr("Missing patient id");
       return;
@@ -79,9 +79,7 @@ export default function OpdPatientPrintPage() {
     return (
       <div className="p-6">
         <p className="text-red-600 text-sm">{err}</p>
-        <Link href={patientId ? `/patients/${patientId}` : "/patients"} className="text-sm text-[#c2183a]">
-          ← Patient
-        </Link>
+        <button type="button" onClick={() => window.history.back()} className="text-sm text-[#c2183a] print:hidden">← Patient</button>
       </div>
     );
   }
@@ -110,12 +108,10 @@ export default function OpdPatientPrintPage() {
       : null;
 
   return (
-    <div className="mx-auto max-w-[850px] bg-white p-6 text-[#140a1f] print:max-w-none print:p-0">
+    <div className="opd-print-page mx-auto max-w-[850px] bg-white p-6 text-[#140a1f] print:max-w-none print:p-0">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
-          <Link href={`/patients/${patientId}`} className="text-sm text-[#c2183a]">
-            ← Patient chart
-          </Link>
+          <p className="text-sm font-semibold text-[#140a1f]">OPD Clinical Record</p>
           <p className="mt-1 text-[11px] text-gray-500">OPD clinical paper record · A4</p>
         </div>
         <button
