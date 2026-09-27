@@ -27,8 +27,8 @@ ok(schema.includes("showMedlumFooter"), "showMedlumFooter in schema");
 const staffId = read("src/lib/staff-id.ts");
 ok(staffId.includes("allocateStaffCode"), "allocateStaffCode");
 ok(staffId.includes("staffIdPrefix"), "staffIdPrefix");
-ok(staffId.includes("DOC") && staffId.includes("LAB"), "DOC/LAB prefixes");
-ok(staffId.includes("padStart(4"), "zero-padded sequence");
+ok((staffId.includes("CL") || staffId.includes("DOC")) && (staffId.includes("LB") || staffId.includes("LAB")), "CL/LB (or legacy DOC/LAB) prefixes");
+ok(staffId.includes("padStart") || staffId.includes("randomBytes"), "staff code suffix generation");
 
 // Staff API does not reallocate on role change
 const clinicApi = read("src/app/api/clinic/route.ts");
