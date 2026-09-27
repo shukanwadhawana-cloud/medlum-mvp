@@ -10,25 +10,42 @@ export const runtime = "nodejs";
 
 /**
  * Pre-login Telegram linking.
- * Proves account ownership with email + password, but does NOT create a session.
+ * Proves account ownership with Staff Login ID + password (email accepted for migration).
+ * Does NOT create a session.
  */
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const staffId = String(body.staffId || body.loginId || body.staffCode || "").trim();
     const email = String(body.email || "").toLowerCase().trim();
     const password = String(body.password || "");
 
-    if (!email || !password) {
-      return NextResponse.json({ success: false, error: "Email and password required." }, { status: 400 });
+    if ((!staffId && !email) || !password) {
+      return NextResponse.json({ success: false, error: "Staff Login ID and password required." }, { status: 400 });
     }
 
-    const doctor = await prisma.doctor.findUnique({
-      where: { email },
-      select: { id: true, email: true, passwordHash: true, isActive: true, clinicName: true },
-    });
+    let doctor: { id: string; email: string; passwordHash: string; isActive: boolean; clinicName: string } | null = null;
+    if (staffId) {
+      const { findDoctorByStaffLoginId } = await import("@/lib/staff-id");
+      const resolved = await findDoctorByStaffLoginId(staffId);
+      doctor = resolved?.doctor
+        ? {
+            id: resolved.doctor.id,
+            email: resolved.doctor.email,
+            passwordHash: resolved.doctor.passwordHash,
+            isActive: resolved.doctor.isActive,
+            clinicName: resolved.doctor.clinicName,
+          }
+        : null;
+    } else {
+      doctor = await prisma.doctor.findUnique({
+        where: { email },
+        select: { id: true, email: true, passwordHash: true, isActive: true, clinicName: true },
+      });
+    }
 
     if (!doctor || !(await verifyPassword(password, doctor.passwordHash))) {
-      return NextResponse.json({ success: false, error: "Invalid email or password." }, { status: 401 });
+      return NextResponse.json({ success: false, error: "Invalid Staff Login ID or password." }, { status: 401 });
     }
 
     if (!doctor.isActive) {
@@ -59,44 +76,29 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         alreadyLinked: true,
-        telegramUsername: existing.telegramUsername || null,
+        telegramUsername: existing.telegramUsername,
+        message: "Telegram is already linked to this account.",
       });
     }
 
-    const username = String(process.env.TELEGRAM_BOT_USERNAME || "").trim().replace(/^@/, "");
-    if (!username) {
-      console.error("[MedLum Telegram] prelink CONFIG_MISSING username");
-      return NextResponse.json({ success: false, error: "Telegram bot is not configured.", reason: "CONFIG_MISSING" }, { status: 503 });
-    }
-
-    try {
-      await ensureTelegramWebhook();
-    } catch (error) {
-      const reason = classifyTelegramError(error);
-      console.error("[MedLum Telegram] prelink failed reason=", reason);
-      return NextResponse.json({
-        success: false,
-        error: "Telegram could not be configured.",
-        reason,
-      }, { status: 503 });
-    }
-
-    const { token, expiresAt } = await createTelegramLinkChallenge(doctor.id);
+    await ensureTelegramWebhook();
+    const challenge = await createTelegramLinkChallenge(doctor.id);
     await writeAudit({
       doctorId: doctor.id,
       action: "telegram_prelink_started",
-      entity: "TelegramLinkChallenge",
+      entity: "Doctor",
+      entityId: doctor.id,
       meta: {},
     });
 
     return NextResponse.json({
       success: true,
       alreadyLinked: false,
-      expiresAt: expiresAt.toISOString(),
-      deepLink: `https://t.me/${username}?start=${encodeURIComponent(token)}`,
+      deepLink: challenge.deepLink,
+      expiresAt: challenge.expiresAt.toISOString(),
     });
   } catch (e) {
-    console.error("telegram prelink error", e instanceof Error ? e.message : "error");
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
+    console.error("telegram prelink", classifyTelegramError(e));
+    return NextResponse.json({ success: false, error: "Unable to start Telegram linking." }, { status: 500 });
   }
 }
