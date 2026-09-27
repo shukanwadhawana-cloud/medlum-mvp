@@ -109,8 +109,6 @@ export default function DutyPage() {
       });
 
     let lastError: GeoFailure | null = null;
-    // GPS can take longer than a single 15s request on an iPhone indoors. Retry once
-    // with high accuracy, then once with the device's normal location provider.
     for (const options of [
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 },
@@ -126,7 +124,6 @@ export default function DutyPage() {
       } catch (err) {
         const e = err as GeoFailure;
         lastError = e;
-        // PERMISSION_DENIED cannot be repaired by retrying; give the user an actionable message.
         if (e.code === 1) {
           throw new Error("MedLum cannot access your location. Allow Location Services for the browser and allow location for medlum-mvp.vercel.app, then tap Punch again.");
         }
@@ -150,7 +147,6 @@ export default function DutyPage() {
       let lat: number | null = null;
       let lng: number | null = null;
       let accuracyMeters: number | null = null;
-      // Always request live device location for an attendance punch. This both triggers the native browser permission prompt on first use and records the location even when a hospital has not yet enabled a geofence.
       const pos = await getPosition();
       lat = pos.lat;
       lng = pos.lng;
@@ -209,7 +205,8 @@ export default function DutyPage() {
       .catch((e) => setError(e.message));
   }
 
-  const onDuty = data?.me.lastPunch?.type === "IN";
+  const onDuty = Boolean((data?.me as { onDuty?: boolean } | undefined)?.onDuty ?? data?.me.lastPunch?.type === "IN");
+  const elapsedMinutes = (data?.me as { elapsedMinutes?: number } | undefined)?.elapsedMinutes;
 
   return (
     <AppShell>
@@ -251,45 +248,26 @@ export default function DutyPage() {
                 {data.me.lastPunch && (
                   <span className="text-gray-500"> · last {data.me.lastPunch.type} {formatIst(data.me.lastPunch.punchedAt)}</span>
                 )}
+                {onDuty && typeof elapsedMinutes === "number" && (
+                  <span className="text-gray-500"> · elapsed {elapsedMinutes} min</span>
+                )}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={busy || onDuty}
-                  onClick={() => punch("IN")}
-                  className="rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
-                >
-                  Punch IN
-                </button>
-                <button
-                  type="button"
-                  disabled={busy || !onDuty}
-                  onClick={() => punch("OUT")}
-                  className="rounded-xl bg-[#c2183a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
-                >
-                  Punch OUT
-                </button>
+                <button type="button" disabled={busy || onDuty} onClick={() => punch("IN")} className="rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">Punch IN</button>
+                <button type="button" disabled={busy || !onDuty} onClick={() => punch("OUT")} className="rounded-xl bg-[#c2183a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">Punch OUT</button>
               </div>
               {data.clinic.dutyEnabled && (
-                <p className="mt-3 text-xs text-gray-500">
-                  Geofence on · radius {data.clinic.dutyRadiusMeters} m · location required
-                </p>
+                <p className="mt-3 text-xs text-gray-500">Geofence on · radius {data.clinic.dutyRadiusMeters} m · location required</p>
               )}
             </section>
 
             {data.isAdmin && (
               <section className="rounded-2xl border bg-white p-4 shadow-sm">
                 <h2 className="text-sm font-semibold">Admin mark attendance</h2>
-                <select
-                  className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-                  value={adminMemberId}
-                  onChange={(e) => setAdminMemberId(e.target.value)}
-                >
+                <select className="mt-2 w-full rounded-lg border px-3 py-2 text-sm" value={adminMemberId} onChange={(e) => setAdminMemberId(e.target.value)}>
                   <option value="">Select staff…</option>
                   {data.members.map((m) => (
-                    <option key={m.memberId} value={m.memberId}>
-                      {m.name} ({m.staffCode || m.role})
-                    </option>
+                    <option key={m.memberId} value={m.memberId}>{m.name} ({m.staffCode || m.role})</option>
                   ))}
                 </select>
                 <div className="mt-2 flex gap-2">
@@ -319,7 +297,7 @@ export default function DutyPage() {
             )}
 
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-semibold">Today&apos;s punches</h2>
+              <h2 className="text-sm font-semibold">Today's punches</h2>
               <ul className="mt-2 max-h-80 space-y-2 overflow-y-auto text-sm">
                 {data.todayEvents.length === 0 && <li className="text-gray-400">No punches yet today</li>}
                 {data.todayEvents.map((ev) => (

@@ -73,6 +73,8 @@ jobs:
         run: npm run test:p1-closure
       - name: Verify staff and workforce management
         run: npm run test:staff-workforce
+      - name: Verify duty and attendance management
+        run: npm run test:duty
       - name: Verify role-aware staff access and navigation
         run: npm run test:role-access
       - name: Verify P1 identity and tenant security regressions

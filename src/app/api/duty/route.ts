@@ -74,6 +74,13 @@ export async function GET(req: Request) {
       lat: true,
       lng: true,
       saniddhiRef: true,
+      member: {
+        select: {
+          staffCode: true,
+          role: true,
+          doctor: { select: { name: true } },
+        },
+      },
     },
   });
 
@@ -97,6 +104,33 @@ export async function GET(req: Request) {
       })
     : [];
 
+  let onDutyBoard: Array<{
+    memberId: string;
+    staffCode: string;
+    role: string;
+    name: string;
+    dutyStartedAt: string;
+    elapsedMinutes: number;
+  }> = [];
+  if (isAdmin && events.length > 0) {
+    const lastByMember = new Map<string, (typeof events)[0]>();
+    for (const ev of events) {
+      if (!lastByMember.has(ev.memberId)) lastByMember.set(ev.memberId, ev);
+    }
+    for (const [memberId, ev] of lastByMember) {
+      if (ev.type !== "IN") continue;
+      const m = members.find((x) => x.id === memberId);
+      onDutyBoard.push({
+        memberId,
+        staffCode: m?.staffCode || (ev as any).member?.staffCode || "",
+        role: m?.role || (ev as any).member?.role || "",
+        name: m?.doctor.name || (ev as any).member?.doctor?.name || "Staff",
+        dutyStartedAt: ev.punchedAt.toISOString(),
+        elapsedMinutes: Math.max(0, Math.floor((Date.now() - new Date(ev.punchedAt).getTime()) / 60000)),
+      });
+    }
+  }
+
   return NextResponse.json({
     clinics: availableClinics.map((m) => ({ id: m.clinic.id, name: m.clinic.name, address: m.clinic.address, role: normalizeClinicRole(m.role), dutyEnabled: m.clinic.dutyEnabled, dutyLat: m.clinic.dutyLat, dutyLng: m.clinic.dutyLng, dutyRadiusMeters: m.clinic.dutyRadiusMeters })),
     selectedClinicId: ctx.clinic.id,
@@ -115,16 +149,40 @@ export async function GET(req: Request) {
       name: ctx.doctor.name,
       lastPunch: lastSelf,
       expectedNext: lastSelf?.type === "IN" ? "OUT" : "IN",
+      onDuty: lastSelf?.type === "IN",
+      dutyStartedAt: lastSelf?.type === "IN" ? lastSelf.punchedAt : null,
+      elapsedMinutes:
+        lastSelf?.type === "IN" && lastSelf.punchedAt
+          ? Math.max(0, Math.round((Date.now() - new Date(lastSelf.punchedAt).getTime()) / 60000))
+          : null,
+      status: lastSelf?.type === "IN" ? "ON_DUTY" : "OFF_DUTY",
     },
     isAdmin,
     saniddhiConfigured: isSaniddhiConfigured(),
-    todayEvents: events,
+    todayEvents: events.map((ev) => ({
+      id: ev.id,
+      type: ev.type,
+      punchedAt: ev.punchedAt,
+      source: ev.source,
+      withinGeofence: ev.withinGeofence,
+      note: ev.note,
+      memberId: ev.memberId,
+      doctorId: ev.doctorId,
+      lat: ev.lat,
+      lng: ev.lng,
+      saniddhiRef: ev.saniddhiRef,
+      staffCode: (ev as any).member?.staffCode || "",
+      role: (ev as any).member?.role || "",
+      staffName: (ev as any).member?.doctor?.name || "",
+    })),
     members: members.map((m) => ({
       memberId: m.id,
       staffCode: m.staffCode,
       role: m.role,
       name: m.doctor.name,
     })),
+    onDutyBoard,
+    todayCount: events.length,
   });
 }
 
@@ -193,6 +251,33 @@ export async function POST(req: Request) {
   );
   if (!geo.ok) {
     return NextResponse.json({ error: geo.error, distanceMeters: geo.distanceMeters }, { status: 400 });
+  }
+
+  // Prevent nonsensical duplicate active punches (server is source of truth).
+  const lastPunch = await prisma.dutyAttendanceEvent.findFirst({
+    where: { clinicId: target.clinicId, memberId: target.id },
+    orderBy: { punchedAt: "desc" },
+    select: { type: true, punchedAt: true, id: true },
+  });
+  if (type === "IN" && lastPunch?.type === "IN") {
+    return NextResponse.json(
+      {
+        error: "Already on duty. Punch OUT before starting another duty.",
+        lastPunch: { type: lastPunch.type, punchedAt: lastPunch.punchedAt, id: lastPunch.id },
+      },
+      { status: 409 }
+    );
+  }
+  if (type === "OUT" && (!lastPunch || lastPunch.type === "OUT")) {
+    return NextResponse.json(
+      {
+        error: "Not currently on duty. Punch IN before ending duty.",
+        lastPunch: lastPunch
+          ? { type: lastPunch.type, punchedAt: lastPunch.punchedAt, id: lastPunch.id }
+          : null,
+      },
+      { status: 409 }
+    );
   }
 
   const event = await prisma.dutyAttendanceEvent.create({

@@ -138,6 +138,55 @@ export default function WorkforcePage() {
     finally { setSaving(false); }
   }
 
+  async function punchDuty(type: "IN" | "OUT") {
+    setSaving(true); setError(""); setMessage("");
+    try {
+      let lat: number | null = null;
+      let lng: number | null = null;
+      let accuracyMeters: number | null = null;
+      if (typeof navigator !== "undefined" && navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 })
+          );
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+          accuracyMeters = Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null;
+        } catch {
+          /* geofence may not be required */
+        }
+      }
+      const res = await fetch("/api/duty", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, lat, lng, accuracyMeters }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Punch failed");
+      setMessage(`Punch ${type} recorded.`);
+      await loadDuty();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Punch failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function formatElapsed(mins: number | null | undefined) {
+    if (mins == null || !Number.isFinite(mins)) return "—";
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h <= 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  }
+
+  function formatIstLocal(iso: string | Date | null | undefined) {
+    if (!iso) return "—";
+    const d = typeof iso === "string" ? new Date(iso) : iso;
+    return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+  }
+
   const activeStatus = (m: StaffMember) => m.isActive && m.doctor?.isActive !== false;
 
   return (
@@ -242,27 +291,101 @@ export default function WorkforcePage() {
       {tab === "attendance" && (
         <section className="space-y-4">
           <div className="rounded-2xl border bg-white p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold">Duty attendance</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-semibold">Duty & attendance</h2>
               <Link href="/duty" className="text-xs font-semibold text-[#c2183a]">Open full Duty desk →</Link>
             </div>
-            {!duty ? <p className="mt-3 text-sm text-gray-500">Loading attendance…</p> : (
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <Metric label="Today punches" value={String(duty.todayCount ?? duty.events?.length ?? "—")} />
-                <Metric label="Pending requests" value={String(duty.pendingCount ?? duty.requests?.length ?? "—")} />
-                <Metric label="Facility" value={duty.clinic?.name || clinic?.name || "—"} />
-              </div>
-            )}
-            {Array.isArray(duty?.events) && duty.events.length > 0 ? (
-              <div className="mt-4 divide-y rounded-xl border">
-                {duty.events.slice(0, 12).map((ev: any) => (
-                  <div key={ev.id} className="flex justify-between gap-2 px-3 py-2 text-xs">
-                    <span className="font-medium">{ev.type}</span>
-                    <span className="text-gray-500">{ev.punchedAt ? new Date(ev.punchedAt).toLocaleString() : ""}</span>
+            {!duty ? (
+              <p className="mt-3 text-sm text-gray-500">Loading attendance…</p>
+            ) : (
+              <>
+                <div className="mt-3 rounded-xl border bg-gray-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs text-gray-500">Your status · {duty.clinic?.name || clinic?.name || "Facility"}</div>
+                      <div className={`mt-1 text-lg font-bold ${duty.me?.onDuty || duty.me?.status === "ON_DUTY" ? "text-emerald-700" : "text-gray-600"}`}>
+                        {duty.me?.onDuty || duty.me?.status === "ON_DUTY" ? "ON DUTY" : "OFF DUTY"}
+                      </div>
+                      {duty.me?.dutyStartedAt ? (
+                        <div className="mt-1 text-xs text-gray-500">
+                          Started {formatIstLocal(duty.me.dutyStartedAt)} · elapsed {formatElapsed(duty.me.elapsedMinutes)}
+                        </div>
+                      ) : duty.me?.lastPunch ? (
+                        <div className="mt-1 text-xs text-gray-500">
+                          Last {duty.me.lastPunch.type} · {formatIstLocal(duty.me.lastPunch.punchedAt)}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-xs text-gray-500">No punches yet for this facility</div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={saving || duty.me?.onDuty || duty.me?.status === "ON_DUTY"}
+                        onClick={() => void punchDuty("IN")}
+                        className="h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
+                      >
+                        Punch IN
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saving || !(duty.me?.onDuty || duty.me?.status === "ON_DUTY")}
+                        onClick={() => void punchDuty("OUT")}
+                        className="h-11 rounded-xl bg-[#c2183a] px-4 text-sm font-semibold text-white disabled:opacity-40"
+                      >
+                        Punch OUT
+                      </button>
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : <p className="mt-3 text-sm text-gray-500">No recent punches loaded. Use Duty for punch and approvals.</p>}
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <Metric label="Today punches" value={String(duty.todayCount ?? duty.todayEvents?.length ?? 0)} />
+                  <Metric label="On duty now" value={String(duty.onDutyBoard?.length ?? (duty.me?.onDuty ? 1 : 0))} />
+                  <Metric label="Facility" value={duty.clinic?.name || clinic?.name || "—"} />
+                </div>
+
+                {Array.isArray(duty.onDutyBoard) && duty.onDutyBoard.length > 0 ? (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold">Currently on duty</h3>
+                    <div className="mt-2 divide-y rounded-xl border">
+                      {duty.onDutyBoard.map((row: any) => (
+                        <div key={row.memberId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
+                          <div>
+                            <span className="font-semibold text-[#140a1f]">{row.name}</span>
+                            {row.staffCode ? <span className="ml-2 text-gray-500">ID {row.staffCode}</span> : null}
+                            <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5">{row.role}</span>
+                          </div>
+                          <div className="text-gray-500">since {formatIstLocal(row.dutyStartedAt)} · {formatElapsed(row.elapsedMinutes)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-4">
+                  <h3 className="text-sm font-semibold">Today&apos;s attendance</h3>
+                  {Array.isArray(duty.todayEvents) && duty.todayEvents.length > 0 ? (
+                    <div className="mt-2 divide-y rounded-xl border">
+                      {duty.todayEvents.slice(0, 40).map((ev: any) => (
+                        <div key={ev.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
+                          <div>
+                            <span className={`font-semibold ${ev.type === "IN" ? "text-emerald-700" : "text-red-700"}`}>{ev.type}</span>
+                            {ev.staffName ? <span className="ml-2 font-medium text-[#140a1f]">{ev.staffName}</span> : null}
+                            {ev.staffCode ? <span className="ml-2 text-gray-500">ID {ev.staffCode}</span> : null}
+                            {ev.role ? <span className="ml-2 text-gray-500">{ev.role}</span> : null}
+                            <span className="ml-2 text-gray-400">{ev.source}</span>
+                          </div>
+                          <span className="text-gray-500">{formatIstLocal(ev.punchedAt)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-gray-500">No punches recorded today for this facility.</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </section>
       )}
@@ -296,8 +419,8 @@ export default function WorkforcePage() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-[70px] rounded-xl border bg-white px-3 py-2">
-      <div className="text-lg font-bold">{value}</div>
+    <div className="rounded-xl border bg-white px-3 py-2">
+      <div className="text-lg font-semibold text-[#140a1f]">{value}</div>
       <div className="text-[10px] text-gray-500">{label}</div>
     </div>
   );
