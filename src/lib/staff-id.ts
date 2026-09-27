@@ -1,53 +1,141 @@
+import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
 
-/** Role → clinical Staff ID prefix (unique within a clinic). */
+/**
+ * Central MedLum Staff Login ID generation.
+ * Format: ROLE_PREFIX + 8 digits (e.g. CL01038020).
+ * Not derived from PHI. Not sequential (avoids enumerating headcount).
+ * Permanent for the ClinicMember lifetime — never reallocated on role change.
+ */
+
+const PREFIX_BY_ROLE: Record<string, string> = {
+  owner: "ON",
+  admin: "AD",
+  manager: "MG",
+  consultant: "CL",
+  doctor: "CL",
+  rmo: "RM",
+  nurse: "RN",
+  registered_nurse: "RN",
+  laboratory: "LB",
+  lab: "LB",
+  pharmacy: "PH",
+  pharmacist: "PH",
+  diagnostic: "DG",
+  diagnostics: "DG",
+  billing: "BL",
+  receptionist: "RC",
+};
+
 export function staffIdPrefix(role: string): string {
-  const r = (role || "").toLowerCase();
-  if (r === "owner") return "OWN";
-  if (r === "admin") return "ADM";
-  if (r === "manager") return "MGR";
-  if (r === "consultant" || r === "doctor") return "DOC";
-  if (r === "rmo") return "RMO";
-  if (r === "nurse") return "NUR";
-  if (r === "laboratory" || r === "lab") return "LAB";
-  if (r === "pharmacy" || r === "pharmacist") return "PHARM";
-  if (r === "billing") return "BILL";
-  if (r === "receptionist") return "REC";
-  return "STF";
+  const r = String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  return PREFIX_BY_ROLE[r] || "ST";
+}
+
+/** Normalize user input for lookup (case-insensitive, strip spaces/dashes). */
+export function normalizeStaffLoginId(raw: string): string {
+  return String(raw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+export function isStaffLoginIdFormat(value: string): boolean {
+  const v = normalizeStaffLoginId(value);
+  return /^[A-Z]{2,5}\d{4,10}$/.test(v) || /^[A-Z]{2,5}-\d{4,10}$/.test(String(value || "").trim().toUpperCase());
 }
 
 /**
- * Allocate next Staff ID for clinic+prefix.
- * Staff ID is permanent clinical identity and must not be user-editable.
- * Role change / deactivation / reactivation must never reallocate it.
- * Uniqueness for non-empty codes is backed by partial unique index
- * ClinicMember(clinicId, staffCode) WHERE staffCode <> '' in migration
- * 20260922180000_staff_id_letterhead.
+ * Allocate a new Staff Login ID for a clinic membership.
+ * Uniqueness is enforced globally on non-empty staffCode values.
  */
 export async function allocateStaffCode(clinicId: string, role: string): Promise<string> {
   const prefix = staffIdPrefix(role);
-  const re = new RegExp(
-    "^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)$",
-    "i"
-  );
 
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const existing = await prisma.clinicMember.findMany({
-      where: { clinicId, staffCode: { startsWith: `${prefix}-` } },
-      select: { staffCode: true },
-    });
-    let max = 0;
-    for (const row of existing) {
-      const m = String(row.staffCode || "").match(re);
-      if (m) max = Math.max(max, parseInt(m[1], 10));
-    }
-    const n = max + 1 + attempt;
-    const code = `${prefix}-${String(n).padStart(4, "0")}`;
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const n = randomBytes(4).readUInt32BE(0) % 100_000_000;
+    const code = `${prefix}${String(n).padStart(8, "0")}`;
+
     const clash = await prisma.clinicMember.findFirst({
-      where: { clinicId, staffCode: code },
+      where: { staffCode: code },
       select: { id: true },
     });
     if (!clash) return code;
   }
-  return `${prefix}-${Date.now().toString().slice(-6)}`;
+
+  const fallback = `${prefix}${Date.now().toString().slice(-8)}`;
+  return fallback;
+}
+
+/**
+ * Resolve a Doctor by Staff Login ID (ClinicMember.staffCode).
+ * Accepts legacy codes with dashes (DOC-0001) by trying normalized and raw forms.
+ */
+export async function findDoctorByStaffLoginId(raw: string): Promise<{
+  doctor: {
+    id: string;
+    name: string;
+    email: string;
+    passwordHash: string;
+    clinicName: string;
+    phone: string;
+    isActive: boolean;
+    createdAt: Date;
+  };
+  membership: { id: string; clinicId: string; role: string; staffCode: string } | null;
+} | null> {
+  const normalized = normalizeStaffLoginId(raw);
+  if (!normalized) return null;
+
+  const candidates = Array.from(
+    new Set(
+      [
+        normalized,
+        String(raw || "").trim(),
+        String(raw || "").trim().toUpperCase(),
+        normalized.replace(/^([A-Z]{2,5})(\d+)$/, "$1-$2"),
+      ].filter(Boolean)
+    )
+  );
+
+  const membership = await prisma.clinicMember.findFirst({
+    where: {
+      OR: candidates.map((c) => ({ staffCode: c })),
+      isActive: true,
+    },
+    select: {
+      id: true,
+      clinicId: true,
+      role: true,
+      staffCode: true,
+      doctorId: true,
+      doctor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          passwordHash: true,
+          clinicName: true,
+          phone: true,
+          isActive: true,
+          createdAt: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!membership?.doctor) return null;
+  return {
+    doctor: membership.doctor,
+    membership: {
+      id: membership.id,
+      clinicId: membership.clinicId,
+      role: membership.role,
+      staffCode: membership.staffCode,
+    },
+  };
 }
