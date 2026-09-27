@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiMe, apiLogout, ApiDoctor } from "@/lib/api";
+import { defaultLandingPath } from "@/lib/permissions";
 
 type Ctx = {
   doctor: ApiDoctor | null;
@@ -70,33 +71,12 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const isPharmacist = Boolean(
-      doctor &&
-        !doctor.isOwner &&
-        ((doctor.designation || "").toLowerCase().includes("pharmac") ||
-          (doctor.primaryRole || "").toLowerCase().includes("pharmac"))
-    );
-    const isLaboratory = Boolean(
-      doctor &&
-        !doctor.isOwner &&
-        ((doctor.designation || "").toLowerCase().includes("laborator") ||
-          (doctor.designation || "").toLowerCase().includes("lab") ||
-          (doctor.primaryRole || "").toLowerCase().includes("laborator") ||
-          (doctor.primaryRole || "").toLowerCase() === "lab")
-    );
-    const isNursing = Boolean(
-      doctor &&
-        !doctor.isOwner &&
-        ((doctor.designation || "").toLowerCase().includes("nurs") ||
-          (doctor.primaryRole || "").toLowerCase().includes("nurs"))
-    );
-
-    if (isPharmacist && (pathname === "/" || pathname === "/dashboard")) {
-      router.replace("/pharmacy");
-    } else if (isLaboratory && (pathname === "/" || pathname === "/dashboard")) {
-      router.replace("/labs");
-    } else if (isNursing && (pathname === "/" || pathname === "/dashboard")) {
-      router.replace("/nursing");
+    // Role-aware home redirect for operational roles (Pharmacy / Lab / Nurse / Billing / Receptionist).
+    if (doctor && !doctor.isOwner && (pathname === "/" || pathname === "/dashboard")) {
+      const landing = defaultLandingPath(doctor.primaryRole);
+      if (landing !== "/dashboard" && landing !== pathname) {
+        router.replace(landing);
+      }
     }
   }, [checked, loading, doctor, pathname, router]);
 
@@ -110,7 +90,6 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
     () => ({ doctor, loading, refresh, logout, setDoctor }),
     [doctor, loading, refresh, logout]
   );
-
   return <DoctorContext.Provider value={value}>{children}</DoctorContext.Provider>;
 }
 
