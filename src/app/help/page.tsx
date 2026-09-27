@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 
@@ -50,6 +50,50 @@ const FAQS: { q: string; a: string; cat: string }[] = [
 export default function HelpPage() {
   const [open, setOpen] = useState<number | null>(0);
   const [filter, setFilter] = useState<string>("All");
+  const [clinics, setClinics] = useState<{ clinicId: string; clinicName: string }[]>([]);
+  const [clinicId, setClinicId] = useState("");
+  const [category, setCategory] = useState("Report a problem");
+  const [requestMessage, setRequestMessage] = useState("");
+  const [chatwootConfigured, setChatwootConfigured] = useState(false);
+  const [requestStatus, setRequestStatus] = useState("");
+  const [requestSending, setRequestSending] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/help", { credentials: "include", cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Unable to load Help.");
+        setClinics(data.clinics || []);
+        setChatwootConfigured(Boolean(data.configured));
+        if (data.clinics?.length) setClinicId(data.clinics[0].clinicId);
+      })
+      .catch((error) => setRequestStatus(error instanceof Error ? error.message : "Unable to load Help."));
+  }, []);
+
+  async function submitHelpRequest() {
+    if (!clinicId || !requestMessage.trim()) {
+      setRequestStatus("Select a facility and describe the problem.");
+      return;
+    }
+    setRequestSending(true);
+    setRequestStatus("");
+    try {
+      const res = await fetch("/api/help", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clinicId, category, message: requestMessage.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Unable to create help request.");
+      setRequestMessage("");
+      setRequestStatus(data.conversation?.displayId ? `Help request #${data.conversation.displayId} created.` : "Help request created.");
+    } catch (error) {
+      setRequestStatus(error instanceof Error ? error.message : "Unable to create help request.");
+    } finally {
+      setRequestSending(false);
+    }
+  }
   const cats = ["All", ...Array.from(new Set(FAQS.map((f) => f.cat)))];
   const list = filter === "All" ? FAQS : FAQS.filter((f) => f.cat === filter);
 
@@ -92,6 +136,43 @@ export default function HelpPage() {
           <p className="mt-1 text-xs text-gray-500">Members, roles, and clinic profile.</p>
         </Link>
       </div>
+
+      <section className="mb-6 rounded-2xl border bg-white p-4">
+        <div className="mb-1 text-sm font-semibold">Contact MedLum Help</div>
+        <p className="mb-4 text-xs text-gray-500">Create a support conversation with your MedLum facility context attached automatically.</p>
+        {!chatwootConfigured && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            Chat support is not connected yet. The Help integration is installed, but the Chatwoot service still needs to be configured.
+          </div>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <select className="rounded-lg border p-2.5 text-sm" value={clinicId} onChange={(e) => setClinicId(e.target.value)} disabled={requestSending}>
+            <option value="">Select facility</option>
+            {clinics.map((clinic) => <option key={clinic.clinicId} value={clinic.clinicId}>{clinic.clinicName}</option>)}
+          </select>
+          <select className="rounded-lg border p-2.5 text-sm" value={category} onChange={(e) => setCategory(e.target.value)} disabled={requestSending}>
+            {["OPD", "IPD", "Emergency", "Pharmacy", "Laboratory", "Diagnostics", "Telemedicine", "Workforce / Punch In", "Billing", "Account / Login", "Report a problem"].map((item) => <option key={item}>{item}</option>)}
+          </select>
+        </div>
+        <textarea
+          className="mt-3 min-h-24 w-full rounded-lg border p-3 text-sm"
+          value={requestMessage}
+          onChange={(e) => setRequestMessage(e.target.value)}
+          placeholder="Describe what happened and what you were trying to do."
+          disabled={requestSending}
+        />
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={submitHelpRequest}
+            disabled={!chatwootConfigured || requestSending}
+            className="rounded-lg bg-[#140a1f] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {requestSending ? "Creating…" : "Open Help Request"}
+          </button>
+          {requestStatus && <span className="text-xs text-gray-600" role="status">{requestStatus}</span>}
+        </div>
+      </section>
 
       <section className="overflow-hidden rounded-2xl border bg-white">
         <div className="border-b px-4 py-3 font-semibold">Frequently asked questions</div>
