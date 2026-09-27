@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { isMedlumOwnerEmail } from "@/lib/owner";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 export type ClinicalModule = "OPD" | "IPD";
 export type SubscriptionModel = "OPD" | "IPD" | "BOTH";
@@ -108,25 +109,21 @@ export async function clinicHasModule(clinicId: string, module: ClinicalModule) 
 }
 
 export async function getActiveClinicId(doctorId: string) {
-  const membership = await prisma.clinicMember.findFirst({
-    where: { doctorId, isActive: true, clinic: { isActive: true } },
-    select: { clinicId: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const membership = await requireActiveClinicMembership(doctorId);
   return membership?.clinicId || null;
 }
 
 export async function requireClinicalModule(doctorId: string, module: ClinicalModule) {
-  const membership = await prisma.clinicMember.findFirst({
-    where: { doctorId, isActive: true, clinic: { isActive: true } },
-    select: { clinicId: true, role: true, doctor: { select: { email: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const membership = await requireActiveClinicMembership(doctorId);
   if (!membership) return { allowed: false as const, clinicId: null };
-  // The MedLum platform owner has full access inside the owner's active clinic,
+  // The MedLum platform owner has full access inside the selected active clinic,
   // regardless of that clinic's subscriber-facing product selection. Other users
   // remain governed by the clinic's OPD/IPD subscription entitlement.
-  if (isMedlumOwnerEmail(membership.doctor.email)) {
+  const doctor = await prisma.doctor.findUnique({
+    where: { id: doctorId },
+    select: { email: true },
+  });
+  if (doctor && isMedlumOwnerEmail(doctor.email)) {
     return { allowed: true as const, clinicId: membership.clinicId };
   }
   const allowed = await clinicHasModule(membership.clinicId, module);
