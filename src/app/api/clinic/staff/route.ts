@@ -171,11 +171,55 @@ async function applyStaffAction(
   }
 
   if (action === "update-details") {
+    // Staff Login ID (staffCode) is permanent and never edited here.
     const designation = typeof body.designation === "string" ? body.designation.trim() : target.designation;
     const department = typeof body.department === "string" ? body.department.trim() : target.department;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+
+    if (name && name.length < 2) {
+      return NextResponse.json({ error: "Name must be at least 2 characters." }, { status: 400 });
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Invalid email address." }, { status: 400 });
+    }
+    if (email && email !== target.doctor.email) {
+      const clash = await prisma.doctor.findFirst({
+        where: { email, NOT: { id: target.doctorId } },
+        select: { id: true },
+      });
+      if (clash) return NextResponse.json({ error: "Email is already used by another account." }, { status: 409 });
+    }
+
+    const doctorData: { name?: string; email?: string; phone?: string } = {};
+    if (name) doctorData.name = name;
+    if (email) doctorData.email = email;
+    if (phone) doctorData.phone = phone;
+
+    if (Object.keys(doctorData).length > 0) {
+      await prisma.doctor.update({
+        where: { id: target.doctorId },
+        data: doctorData,
+      });
+    }
+
     const member = await prisma.clinicMember.update({
       where: { id },
       data: { designation: designation || target.role, department: department || "" },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            clinicName: true,
+            isActive: true,
+            deactivatedAt: true,
+          },
+        },
+      },
     });
     await writeAudit({
       doctorId: ctx.session.doctorId,
@@ -189,9 +233,12 @@ async function applyStaffAction(
         staffCode: target.staffCode,
         designation: member.designation,
         department: member.department,
+        name: member.doctor.name,
+        email: member.doctor.email,
+        phone: member.doctor.phone,
       },
     });
-    return NextResponse.json({ success: true, member });
+    return NextResponse.json({ success: true, member: serializeMember(member) });
   }
 
   if (action === "role") {
@@ -245,7 +292,6 @@ async function applyStaffAction(
     }
     const isActive = action === "reactivate";
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-    // Soft deactivation only — staffCode and clinical identity are preserved.
     const member = await prisma.clinicMember.update({
       where: { id },
       data: { isActive, deactivatedAt: isActive ? null : new Date() },
@@ -334,8 +380,8 @@ export async function POST(req: Request) {
         action: "telegram_staff_link_started",
         entity: "TelegramLinkChallenge",
         entityId: target.doctorId,
-        clinicId: ctx.membership.clinicId,
         meta: { targetDoctorId: target.doctorId, targetRole: target.role },
+        clinicId: ctx.membership.clinicId,
       });
       return NextResponse.json({
         success: true,
