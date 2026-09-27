@@ -6,11 +6,12 @@ import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic
 import { evaluateGeofence, isDutyAdminRole, type DutyPunchType } from "@/lib/duty";
 import { isSaniddhiConfigured, pushPunchToSaniddhi } from "@/lib/saniddhi";
 
-async function membershipCtx(doctorId: string) {
+async function membershipCtx(doctorId: string, clinicId?: string) {
   const m = await requireActiveClinicMembership(doctorId);
+  const selectedClinicId = clinicId || m?.clinicId;
   if (!m?.clinicId) return null;
   const row = await prisma.clinicMember.findFirst({
-    where: { id: m.membershipId, isActive: true },
+    where: { doctorId, clinicId: selectedClinicId, isActive: true, clinic: { isActive: true } },
     select: {
       id: true,
       clinicId: true,
@@ -37,7 +38,8 @@ async function membershipCtx(doctorId: string) {
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const ctx = await membershipCtx(session.doctorId);
+  const requestedClinicId = new URL(req.url).searchParams.get("clinicId") || undefined;
+  const ctx = await membershipCtx(session.doctorId, requestedClinicId);
   if (!ctx) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
 
   const role = normalizeClinicRole(ctx.role);
