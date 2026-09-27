@@ -245,6 +245,7 @@ async function applyStaffAction(
     if (ctx.membership.role === "Manager") {
       return NextResponse.json({ error: "Managers cannot change staff roles. Ask an Owner or Admin." }, { status: 403 });
     }
+    // Staff ID is permanent and is never reassigned on role change.
     const role =
       typeof body.role === "string" && STAFF_ROLES.includes(body.role as ClinicRole)
         ? (body.role as ClinicRole)
@@ -379,8 +380,8 @@ export async function POST(req: Request) {
         action: "telegram_staff_link_started",
         entity: "TelegramLinkChallenge",
         entityId: target.doctorId,
-        clinicId: ctx.membership.clinicId,
         meta: { targetDoctorId: target.doctorId, targetRole: target.role },
+        clinicId: ctx.membership.clinicId,
       });
       return NextResponse.json({
         success: true,
