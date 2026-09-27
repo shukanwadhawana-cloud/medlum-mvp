@@ -33,6 +33,57 @@ const LEFT_NAV:Record<MainTab,string[]>={
 
 const empty={name:"",age:"",gender:"Male",phone:"",address:"",idType:"Aadhaar",idNumber:"",allergies:"",careSetting:"IPD",mlcNumber:"",prdNumber:"",wardType:"General Ward",unitType:"Ward",roomNumber:"",chiefComplaint:"",hpi:"",pastHistory:"",surgicalHistory:"",systemicExam:"",workingDiagnosis:"",diagnosis:"",icdCode:"",consultantName:"",consultantSpecialty:"",notes:""};
 
+
+function Icd10Picker({ value, onChange, onDiagnosis }: { value: string; onChange: (value: string) => void; onDiagnosis: (value: string) => void }) {
+  const [results, setResults] = useState<{ code: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const q = value.trim().toUpperCase();
+    if (!q) { setResults([]); return; }
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/icd10?terms=${encodeURIComponent(q)}`, { credentials: "include", cache: "no-store" });
+        const data = await res.json().catch(() => ({ results: [] }));
+        const next = Array.isArray(data.results) ? data.results : [];
+        setResults(next);
+        const exact = next.find((x: any) => String(x.code).toUpperCase() === q);
+        if (exact) onDiagnosis(String(exact.name));
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [value, onDiagnosis]);
+
+  const choose = (item: { code: string; name: string }) => {
+    onChange(item.code);
+    onDiagnosis(item.name);
+    setResults([]);
+  };
+
+  return (
+    <div className="relative">
+      <label className="text-[11px] text-gray-500">ICD-10 code</label>
+      <input value={value} onChange={e => onChange(e.target.value.toUpperCase())} placeholder="e.g. I10, E11.9, J18.9" autoComplete="off" className="mt-1 w-full h-9 px-2 rounded-lg border text-xs font-mono" />
+      {loading && <p className="mt-1 text-[10px] text-gray-400">Looking up ICD-10…</p>}
+      {!loading && results.length > 0 && (
+        <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg border bg-white shadow-lg overflow-hidden">
+          {results.map(item => (
+            <button key={item.code} type="button" onClick={() => choose(item)} className="w-full text-left px-3 py-2 border-b last:border-0 hover:bg-gray-50 text-xs">
+              <span className="font-mono font-semibold">{item.code}</span>
+              <span className="ml-2">{item.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function IPDPatientWorkspace(){
  const params=useParams<{id:string}>(); const pathname=usePathname(); const patientId=String(params?.id||""); const clinicalMode=pathname.endsWith("/clinical");
  const{doctor,loading:authLoading}=useDoctor();
