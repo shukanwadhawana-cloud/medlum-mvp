@@ -1,4 +1,4 @@
-use client;
+"use client";
 
 type Props = {
   selected: any;
@@ -152,7 +152,7 @@ export default function IpdCoverSheet({
               onClick={() => onOpenOrders("Laboratory")}
               className="text-[11px] text-[#c2183a] font-medium"
             >
-              Open queue
+              Open labs
             </button>
           }
         >
