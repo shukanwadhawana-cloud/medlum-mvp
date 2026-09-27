@@ -1,0 +1,99 @@
+name: Restore IPD page from known-good
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore page from b6292fd and apply OPD-parity landing
+        run: |
+          git show b6292fd:src/app/ipd/\[id\]/page.tsx > "src/app/ipd/[id]/page.tsx"
+          python3 << 'PY'
+          from pathlib import Path
+          p = Path("src/app/ipd/[id]/page.tsx")
+          text = p.read_text()
+          assert "PLACEHOLDER" not in text
+          assert "clinicalMode" in text
+          old_start = 'if(!clinicalMode)return <AppShell>'
+          idx = text.find(old_start)
+          end_marker = '</div></AppShell>;'
+          end_idx = text.find(end_marker, idx) + len(end_marker)
+          new_block = r'''if(!clinicalMode)return <AppShell><div className="p-4 max-w-5xl mx-auto">
+ <Link href="/ipd" className="text-xs text-[#c2183a] font-medium">← Back to IPD census</Link>
+ {selected?(
+ <div className="mt-4 space-y-3">
+  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+   <div className="grid md:grid-cols-3 gap-0 text-xs">
+    <div className="p-3 border-r bg-emerald-50/40">
+     <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Patient</p>
+     <p className="font-semibold text-sm mt-1">{selected.name}</p>
+     <p className="text-gray-600 mt-0.5">{selected.age} yrs · {selected.gender} · UHID {selected.uhid||"—"}</p>
+     <p className="text-gray-500">MedLum ID: {selected.medlumId||"—"}</p>
+    </div>
+    <div className="p-3 border-r bg-sky-50/40">
+     <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Admission / Location</p>
+     <p className="font-semibold text-sm mt-1">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"Unassigned"}</p>
+     <p className="text-gray-600">Admitted: {selected.admissionDate?new Date(selected.admissionDate).toLocaleDateString("en-IN"):"—"}</p>
+     <p className="text-gray-500">Consultant: {selected.consultantName||"—"}</p>
+    </div>
+    <div className="p-3 bg-amber-50/40">
+     <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Clinical alerts</p>
+     <p className="font-semibold text-sm mt-1 text-red-700">Allergy: {selected.allergies||"No known allergy"}</p>
+     <p className="text-gray-600">Dx: {selected.diagnosis||selected.workingDiagnosis||"—"}{selected.icdCode?` (${selected.icdCode})`:""}</p>
+     <p className="text-gray-500">Status: {selected.status||"IPD"}</p>
+    </div>
+   </div>
+  </div>
+  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+   {[["BP",selected.vitals?.bp],["Pulse",selected.vitals?.pulse],["SpO₂",selected.vitals?.spo2],["RR",selected.vitals?.rr],["Temp",selected.vitals?.temperature]].map(([k,v])=>(
+    <div key={String(k)} className="border rounded-xl bg-white p-2.5 shadow-sm text-center">
+     <p className="text-[10px] text-gray-500 font-medium">{k}</p>
+     <p className="font-semibold text-sm mt-0.5">{v||"—"}</p>
+    </div>
+   ))}
+  </div>
+  <div className="grid md:grid-cols-2 gap-3">
+   <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
+    <div className="border-b px-3 py-2 bg-[#f8f6fa]"><p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Latest clinical context</p></div>
+    <div className="p-3 text-xs space-y-1">
+     <p><span className="text-gray-500">Complaint:</span> <span className="font-medium">{selected.chiefComplaint||"—"}</span></p>
+     <p><span className="text-gray-500">Diagnosis:</span> <span className="font-medium">{selected.diagnosis||selected.workingDiagnosis||"—"}</span></p>
+     {selected.icdCode&&<p className="text-[10px] text-gray-400">ICD-10: {selected.icdCode}</p>}
+    </div>
+   </div>
+   <div className="rounded-xl border bg-white overflow-hidden shadow-sm">
+    <div className="border-b px-3 py-2 bg-[#f8f6fa]"><p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Location</p></div>
+    <div className="p-3 text-xs space-y-1">
+     <p className="font-medium">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"—"}</p>
+     <p className="text-gray-500">Department: {selected.department||"—"}</p>
+     <p className="text-gray-500">Consultant: {selected.consultantName||"—"}{selected.consultantSpecialty?` · ${selected.consultantSpecialty}`:""}</p>
+    </div>
+   </div>
+  </div>
+  <div className="flex flex-wrap gap-2 items-center pt-1">
+   <Link href={`/ipd/${selected.id}/clinical`} className="h-10 px-5 rounded-lg bg-[#140a1f] text-white text-xs font-semibold inline-flex items-center shadow-sm">Open Clinical Workspace</Link>
+   <span className="text-[10px] text-gray-500">Full cover sheet, orders, notes & MAR live inside the clinical workspace</span>
+  </div>
+ </div>
+ ):<div className="mt-4 bg-white rounded-xl border p-6 text-sm text-gray-500">IPD patient could not be found.</div>}
+</div></AppShell>;'''
+          text = text[:idx] + new_block + text[end_idx:]
+          old = "const clinicalNotes=(selected?.clinicalNotes||selected?.notes||[]).filter((n:any)=>n.patientId===selected?.id||!n.patientId);"
+          new = "const clinicalNotes=Array.isArray(selected?.clinicalNotes)?selected.clinicalNotes:(Array.isArray(selected?.notes)?selected.notes:[]);"
+          if old in text:
+              text = text.replace(old, new)
+          p.write_text(text)
+          print("restored+enriched", len(text))
+          PY
+      - name: Commit
+        run: |
+          git config user.name "medlum-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add "src/app/ipd/[id]/page.tsx"
+          git commit -m "fix(ipd): restore page + OPD-parity pre-workspace landing" || echo "no change"
+          git push origin HEAD:main
