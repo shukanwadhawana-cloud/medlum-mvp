@@ -1,0 +1,34 @@
+name: fix-video-open
+on:
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: |
+          set -euo pipefail
+          F="src/app/telemedicine/[id]/page.tsx"
+          python3 -c "
+          from pathlib import Path
+          p=Path('$F')
+          t=p.read_text()
+          if 'from \"@/lib/telemedicine-client\"' not in t:
+            t=t.replace('import AppShell from \"@/components/AppShell\";','import AppShell from \"@/components/AppShell\";\nimport { openConferenceInNewTab, warmConferenceOrigin } from \"@/lib/telemedicine-client\";')
+          t=t.replace('window.open(session.meetingUrl, \"_blank\", \"noopener,noreferrer\");','openConferenceInNewTab(session.meetingUrl);')
+          t=t.replace('Join with mic (new tab)','Join video (new tab)')
+          if 'warmConferenceOrigin(session.meetingUrl)' not in t:
+            t=t.replace('  }, [params]);','  }, [params]);\n\n  useEffect(() => {\n    if (session?.meetingUrl) warmConferenceOrigin(session.meetingUrl);\n  }, [session?.meetingUrl]);',1)
+          p.write_text(t)
+          print('patched')
+          "
+      - name: Commit
+        run: |
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add "src/app/telemedicine/[id]/page.tsx"
+          git commit -m "fix(telemedicine): Safari-safe MiroTalk window open for clinician" || exit 0
+          git push origin HEAD:main
