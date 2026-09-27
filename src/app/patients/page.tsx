@@ -158,7 +158,7 @@ export default function PatientsPage() {
           <table className="min-w-[920px] w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-[#f6f4f8] text-[10px] uppercase tracking-wide text-gray-500 border-b">
               <tr>
-                <th className="px-2 py-2 font-semibold whitespace-nowrap">S.No</th>
+                <th className="sticky left-0 z-20 bg-[#f6f4f8] px-2 py-2 font-semibold whitespace-nowrap">Index</th>
                 <th className="px-2 py-2 font-semibold whitespace-nowrap">Patient ID</th>
                 <th className="px-2 py-2 font-semibold whitespace-nowrap">Patient Name</th>
                 <th className="px-2 py-2 font-semibold whitespace-nowrap">Age / Gender</th>
@@ -187,7 +187,7 @@ export default function PatientsPage() {
                   const isIPD = setting === "IPD";
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{i + 1}</td>
+                      <td className="sticky left-0 z-10 bg-white px-2 py-2 text-gray-500 font-medium whitespace-nowrap">{i + 1}</td>
                       <td className="px-2 py-2 font-mono text-[11px] whitespace-nowrap">{p.uhid || p.registrationNo || p.medlumId || p.id.slice(0, 8)}</td>
                       <td className="px-2 py-2 font-semibold text-sm whitespace-nowrap max-w-[180px] truncate">{p.name}</td>
                       <td className="px-2 py-2 whitespace-nowrap">{p.age} / {p.gender}</td>
