@@ -72,23 +72,68 @@ export default function DutyPage() {
     load();
   }, [load]);
 
+  type GeoFailure = Error & { code?: number; permission?: string };
+
+  async function getGeoPermission(): Promise<string> {
+    try {
+      if (!navigator.permissions?.query) return "unknown";
+      const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+      return status.state;
+    } catch {
+      return "unknown";
+    }
+  }
+
   async function getPosition(): Promise<{ lat: number; lng: number; accuracyMeters: number | null }> {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("Location not available on this device"));
-        return;
+    if (typeof window === "undefined" || !window.isSecureContext) {
+      throw new Error("Secure location access is unavailable. Open MedLum over HTTPS and try again.");
+    }
+    if (!navigator.geolocation) {
+      throw new Error("Location is not available in this browser/device. Open MedLum in Safari or Chrome with Location Services enabled.");
+    }
+
+    const permission = await getGeoPermission();
+    if (permission === "denied") {
+      throw new Error("Location permission is blocked for MedLum. On iPhone/iPad, open Settings → Privacy & Security → Location Services, enable Location Services for Safari, then return to MedLum and retry.");
+    }
+
+    const request = (options: PositionOptions) =>
+      new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+      });
+
+    let lastError: GeoFailure | null = null;
+    // GPS can take longer than a single 15s request on an iPhone indoors. Retry once
+    // with high accuracy, then once with the device's normal location provider.
+    for (const options of [
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 },
+    ]) {
+      try {
+        const pos = await request(options);
+        return {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracyMeters: Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null,
+        };
+      } catch (err) {
+        const e = err as GeoFailure;
+        lastError = e;
+        // PERMISSION_DENIED cannot be repaired by retrying; give the user an actionable message.
+        if (e.code === 1) {
+          throw new Error("MedLum cannot access your location. Allow Location Services for the browser and allow location for medlum-mvp.vercel.app, then tap Punch again.");
+        }
       }
-      navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          resolve({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracyMeters: pos.coords.accuracy ?? null,
-          }),
-        (err) => reject(new Error(err.message || "Location permission denied")),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    });
+    }
+
+    if (lastError?.code === 2) {
+      throw new Error("Your device could not determine a location. Turn on Location Services, enable Wi‑Fi/mobile data, move near a window if indoors, and retry.");
+    }
+    if (lastError?.code === 3) {
+      throw new Error("GPS location timed out. Keep Location Services on and retry; indoor GPS can take longer to acquire a fix.");
+    }
+    throw new Error("Could not obtain a reliable device location. Please retry.");
   }
 
   async function punch(type: "IN" | "OUT", memberId?: string) {
