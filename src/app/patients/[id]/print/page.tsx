@@ -25,6 +25,7 @@ function Section({
   breakBefore?: boolean;
 }) {
   return (
+
     <section
       className={`mt-5 border-t border-gray-200 pt-3 ${breakBefore ? "print:break-before-page" : ""}`}
       style={{ breakInside: "avoid" }}
