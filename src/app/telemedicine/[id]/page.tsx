@@ -23,6 +23,10 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
   const [id, setId] = useState("");
   const [session, setSession] = useState<any>(null);
   const [inviteLink, setInviteLink] = useState("");
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [participantName, setParticipantName] = useState("");
+  const [participantRole, setParticipantRole] = useState("Consultant");
+  const [participantInviteLink, setParticipantInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -42,6 +46,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Unable to load consultation.");
       setSession(j.session);
+      void loadParticipants(sessionId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load consultation.");
     } finally {
@@ -60,6 +65,50 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
   useEffect(() => {
     if (session?.meetingUrl) warmConferenceOrigin(session.meetingUrl);
   }, [session?.meetingUrl]);
+
+  async function loadParticipants(sessionId: string) {
+    try {
+      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(sessionId)}/participants`, { credentials: "include", cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) setParticipants(j.participants || []);
+    } catch { /* participant list is supplementary */ }
+  }
+
+  async function inviteParticipant() {
+    if (!id || !participantName.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(id)}/participants`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: participantName.trim(), role: participantRole }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Unable to invite participant.");
+      setParticipants((current) => [...current, j.participant]);
+      setParticipantName("");
+      setParticipantInviteLink(`${window.location.origin}/telemedicine/join?token=${encodeURIComponent(j.joinToken)}`);
+      setMsg("Participant invitation created. Share the link below.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to invite participant.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeParticipant(participantId: string) {
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(id)}/participants?participantId=${encodeURIComponent(participantId)}`, { method: "DELETE", credentials: "include" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Unable to revoke participant.");
+      setParticipants((current) => current.map((p) => p.id === participantId ? j.participant : p));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to revoke participant.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function patch(body: Record<string, unknown>) {
     if (!id) return null;
@@ -285,6 +334,38 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
             </Link>
           )}
         </div>
+
+        <section className="mt-4 rounded-2xl border bg-white p-4">
+          <div className="text-sm font-semibold">Invite additional people</div>
+          <p className="mt-1 text-xs text-gray-500">Zoom-style group call: invite another consultant, RMO, nurse, specialist, pharmacist, or observer. Everyone uses this same consultation room.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_180px_auto]">
+            <input value={participantName} onChange={(e) => setParticipantName(e.target.value)} placeholder="Person name" className="rounded-xl border px-3 py-2.5 text-sm" />
+            <select value={participantRole} onChange={(e) => setParticipantRole(e.target.value)} className="rounded-xl border px-3 py-2.5 text-sm">
+              <option>Consultant</option><option>Specialist</option><option>RMO</option><option>Nurse</option><option>Pharmacist</option><option>Observer</option><option>Guest</option>
+            </select>
+            <button type="button" disabled={busy || !participantName.trim()} onClick={() => void inviteParticipant()} className="rounded-xl bg-[#c2183a] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">Invite</button>
+          </div>
+          {participantInviteLink && (
+            <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
+              <div className="text-xs font-semibold text-green-900">New participant link</div>
+              <input readOnly value={participantInviteLink} onFocus={(e) => e.target.select()} className="mt-2 w-full rounded-lg border bg-white px-2 py-2 text-[11px]" />
+              <div className="mt-2 flex gap-2">
+                <button type="button" onClick={() => void navigator.clipboard?.writeText(participantInviteLink)} className="rounded-xl bg-[#140a1f] px-4 py-2 text-xs font-medium text-white">Copy link</button>
+                {navigator.share && <button type="button" onClick={() => void navigator.share({ title: "MedLum consultation", text: "Join the MedLum consultation", url: participantInviteLink })} className="rounded-xl border px-4 py-2 text-xs font-medium">Share…</button>}
+              </div>
+            </div>
+          )}
+          {participants.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {participants.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs">
+                  <div><span className="font-medium">{p.name}</span><span className="ml-2 text-gray-500">{p.role} · {p.status}</span></div>
+                  {p.status !== "REVOKED" && <button type="button" disabled={busy} onClick={() => void revokeParticipant(p.id)} className="text-red-600">Revoke</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {inviteLink && (
           <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
