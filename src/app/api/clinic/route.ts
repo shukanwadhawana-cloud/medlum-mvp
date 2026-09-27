@@ -48,11 +48,6 @@ export async function GET() {
 
   return NextResponse.json({
     clinic: ctx.membership.clinic,
-    facilities: facilities.map((m) => ({
-      id: m.clinic.id, name: m.clinic.name, address: m.clinic.address, role: m.role,
-      isActive: m.clinic.isActive, dutyEnabled: m.clinic.dutyEnabled,
-      dutyLat: m.clinic.dutyLat, dutyLng: m.clinic.dutyLng, dutyRadiusMeters: m.clinic.dutyRadiusMeters,
-    })),
     facilities: facilities.map((f) => ({ ...f.clinic, role: f.role })),
     currentMember: {
       id: ctx.membership.id,
