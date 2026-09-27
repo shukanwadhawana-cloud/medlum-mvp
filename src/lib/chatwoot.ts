@@ -6,7 +6,7 @@ type ChatwootConfig = {
 };
 
 function getConfig(): ChatwootConfig | null {
-  const baseUrl = process.env.CHATWOOT_BASE_URL?.replace(/\\/$/, "");
+  const baseUrl = process.env.CHATWOOT_BASE_URL?.replace(/\/$/, "");
   const accountId = process.env.CHATWOOT_ACCOUNT_ID;
   const inboxId = Number(process.env.CHATWOOT_INBOX_ID);
   const apiAccessToken = process.env.CHATWOOT_API_ACCESS_TOKEN;
