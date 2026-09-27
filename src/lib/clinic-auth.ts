@@ -42,6 +42,8 @@ export function normalizeClinicRole(role: string): ClinicRole {
   return ROLE_ALIASES[role] || ROLE_ALIASES[role.trim()] || "Consultant";
 }
 
+// Enterprise Master Owner is global and is intentionally NOT inferred as a
+// facility Owner from clinic membership. Facility Owner remains role-based.
 const ACTIVE_CLINIC_COOKIE = "medlum_active_clinic";
 const activeClinicCookieOptions = {
   httpOnly: true,
