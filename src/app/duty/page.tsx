@@ -149,7 +149,7 @@ export default function DutyPage() {
       let lat: number | null = null;
       let lng: number | null = null;
       let accuracyMeters: number | null = null;
-      if (data?.clinic.dutyEnabled) {
+      // Always request live device location for an attendance punch. This both triggers the native browser permission prompt on first use and records the location even when a hospital has not yet enabled a geofence.\n      {
         const pos = await getPosition();
         lat = pos.lat;
         lng = pos.lng;
