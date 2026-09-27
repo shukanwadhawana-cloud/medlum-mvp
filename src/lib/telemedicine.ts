@@ -31,8 +31,9 @@ export function sanitizeMeetingUrl(value: unknown) {
 }
 
 /**
- * Production default: MiroTalk P2P (self-hosted).
- * Override with VIDEO_PROVIDER=jitsi|external and VIDEO_BASE_URL as needed.
+ * Production default: MiroTalk P2P (primary MedLum conference engine).
+ * VIDEO_PROVIDER=mirotalk (default) | jitsi (legacy fallback only) | external.
+ * VIDEO_BASE_URL overrides the MiroTalk public origin when set.
  * No secrets committed — base URL from env.
  */
 export function getVideoProvider(): VideoProvider {
@@ -45,6 +46,7 @@ export function getVideoProvider(): VideoProvider {
  * High-entropy room URL with no PHI, patient id, doctor id, or appointment id.
  * Invitation/session expiry remains expiresAt on TelemedicineSession — NOT call duration.
  * There is no 5-minute call cutoff.
+ * Room secret is stored once on the session so clinician and patient always share the same room.
  */
 export function createVideoMeetingUrl(_sessionId?: string): string | null {
   const provider = getVideoProvider();
@@ -59,7 +61,7 @@ export function createVideoMeetingUrl(_sessionId?: string): string | null {
     return `${base}/join/${roomSecret}`;
   }
 
-  // Jitsi fallback (development / alternate provider)
+  // Legacy Jitsi fallback only when VIDEO_PROVIDER=jitsi explicitly set
   const base = (process.env.VIDEO_BASE_URL || "https://meet.jit.si").replace(/\/+$/, "");
   const room = `${base}/medlum-${roomSecret}`;
   const hash = [
