@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import { openConferenceInNewTab, warmConferenceOrigin } from "@/lib/telemedicine-client";
 
 function isAppleTouchDevice() {
   if (typeof navigator === "undefined") return false;
@@ -56,6 +57,10 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     });
   }, [params]);
 
+  useEffect(() => {
+    if (session?.meetingUrl) warmConferenceOrigin(session.meetingUrl);
+  }, [session?.meetingUrl]);
+
   async function patch(body: Record<string, unknown>) {
     if (!id) return null;
     const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(id)}`, {
@@ -94,7 +99,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       );
     }
     if (session?.meetingUrl) {
-      window.open(session.meetingUrl, "_blank", "noopener,noreferrer");
+      openConferenceInNewTab(session.meetingUrl);
       setMsg("Video opened in a new tab — turn the mic ON in Jitsi (not muted). That is how iPad audio reaches the other phone.");
     }
   }
@@ -113,7 +118,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       await patch({ status: "Active" });
       setMsg(
         isIos
-          ? "Call is live for the guest. On iPad: tap Join with mic (new tab) so your audio is sent — the in-page frame often blocks iPad mic."
+          ? "Call is live for the guest. On iPad: tap Join video (new tab) so your audio is sent — the in-page frame often blocks iPad mic."
           : "Call is live. Guest page will show video when they keep it open."
       );
       if (isIos && session?.meetingUrl) {
@@ -225,7 +230,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       {isIos && canJoin && (
         <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
           <strong>iPad / iPhone host:</strong> Safari often blocks microphone inside the embedded player. Use{" "}
-          <strong>Join with mic (new tab)</strong> so your voice reaches the other device. Check the mic icon is not muted
+          <strong>Join video (new tab)</strong> so your voice reaches the other device. Check the mic icon is not muted
           in Jitsi.
         </div>
       )}
@@ -254,7 +259,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               onClick={() => void openVideoWithMic()}
               className="rounded-xl bg-[#140a1f] px-3.5 py-2.5 text-sm font-medium text-white"
             >
-              Join with mic (new tab) — required on iPad
+              Join video (new tab) — required on iPad
             </button>
           )}
           {canJoin && (
@@ -320,7 +325,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
           <div className="mt-2 space-y-1 text-[11px] text-gray-500">
             <p>
               <strong>iPad audio not heard on iPhone?</strong> On the iPad tap{" "}
-              <strong>Join with mic (new tab)</strong>, Allow microphone, and ensure the Jitsi mic icon is unmuted. The
+              <strong>Join video (new tab)</strong>, Allow microphone, and ensure the Jitsi mic icon is unmuted. The
               in-page video box often cannot send iPad audio.
             </p>
             <p>
@@ -352,7 +357,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
             onClick={() => void openVideoWithMic()}
             className="mt-4 rounded-xl bg-[#140a1f] px-4 py-3 text-sm font-medium text-white"
           >
-            Join with mic (new tab)
+            Join video (new tab)
           </button>
         </section>
       ) : (
