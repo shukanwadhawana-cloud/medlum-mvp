@@ -115,6 +115,12 @@ export async function GET(req: Request) {
       name: ctx.doctor.name,
       lastPunch: lastSelf,
       expectedNext: lastSelf?.type === "IN" ? "OUT" : "IN",
+      onDuty: lastSelf?.type === "IN",
+      dutyStartedAt: lastSelf?.type === "IN" ? lastSelf.punchedAt : null,
+      elapsedMinutes:
+        lastSelf?.type === "IN" && lastSelf.punchedAt
+          ? Math.max(0, Math.round((Date.now() - new Date(lastSelf.punchedAt).getTime()) / 60000))
+          : null,
     },
     isAdmin,
     saniddhiConfigured: isSaniddhiConfigured(),
@@ -193,6 +199,33 @@ export async function POST(req: Request) {
   );
   if (!geo.ok) {
     return NextResponse.json({ error: geo.error, distanceMeters: geo.distanceMeters }, { status: 400 });
+  }
+
+  // Prevent nonsensical duplicate active punches (server is source of truth).
+  const lastPunch = await prisma.dutyAttendanceEvent.findFirst({
+    where: { clinicId: target.clinicId, memberId: target.id },
+    orderBy: { punchedAt: "desc" },
+    select: { type: true, punchedAt: true, id: true },
+  });
+  if (type === "IN" && lastPunch?.type === "IN") {
+    return NextResponse.json(
+      {
+        error: "Already on duty. Punch OUT before starting another duty.",
+        lastPunch: { type: lastPunch.type, punchedAt: lastPunch.punchedAt, id: lastPunch.id },
+      },
+      { status: 409 }
+    );
+  }
+  if (type === "OUT" && (!lastPunch || lastPunch.type === "OUT")) {
+    return NextResponse.json(
+      {
+        error: "Not currently on duty. Punch IN before ending duty.",
+        lastPunch: lastPunch
+          ? { type: lastPunch.type, punchedAt: lastPunch.punchedAt, id: lastPunch.id }
+          : null,
+      },
+      { status: 409 }
+    );
   }
 
   const event = await prisma.dutyAttendanceEvent.create({
