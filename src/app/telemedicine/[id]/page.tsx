@@ -351,7 +351,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               <input readOnly value={participantInviteLink} onFocus={(e) => e.target.select()} className="mt-2 w-full rounded-lg border bg-white px-2 py-2 text-[11px]" />
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={() => void navigator.clipboard?.writeText(participantInviteLink)} className="rounded-xl bg-[#140a1f] px-4 py-2 text-xs font-medium text-white">Copy link</button>
-                {navigator.share && <button type="button" onClick={() => void navigator.share({ title: "MedLum consultation", text: "Join the MedLum consultation", url: participantInviteLink })} className="rounded-xl border px-4 py-2 text-xs font-medium">Share…</button>}
+                {typeof navigator !== "undefined" && navigator.share && <button type="button" onClick={() => void navigator.share({ title: "MedLum consultation", text: "Join the MedLum consultation", url: participantInviteLink })} className="rounded-xl border px-4 py-2 text-xs font-medium">Share…</button>}
               </div>
             </div>
           )}
