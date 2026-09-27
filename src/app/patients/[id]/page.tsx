@@ -28,6 +28,7 @@ export default function PatientDetailPage() {
   const [noteError, setNoteError] = useState("");
   const [loading, setLoading] = useState(true);
   const [showConsult, setShowConsult] = useState(!!appointmentId);
+  const [consultSaved, setConsultSaved] = useState(false);
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [showAdmission, setShowAdmission] = useState(false);
   const [admissionSaving, setAdmissionSaving] = useState(false);
@@ -152,7 +153,8 @@ export default function PatientDetailPage() {
       if (consultDraftKey) window.localStorage.removeItem(consultDraftKey);
       setHasConsultDraft(false); setConsultDraftSavedAt(null);
       setMsg("Consultation confirmed and saved.");
-      setShowConsult(false);
+      setConsultSaved(true);
+      setShowConsult(true);
       setForm({ chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", followUpDate: "", bp: "", pulse: "", rr: "", temperature: "", spo2: "", weight: "", height: "", medicines: "", advice: "", billAmount: "" });
       setSelectedLabs([]);
       setSelectedDiagnostics([]);
@@ -288,7 +290,7 @@ export default function PatientDetailPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href={`/patients/${id}/chart`} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium inline-flex items-center">Clinical chart</Link>
-            <button type="button" onClick={() => setShowConsult(true)} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">New consult</button>
+            <button type="button" onClick={() => { setConsultSaved(false); setShowConsult(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">New consult</button>
             {hasConsultDraft && <button type="button" onClick={restoreConsultDraft} className="h-9 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium">Restore draft</button>}
             <button type="button" onClick={() => setShowFollowUp(true)} className="h-9 px-3 rounded-lg border text-xs font-medium">Follow-up</button>
             {p.careSetting !== "IPD" && <button type="button" onClick={openAdmission} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium" aria-label="Transfer or admit patient">Transfer / Admit</button>}
@@ -452,7 +454,7 @@ export default function PatientDetailPage() {
         </div>
 
         {showConsult && p && (
-          <Modal title={`Consultation — ${p.name}`} onClose={() => setShowConsult(false)}>
+          <Modal title={`Consultation — ${p.name}`} onClose={() => { setConsultSaved(false); setShowConsult(false); }}>
             <div className="mb-3 rounded-xl border border-[#e8dff0] bg-[#faf7fc] p-3">
               <p className="text-sm font-semibold text-[#140a1f]">Choose what to do with this consultation</p>
               <p className="text-xs text-gray-600 mt-1">Nothing is added to the clinical record until you choose <b>Confirm & Save</b>. You can keep an unfinished consultation as a draft or discard it completely.</p>
@@ -472,6 +474,17 @@ export default function PatientDetailPage() {
               </div>
             )}
             {error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+            {consultSaved ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                  Consultation confirmed and added to the clinical record.
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Link href={`/patients/${id}/print`} className="h-11 rounded-lg bg-[#c2183a] text-white text-xs font-semibold inline-flex items-center justify-center">Print OPD Record</Link>
+                  <button type="button" onClick={() => { setConsultSaved(false); setShowConsult(false); }} className="h-11 rounded-lg border text-xs font-medium">Close consultation</button>
+                </div>
+              </div>
+            ) : (
             <form onSubmit={handleSaveConsult} className="space-y-3">
               <div><label className="text-xs text-gray-500">Chief complaint</label><input value={form.chiefComplaint} onChange={(e) => setForm({ ...form, chiefComplaint: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
               <div><label className="text-xs text-gray-500">Diagnosis</label><input value={form.diagnosis} onChange={(e) => setForm({ ...form, diagnosis: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm" /></div>
@@ -494,6 +507,7 @@ export default function PatientDetailPage() {
                 <p className="text-[10px] text-gray-500 mt-2 text-center">Confirm & Save is the only action that creates the consultation in the clinical record.</p>
               </div>
             </form>
+            )}
           </Modal>
         )}
 
