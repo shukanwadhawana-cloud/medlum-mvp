@@ -69,8 +69,11 @@ ok(labsUi.length > 5000, "labs page not truncated");
 ok(labsUi.includes("Encounter not linked"), "neutral encounter label");
 
 const appShell = readFileSync(join(root, "src/components/AppShell.tsx"), "utf8");
-ok(appShell.includes("/ipd-summaries"), "nav includes IPD summaries");
+const permissions = readFileSync(join(root, "src/lib/permissions.ts"), "utf8");
+const navSource = `${appShell}\n${permissions}`;
+ok(navSource.includes("/ipd-summaries"), "nav includes IPD summaries");
 ok(appShell.includes("doctor?.isOwner"), "owner menu uses isOwner");
+ok(appShell.includes("primaryNavForRole") || appShell.includes("primaryNav"), "AppShell exposes primary nav");
 
 const rxPage = readFileSync(join(root, "src/app/prescriptions/page.tsx"), "utf8");
 ok(rxPage.includes("formatIst"), "prescriptions list uses formatIst");
