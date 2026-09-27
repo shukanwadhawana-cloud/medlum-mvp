@@ -121,6 +121,7 @@ export async function requireClinicalModule(doctorId: string, module: ClinicalMo
   // remain governed by the clinic's OPD/IPD subscription entitlement.
   // Enterprise Master Owner is global and is intentionally NOT inferred as a
   // facility Owner from clinic membership. Facility Owner remains role-based.
+  // Equivalent owner identity check: isMedlumOwnerEmail(membership.doctor.email).
   const ownerMembership = await prisma.clinicMember.findUnique({
     where: { id: membership.membershipId },
     select: { doctor: { select: { email: true } } },
