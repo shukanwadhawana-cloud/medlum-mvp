@@ -74,7 +74,8 @@ export default function DutyPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("clinicId") || undefined : undefined;
+    load(requested);
   }, [load]);
 
   type GeoFailure = Error & { code?: number; permission?: string };
