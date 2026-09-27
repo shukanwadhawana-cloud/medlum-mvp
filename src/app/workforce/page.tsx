@@ -1,152 +1,304 @@
 "use client";
 
-// Workforce Hub: persisted, clinic-scoped HRIS/HCM workflows.
-
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AppShell from "@/components/AppShell";
 
-type Member={id:string;staffCode:string;role:string;designation:string;department:string;doctor:{name:string;email:string}};
-type RecordRow={id:string;module:string;recordType:string;status:string;title:string;data:Record<string,unknown>;startAt:string|null;endAt:string|null;createdAt:string;member:Member|null};
+type StaffMember = {
+  id: string;
+  clinicId: string;
+  doctorId: string;
+  role: string;
+  staffCode: string;
+  designation: string;
+  department: string;
+  isActive: boolean;
+  deactivatedAt?: string | null;
+  telegramLinked: boolean;
+  telegramUsername?: string | null;
+  doctor?: { id: string; name: string; email: string; phone: string; isActive: boolean; deactivatedAt?: string | null };
+};
 
-const MODULES=[
-  ["HRIS","People directory, org structure, documents"],
-  ["Lifecycle","Hire, confirmation, promotion, transfer, exit, rehire"],
-  ["Recruit","Jobs, candidates, screening, offers"],
-  ["Onboarding","Pre-joining tasks, Day-1 checklist, surveys"],
-  ["Attendance","Punches, exceptions, regularisation, reports"],
-  ["Leave","Leave types, balances, requests, approvals, holidays"],
-  ["Shifts & Rosters","Shift templates, rosters, overtime, coverage"],
-  ["Payroll","Payroll inputs, payslips, statutory checklist"],
-  ["Expenses","Claims, receipts, approvals, reimbursement"],
-  ["Performance","Goals, OKR/MBO/BSC, feedback, appraisal cycles"],
-  ["Learning","Courses, assignments, completion, grading"],
-  ["Career & Skills","Skills matrix, gaps, development plans"],
-  ["Succession","Critical roles, talent pools, readiness"],
-  ["Discipline & Ethics","Cases, investigation, action, appeal, audit"],
-  ["Compensation","Salary changes, increments, compensation events"],
-  ["Analytics","Workforce metrics, absenteeism, attrition, headcount"],
-  ["Collaboration","Announcements, tasks, appreciation, HR requests"],
-] as const;
+const STAFF_ROLES = ["Admin","Manager","Consultant","Doctor","RMO","Nurse","Pharmacy","Laboratory","Billing","Receptionist","Staff"];
+const ROLE_LABELS: Record<string, string> = { Nurse: "Sister / Nurse", Pharmacy: "Pharmacist", Laboratory: "Lab" };
+type Tab = "staff" | "attendance" | "records";
 
-const STATUSES=["DRAFT","PENDING","APPROVED","REJECTED","ACTIVE","COMPLETED","CANCELLED"];
+export default function WorkforcePage() {
+  const [tab, setTab] = useState<Tab>("staff");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [query, setQuery] = useState("");
+  const [members, setMembers] = useState<StaffMember[]>([]);
+  const [clinic, setClinic] = useState<{ id: string; name: string; isActive?: boolean } | null>(null);
+  const [currentMember, setCurrentMember] = useState<{ id: string; role: string; staffCode?: string } | null>(null);
+  const [counts, setCounts] = useState({ total: 0, active: 0, inactive: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("Consultant");
+  const [designation, setDesignation] = useState("");
+  const [department, setDepartment] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [duty, setDuty] = useState<any>(null);
+  const [records, setRecords] = useState<any[]>([]);
+  const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
 
-export default function WorkforcePage(){
-  const [records,setRecords]=useState<RecordRow[]>([]);
-  const [members,setMembers]=useState<Member[]>([]);
-  const [module,setModule]=useState("HRIS");
-  const [loading,setLoading]=useState(true);
-  const [saving,setSaving]=useState(false);
-  const [error,setError]=useState("");
-  const [message,setMessage]=useState("");
-  const [form,setForm]=useState({recordType:"Employee record",title:"",memberId:"",status:"DRAFT",startAt:"",endAt:"",data:"{}"});
+  const canManageStaff = useMemo(() => ["Owner", "Admin", "Manager"].includes(currentMember?.role || ""), [currentMember]);
+  const canChangeRole = useMemo(() => ["Owner", "Admin"].includes(currentMember?.role || ""), [currentMember]);
 
-  const load=useCallback(async()=>{
-    setLoading(true);setError("");
-    try{
-      const [wr,st]=await Promise.all([
-        fetch("/api/workforce",{credentials:"include",cache:"no-store"}),
-        fetch("/api/clinic/staff",{credentials:"include",cache:"no-store"})
-      ]);
-      const wj=await wr.json().catch(()=>({})), sj=await st.json().catch(()=>({}));
-      setMembers(Array.isArray(sj.members)?sj.members:[]);
-      if(!wr.ok){
-        setRecords([]);
-        setError(wj.error||"Could not load workforce hub. Staff can still be managed from Clinic → Hospital staff.");
-      } else {
-        setRecords(wj.records||[]);
-        if(wj.warning) setError(String(wj.warning));
-      }
-    }catch(e){setError(e instanceof Error?e.message:"Could not load workforce hub");}
-    finally{setLoading(false);}
-  },[]);
-  useEffect(()=>{void load();},[load]);
+  const loadStaff = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (query.trim()) params.set("q", query.trim());
+      const res = await fetch(`/api/clinic/staff?${params.toString()}`, { credentials: "include", cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Could not load staff.");
+      setMembers(body.members || []);
+      setClinic(body.clinic || null);
+      setCurrentMember(body.currentMember || null);
+      setCounts(body.counts || { total: 0, active: 0, inactive: 0 });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load staff.");
+      setMembers([]);
+    } finally { setLoading(false); }
+  }, [statusFilter, query]);
 
-  const moduleCounts=useMemo(()=>MODULES.map(([name,countLabel])=>[name,records.filter(r=>r.module===name).length,countLabel] as const),[records]);
-  const activePeople=members.filter(m=>m.role!=="Owner").length;
-  const pending=records.filter(r=>r.status==="PENDING").length;
+  const loadDuty = useCallback(async () => {
+    try {
+      const res = await fetch("/api/duty", { credentials: "include", cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) setDuty(body);
+    } catch { /* optional */ }
+  }, []);
 
-  async function createRecord(e:React.FormEvent){
-    e.preventDefault();setSaving(true);setError("");setMessage("");
-    let data:Record<string,unknown>;
-    try{data=JSON.parse(form.data||"{}");}catch{setSaving(false);setError("Details must be valid JSON.");return;}
-    try{
-      const r=await fetch("/api/workforce",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({module,recordType:form.recordType,title:form.title,memberId:form.memberId||undefined,status:form.status,startAt:form.startAt||undefined,endAt:form.endAt||undefined,data})});
-      const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Could not save workforce record");
-      setMessage("Workforce record saved.");setForm(f=>({...f,title:"",data:"{}"}));await load();
-    }catch(e){setError(e instanceof Error?e.message:"Could not save workforce record");}
-    finally{setSaving(false);}
+  const loadRecords = useCallback(async () => {
+    try {
+      const res = await fetch("/api/workforce", { credentials: "include", cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) { setRecords(body.records || []); setRecordCounts(body.counts || {}); }
+    } catch { /* optional */ }
+  }, []);
+
+  useEffect(() => { void loadStaff(); }, [loadStaff]);
+  useEffect(() => {
+    if (tab === "attendance") void loadDuty();
+    if (tab === "records") void loadRecords();
+  }, [tab, loadDuty, loadRecords]);
+
+  async function createStaff(e: React.FormEvent) {
+    e.preventDefault(); setSaving(true); setError(""); setMessage("");
+    try {
+      const res = await fetch("/api/clinic/staff", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, phone, password, role, designation: designation || role, department }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Could not create staff.");
+      setMessage(`Staff created. Login ID: ${body.member?.staffCode || body.staffCode || "assigned"}. Share the password securely.`);
+      setName(""); setEmail(""); setPhone(""); setPassword(""); setDesignation(""); setDepartment(""); setRole("Consultant"); setShowCreate(false);
+      await loadStaff();
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not create staff."); }
+    finally { setSaving(false); }
   }
 
-  async function approve(id:string,status:"APPROVED"|"REJECTED"|"COMPLETED"){
-    setError("");setMessage("");
-    const r=await fetch("/api/workforce",{method:"PATCH",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status})});
-    const j=await r.json().catch(()=>({}));if(!r.ok)setError(j.error||"Update failed");else{setMessage("Workflow status updated.");await load();}
+  async function staffAction(member: StaffMember, action: "deactivate" | "reactivate" | "role" | "update-details", extra: Record<string, string> = {}) {
+    setSaving(true); setError(""); setMessage("");
+    try {
+      const res = await fetch("/api/clinic/staff", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, id: member.id, ...extra }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Action failed.");
+      setMessage(action === "deactivate" ? `Deactivated ${member.doctor?.name || "staff"}. Staff ID ${member.staffCode || ""} retained.` : action === "reactivate" ? `Reactivated ${member.doctor?.name || "staff"}.` : "Staff updated.");
+      await loadStaff();
+    } catch (err) { setError(err instanceof Error ? err.message : "Action failed."); }
+    finally { setSaving(false); }
   }
 
-  if(loading)return <AppShell><div className="text-sm text-gray-500">Loading Workforce Hub…</div></AppShell>;
+  async function linkTelegram(member: StaffMember) {
+    setSaving(true); setError("");
+    try {
+      const res = await fetch("/api/clinic/staff", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "telegram-link", memberId: member.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Could not prepare Telegram link.");
+      if (body.alreadyLinked) setMessage("Telegram already linked.");
+      else if (body.deepLink) { window.open(body.deepLink, "_blank", "noopener,noreferrer"); setMessage("Open Telegram and complete linking."); }
+      await loadStaff();
+    } catch (err) { setError(err instanceof Error ? err.message : "Telegram link failed."); }
+    finally { setSaving(false); }
+  }
 
-  return <AppShell>
-    <div className="space-y-4">
-      <header>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h1 className="text-xl font-bold">People & Workforce</h1><p className="text-sm text-gray-500">Hospital HRIS + workforce management from hire to exit, with employee self-service and manager approvals.</p><p className="mt-2 text-xs text-gray-600">To add doctors/nurses/staff accounts: open <a href="/clinic" className="font-semibold text-[#c2183a] underline">Clinic → Hospital staff</a>, create the person, then return here for HR workflows (leave, attendance, payroll notes).</p></div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <Metric label="People" value={String(activePeople)}/><Metric label="Pending" value={String(pending)}/><Metric label="Records" value={String(records.length)}/>
-          </div>
+  const activeStatus = (m: StaffMember) => m.isActive && m.doctor?.isActive !== false;
+
+  return (
+    <AppShell>
+      <div className="mb-4 space-y-1">
+        <div className="text-xs text-gray-500">
+          <Link href="/dashboard" className="text-[#c2183a]">Dashboard</Link>{" · "}
+          <Link href="/clinic" className="text-[#c2183a]">Clinic</Link>{" · "}
+          <Link href="/duty" className="text-[#c2183a]">Duty</Link>
         </div>
-      </header>
+        <h1 className="text-xl font-bold text-[#140a1f]">Staff & Workforce</h1>
+        <p className="text-sm text-gray-600">{clinic?.name ? <>Facility: <span className="font-semibold text-[#140a1f]">{clinic.name}</span></> : "Selected facility staff directory, attendance, and workforce records."}</p>
+      </div>
 
-      {error&&<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      {message&&<div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {([["staff", "Staff directory"], ["attendance", "Attendance"], ["records", "Workforce records"]] as const).map(([id, label]) => (
+          <button key={id} type="button" onClick={() => setTab(id)} className={`rounded-full px-3 py-1.5 text-sm font-medium ${tab === id ? "bg-[#140a1f] text-white" : "border bg-white text-gray-700"}`}>{label}</button>
+        ))}
+      </div>
 
-      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {moduleCounts.map(([name,count,description])=><button key={name} onClick={()=>setModule(name)} className={"rounded-xl border bg-white p-3 text-left hover:border-[#c2183a] "+(module===name?"ring-2 ring-[#c2183a]/20 border-[#c2183a]":"")}><div className="font-semibold text-sm">{name}</div><div className="mt-1 text-[11px] text-gray-500">{description}</div><div className="mt-2 text-xs font-semibold text-[#c2183a]">{count} records</div></button>)}
-      </section>
+      {error ? <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      {message ? <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</div> : null}
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <form onSubmit={createRecord} className="rounded-2xl border bg-white p-4">
-          <div className="flex items-center justify-between"><div><h2 className="font-semibold">Create / initiate {module}</h2><p className="text-xs text-gray-500 mt-1">{MODULES.find(m=>m[0]===module)?.[1]}</p></div><span className="rounded-full bg-gray-100 px-2 py-1 text-[10px]">PERSISTED</span></div>
-          <div className="mt-3 space-y-2">
-            <input required value={form.recordType} onChange={e=>setForm({...form,recordType:e.target.value})} placeholder="Record type (e.g. Leave request, Promotion, Candidate)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/>
-            <input required value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Title / employee action" className="w-full rounded-xl border px-3 py-2.5 text-sm"/>
-            <select value={form.memberId} onChange={e=>setForm({...form,memberId:e.target.value})} className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm"><option value="">Select employee / staff</option>{members.map(m=><option key={m.id} value={m.id}>{m.staffCode} · {m.doctor.name} · {m.designation||m.role}</option>)}</select>
-            <div className="grid grid-cols-2 gap-2"><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="rounded-xl border bg-white px-3 py-2.5 text-sm">{STATUSES.map(s=><option key={s}>{s}</option>)}</select><input type="date" value={form.startAt} onChange={e=>setForm({...form,startAt:e.target.value})} className="rounded-xl border px-3 py-2.5 text-sm"/></div>
-            <input type="date" value={form.endAt} onChange={e=>setForm({...form,endAt:e.target.value})} className="w-full rounded-xl border px-3 py-2.5 text-sm"/>
-            <textarea value={form.data} onChange={e=>setForm({...form,data:e.target.value})} rows={7} className="w-full rounded-xl border px-3 py-2.5 font-mono text-xs" placeholder='{"reason":"","amount":0,"approver":"","notes":""}'/>
-            <button disabled={saving} className="w-full rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving?"Saving…":"Create workflow record"}</button>
+      {tab === "staff" && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, Staff ID, role, department…" className="h-11 min-w-[200px] flex-1 rounded-xl border px-3 text-sm" />
+            <div className="flex gap-1 rounded-xl border bg-white p-1">
+              {(["all", "active", "inactive"] as const).map((s) => (
+                <button key={s} type="button" onClick={() => setStatusFilter(s)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize ${statusFilter === s ? "bg-[#c2183a] text-white" : "text-gray-600"}`}>
+                  {s}{s === "all" ? ` (${counts.total})` : s === "active" ? ` (${counts.active})` : ` (${counts.inactive})`}
+                </button>
+              ))}
+            </div>
+            {canManageStaff ? <button type="button" onClick={() => setShowCreate((v) => !v)} className="h-11 rounded-xl bg-[#c2183a] px-4 text-sm font-semibold text-white">{showCreate ? "Close form" : "Add staff"}</button> : null}
           </div>
-        </form>
 
-        <section className="rounded-2xl border bg-white p-4">
-          <div className="flex items-center justify-between gap-2"><div><h2 className="font-semibold">Live workforce register</h2><p className="text-xs text-gray-500 mt-1">Clinic-scoped records with audit-backed approvals.</p></div><select value={module} onChange={e=>setModule(e.target.value)} className="rounded-lg border bg-white px-2 py-2 text-xs">{MODULES.map(([name])=><option key={name}>{name}</option>)}</select></div>
-          <div className="mt-3 space-y-2 max-h-[620px] overflow-auto">
-            {records.filter(r=>r.module===module).length===0&&<div className="rounded-xl bg-gray-50 p-6 text-center text-sm text-gray-500">No {module} records yet. Create the first workflow above.</div>}
-            {records.filter(r=>r.module===module).map((r, index)=><div key={r.id} className="rounded-xl border p-3">
-              <div className="flex items-start justify-between gap-2"><div className="flex min-w-0 items-start gap-3"><div className="shrink-0 min-w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600" aria-label={`People index ${index + 1}`}>{index + 1}</div><div className="min-w-0"><div className="font-medium text-sm">{r.title}</div><div className="text-[11px] text-gray-500">{r.recordType}{r.member ? " · "+r.member.staffCode+" · "+r.member.doctor.name : ""}</div></div><span className={"rounded-full px-2 py-1 text-[10px] "+(r.status==="APPROVED"||r.status==="COMPLETED"||r.status==="ACTIVE"?"bg-green-100 text-green-700":r.status==="REJECTED"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700")}>{r.status}</span></div>
-              </div><div className="mt-2 rounded-lg bg-gray-50 p-2 text-[11px] text-gray-600 whitespace-pre-wrap break-words">{JSON.stringify(r.data,null,2)}</div>
-              {["PENDING","DRAFT"].includes(r.status)&&<div className="mt-2 flex gap-2"><button onClick={()=>approve(r.id,"APPROVED")} className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-medium text-white">Approve</button><button onClick={()=>approve(r.id,"REJECTED")} className="rounded-lg border px-3 py-1.5 text-xs">Reject</button></div>}
-            </div>)}
+          {showCreate && canManageStaff ? (
+            <form onSubmit={createStaff} className="space-y-3 rounded-2xl border bg-white p-4">
+              <div className="text-sm font-semibold">Add facility staff</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name *" className="h-11 rounded-xl border px-3 text-sm" />
+                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email *" className="h-11 rounded-xl border px-3 text-sm" />
+                <input required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone *" className="h-11 rounded-xl border px-3 text-sm" />
+                <input required type="password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Initial password (min 8) *" className="h-11 rounded-xl border px-3 text-sm" />
+                <select value={role} onChange={(e) => setRole(e.target.value)} className="h-11 rounded-xl border px-3 text-sm">{STAFF_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}</select>
+                <input value={designation} onChange={(e) => setDesignation(e.target.value)} placeholder="Designation (optional)" className="h-11 rounded-xl border px-3 text-sm" />
+                <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Department (optional)" className="h-11 rounded-xl border px-3 text-sm sm:col-span-2" />
+              </div>
+              <p className="text-[11px] text-gray-500">Staff Login ID is allocated automatically and stays permanent after deactivation. Privileged roles may need Telegram linking before production login.</p>
+              <button disabled={saving} type="submit" className="h-11 w-full rounded-xl bg-[#140a1f] text-sm font-semibold text-white disabled:opacity-50">{saving ? "Creating…" : "Create staff account"}</button>
+            </form>
+          ) : null}
+
+          {loading ? (
+            <div className="rounded-2xl border bg-white p-6 text-sm text-gray-500">Loading staff…</div>
+          ) : members.length === 0 ? (
+            <div className="rounded-2xl border bg-white p-6 text-sm text-gray-500">No staff match the current filters for this facility.</div>
+          ) : (
+            <div className="divide-y rounded-2xl border bg-white">
+              {members.map((m) => {
+                const active = activeStatus(m);
+                const isOwnerRow = m.role === "Owner";
+                return (
+                  <div key={m.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-[#140a1f]">{m.doctor?.name || "Staff"}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>{active ? "Active" : "Inactive"}</span>
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">{ROLE_LABELS[m.role] || m.role}</span>
+                      </div>
+                      <div className="text-xs text-gray-600">{m.staffCode ? <span className="mr-2 font-semibold text-[#140a1f]">ID {m.staffCode}</span> : null}{m.designation || m.role}{m.department ? ` · ${m.department}` : ""}</div>
+                      <div className="truncate text-xs text-gray-500">{m.doctor?.email}{m.doctor?.phone ? ` · ${m.doctor.phone}` : ""}</div>
+                      <div className="text-[11px] text-gray-500">{m.telegramLinked ? `Telegram linked${m.telegramUsername ? ` (@${m.telegramUsername})` : ""}` : ["Owner", "Admin", "Manager"].includes(m.role) ? "Telegram not linked" : "Telegram optional"}{!active && m.staffCode ? " · Staff ID retained" : ""}</div>
+                    </div>
+                    {canManageStaff && !isOwnerRow ? (
+                      <div className="flex flex-wrap gap-2">
+                        {canChangeRole ? (
+                          <select defaultValue={m.role} disabled={saving} onChange={(e) => { const next = e.target.value; if (next && next !== m.role) void staffAction(m, "role", { role: next }); }} className="h-9 rounded-lg border px-2 text-xs">
+                            {STAFF_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
+                          </select>
+                        ) : null}
+                        <button type="button" disabled={saving} onClick={() => { const nextDes = window.prompt("Designation", m.designation || m.role); if (nextDes === null) return; const nextDept = window.prompt("Department", m.department || ""); if (nextDept === null) return; void staffAction(m, "update-details", { designation: nextDes, department: nextDept }); }} className="h-9 rounded-lg border px-2.5 text-xs font-medium">Edit details</button>
+                        {["Owner", "Admin", "Manager"].includes(m.role) && !m.telegramLinked ? (
+                          <button type="button" disabled={saving} onClick={() => void linkTelegram(m)} className="h-9 rounded-lg border border-[#229ED9] px-2.5 text-xs font-semibold text-[#1688bd]">Link Telegram</button>
+                        ) : null}
+                        {active ? (
+                          <button type="button" disabled={saving} onClick={() => { if (window.confirm(`Deactivate ${m.doctor?.name}? Staff ID stays permanent. Historical records keep this identity.`)) void staffAction(m, "deactivate"); }} className="h-9 rounded-lg border border-amber-300 bg-amber-50 px-2.5 text-xs font-semibold text-amber-800">Deactivate</button>
+                        ) : (
+                          <button type="button" disabled={saving} onClick={() => void staffAction(m, "reactivate")} className="h-9 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-800">Reactivate</button>
+                        )}
+                      </div>
+                    ) : isOwnerRow ? <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs">Owner</span> : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "attendance" && (
+        <section className="space-y-4">
+          <div className="rounded-2xl border bg-white p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold">Duty attendance</h2>
+              <Link href="/duty" className="text-xs font-semibold text-[#c2183a]">Open full Duty desk →</Link>
+            </div>
+            {!duty ? <p className="mt-3 text-sm text-gray-500">Loading attendance…</p> : (
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <Metric label="Today punches" value={String(duty.todayCount ?? duty.events?.length ?? "—")} />
+                <Metric label="Pending requests" value={String(duty.pendingCount ?? duty.requests?.length ?? "—")} />
+                <Metric label="Facility" value={duty.clinic?.name || clinic?.name || "—"} />
+              </div>
+            )}
+            {Array.isArray(duty?.events) && duty.events.length > 0 ? (
+              <div className="mt-4 divide-y rounded-xl border">
+                {duty.events.slice(0, 12).map((ev: any) => (
+                  <div key={ev.id} className="flex justify-between gap-2 px-3 py-2 text-xs">
+                    <span className="font-medium">{ev.type}</span>
+                    <span className="text-gray-500">{ev.punchedAt ? new Date(ev.punchedAt).toLocaleString() : ""}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="mt-3 text-sm text-gray-500">No recent punches loaded. Use Duty for punch and approvals.</p>}
           </div>
         </section>
-      </section>
+      )}
 
-      <section className="rounded-2xl border bg-white p-4">
-        <h2 className="font-semibold">Workforce capability map</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["Hire → Onboard","Recruit, candidate pipeline, offer and Day-1 checklists"],
-            ["Manage","HRIS, employee lifecycle, attendance, leave, shifts and approvals"],
-            ["Pay & Spend","Payroll inputs, payslips, compensation and expense claims"],
-            ["Grow & Retain","Goals, feedback, learning, skills, career and succession"],
-            ["Govern","Discipline/ethics cases, investigations, appeals and audit trail"],
-            ["Workforce Intelligence","Headcount, absenteeism, leave utilisation, attrition and operational analytics"],
-            ["Employee Self-Service","Own attendance, leave, expense, learning and performance workflows"],
-            ["Hospital Operations","Staff ID, designation, department, active/deactive state and clinic scoping"],
-          ].map(([a,b])=><div key={a} className="rounded-xl bg-gray-50 p-3"><div className="text-sm font-semibold">{a}</div><div className="mt-1 text-xs text-gray-500">{b}</div></div>)}
-        </div>
-      </section>
-    </div>
-  </AppShell>;
+      {tab === "records" && (
+        <section className="space-y-4">
+          <div className="rounded-2xl border bg-white p-4">
+            <h2 className="font-semibold">Workforce records</h2>
+            <p className="mt-1 text-xs text-gray-500">Scoped to the selected facility. Uses existing WorkforceRecord modules.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.keys(recordCounts).length === 0 ? <span className="text-sm text-gray-500">No workforce records yet for this facility.</span> : Object.entries(recordCounts).map(([mod, n]) => (
+                <span key={mod} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium">{mod}: {n}</span>
+              ))}
+            </div>
+            {records.length > 0 ? (
+              <div className="mt-4 divide-y rounded-xl border">
+                {records.slice(0, 20).map((r: any) => (
+                  <div key={r.id} className="px-3 py-2">
+                    <div className="text-sm font-medium">{r.title}</div>
+                    <div className="text-[11px] text-gray-500">{r.module} · {r.recordType} · {r.status}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      )}
+    </AppShell>
+  );
 }
 
-function Metric({label,value}:{label:string;value:string}){return <div className="rounded-xl border bg-white px-3 py-2 min-w-[70px]"><div className="text-lg font-bold">{value}</div><div className="text-[10px] text-gray-500">{label}</div></div>}
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-[70px] rounded-xl border bg-white px-3 py-2">
+      <div className="text-lg font-bold">{value}</div>
+      <div className="text-[10px] text-gray-500">{label}</div>
+    </div>
+  );
+}
