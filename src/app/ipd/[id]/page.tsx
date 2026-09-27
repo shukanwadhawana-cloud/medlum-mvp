@@ -187,8 +187,12 @@ export default function IPDPatientWorkspace(){
       <h3 className="font-semibold text-sm">Final Diagnosis · ICD-10</h3>
       <input value={dxForm.workingDiagnosis} onChange={e=>setDxForm({...dxForm,workingDiagnosis:e.target.value})} placeholder="Working diagnosis" className="w-full h-9 px-2 rounded-lg border text-xs"/>
       <input value={dxForm.diagnosis} onChange={e=>setDxForm({...dxForm,diagnosis:e.target.value})} placeholder="Final diagnosis" className="w-full h-9 px-2 rounded-lg border text-xs"/>
-      <input value={dxForm.icdCode} onChange={e=>setDxForm({...dxForm,icdCode:e.target.value})} placeholder="ICD-10 code (e.g. I10, E11.9)" className="w-full h-9 px-2 rounded-lg border text-xs"/>
-      <p className="text-[10px] text-gray-500">Enter the ICD-10 code that matches the diagnosis.</p>
+      <Icd10Picker
+       value={dxForm.icdCode}
+       onChange={icdCode=>setDxForm(d=>({...d,icdCode}))}
+       onDiagnosis={diagnosis=>setDxForm(d=>({...d,diagnosis}))}
+      />
+      <p className="text-[10px] text-gray-500">Type an ICD-10 code such as I10 or E11.9. The matching diagnosis is fetched automatically and inserted into Final diagnosis.</p>
       <button disabled={saving} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Save Diagnosis"}</button>
      </form>
     )}
