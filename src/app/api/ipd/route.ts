@@ -116,7 +116,44 @@ if(action==="update-diagnosis"){
   await writeAudit({doctorId:session.doctorId,action:"update",entity:"Patient",entityId:patientId,meta:{diagnosisUpdated:true,workingDiagnosis,diagnosis,icdCode,clinicId}});
   return NextResponse.json({success:true,patientId,workingDiagnosis,diagnosis,icdCode});
 }
-if(action==="lab-order"){const patientId=String(body.patientId||""),testName=String(body.testName||"").trim();if(!patientId||!testName)return NextResponse.json({success:false,error:"Patient and investigation are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const order=await prisma.labOrder.create({data:{doctorId:session.doctorId,patientId,patientName:patient.name,testName,category:String(body.category||"Laboratory"),notes:String(body.notes||"")}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"LabOrder",entityId:order.id,meta:{patientId,testName,category:order.category,ipd:true,clinicId}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"ClinicalNote",entityId:patientId,meta:{noteType:"Investigation Indent",content:testName,orderId:order.id,status:"Pending",clinicId}});return NextResponse.json({success:true,order});}if(action==="emergency-contact"){const patientId=String(body.patientId||""),contactName=String(body.contactName||"").trim(),contactPhone=String(body.contactPhone||"").trim();if(!patientId||!contactName||!contactPhone)return NextResponse.json({success:false,error:"Patient, contact name and phone are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const profile=parsePatientProfile(patient.notes),nextProfile={...profile,emergencyContact:{name:contactName,relationship:String(body.relationship||""),phone:contactPhone,alternatePhone:String(body.alternatePhone||"")}};await prisma.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),parseCareSetting(patient.notes),nextProfile)}});await writeAudit({doctorId:session.doctorId,action:"update",entity:"Patient",entityId:patientId,meta:{emergencyContactUpdated:true,clinicId}});return NextResponse.json({success:true});}if(action==="room-transfer"){
+if(action==="lab-order"){const patientId=String(body.patientId||""),testName=String(body.testName||"").trim();if(!patientId||!testName)return NextResponse.json({success:false,error:"Patient and investigation are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const order=await prisma.labOrder.create({data:{doctorId:session.doctorId,patientId,patientName:patient.name,testName,category:String(body.category||"Laboratory"),notes:String(body.notes||"")}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"LabOrder",entityId:order.id,meta:{patientId,testName,category:order.category,ipd:true,clinicId}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"ClinicalNote",entityId:patientId,meta:{noteType:"Investigation Indent",content:testName,orderId:order.id,status:"Pending",clinicId}});return NextResponse.json({success:true,order});}if(action==="emergency-contact"){const patientId=String(body.patientId||""),contactName=String(body.contactName||"").trim(),contactPhone=String(body.contactPhone||"").trim();if(!patientId||!contactName||!contactPhone)return NextResponse.json({success:false,error:"Patient, contact name and phone are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const profile=parsePatientProfile(patient.notes),nextProfile={...profile,emergencyContact:{name:contactName,relationship:String(body.relationship||""),phone:contactPhone,alternatePhone:String(body.alternatePhone||"")}};await prisma.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),parseCareSetting(patient.notes),nextProfile)}});await writeAudit({doctorId:session.doctorId,action:"update",entity:"Patient",entityId:patientId,meta:{emergencyContactUpdated:true,clinicId}});return NextResponse.json({success:true});}if(action==="admit"){
+  const patientId=String(body.patientId||"").trim();
+  const wardType=String(body.wardType||"Ward").trim().slice(0,100);
+  const unitType=String(body.unitType||wardType).trim().slice(0,100);
+  const roomNumber=String(body.roomNumber||"").trim().slice(0,100);
+  const admissionReason=String(body.admissionReason||"").trim().slice(0,1000);
+  const consultantName=String(body.consultantName||"").trim().slice(0,200);
+  const admissionDate=String(body.admissionDate||new Date().toISOString()).trim();
+  const allowedRoles=new Set(["Owner","Admin","Manager","Consultant","Doctor","RMO"]);
+  if(!patientId)return NextResponse.json({success:false,error:"Patient required"},{status:400});
+  if(!allowedRoles.has(normalizeClinicRole(actorRole)))return NextResponse.json({success:false,error:"Only an Owner, Admin, Manager, Consultant, Doctor or RMO can admit an OPD patient."},{status:403});
+  if(!["Ward","ICU"].includes(wardType))return NextResponse.json({success:false,error:"Admission destination must be Ward or ICU."},{status:400});
+  const parsedAdmissionDate=new Date(admissionDate);
+  if(Number.isNaN(parsedAdmissionDate.getTime()))return NextResponse.json({success:false,error:"Invalid admission date/time."},{status:400});
+  const result=await prisma.$transaction(async tx=>{
+    const patient=await tx.patient.findFirst({where:clinicId?{id:patientId,clinicId}:{id:patientId,doctorId:session.doctorId}});
+    if(!patient)return {status:404,body:{success:false,error:"Patient not found in this clinic."}};
+    const currentSetting=parseCareSetting(patient.notes);
+    if(patient.status!=="ACTIVE")return {status:409,body:{success:false,error:"Only an active patient can be admitted."}};
+    if(currentSetting==="IPD")return {status:409,body:{success:false,error:"Patient is already admitted as IPD."}};
+    const profile=parsePatientProfile(patient.notes);
+    if(roomNumber){
+      const members=await tx.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}});
+      const roomLogs=await tx.auditLog.findMany({where:{doctorId:{in:members.map(x=>x.doctorId)},entity:"HospitalRoom"},orderBy:{createdAt:"desc"},take:3000});
+      const roomExists=roomLogs.some(l=>{const m=metaOf(l);return String(m.clinicId||"")===String(clinicId||"")&&String(m.roomNumber||"").trim()===roomNumber;});
+      if(!roomExists)return {status:404,body:{success:false,error:"Selected destination room is not in the hospital directory."}};
+      const occupied=await tx.patient.findMany({where:{clinicId:clinicId||undefined,status:"ACTIVE"},select:{id:true,notes:true}});
+      const occupiedByOther=occupied.some(p=>p.id!==patientId&&parseCareSetting(p.notes)==="IPD"&&String(parsePatientProfile(p.notes).roomNumber||"").trim()===roomNumber);
+      if(occupiedByOther)return {status:409,body:{success:false,error:"Selected destination room is already occupied."}};
+    }
+    const nextProfile={...profile,careSetting:"IPD",wardType,unitType,roomNumber,admissionDate:parsedAdmissionDate.toISOString(),admissionReason,consultantName};
+    await tx.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),"IPD",nextProfile),updatedAt:new Date()}});
+    const audit=await tx.auditLog.create({data:{doctorId:session.doctorId,action:"admit",entity:"Patient",entityId:patientId,meta:JSON.stringify({clinicId,patientId,fromCareSetting:currentSetting||"OPD",toCareSetting:"IPD",wardType,unitType,roomNumber,admissionReason,consultantName,admissionDate:parsedAdmissionDate.toISOString(),actorRole,atIst:istIsoLabel(new Date())})}});
+    return {status:200,body:{success:true,patientId,careSetting:"IPD",wardType,unitType,roomNumber,admissionDate:parsedAdmissionDate.toISOString(),auditId:audit.id}};
+  },{isolationLevel:"Serializable"});
+  return NextResponse.json(result.body,{status:result.status});
+}
+if(action==="room-transfer"){
   const patientId=String(body.patientId||"");
   const roomNumber=String(body.roomNumber||"").trim();
   if(!patientId||!roomNumber)return NextResponse.json({success:false,error:"Patient and destination room are required"},{status:400});
