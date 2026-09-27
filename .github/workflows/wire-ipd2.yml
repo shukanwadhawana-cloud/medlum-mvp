@@ -1,0 +1,40 @@
+name: wire-ipd2
+on:
+  workflow_dispatch:
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: |
+          set -euo pipefail
+          python3 -c "
+          from pathlib import Path
+          p=Path('src/app/ipd/[id]/page.tsx')
+          t=p.read_text()
+          if 'IpdCoverSheet' not in t:
+            t=t.replace('from \\"@/components/AppShell\\"','from \\"@/components/AppShell\\";\\nimport IpdCoverSheet from \\"@/components/IpdCoverSheet\\"',1)
+            if 'IpdCoverSheet' not in t:
+              t=t.replace('\\"use client\\";','\\"use client\\";\\nimport IpdCoverSheet from \\"@/components/IpdCoverSheet\\";',1)
+          if '<IpdCoverSheet' not in t:
+            s=t.find('{/* COVER SHEET')
+            if s<0: s=t.find('mainTab===\\"Cover Sheet\\"&&')
+            e=t.find('{/* DASHBOARD', s if s>=0 else 0)
+            if e<0 and s>=0: e=t.find('mainTab===\\"Dashboard\\"&&leftNav===\\"Vitals\\"', s)
+            if s<0 or e<0: raise SystemExit('markers missing')
+            bs=t.rfind('\\n',0,s)+1
+            r='''    {/* COVER SHEET — OPD-parity */}\\n    {mainTab===\\"Cover Sheet\\"&&(\\n     <IpdCoverSheet\\n      selected={selected}\\n      vitals={vitals}\\n      labOrders={labOrders}\\n      radOrders={radOrders}\\n      clinicalNotes={clinicalNotes}\\n      onOpenOrders={(left)=>{setMainTab(\\"Orders\\");setLeftNav(left)}}\\n      onOpenNotes={()=>{setMainTab(\\"Clinical Notes\\");setLeftNav(\\"Note View\\")}}\\n      onOpenVitals={()=>{setMainTab(\\"Dashboard\\");setLeftNav(\\"Vitals\\")}}\\n     />\\n    )}\\n\\n'''
+            t=t[:bs]+r+t[e:]
+          p.write_text(t)
+          print('ok', 'IpdCoverSheet' in t)
+          "
+      - name: Commit
+        run: |
+          git config user.name "MedLum CI Bot"
+          git config user.email "ci-bot@medlum.local"
+          git add "src/app/ipd/[id]/page.tsx"
+          git commit -m "ui(ipd): wire OPD-parity cover sheet into clinical workspace" || exit 0
+          git push origin HEAD:main
