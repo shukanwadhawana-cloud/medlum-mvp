@@ -36,15 +36,7 @@ export async function GET() {
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
   });
 
-  const facilities = await prisma.clinicMember.findMany({
-    where: { doctorId: ctx.session.doctorId, isActive: true, clinic: { isActive: true } },
-    select: {
-      clinicId: true,
-      role: true,
-      clinic: { select: { id: true, name: true, address: true, isActive: true, dutyEnabled: true, dutyLat: true, dutyLng: true, dutyRadiusMeters: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+
 
   return NextResponse.json({
     clinic: ctx.membership.clinic,
