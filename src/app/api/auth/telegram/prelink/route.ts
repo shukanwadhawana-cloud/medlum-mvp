@@ -5,6 +5,7 @@ import { createTelegramLinkChallenge, ensureTelegramWebhook, classifyTelegramErr
 import { normalizeClinicRole } from "@/lib/workflow";
 import { isMedlumOwnerEmail } from "@/lib/owner";
 import { writeAudit } from "@/lib/audit";
+import { findDoctorByStaffLoginId } from "@/lib/staff-id";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,6 @@ export async function POST(req: Request) {
 
     let doctor: { id: string; email: string; passwordHash: string; isActive: boolean; clinicName: string } | null = null;
     if (staffId) {
-      const { findDoctorByStaffLoginId } = await import("@/lib/staff-id");
       const resolved = await findDoctorByStaffLoginId(staffId);
       doctor = resolved?.doctor
         ? {
@@ -76,29 +76,44 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         alreadyLinked: true,
-        telegramUsername: existing.telegramUsername,
-        message: "Telegram is already linked to this account.",
+        telegramUsername: existing.telegramUsername || null,
       });
     }
 
-    await ensureTelegramWebhook();
-    const challenge = await createTelegramLinkChallenge(doctor.id);
+    const username = String(process.env.TELEGRAM_BOT_USERNAME || "").trim().replace(/^@/, "");
+    if (!username) {
+      console.error("[MedLum Telegram] prelink CONFIG_MISSING username");
+      return NextResponse.json({ success: false, error: "Telegram bot is not configured.", reason: "CONFIG_MISSING" }, { status: 503 });
+    }
+
+    try {
+      await ensureTelegramWebhook();
+    } catch (error) {
+      const reason = classifyTelegramError(error);
+      console.error("[MedLum Telegram] prelink failed reason=", reason);
+      return NextResponse.json({
+        success: false,
+        error: "Telegram could not be configured.",
+        reason,
+      }, { status: 503 });
+    }
+
+    const { token, expiresAt } = await createTelegramLinkChallenge(doctor.id);
     await writeAudit({
       doctorId: doctor.id,
       action: "telegram_prelink_started",
-      entity: "Doctor",
-      entityId: doctor.id,
+      entity: "TelegramLinkChallenge",
       meta: {},
     });
 
     return NextResponse.json({
       success: true,
       alreadyLinked: false,
-      deepLink: challenge.deepLink,
-      expiresAt: challenge.expiresAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      deepLink: `https://t.me/${username}?start=${encodeURIComponent(token)}`,
     });
   } catch (e) {
-    console.error("telegram prelink", classifyTelegramError(e));
-    return NextResponse.json({ success: false, error: "Unable to start Telegram linking." }, { status: 500 });
+    console.error("telegram prelink error", e instanceof Error ? e.message : "error");
+    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
   }
 }
