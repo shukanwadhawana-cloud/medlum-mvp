@@ -1,1 +1,143 @@
-PLACEHOLDER
+name: MedLum CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
+        run: npx prisma generate
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: Verify production security
+        run: npm run test:production-security
+      - name: Verify CSRF and CSP hardening
+        run: npm run test:csrf
+      - name: Verify pilot readiness
+        run: npm run test:pilot-readiness
+      - name: Verify OPD and IPD pilot UI
+        run: npm run test:ipd-pilot-ui
+      - name: Verify EKA ABDM onboarding
+        run: npm run test:eka
+      - name: Verify MedLum data architecture
+        run: npm run test:data-architecture
+      - name: Verify data retention protections
+        run: npm run test:data-retention
+      - name: Verify soft deactivation protections
+        run: npm run test:soft-deactivation
+      - name: Verify API authentication coverage
+        run: npm run test:api-auth-coverage
+      - name: Verify telemedicine foundation
+        run: npm run test:telemedicine
+      - name: Verify video consultation layer
+        run: npm run test:video-consultation
+      - name: Verify responsive UI and PWA hardening
+        run: npm run test:responsive-ui
+      - name: Verify Android and iOS packaging configuration
+        run: npm run test:mobile-packaging
+      - name: Verify Windows macOS Linux packaging configuration
+        run: npm run test:desktop-packaging
+      - name: Verify multi-device and role workflows
+        run: npm run test:multi-device-role-workflow
+      - name: Verify hospital foundation (OTP tariff lab lifecycle)
+        run: npm run test:hospital-foundation
+      - name: Verify invoice tariff snapshot + numbering
+        run: npm run test:invoice-snapshot
+      - name: Verify patient portal auth and dashboard
+        run: npm run test:portal-auth
+      - name: Verify multi-tenant isolation (static)
+        run: npm run test:tenant-isolation
+      - name: Verify P1 closure (static)
+        run: npm run test:p1-closure
+      - name: Verify staff and workforce management
+        run: npm run test:staff-workforce
+      - name: Verify duty and attendance management
+        run: npm run test:duty
+      - name: Verify role-aware staff access and navigation
+        run: npm run test:role-access
+      - name: Verify P1 identity and tenant security regressions
+        run: npm run test:p1-security-regression
+      - name: Verify P2-01 IPD discharge lifecycle
+        run: npm run test:p2-01
+      - name: Verify owner full-access entitlement
+        run: npm run test:owner-full-access
+      - name: Verify P2-02 IPD bed lifecycle
+        run: npm run test:p2-02
+      - name: Verify P2-03 IPD investigation review
+        run: npm run test:p2-03
+      - name: Verify P2-04 Emergency to IPD admission continuity
+        run: npm run test:p2-04
+      - name: Verify P2-05 IPD receiving-team handover
+        run: npm run test:p2-05
+      - name: Verify P2-06 IPD medication dispensing reconciliation
+        run: npm run test:p2-06
+      - name: Verify P2-07 MAR
+        run: npm run test:p2-07
+      - name: Verify IPD failed-save handling
+        run: npm run test:ipd-save-error-handling
+      - name: Verify clinical double-verification and final signing
+        run: npm run test:clinical-signing
+      - name: Verify record confirmation and cancellation lifecycle
+        run: npm run test:record-confirmation
+      - name: Build application
+        env:
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
+          SESSION_SECRET: ci-build-secret-not-used-in-production
+        run: npm run build
+
+  p1-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: p1
+          POSTGRES_PASSWORD: p1
+          POSTGRES_DB: p1test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U p1 -d p1test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
+      - name: P1 integration tests (Postgres)
+        env:
+          P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
+        run: npm run test:p1-integration
+      - name: Verify P2-07 MAR database invariants
+        env:
+          P2_07_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
+        run: npm run test:p2-07
