@@ -7,6 +7,8 @@ import { useDoctor } from "@/components/DoctorProvider";
 import { formatIst } from "@/lib/duty";
 
 type DutyState = {
+  clinics: Array<{ id: string; name: string; address: string; role: string; dutyEnabled: boolean; dutyLat: number | null; dutyLng: number | null; dutyRadiusMeters: number }>;
+  selectedClinicId: string;
   clinic: {
     id: string;
     name: string;
@@ -44,17 +46,20 @@ export default function DutyPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [adminMemberId, setAdminMemberId] = useState("");\n  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [adminMemberId, setAdminMemberId] = useState("");
+  const [selectedClinicId, setSelectedClinicId] = useState("");
   const [geoForm, setGeoForm] = useState({ dutyEnabled: false, dutyLat: "", dutyLng: "", dutyRadiusMeters: "200" });
 
   const load = useCallback(async (clinicId?: string) => {
     setLoading(true);
     setError("");
     try {
-      const query = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : "";\n      const res = await fetch(`/api/duty${query}`, { credentials: "include" });
+      const query = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : "";
+      const res = await fetch(`/api/duty${query}`, { credentials: "include" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Failed to load duty status");
       setData(body);
+      setSelectedClinicId(body.selectedClinicId || "");
       setGeoForm({
         dutyEnabled: Boolean(body.clinic?.dutyEnabled),
         dutyLat: body.clinic?.dutyLat != null ? String(body.clinic.dutyLat) : "",
@@ -150,7 +155,7 @@ export default function DutyPage() {
         lng = pos.lng;
         accuracyMeters = pos.accuracyMeters;
       }
-      const res = await fetch("/api/duty",
+      const res = await fetch("/api/duty", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
@@ -159,7 +164,7 @@ export default function DutyPage() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Punch failed");
       setMsg(`${type} recorded at ${formatIst(body.event.punchedAt)}`);
-      await load();
+      await load(selectedClinicId || data?.selectedClinicId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Punch failed");
     } finally {
@@ -172,11 +177,12 @@ export default function DutyPage() {
     setError("");
     setMsg("");
     try {
-      const res = await fetch("/api/duty", {
+      const res = await fetch(`/api/duty${selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : ""}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          clinicId: selectedClinicId || data?.selectedClinicId,
           dutyEnabled: geoForm.dutyEnabled,
           dutyLat: geoForm.dutyLat ? Number(geoForm.dutyLat) : null,
           dutyLng: geoForm.dutyLng ? Number(geoForm.dutyLng) : null,
@@ -186,7 +192,7 @@ export default function DutyPage() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Save failed");
       setMsg("Hospital geofence updated");
-      await load();
+      await load(selectedClinicId || data?.selectedClinicId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -222,6 +228,14 @@ export default function DutyPage() {
 
         {data && (
           <>
+            <section className="rounded-2xl border bg-white p-4 shadow-sm">
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Hospital / Facility</label>
+              <select className="mt-2 w-full rounded-lg border px-3 py-2.5 text-sm bg-white" value={selectedClinicId} onChange={(e) => { setSelectedClinicId(e.target.value); void load(e.target.value); }}>
+                {data.clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}{clinic.address ? ` · ${clinic.address}` : ""}</option>)}
+              </select>
+              {data.clinics.length > 1 && <p className="mt-2 text-xs text-gray-500">Punches and geofence settings apply only to the selected hospital.</p>}
+            </section>
+
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{data.clinic.name}</p>
               <p className="mt-1 text-lg font-medium">{data.me.name}</p>
