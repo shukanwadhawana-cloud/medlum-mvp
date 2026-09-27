@@ -10,6 +10,7 @@ const required = [
   "src/app/telemedicine/page.tsx",
   "src/app/telemedicine/[id]/page.tsx",
   "src/app/telemedicine/join/page.tsx",
+  "src/app/telemedicine/ended/page.tsx",
 ];
 
 const failures = [];
@@ -22,6 +23,7 @@ const sessions = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessi
 const join = fs.readFileSync(path.join(root, "src/app/api/telemedicine/join/route.ts"), "utf8");
 const doctorRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
 const patientRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/join/page.tsx"), "utf8");
+const endedRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/ended/page.tsx"), "utf8");
 
 const doctorLifecycle =
   (doctorRoom.includes('status: "Waiting"') || doctorRoom.includes("status: 'Waiting'")) &&
@@ -41,6 +43,7 @@ const checks = [
   ["doctor new-tab join", doctorRoom.includes("openConferenceInNewTab") || doctorRoom.includes("Join video")],
   ["patient waiting room", patientRoom.includes("You're in the waiting room")],
   ["patient join opens meeting", patientRoom.includes("session.meetingUrl") && (patientRoom.includes("openConferenceInNewTab") || patientRoom.includes("Join video call"))],
+  ["post-call close page", endedRoom.includes("window.close()") && endedRoom.includes("Video consultation ended")],
 ];
 
 const uiOnly = doctorRoom + patientRoom;
