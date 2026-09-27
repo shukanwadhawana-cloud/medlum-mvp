@@ -722,6 +722,24 @@ model TelemedicineSession {
   @@index([clinicId])
   @@index([status, scheduledAt])
   @@index([sessionKind])
+  participants   TelemedicineParticipant[]
+}
+
+model TelemedicineParticipant {
+  id            String               @id @default(cuid())
+  sessionId     String
+  name          String
+  role          String               @default("Guest")
+  tokenHash     String               @unique
+  status        String               @default("INVITED")
+  joinedAt      DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  session       TelemedicineSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, status])
+  @@index([sessionId, createdAt])
 }
 
 model PatientPortalAccount {
