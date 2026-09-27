@@ -1,6 +1,9 @@
 name: Restore IPD page from known-good
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/restore-ipd-page.yml"
 jobs:
   restore:
     runs-on: ubuntu-latest
@@ -17,7 +20,7 @@ jobs:
           from pathlib import Path
           p = Path("src/app/ipd/[id]/page.tsx")
           text = p.read_text()
-          assert "PLACEHOLDER" not in text
+          assert "PLACEHOLDER" not in text and "RESTORING" not in text
           assert "clinicalMode" in text
           old_start = 'if(!clinicalMode)return <AppShell>'
           idx = text.find(old_start)
