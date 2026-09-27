@@ -30,8 +30,19 @@ export async function GET() {
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
   });
 
+  const facilities = await prisma.clinicMember.findMany({
+    where: { doctorId: ctx.session.doctorId, isActive: true, clinic: { isActive: true } },
+    select: {
+      clinicId: true,
+      role: true,
+      clinic: { select: { id: true, name: true, address: true, isActive: true, dutyEnabled: true, dutyLat: true, dutyLng: true, dutyRadiusMeters: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
   return NextResponse.json({
     clinic: ctx.membership.clinic,
+    facilities: facilities.map((f) => ({ ...f.clinic, role: f.role })),
     currentMember: {
       id: ctx.membership.id,
       role: ctx.membership.role,
@@ -60,6 +71,55 @@ export async function POST(req: Request) {
   if (!["Owner", "Admin"].includes(ctx.membership.role)) return NextResponse.json({ error: "Only clinic owners or admins can manage consultants." }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
+
+  // Owner/Admin can create another hospital/facility. The existing Clinic record
+  // remains the default facility; every new facility gets an explicit membership
+  // for the creator so it is immediately selectable in Duty.
+  if (body.action === "create-hospital") {
+    const creatorRole = ctx.membership.role;
+    if (!["Owner", "Admin"].includes(creatorRole)) {
+      return NextResponse.json({ error: "Only Owner/Admin can add a hospital." }, { status: 403 });
+    }
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const address = typeof body.address === "string" ? body.address.trim() : "";
+    const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+    const emailAddress = typeof body.facilityEmail === "string" ? body.facilityEmail.trim().toLowerCase() : "";
+    if (!name) return NextResponse.json({ error: "Hospital name is required." }, { status: 400 });
+    if (name.length > 160 || address.length > 500 || phone.length > 50 || emailAddress.length > 254) {
+      return NextResponse.json({ error: "Hospital details are too long." }, { status: 400 });
+    }
+
+    const existing = await prisma.clinic.findFirst({ where: { name, isActive: true } });
+    if (existing) return NextResponse.json({ error: "An active hospital with this name already exists." }, { status: 409 });
+
+    const result = await prisma.$transaction(async (tx) => {
+      const clinic = await tx.clinic.create({
+        data: { name, address, phone, email: emailAddress },
+      });
+      const membership = await tx.clinicMember.create({
+        data: {
+          clinicId: clinic.id,
+          doctorId: ctx.session.doctorId,
+          role: creatorRole,
+          designation: creatorRole,
+        },
+        include: { doctor: { select: { id: true, name: true, email: true, phone: true, clinicName: true, isActive: true, deactivatedAt: true } } },
+      });
+      return { clinic, membership };
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        doctorId: ctx.session.doctorId,
+        action: "CLINIC_CREATED",
+        entity: "Clinic",
+        entityId: result.clinic.id,
+        meta: JSON.stringify({ clinicId: result.clinic.id, name: result.clinic.name, createdFromClinicId: ctx.membership.clinicId, creatorRole }),
+      },
+    });
+    return NextResponse.json({ success: true, clinic: result.clinic, member: result.membership });
+  }
+
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const role = typeof body.role === "string" && ["Admin", "Consultant", "Staff"].includes(body.role) ? body.role : "Consultant";
   if (!email) return NextResponse.json({ error: "Doctor email is required." }, { status: 400 });
