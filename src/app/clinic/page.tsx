@@ -17,6 +17,7 @@ export default function ClinicPage() {
   const [staffRole,setStaffRole]=useState("Consultant"), [staffPassword,setStaffPassword]=useState("");
   const [telegramLinks,setTelegramLinks]=useState<Record<string,string>>({});
   const [hospitalName,setHospitalName]=useState(""), [hospitalAddress,setHospitalAddress]=useState(""), [hospitalPhone,setHospitalPhone]=useState(""), [hospitalEmail,setHospitalEmail]=useState("");
+  const [hospitalName,setHospitalName]=useState(""), [hospitalAddress,setHospitalAddress]=useState(""), [hospitalPhone,setHospitalPhone]=useState(""), [hospitalEmail,setHospitalEmail]=useState("");
   const [hospitalSaving,setHospitalSaving]=useState(false);
   const [telegramLoading,setTelegramLoading]=useState<string>("");
   const [ekaStatus,setEkaStatus]=useState<EkaStatus|null>(null), [ekaLoading,setEkaLoading]=useState(false), [ekaHipId,setEkaHipId]=useState(""), [ekaName,setEkaName]=useState("");
@@ -48,6 +49,15 @@ export default function ClinicPage() {
     }catch(e){setError(e instanceof Error?e.message:"Could not add hospital.");}finally{setHospitalSaving(false);}
   }
 
+  async function createHospital(e:React.FormEvent){
+    e.preventDefault();setSaving(true);setError("");setMessage("");
+    try{
+      const r=await fetch("/api/clinic",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"create-hospital",name:hospitalName,address:hospitalAddress,phone:hospitalPhone,email:hospitalEmail})});
+      const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Could not add hospital.");
+      setHospitalName("");setHospitalAddress("");setHospitalPhone("");setHospitalEmail("");
+      setMessage("Hospital ""+(j.hospital?.name||hospitalName)+"" added. Open Duty to configure its GPS/geofence and assign staff.");await load();
+    }catch(e){setError(e instanceof Error?e.message:"Could not add hospital.");}finally{setSaving(false);}
+  }
   async function createStaff(e:React.FormEvent){
     e.preventDefault();setSaving(true);setError("");setMessage("");
     try{
@@ -109,6 +119,22 @@ export default function ClinicPage() {
         <button disabled={hospitalSaving} className="w-full rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{hospitalSaving?"Adding hospital…":"Add hospital"}</button>
       </form>
     </section>}
+    {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3">
+      <h2 className="font-semibold">Hospitals / Facilities</h2>
+      <p className="mt-1 text-xs text-gray-500">Your existing MedLum clinic is the default hospital. Add additional hospitals here; each gets its own staff membership and independent Punch In geofence.</p>
+      <div className="mt-3 space-y-2">{data?.facilities?.map((f:any)=><div key={f.id} className="rounded-xl border bg-gray-50 p-3">
+        <div className="font-medium">{f.name}{f.id===data?.clinic?.id?<span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[10px] text-green-700">Default</span>:null}</div>
+        <div className="text-xs text-gray-500">{f.address||"No address added"} · {f.role}</div>
+        <div className="mt-1 text-[11px] text-gray-500">{f.dutyEnabled?"Geofence on · "+f.dutyRadiusMeters+" m":"Geofence not configured yet"}</div>
+      </div>)}</div>
+      <form onSubmit={createHospital} className="mt-3 space-y-2">
+        <input required value={hospitalName} onChange={e=>setHospitalName(e.target.value)} placeholder="New hospital / facility name" className="w-full rounded-xl border px-3 py-2.5 text-sm"/>
+        <input value={hospitalAddress} onChange={e=>setHospitalAddress(e.target.value)} placeholder="Address (optional)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/>
+        <div className="grid grid-cols-2 gap-2"><input value={hospitalPhone} onChange={e=>setHospitalPhone(e.target.value)} placeholder="Phone (optional)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input type="email" value={hospitalEmail} onChange={e=>setHospitalEmail(e.target.value)} placeholder="Email (optional)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/></div>
+        <button disabled={saving||!hospitalName.trim()} className="w-full rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{saving?"Adding…":"Add hospital"}</button>
+      </form>
+    </section>}
+
     {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3"><h2 className="font-semibold">Staff Management</h2><p className="mt-1 text-xs text-gray-500">Create individual hospital logins and assign department roles. Privileged clinical and administrative accounts must have Telegram linked before login.</p><form onSubmit={createStaff} className="mt-3 grid gap-2 md:grid-cols-2"><input required value={staffName} onChange={e=>setStaffName(e.target.value)} placeholder="Full name" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input required type="email" value={staffEmail} onChange={e=>setStaffEmail(e.target.value)} placeholder="Email (contact / recovery - not login)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input required value={staffPhone} onChange={e=>setStaffPhone(e.target.value)} placeholder="Phone" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input required minLength={8} type="password" value={staffPassword} onChange={e=>setStaffPassword(e.target.value)} placeholder="Initial password (8+ characters)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><select value={staffRole} onChange={e=>setStaffRole(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm bg-white">{STAFF_ROLES.map(r=><option key={r} value={r}>{STAFF_ROLE_LABELS[r]||r}</option>)}</select><button disabled={saving} className="rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{saving?"Creating…":"Create staff account"}</button></form><div className="mt-3 rounded-xl bg-gray-50 p-3 text-xs text-gray-600">For Owner, Admin, Manager, Consultant, Doctor, RMO, Sister/Nurse and Pharmacist accounts, creation prepares a one-time Telegram link automatically. The staff member opens it and presses Start; no Telegram username needs to be typed manually.</div></section>}
 
     {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3"><h2 className="font-semibold">Patient Portal Access</h2><p className="text-xs text-gray-500 mt-1">Create or reset a patient's portal password. Patients only receive read-only access to their own records.</p><PortalForm patients={patients} selected={selected} setSelected={setSelected} saving={saving} setSaving={setSaving} setError={setError} setMessage={setMessage}/><Link href="/portal/login" target="_blank" className="inline-block mt-3 text-xs text-[#c2183a]">Open patient portal login →</Link></section>}
