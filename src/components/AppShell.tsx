@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDoctor } from "./DoctorProvider";
+import { menuNavForRole, primaryNavForRole } from "@/lib/permissions";
 
 const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -33,45 +34,80 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   return <svg {...common}>{paths[name] || paths.more}</svg>;
 };
 
-const clinicalNav = [
-  { href: "/opd", label: "OPD", icon: "clinic" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" }, { href: "/emergency", label: "Emergency", icon: "emergency" }, { href: "/labs", label: "Labs", icon: "labs" }, { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics" }, { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy" }, { href: "/telemedicine", label: "Video", icon: "video" },
-];
-const pharmacistNav = [
-  { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" },
-];
-const laboratoryNav = [
-  { href: "/labs", label: "Labs", icon: "labs" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics" }, { href: "/ipd", label: "IPD", icon: "ipd" },
-];
-const nursingNav = [
-  { href: "/nursing", label: "Nursing", icon: "patients" }, { href: "/patients", label: "Patients", icon: "patients" }, { href: "/ipd", label: "IPD", icon: "ipd" }, { href: "/emergency", label: "Emergency", icon: "emergency" },
-];
-const operationsNav = [
-  { href: "/billing", label: "Patient billing", icon: "billing" }, { href: "/pricing", label: "Pricing & plans", icon: "billing" }, { href: "/help", label: "Help & FAQs", icon: "reports" }, { href: "/blood-bank", label: "Blood bank", icon: "blood" }, { href: "/insurance", label: "Insurance", icon: "insurance" }, { href: "/reports", label: "Reports", icon: "reports" }, { href: "/prescriptions", label: "Prescriptions", icon: "rx" }, { href: "/ipd-summaries", label: "IPD summaries", icon: "ipd" }, { href: "/clinic/setup", label: "Hospital / Clinic setup", icon: "clinic" }, { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic" }, { href: "/clinic/tariffs", label: "Tariff / Rate list", icon: "billing" }, { href: "/clinical-assist", label: "AI Assist", icon: "ai" }, { href: "/mvp-blueprint", label: "MVP Blueprint", icon: "reports" }, { href: "/duty", label: "Duty", icon: "duty" }, { href: "/dashboard", label: "Dashboard", icon: "clinic" },
-];
-const moreItems = [...clinicalNav, ...pharmacistNav, ...laboratoryNav, ...nursingNav, ...operationsNav];
-const isActive = (pathname: string, href: string) => pathname === href || (href === "/opd" && pathname.startsWith("/opd")) || (href === "/patients" && pathname.startsWith("/patients/")) || (href === "/telemedicine" && pathname.startsWith("/telemedicine")) || (href === "/help" && pathname.startsWith("/help")) || (href === "/pricing" && pathname.startsWith("/pricing")) || (href === "/more" && pathname.startsWith("/more")) || (href === "/duty" && pathname.startsWith("/duty"));
+const isActive = (pathname: string, href: string) =>
+  pathname === href ||
+  (href === "/opd" && pathname.startsWith("/opd")) ||
+  (href === "/patients" && pathname.startsWith("/patients/")) ||
+  (href === "/telemedicine" && pathname.startsWith("/telemedicine")) ||
+  (href === "/help" && pathname.startsWith("/help")) ||
+  (href === "/pricing" && pathname.startsWith("/pricing")) ||
+  (href === "/more" && pathname.startsWith("/more")) ||
+  (href === "/duty" && pathname.startsWith("/duty")) ||
+  (href === "/workforce" && pathname.startsWith("/workforce")) ||
+  (href === "/clinic" && (pathname === "/clinic" || pathname.startsWith("/clinic?"))) ||
+  (href === "/nursing" && pathname.startsWith("/nursing"));
 
-function MoreSidebar({ open, onClose, pathname, onLogout, isOwner }: { open: boolean; onClose: () => void; pathname: string; onLogout: () => void; isOwner: boolean }) {
+function MoreSidebar({
+  open,
+  onClose,
+  pathname,
+  onLogout,
+  menuItems,
+}: {
+  open: boolean;
+  onClose: () => void;
+  pathname: string;
+  onLogout: () => void;
+  menuItems: Array<{ href: string; label: string; icon: string }>;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted || !open) return null;
-  const groups = [{ label: "Operations & settings", items: operationsNav }];
   return createPortal(
     <div className="fixed inset-0 z-[60]">
       <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={onClose} />
       <aside className="absolute right-0 top-0 flex h-full w-[min(22rem,92vw)] flex-col bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3"><p className="text-sm font-semibold text-[#140a1f]">Menu</p><button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button></div>
-        <div className="flex-1 overflow-y-auto p-3">
-          {groups.map((group) => (
-            <div key={group.label} className="mb-4">
-              <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{group.label}</p>
-              {group.items.map((item) => (
-                <Link key={item.href} href={item.href} onClick={onClose} className={`mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm ${isActive(pathname, item.href) ? "bg-red-50 font-medium text-[#c2183a]" : "text-[#140a1f]"}`}><Icon name={item.icon} size={16} /><span>{item.label}</span></Link>
-              ))}
-            </div>
-          ))}
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <p className="text-sm font-semibold text-[#140a1f]">Menu</p>
+          <button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button>
         </div>
-        <div className="border-t p-3"><button type="button" onClick={() => { onClose(); onLogout(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white">Logout</button></div>
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="mb-4">
+            <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Operations & settings</p>
+            {menuItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={`mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm ${
+                  isActive(pathname, item.href) ? "bg-red-50 font-medium text-[#c2183a]" : "text-[#140a1f]"
+                }`}
+              >
+                <Icon name={item.icon} size={16} />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+            {/* Always available non-role paths */}
+            <Link href="/help" onClick={onClose} className="mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm text-[#140a1f]">
+              <Icon name="reports" size={16} /><span>Help & FAQs</span>
+            </Link>
+            <Link href="/pricing" onClick={onClose} className="mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm text-[#140a1f]">
+              <Icon name="billing" size={16} /><span>Pricing & plans</span>
+            </Link>
+          </div>
+        </div>
+        <div className="border-t p-3">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onLogout();
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white"
+          >
+            Logout
+          </button>
+        </div>
       </aside>
     </div>,
     document.body
@@ -85,12 +121,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [facilities, setFacilities] = useState<Array<{ clinicId: string; name: string; role: string }>>([]);
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
   const [switchingFacility, setSwitchingFacility] = useState(false);
+
+  // Facility membership role is authoritative for nav; fall back to primaryRole from /api/auth/me.
+  const activeRole = useMemo(() => {
+    if (selectedFacilityId) {
+      const match = facilities.find((f) => f.clinicId === selectedFacilityId);
+      if (match?.role) return match.role;
+    }
+    return doctor?.primaryRole || "Consultant";
+  }, [selectedFacilityId, facilities, doctor?.primaryRole]);
+
   const isOwner = Boolean(doctor?.isOwner);
-  const isPharmacist = !isOwner && ((doctor?.designation || "").toLowerCase().includes("pharmac") || (doctor?.primaryRole || "").toLowerCase().includes("pharmac"));
-  const isLaboratory = !isOwner && ((doctor?.designation || "").toLowerCase().includes("laborator") || (doctor?.designation || "").toLowerCase().includes("lab") || (doctor?.primaryRole || "").toLowerCase().includes("laborator") || (doctor?.primaryRole || "").toLowerCase() === "lab");
-  const isNursing = !isOwner && ((doctor?.designation || "").toLowerCase().includes("nurs") || (doctor?.primaryRole || "").toLowerCase().includes("nurs"));
-  const isWorkforceAdmin = Boolean(doctor?.hasWorkforceAdmin || isOwner || ["Admin","Manager"].includes(doctor?.primaryRole || ""));
-  const primaryNav = isPharmacist ? pharmacistNav : isLaboratory ? laboratoryNav : isNursing ? nursingNav : isWorkforceAdmin ? [{ href: "/workforce", label: "People", icon: "people" }, ...clinicalNav] : clinicalNav;
+  const primaryNav = useMemo(() => primaryNavForRole(activeRole), [activeRole]);
+  const menuItems = useMemo(() => menuNavForRole(activeRole), [activeRole]);
+
   useEffect(() => {
     if (!doctor) return;
     fetch("/api/clinic/access", { credentials: "include", cache: "no-store" })
@@ -127,13 +171,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const moreActive = moreItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
+  const moreActive =
+    menuItems.some((item) => isActive(pathname, item.href)) ||
+    pathname.startsWith("/more") ||
+    pathname.startsWith("/owner");
+
+  const quickNav = primaryNav.slice(0, 4);
+
   return (
     <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#140a1f] text-white">
         <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="flex items-center gap-2 py-2.5">
-            <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold"><Icon name="brand" size={18} /><span className="text-sm">MedLum</span></Link>
+            <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold">
+              <Icon name="brand" size={18} />
+              <span className="text-sm">MedLum</span>
+            </Link>
             {facilities.length > 1 && (
               <label className="ml-1 flex max-w-[13rem] items-center">
                 <span className="sr-only">Active facility</span>
@@ -144,31 +197,101 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   className="h-8 max-w-[13rem] rounded-md border border-white/15 bg-white/10 px-2 text-xs text-white outline-none disabled:opacity-60"
                   title="Switch active facility"
                 >
-                  {facilities.map((facility) => <option key={facility.clinicId} value={facility.clinicId} className="text-[#140a1f]">{facility.name}</option>)}
+                  {facilities.map((facility) => (
+                    <option key={facility.clinicId} value={facility.clinicId} className="text-[#140a1f]">
+                      {facility.name}
+                    </option>
+                  ))}
                 </select>
               </label>
             )}
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {isOwner && <Link href="/owner" className="hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/25" title="Return to owner dashboard"><Icon name="owner" size={14} /><span>Owner</span></Link>}
-              <button type="button" onClick={() => setMoreOpen(true)} className={`hidden md:flex lg:inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"}`} title="Open menu"><Icon name="more" size={14} /><span>Menu</span></button>
-              <button type="button" onClick={() => logout()} title="Logout" className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-200 hover:bg-white/10 hover:text-red-100"><Icon name="logout" size={14} /><span className="hidden sm:inline">Logout</span></button>
+              {isOwner && (
+                <Link
+                  href="/owner"
+                  className="hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/25"
+                  title="Return to owner dashboard"
+                >
+                  <Icon name="owner" size={14} />
+                  <span>Owner</span>
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setMoreOpen(true)}
+                className={`hidden md:flex lg:inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${
+                  moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"
+                }`}
+                title="Open menu"
+              >
+                <Icon name="more" size={14} />
+                <span>Menu</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => logout()}
+                title="Logout"
+                className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-200 hover:bg-white/10 hover:text-red-100"
+              >
+                <Icon name="logout" size={14} />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
-          <nav aria-label="Primary navigation" className="-mx-1 flex min-w-0 items-center gap-0.5 overflow-x-auto border-t border-white/10 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {primaryNav.map((item) => <Link key={item.href} href={item.href} className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-2 text-xs ${isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><Icon name={item.icon} size={14} /><span>{item.label}</span></Link>)}
+          <nav
+            aria-label="Primary navigation"
+            className="-mx-1 flex min-w-0 items-center gap-0.5 overflow-x-auto border-t border-white/10 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {primaryNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2.5 py-2 text-xs ${
+                  isActive(pathname, item.href) ? "bg-[#c2183a] font-medium" : "text-white/70 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <Icon name={item.icon} size={14} />
+                <span>{item.label}</span>
+              </Link>
+            ))}
           </nav>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-3 py-4 pb-20 sm:px-4 sm:py-5 md:pb-6 lg:px-6 lg:py-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-3 py-4 pb-20 sm:px-4 sm:py-5 md:pb-6 lg:px-6 lg:py-6">
+        {children}
+      </main>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom md:hidden">
         <nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-5">
-          {[primaryNav[0], primaryNav[1], primaryNav[2], primaryNav[3]].map((item) => (
-            <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18} /><span>{item.label}</span></Link>
+          {quickNav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={item.label}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium ${
+                isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"
+              }`}
+            >
+              <Icon name={item.icon} size={18} />
+              <span>{item.label}</span>
+            </Link>
           ))}
-          <button type="button" onClick={() => setMoreOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-gray-500"><Icon name="more" size={18} /><span>Menu</span></button>
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-gray-500"
+          >
+            <Icon name="more" size={18} />
+            <span>Menu</span>
+          </button>
         </nav>
       </div>
-      <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} isOwner={isOwner} />
+      <MoreSidebar
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        pathname={pathname}
+        onLogout={() => logout()}
+        menuItems={menuItems}
+      />
     </div>
   );
 }
