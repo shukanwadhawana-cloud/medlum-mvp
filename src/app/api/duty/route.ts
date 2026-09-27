@@ -44,6 +44,11 @@ export async function GET(req: Request) {
 
   const role = normalizeClinicRole(ctx.role);
   const isAdmin = isDutyAdminRole(role);
+  const availableClinics = await prisma.clinicMember.findMany({
+    where: { doctorId: session.doctorId, isActive: true, clinic: { isActive: true } },
+    select: { clinicId: true, role: true, clinic: { select: { id: true, name: true, address: true, dutyEnabled: true, dutyLat: true, dutyLng: true, dutyRadiusMeters: true } } },
+    orderBy: { createdAt: "asc" },
+  });
 
   const istOffsetMs = 5.5 * 60 * 60 * 1000;
   const nowIst = new Date(Date.now() + istOffsetMs);
@@ -93,6 +98,8 @@ export async function GET(req: Request) {
     : [];
 
   return NextResponse.json({
+    clinics: availableClinics.map((m) => ({ id: m.clinic.id, name: m.clinic.name, address: m.clinic.address, role: normalizeClinicRole(m.role), dutyEnabled: m.clinic.dutyEnabled, dutyLat: m.clinic.dutyLat, dutyLng: m.clinic.dutyLng, dutyRadiusMeters: m.clinic.dutyRadiusMeters })),
+    selectedClinicId: ctx.clinic.id,
     clinic: {
       id: ctx.clinic.id,
       name: ctx.clinic.name,
@@ -125,10 +132,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const ctx = await membershipCtx(session.doctorId);
-  if (!ctx) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
-
   const body = await req.json().catch(() => ({}));
+  const requestedClinicId = body.clinicId ? String(body.clinicId) : undefined;
+  const ctx = await membershipCtx(session.doctorId, requestedClinicId);
+  if (!ctx) return NextResponse.json({ error: "No active clinic membership for the selected hospital" }, { status: 403 });
   const type = String(body.type || "").toUpperCase() as DutyPunchType;
   if (type !== "IN" && type !== "OUT") {
     return NextResponse.json({ error: "type must be IN or OUT" }, { status: 400 });
@@ -245,8 +252,9 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const ctx = await membershipCtx(session.doctorId);
-  if (!ctx) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  const requestedClinicId = new URL(req.url).searchParams.get("clinicId") || undefined;
+  const ctx = await membershipCtx(session.doctorId, requestedClinicId);
+  if (!ctx) return NextResponse.json({ error: "No active clinic membership for the selected hospital" }, { status: 403 });
   const role = normalizeClinicRole(ctx.role);
   if (!isDutyAdminRole(role)) {
     return NextResponse.json({ error: "Only Owner/Admin/Manager can configure geofence" }, { status: 403 });
