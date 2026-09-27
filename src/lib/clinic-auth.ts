@@ -69,13 +69,14 @@ export async function setSelectedClinicId(clinicId: string): Promise<void> {
  * active membership as the fallback.
  */
 export async function requireActiveClinicMembership(
-  doctorId: string
+  doctorId: string,
+  allowInactiveClinic = false
 ): Promise<ClinicMembershipContext | null> {
   const selectedClinicId = await getSelectedClinicId();
   const where = {
     doctorId,
     isActive: true,
-    clinic: { isActive: true },
+    clinic: allowInactiveClinic ? {} : { isActive: true },
     ...(selectedClinicId ? { clinicId: selectedClinicId } : {}),
   };
   let membership = await prisma.clinicMember.findFirst({
@@ -85,7 +86,7 @@ export async function requireActiveClinicMembership(
   });
   if (!membership && selectedClinicId) {
     membership = await prisma.clinicMember.findFirst({
-      where: { doctorId, isActive: true, clinic: { isActive: true } },
+      where: { doctorId, isActive: true, clinic: allowInactiveClinic ? {} : { isActive: true } },
       select: { id: true, clinicId: true, doctorId: true, role: true },
       orderBy: { createdAt: "asc" },
     });
