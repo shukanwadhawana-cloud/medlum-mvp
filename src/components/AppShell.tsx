@@ -82,12 +82,51 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const { doctor, logout } = useDoctor();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [facilities, setFacilities] = useState<Array<{ clinicId: string; name: string; role: string }>>([]);
+  const [selectedFacilityId, setSelectedFacilityId] = useState("");
+  const [switchingFacility, setSwitchingFacility] = useState(false);
   const isOwner = Boolean(doctor?.isOwner);
   const isPharmacist = !isOwner && ((doctor?.designation || "").toLowerCase().includes("pharmac") || (doctor?.primaryRole || "").toLowerCase().includes("pharmac"));
   const isLaboratory = !isOwner && ((doctor?.designation || "").toLowerCase().includes("laborator") || (doctor?.designation || "").toLowerCase().includes("lab") || (doctor?.primaryRole || "").toLowerCase().includes("laborator") || (doctor?.primaryRole || "").toLowerCase() === "lab");
   const isNursing = !isOwner && ((doctor?.designation || "").toLowerCase().includes("nurs") || (doctor?.primaryRole || "").toLowerCase().includes("nurs"));
   const isWorkforceAdmin = Boolean(doctor?.hasWorkforceAdmin || isOwner || ["Admin","Manager"].includes(doctor?.primaryRole || ""));
   const primaryNav = isPharmacist ? pharmacistNav : isLaboratory ? laboratoryNav : isNursing ? nursingNav : isWorkforceAdmin ? [{ href: "/workforce", label: "People", icon: "people" }, ...clinicalNav] : clinicalNav;
+  useEffect(() => {
+    if (!doctor) return;
+    fetch("/api/clinic/access", { credentials: "include", cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((data) => {
+        if (!data) return;
+        setFacilities(Array.isArray(data.facilities) ? data.facilities : []);
+        setSelectedFacilityId(typeof data.clinicId === "string" ? data.clinicId : "");
+      })
+      .catch(() => {});
+  }, [doctor]);
+
+  const switchFacility = async (clinicId: string) => {
+    if (!clinicId || clinicId === selectedFacilityId || switchingFacility) return;
+    setSwitchingFacility(true);
+    try {
+      const res = await fetch("/api/clinic/access", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
+        body: JSON.stringify({ clinicId }),
+      });
+      if (!res.ok) {
+        setSwitchingFacility(false);
+        return;
+      }
+      setSelectedFacilityId(clinicId);
+      window.location.reload();
+    } catch {
+      setSwitchingFacility(false);
+    }
+  };
+
   const moreActive = moreItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
   return (
     <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
@@ -95,6 +134,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="flex items-center gap-2 py-2.5">
             <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold"><Icon name="brand" size={18} /><span className="text-sm">MedLum</span></Link>
+            {facilities.length > 1 && (
+              <label className="ml-1 flex max-w-[13rem] items-center">
+                <span className="sr-only">Active facility</span>
+                <select
+                  value={selectedFacilityId}
+                  onChange={(e) => switchFacility(e.target.value)}
+                  disabled={switchingFacility}
+                  className="h-8 max-w-[13rem] rounded-md border border-white/15 bg-white/10 px-2 text-xs text-white outline-none disabled:opacity-60"
+                  title="Switch active facility"
+                >
+                  {facilities.map((facility) => <option key={facility.clinicId} value={facility.clinicId} className="text-[#140a1f]">{facility.name}</option>)}
+                </select>
+              </label>
+            )}
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {isOwner && <Link href="/owner" className="hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/25" title="Return to owner dashboard"><Icon name="owner" size={14} /><span>Owner</span></Link>}
               <button type="button" onClick={() => setMoreOpen(true)} className={`hidden md:flex lg:inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"}`} title="Open menu"><Icon name="more" size={14} /><span>Menu</span></button>

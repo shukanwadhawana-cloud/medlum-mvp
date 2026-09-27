@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 async function getContext(allowInactiveClinic = false) {
   const session = await getSession();
   if (!session) return null;
-  const membership = await prisma.clinicMember.findFirst({
-    where: {
-      doctorId: session.doctorId,
-      isActive: true,
-      ...(allowInactiveClinic ? {} : { clinic: { isActive: true } }),
-    },
+  const selected = await requireActiveClinicMembership(session.doctorId, allowInactiveClinic);
+  if (!selected) return null;
+  const membership = await prisma.clinicMember.findUnique({
+    where: { id: selected.membershipId },
     include: { clinic: true, doctor: true },
-    orderBy: { createdAt: "asc" },
   });
   return membership ? { session, membership } : null;
 }
