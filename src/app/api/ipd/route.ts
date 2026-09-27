@@ -101,6 +101,21 @@ if(action==="set-department"){const patientId=String(body.patientId||"").trim();
   await writeAudit({doctorId:session.doctorId,action:submit?"SUBMIT_FOR_VERIFICATION":"create",entity:"ClinicalNote",entityId:note.id,meta:{patientId,noteType,content,authorRole:actorRole,status:note.status,clinicId}});
   return NextResponse.json({success:true,note});
 }
+if(action==="update-diagnosis"){
+  const patientId=String(body.patientId||"").trim();
+  const workingDiagnosis=String(body.workingDiagnosis||"").trim().slice(0,500);
+  const diagnosis=String(body.diagnosis||"").trim().slice(0,500);
+  const icdCode=String(body.icdCode||"").trim().toUpperCase().slice(0,20);
+  if(!patientId)return NextResponse.json({success:false,error:"Patient required"},{status:400});
+  if(!diagnosis&&!workingDiagnosis&&!icdCode)return NextResponse.json({success:false,error:"Diagnosis or ICD-10 code required"},{status:400});
+  const patient=await getPatient(patientId,session.doctorId,clinicId);
+  if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});
+  const profile=parsePatientProfile(patient.notes);
+  const nextProfile={...profile,workingDiagnosis,diagnosis,icdCode};
+  await prisma.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),parseCareSetting(patient.notes),nextProfile)}});
+  await writeAudit({doctorId:session.doctorId,action:"update",entity:"Patient",entityId:patientId,meta:{diagnosisUpdated:true,workingDiagnosis,diagnosis,icdCode,clinicId}});
+  return NextResponse.json({success:true,patientId,workingDiagnosis,diagnosis,icdCode});
+}
 if(action==="lab-order"){const patientId=String(body.patientId||""),testName=String(body.testName||"").trim();if(!patientId||!testName)return NextResponse.json({success:false,error:"Patient and investigation are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const order=await prisma.labOrder.create({data:{doctorId:session.doctorId,patientId,patientName:patient.name,testName,category:String(body.category||"Laboratory"),notes:String(body.notes||"")}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"LabOrder",entityId:order.id,meta:{patientId,testName,category:order.category,ipd:true,clinicId}});await writeAudit({doctorId:session.doctorId,action:"create",entity:"ClinicalNote",entityId:patientId,meta:{noteType:"Investigation Indent",content:testName,orderId:order.id,status:"Pending",clinicId}});return NextResponse.json({success:true,order});}if(action==="emergency-contact"){const patientId=String(body.patientId||""),contactName=String(body.contactName||"").trim(),contactPhone=String(body.contactPhone||"").trim();if(!patientId||!contactName||!contactPhone)return NextResponse.json({success:false,error:"Patient, contact name and phone are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const profile=parsePatientProfile(patient.notes),nextProfile={...profile,emergencyContact:{name:contactName,relationship:String(body.relationship||""),phone:contactPhone,alternatePhone:String(body.alternatePhone||"")}};await prisma.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),parseCareSetting(patient.notes),nextProfile)}});await writeAudit({doctorId:session.doctorId,action:"update",entity:"Patient",entityId:patientId,meta:{emergencyContactUpdated:true,clinicId}});return NextResponse.json({success:true});}if(action==="room-transfer"){
   const patientId=String(body.patientId||"");
   const roomNumber=String(body.roomNumber||"").trim();
