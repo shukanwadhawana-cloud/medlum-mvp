@@ -1,11 +1,13 @@
 /**
  * Central MedLum role → module permission mapping.
  * Pure functions — safe for client navigation AND server authorization.
+ * Must NOT import next/headers, prisma, or other server-only modules
+ * (AppShell is a client component).
  * Server-side clinic-auth + requireActiveClinicMembership remain authoritative.
  * Never trust client-supplied role/clinicId for security decisions.
  */
-import type { ClinicRole } from "@/lib/clinic-auth";
-import { normalizeClinicRole } from "@/lib/clinic-auth";
+import type { ClinicRole } from "@/lib/workflow";
+import { normalizeClinicRole } from "@/lib/workflow";
 
 /** Application modules surfaced in navigation / gated by role. */
 export type MedLumModule =
@@ -99,13 +101,11 @@ export function canAccessModule(role: string | null | undefined, module: MedLumM
 
 export function canAccessPath(role: string | null | undefined, pathname: string): boolean {
   const path = pathname.split("?")[0] || "/";
-  // Exact then prefix match for nested routes (e.g. /patients/xyz)
   if (PATH_MODULE[path]) return canAccessModule(role, PATH_MODULE[path]);
   const match = Object.keys(PATH_MODULE)
     .filter((p) => p !== "/" && path.startsWith(p + "/"))
     .sort((a, b) => b.length - a.length)[0];
   if (match) return canAccessModule(role, PATH_MODULE[match]);
-  // Unknown paths: allow (page-level / API auth still applies)
   return true;
 }
 
