@@ -21,6 +21,7 @@ for (const file of required) {
 
 const helper = fs.readFileSync(path.join(root, "src/lib/telemedicine.ts"), "utf8");
 const sessions = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/route.ts"), "utf8");
+const sessionIdRoute = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/[id]/route.ts"), "utf8");
 const join = fs.readFileSync(path.join(root, "src/app/api/telemedicine/join/route.ts"), "utf8");
 const doctorRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
 const patientRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/join/page.tsx"), "utf8");
@@ -39,9 +40,12 @@ const checks = [
   ["HTTPS video base URL default", helper.includes("https://meet.jit.si") || helper.includes("medlum-mirotalk-p2p")],
   ["per-session unpredictable room secret", helper.includes("randomBytes(24)") || helper.includes("randomBytes(18)")],
   ["video URL persisted at session creation", sessions.includes("meetingUrl") && sessions.includes("provider")],
-  ["facility scope is server-derived", sessions.includes("requireActiveClinicMembership") && sessions.includes("findAuthorizedPatient") && !sessions.includes("clinicId || patientClinicId")],
-  ["appointment video launch", appointments.includes("/api/telemedicine/sessions") && appointments.includes("Start Video") && appointments.includes("appointmentId")],
-  ["duplicate appointment session reuse", sessions.includes('status: { notIn: ["Completed", "Cancelled", "Expired"] }') && sessions.includes("reused: true")],
+  ["facility scope is server-derived", sessions.includes("requireActiveClinicMembership") && sessions.includes("findAuthorizedPatient") && sessions.includes("never trust a client clinicId")],
+  ["appointment telemedicine launch", appointments.includes("/api/telemedicine/sessions") && (appointments.includes("Start Telemedicine") || appointments.includes("Start Video")) && appointments.includes("appointmentId")],
+  ["duplicate appointment session reuse", sessions.includes("reused: true") && (sessions.includes("OPEN_TELEMED_STATUSES") || sessions.includes('notIn: ["Completed", "Cancelled", "Expired"]'))],
+  ["appointment ownership facility gate", sessions.includes("clinicMemberships") && sessions.includes("Appointment not found for this patient and doctor")],
+  ["terminal appointment blocked", sessions.includes("Cannot start telemedicine for a terminal appointment")],
+  ["linked appointment completed on video end", sessionIdRoute.includes("appointmentId") && sessionIdRoute.includes('status: "Completed"')],
   ["join token remains hashed", sessions.includes("hashJoinToken(joinToken)")],
   ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
   ["doctor lifecycle controls", doctorLifecycle],

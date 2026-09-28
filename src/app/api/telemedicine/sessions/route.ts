@@ -29,6 +29,8 @@ const sessionSelect = {
   updatedAt: true,
 } as const;
 
+const OPEN_TELEMED_STATUSES = { notIn: ["Completed", "Cancelled", "Expired"] as string[] };
+
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
@@ -66,6 +68,7 @@ export async function POST(req: Request) {
     const patientIdRaw = String(body.patientId || "").trim();
     const peerLabel = String(body.peerLabel || "").trim() || null;
     const appointmentId = body.appointmentId ? String(body.appointmentId).trim() : null;
+    // Never trust client clinicId — facility is derived from membership below.
     const scheduledAt = new Date(String(body.scheduledAt || ""));
     const expiresAt = body.expiresAt ? new Date(String(body.expiresAt)) : null;
 
@@ -103,26 +106,53 @@ export async function POST(req: Request) {
       patientClinicId = patient.clinicId;
 
       if (appointmentId) {
+        // Appointment must belong to this doctor + patient, and the doctor must be an active member of this facility.
         const appointment = await prisma.appointment.findFirst({
-          where: { id: appointmentId, doctorId: session.doctorId, patientId },
-          select: { id: true },
+          where: {
+            id: appointmentId,
+            patientId,
+            doctorId: session.doctorId,
+            doctor: {
+              clinicMemberships: {
+                some: { clinicId: clinicIdForDoctor, isActive: true },
+              },
+            },
+          },
+          select: { id: true, doctorId: true, patientId: true, status: true },
         });
         if (!appointment) {
           return NextResponse.json(
-            { success: false, error: "Appointment does not belong to this patient and doctor." },
-            { status: 400 }
+            {
+              success: false,
+              error: "Appointment not found for this patient and doctor in the active facility.",
+            },
+            { status: 403 }
+          );
+        }
+        if (["Cancelled", "Completed", "No Show"].includes(appointment.status)) {
+          return NextResponse.json(
+            { success: false, error: "Cannot start telemedicine for a terminal appointment." },
+            { status: 409 }
           );
         }
 
+        // Reuse open session for this appointment (refresh / double-click safe).
         const existing = await prisma.telemedicineSession.findFirst({
           where: {
             appointmentId,
-            status: { notIn: ["Completed", "Cancelled", "Expired"] },
+            status: OPEN_TELEMED_STATUSES,
           },
           orderBy: { createdAt: "desc" },
           select: sessionSelect,
         });
         if (existing) {
+          // Only the session owner (or same doctor) may reuse.
+          if (existing.doctorId !== session.doctorId) {
+            return NextResponse.json(
+              { success: false, error: "An open telemedicine session already exists for this appointment." },
+              { status: 409 }
+            );
+          }
           return NextResponse.json(
             {
               success: true,
@@ -174,7 +204,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // meetingUrl is final high-entropy room (mirotalk/jitsi); no PHI in path
     return NextResponse.json(
       {
         success: true,

@@ -67,7 +67,7 @@ export default function AppointmentsPage() {
     const sorted = [...appts].sort(
       (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time),
     );
-    if (filter === "today") return sorted.filter((a) => a.date === today() && ["Scheduled", "Waiting"].includes(a.status));
+    if (filter === "today") return sorted.filter((a) => a.date === today() && ["Scheduled", "Waiting", "In Consultation"].includes(a.status));
     if (filter === "waiting") {
       return sorted.filter((a) => a.date === today() && a.status === "Waiting");
     }
@@ -81,7 +81,7 @@ export default function AppointmentsPage() {
     return sorted;
   }, [appts, filter]);
 
-  const todayAppts = useMemo(() => appts.filter((a) => a.date === today() && ["Scheduled", "Waiting"].includes(a.status)), [appts]);
+  const todayAppts = useMemo(() => appts.filter((a) => a.date === today() && ["Scheduled", "Waiting", "In Consultation"].includes(a.status)), [appts]);
   const waitingCount = todayAppts.filter((a) => a.status === "Waiting").length;
   const completedCount = todayAppts.filter((a) => a.status === "Completed").length;
   const nextPatient = useMemo(
@@ -108,13 +108,18 @@ export default function AppointmentsPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionKind: "patient", patientId: appointment.patientId, appointmentId: appointment.id, scheduledAt: scheduledAt.toISOString() }),
+        body: JSON.stringify({
+          sessionKind: "patient",
+          patientId: appointment.patientId,
+          appointmentId: appointment.id,
+          scheduledAt: scheduledAt.toISOString(),
+        }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j?.session?.id) throw new Error(j?.error || j?.hint || "Could not start video consultation.");
+      if (!r.ok || !j?.session?.id) throw new Error(j?.error || j?.hint || "Could not start telemedicine.");
       router.push("/telemedicine/" + j.session.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start video consultation.");
+      setError(e instanceof Error ? e.message : "Could not start telemedicine.");
     } finally {
       setStartingVideoId("");
     }
@@ -254,10 +259,12 @@ export default function AppointmentsPage() {
                   Start Consult
                 </Link>
                 <button
-                  onClick={() => updateStatus(nextPatient.id, "Completed")}
-                  className="h-9 px-3 rounded-lg border text-xs"
+                  type="button"
+                  disabled={startingVideoId === nextPatient.id}
+                  onClick={() => void startVideo(nextPatient)}
+                  className="h-9 px-3 rounded-lg border text-xs disabled:opacity-50"
                 >
-                  Complete
+                  {startingVideoId === nextPatient.id ? "Opening…" : "Start Telemedicine"}
                 </button>
               </div>
             </div>
@@ -328,9 +335,14 @@ export default function AppointmentsPage() {
                         Start Consult
                       </Link>
                     )}
-                    {(a.status === "Scheduled" || a.status === "Waiting") && (
-                      <button type="button" disabled={startingVideoId === a.id} onClick={() => void startVideo(a)} className="text-xs text-[#140a1f] font-medium disabled:opacity-50">
-                        {startingVideoId === a.id ? "Opening video…" : "Start Video"}
+                    {(a.status === "Scheduled" || a.status === "Waiting" || a.status === "In Consultation") && (
+                      <button
+                        type="button"
+                        disabled={startingVideoId === a.id}
+                        onClick={() => void startVideo(a)}
+                        className="text-xs text-[#140a1f] font-medium disabled:opacity-50"
+                      >
+                        {startingVideoId === a.id ? "Opening…" : "Start Telemedicine"}
                       </button>
                     )}
                     {a.status === "Completed" && (
@@ -424,7 +436,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-2 gap-2">
                 <input
                   value={form.consultantName}
-                  onChange={(e) => setForm({ ...form, consultantName: e.target.value })}
+                  onChange={(e) => setForm({ ...form, consultantSpecialty: e.target.value })}
                   placeholder="Consultant name"
                   className="w-full h-11 px-3 rounded-lg border text-sm"
                 />
