@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
 import { writeAudit } from "@/lib/audit";
 import { assertJsonObjectSize, type NormalizedJsonObject } from "@/lib/json-input";
+import type { Prisma } from "@prisma/client";
 
 const MANAGERS = ["Owner","Admin","Manager"];
 
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     if (!member) return NextResponse.json({ error:"Staff member is not part of the selected facility." }, {status:404});
   }
   const record = await prisma.workforceRecord.create({
-    data:{ clinicId:c.membership.clinicId, memberId, module, recordType, status, title, data, createdBy:c.session.doctorId,
+    data:{ clinicId:c.membership.clinicId, memberId, module, recordType, status, title, data: data as Prisma.InputJsonValue, createdBy:c.session.doctorId,
       startAt: body.startAt ? new Date(body.startAt) : null, endAt: body.endAt ? new Date(body.endAt) : null }
   });
   await writeAudit({doctorId:c.session.doctorId, action:"PEOPLE_RECORD_CREATED", entity:"WorkforceRecord", entityId:record.id, clinicId:c.membership.clinicId, meta:{module,recordType,status,memberId}});
@@ -80,7 +81,7 @@ export async function PATCH(req: Request) {
   const record = await prisma.workforceRecord.update({where:{id},data:{
     status: body.status ? String(body.status).toUpperCase() : existing.status,
     title: body.title ? String(body.title).trim() : existing.title,
-    data,
+    data: data as Prisma.InputJsonValue,
     startAt: body.startAt === null ? null : body.startAt ? new Date(body.startAt) : existing.startAt,
     endAt: body.endAt === null ? null : body.endAt ? new Date(body.endAt) : existing.endAt,
   }});
