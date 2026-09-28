@@ -31,7 +31,6 @@ function serialize(p: any, latestVitals: any = null) {
     status: p.status || "ACTIVE",
     uhid: formatUhid(p.uhid),
     registrationNo: formatUhid(p.registrationNo),
-    // Keep the database id private/technical while exposing a stable, human-facing MedLum ID.
     medlumId: `MLD-${String(p.id || "").slice(-8).toUpperCase()}`,
     admissionDate: profile.admissionDate || (profile.careSetting === "IPD" ? p.createdAt.toISOString() : null),
     deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
@@ -42,8 +41,6 @@ function serialize(p: any, latestVitals: any = null) {
 }
 
 function generateUhid(clinicId: string): string {
-  // Human-facing UHID: stable date component + six-digit sequence-like random suffix.
-  // The database primary key remains the canonical technical identifier.
   const day = new Date().toISOString().slice(0, 10).replace(/-/g, "").slice(2);
   const rand = Math.floor(Math.random() * 900000 + 100000);
   return `UHID-${day}-${rand}`;
@@ -60,57 +57,19 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get("q") || "").trim().toLowerCase();
   const includeDischarged = url.searchParams.get("includeDischarged") === "1" || url.searchParams.get("includeDischarged") === "true";
   const includeDeleted = url.searchParams.get("includeDeleted") === "1";
+  const where: any = { clinicId, ...(includeDeleted ? {} : { deletedAt: null }) };
+  if (!q && !includeDischarged) where.NOT = { status: { in: ["DISCHARGED", "ARCHIVED"] } };
+  else if (!includeDischarged) where.NOT = { status: "ARCHIVED" };
 
-  const where: any = {
-    clinicId,
-    ...(includeDeleted ? {} : { deletedAt: null }),
-  };
-
-  // Active dashboard excludes DISCHARGED and ARCHIVED unless explicitly searching / including
-  if (!q && !includeDischarged) {
-    where.NOT = { status: { in: ["DISCHARGED", "ARCHIVED"] } };
-  } else if (!includeDischarged) {
-    // When searching, still exclude ARCHIVED by default; allow DISCHARGED so post-discharge search works
-    where.NOT = { status: "ARCHIVED" };
-  }
-
-  let patients = await prisma.patient.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: q ? 100 : 500,
-  });
-
-  if (q) {
-    patients = patients.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.phone || "").toLowerCase().includes(q) ||
-        p.id.toLowerCase().includes(q) ||
-        (p.uhid || "").toLowerCase().includes(q) ||
-        (p.registrationNo || "").toLowerCase().includes(q)
-    );
-  }
+  let patients = await prisma.patient.findMany({ where, orderBy: { createdAt: "desc" }, take: q ? 100 : 500 });
+  if (q) patients = patients.filter((p) => p.name.toLowerCase().includes(q) || (p.phone || "").toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.uhid || "").toLowerCase().includes(q) || (p.registrationNo || "").toLowerCase().includes(q));
 
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
-  const visible =
-    membership.role === "Owner"
-      ? patients
-      : setup?.subscriptionModel === "OPD"
-        ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD")
-        : setup?.subscriptionModel === "IPD"
-          ? patients.filter((p) => parseCareSetting(p.notes) === "IPD")
-          : patients;
-
+  const visible = membership.role === "Owner" ? patients : setup?.subscriptionModel === "OPD" ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD") : setup?.subscriptionModel === "IPD" ? patients.filter((p) => parseCareSetting(p.notes) === "IPD") : patients;
   const visibleIds = visible.map((p) => p.id);
   const [encounters, vitalLogs] = await Promise.all([
     visibleIds.length ? prisma.encounter.findMany({ where: { patientId: { in: visibleIds } }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
-    visibleIds.length
-      ? prisma.auditLog.findMany({
-          where: { entity: "NursingVital", entityId: { in: visibleIds } },
-          orderBy: { createdAt: "desc" },
-          take: Math.min(visibleIds.length * 5, 2500),
-        })
-      : Promise.resolve([]),
+    visibleIds.length ? prisma.auditLog.findMany({ where: { entity: "NursingVital", entityId: { in: visibleIds } }, orderBy: { createdAt: "desc" }, take: Math.min(visibleIds.length * 5, 2500) }) : Promise.resolve([]),
   ]);
   const latestVitalsByPatient = new Map<string, any>();
   const considerVitals = (patientId: string, vitals: any) => {
@@ -120,35 +79,25 @@ export async function GET(req: Request) {
     const existingTime = new Date(existing?.recordedAt || 0).getTime();
     if (!existing || nextTime >= existingTime) latestVitalsByPatient.set(patientId, vitals);
   };
-  // Current snapshot = newest valid vitals across OPD encounters and IPD nursing rounds.
-  for (const e of encounters) {
-    if (e.bp || e.pulse || e.rr || e.spo2 || e.temperature || e.weight || e.height) {
-      considerVitals(e.patientId, {
-        bp: e.bp, pulse: e.pulse, rr: e.rr, spo2: e.spo2, temperature: e.temperature,
-        weight: e.weight, height: e.height, recordedAt: e.createdAt.toISOString(), source: "OPD",
-      });
-    }
-  }
-  for (const log of vitalLogs) {
-    let meta: any = {};
-    try { meta = JSON.parse(log.meta || "{}"); } catch {}
-    considerVitals(log.entityId || "", {
-      bp: String(meta.bp || ""), pulse: String(meta.pulse || ""), rr: String(meta.rr || ""),
-      spo2: String(meta.spo2 || ""), temperature: String(meta.temperature || ""),
-      recordedAt: log.createdAt.toISOString(), source: "IPD",
-    });
-  }
-
-  return NextResponse.json(
-    { patients: visible.map((p) => serialize(p, latestVitalsByPatient.get(p.id) || null)) },
-    { headers: { "Cache-Control": "no-store" } }
-  );
+  for (const e of encounters) if (e.bp || e.pulse || e.rr || e.spo2 || e.temperature || e.weight || e.height) considerVitals(e.patientId, { bp: e.bp, pulse: e.pulse, rr: e.rr, spo2: e.spo2, temperature: e.temperature, weight: e.weight, height: e.height, recordedAt: e.createdAt.toISOString(), source: "OPD" });
+  for (const log of vitalLogs) { let meta: any = {}; try { meta = JSON.parse(log.meta || "{}"); } catch {} considerVitals(log.entityId || "", { bp: String(meta.bp || ""), pulse: String(meta.pulse || ""), rr: String(meta.rr || ""), spo2: String(meta.spo2 || ""), temperature: String(meta.temperature || ""), recordedAt: log.createdAt.toISOString(), source: "IPD" }); }
+  return NextResponse.json({ patients: visible.map((p) => serialize(p, latestVitalsByPatient.get(p.id) || null)) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    const membership = await requireActiveClinicMembership(session.doctorId);
+    if (!membership) return NextResponse.json({ success: false, error: "Your account is not assigned to an active facility." }, { status: 403 });
+
+    // Patient registration is a clinical/front-desk operation. Consultants and doctors
+    // must be able to register patients directly; non-clinical service roles cannot.
+    const registrationRoles = ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Receptionist", "Staff"];
+    if (!registrationRoles.includes(membership.role)) {
+      return NextResponse.json({ success: false, error: `Your ${membership.role} role is not permitted to register patients.` }, { status: 403 });
+    }
+
     const body = await req.json();
     const name = String(body.name || "").trim();
     const age = parseInt(body.age, 10) || 0;
@@ -159,42 +108,18 @@ export async function POST(req: Request) {
     const notes = String(body.notes || "");
     const careSetting = body.careSetting === "IPD" ? "IPD" : "OPD";
     if (!name || !phone) return NextResponse.json({ success: false, error: "Name and phone required" }, { status: 400 });
+
     const module = await requireClinicalModule(session.doctorId, careSetting);
-    if (!module.allowed)
-      return NextResponse.json(
-        { success: false, error: `${careSetting} access is not included in this clinic's subscription.` },
-        { status: 403 }
-      );
+    if (!module.allowed) return NextResponse.json({ success: false, error: `${careSetting} access is not included in this clinic's subscription.` }, { status: 403 });
     const clinicId = module.clinicId;
     const profile = body.profile && typeof body.profile === "object" ? { ...body.profile, careSetting } : { careSetting };
     const uhid = String(body.uhid || "").trim() || generateUhid(clinicId || "clinic");
     const registrationNo = String(body.registrationNo || "").trim() || uhid;
-    const patient = await prisma.patient.create({
-      data: {
-        doctorId: session.doctorId,
-        clinicId,
-        name,
-        age,
-        gender,
-        phone,
-        bp,
-        allergies,
-        notes: encodePatientNotes(notes, careSetting, profile),
-        uhid,
-        registrationNo,
-        status: "ACTIVE",
-      },
-    });
-    await writeAudit({
-      doctorId: session.doctorId,
-      action: "create",
-      entity: "Patient",
-      entityId: patient.id,
-      meta: { name, careSetting, profile, uhid, registrationNo },
-    });
+    const patient = await prisma.patient.create({ data: { doctorId: session.doctorId, clinicId, name, age, gender, phone, bp, allergies, notes: encodePatientNotes(notes, careSetting, profile), uhid, registrationNo, status: "ACTIVE" } });
+    await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Patient", entityId: patient.id, meta: { name, careSetting, profile, uhid, registrationNo, registeredByRole: membership.role } });
     return NextResponse.json({ success: true, patient: serialize(patient) });
   } catch (e) {
     console.error("create patient", e);
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Patient registration failed. Please verify your active facility and try again." }, { status: 500 });
   }
 }
