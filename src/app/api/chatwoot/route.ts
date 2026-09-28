@@ -58,7 +58,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, configured: true });
     }
 
-    const { membership, session } = await resolveContext();\n    if (!session || !membership) return fail("Unauthorized", 401);\n    const conversation = await chatwootGetConversation(conversationId);\n    const attrs = conversation.custom_attributes || {};\n    if (attrs.medlum_clinic_id !== membership.clinicId || attrs.medlum_staff_id !== membership.membershipId) return fail("Conversation is not authorized for this staff member.", 403);\n    const result = await chatwootListMessages(conversationId);
+    const { membership, session } = await resolveContext();
+    if (!session || !membership) return fail("Unauthorized", 401);
+    const conversation = await chatwootGetConversation(conversationId);
+    const attrs = conversation.custom_attributes || {};
+    if (attrs.medlum_clinic_id !== membership.clinicId || attrs.medlum_staff_id !== membership.membershipId) return fail("Conversation is not authorized for this staff member.", 403);
+    const result = await chatwootListMessages(conversationId);
     return NextResponse.json({ success: true, configured: true, messages: result.payload || result });
   } catch (error) {
     console.error("chatwoot GET error", error);
