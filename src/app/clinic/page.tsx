@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import FacilityTelegramPanel from "@/components/FacilityTelegramPanel";
 
 type EkaStatus = { provider: "EKA_ABDM"; configured: boolean; clinicId: string };
 const STAFF_ROLES = ["Admin","Manager","Consultant","Doctor","RMO","Nurse","Pharmacy","Laboratory","Billing","Receptionist","Staff"];
@@ -94,6 +95,8 @@ export default function ClinicPage() {
 
     {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">ABDM / EKA integration</h2><p className="text-xs text-gray-500 mt-1">Connect this clinic to EKA's ABDM facility onboarding flow.</p></div><span className={"rounded-full px-2.5 py-1 text-xs "+(ekaStatus?.configured?"bg-green-100 text-green-700":"bg-amber-100 text-amber-700")}>{ekaStatus?.configured?"Configured":"Not configured"}</span></div>{ekaStatus?.configured?<form onSubmit={onboardEka} className="mt-3 space-y-2"><input required value={ekaHipId} onChange={e=>setEkaHipId(e.target.value)} placeholder="EKA HIP ID" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><input value={ekaName} onChange={e=>setEkaName(e.target.value)} placeholder={("Facility name (default: "+(data?.clinic?.name||"clinic")+")")} className="w-full rounded-xl border px-3 py-2.5 text-sm"/><button disabled={ekaLoading||!ekaHipId.trim()} className="w-full rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{ekaLoading?"Connecting…":"Onboard facility with EKA"}</button></form>:<p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">EKA credentials are not configured on this deployment. The rest of MedLum continues to work normally.</p>}</section>}
 
+    <FacilityTelegramPanel />
+
     {canManage&&clinicActive&&<section className="rounded-2xl bg-white p-4 border mb-3">
       <h2 className="font-semibold">Hospitals / Facilities</h2>
       <p className="mt-1 text-xs text-gray-500">Your existing MedLum clinic is the default facility. Add additional hospitals here; each gets its own staff membership and independent Punch In geofence.</p>
@@ -119,6 +122,13 @@ export default function ClinicPage() {
 
 function PortalForm({patients,selected,setSelected,saving,setSaving,setError,setMessage}:{patients:any[];selected:string;setSelected:(v:string)=>void;saving:boolean;setSaving:(v:boolean)=>void;setError:(v:string)=>void;setMessage:(v:string)=>void}){
   const [password,setPassword]=useState("");
-  async function submit(e:React.FormEvent){e.preventDefault();setSaving(true);setError("");setMessage("");try{const r=await fetch("/api/portal/accounts",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({patientId:selected,password})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Could not enable portal access.");setMessage(j.created?"Patient portal access created.":"Patient portal access updated.");setPassword("");}catch(e){setError(e instanceof Error?e.message:"Could not enable portal access.");}finally{setSaving(false);}}
-  return <form onSubmit={submit} className="mt-3 space-y-2"><select required value={selected} onChange={e=>setSelected(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm"><option value="">Select patient</option>{patients.map(p=><option key={p.id} value={p.id}>{p.name} · {p.phone}</option>)}</select><div className="flex gap-2"><input required minLength={8} type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Portal password (8+ characters)" className="flex-1 rounded-xl border px-3 py-2.5 text-sm"/><button disabled={saving} className="rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm text-white">{saving?"Saving…":"Enable / Reset"}</button></div></form>;
+  async function onSubmit(e:React.FormEvent){
+    e.preventDefault();if(!selected||!password)return;setSaving(true);setError("");setMessage("");
+    try{
+      const r=await fetch("/api/clinic/portal",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({patientId:selected,password})});
+      const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Could not set portal password.");
+      setPassword("");setMessage("Patient portal password updated.");
+    }catch(e){setError(e instanceof Error?e.message:"Could not set portal password.");}finally{setSaving(false);}
+  }
+  return <form onSubmit={onSubmit} className="mt-3 space-y-2"><select required value={selected} onChange={e=>setSelected(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm bg-white"><option value="">Select patient</option>{patients.map((p:any)=><option key={p.id} value={p.id}>{p.name}{p.phone?` · ${p.phone}`:""}</option>)}</select><input required minLength={8} type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="New portal password (8+)" className="w-full rounded-xl border px-3 py-2.5 text-sm"/><button disabled={saving} className="rounded-xl bg-[#140a1f] px-4 py-2.5 text-sm text-white">{saving?"Saving…":"Enable / Reset"}</button></form>;
 }
