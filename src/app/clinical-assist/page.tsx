@@ -93,6 +93,7 @@ async function runOcr(file: File): Promise<ScanResult> {
 }
 
 export default function ClinicalAssistPage() {
+  const { doctor, loading: authLoading } = useDoctor();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientId, setPatientId] = useState("");
   const [patientSearch, setPatientSearch] = useState("");
