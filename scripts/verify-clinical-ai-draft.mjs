@@ -10,9 +10,9 @@ const root = process.cwd();
 let failed = 0;
 
 function ok(cond, msg) {
-  if (cond) console.log("  ✓", msg);
+  if (cond) console.log("  \u2713", msg);
   else {
-    console.error("  ✗", msg);
+    console.error("  \u2717", msg);
     failed += 1;
   }
 }
@@ -42,10 +42,19 @@ ok(!lib?.includes("OPENAI_API_KEY") || lib?.includes("process.env.OPENAI_API_KEY
 ok(route?.includes("getSession"), "draft route requires session");
 ok(route?.includes("requireActiveClinicMembership"), "draft route requires clinic membership");
 ok(route?.includes("clinicId: membership.clinicId"), "facility isolation on patient lookup");
+ok(route?.includes('canAccessModule(role, "clinical_assist")'), "draft route requires clinical_assist module");
+ok(
+  !route?.includes('canAccessModule(role, "opd")') && !route?.includes('canAccessModule(role, "telemedicine")'),
+  "draft route does not broaden access via opd/telemedicine",
+);
 ok(route?.includes("AI_DRAFT_GENERATED") || route?.includes("AI_DRAFT_REQUESTED"), "audit actions present");
 ok(route?.includes("finalized: false"), "endpoint never claims finalization");
 ok(route?.includes("consumeRateLimit"), "rate limiting applied");
 ok(!route?.includes("status: \"FINAL\""), "draft route does not finalize notes");
+ok(
+  route?.includes("cannot be supplied by the client") || route?.includes("body.clinicId"),
+  "client clinicId/role override rejected",
+);
 
 ok(signing?.includes("canFinalizeClinicalNote"), "clinical signing helpers preserved");
 ok(notes?.includes("FINAL_SIGN") || notes?.includes("finalize"), "clinical-notes finalize path preserved");
@@ -60,8 +69,12 @@ ok(
 );
 ok(panel?.includes("/api/clinical-ai/draft"), "draft panel calls generation endpoint");
 ok(panel?.includes("not a final clinical record") || panel?.includes("AI-generated draft"), "draft panel labels draft status");
+ok(panel?.includes("X-MedLum-Requested-With"), "draft panel sends CSRF client header");
 ok(!route?.includes("patient.diagnosis") && !route?.includes("workingDiagnosis"), "draft route does not select non-schema Patient fields");
 ok(route?.includes("notes: true") || route?.includes("patient.notes"), "draft route uses existing Patient.notes when available");
+
+const provider = read("src/components/DoctorProvider.tsx");
+ok(provider?.includes("canAccessPath"), "DoctorProvider enforces path module authorization");
 
 // Ensure no client exposure of secrets in UI
 ok(!page?.includes("OPENAI_API_KEY"), "UI does not reference provider secrets");

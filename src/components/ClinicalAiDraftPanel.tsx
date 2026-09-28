@@ -51,7 +51,10 @@ export default function ClinicalAiDraftPanel({
       const r = await fetch("/api/clinical-ai/draft", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-MedLum-Requested-With": "MedLum",
+        },
         body: JSON.stringify({
           patientId,
           encounterId: encounterId || undefined,

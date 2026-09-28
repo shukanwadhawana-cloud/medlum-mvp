@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiMe, apiLogout, ApiDoctor } from "@/lib/api";
-import { defaultLandingPath } from "@/lib/permissions";
+import { canAccessPath, defaultLandingPath } from "@/lib/permissions";
 
 type Ctx = {
   doctor: ApiDoctor | null;
@@ -76,7 +76,14 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
       const landing = defaultLandingPath(doctor.primaryRole);
       if (landing !== "/dashboard" && landing !== pathname) {
         router.replace(landing);
+        return;
       }
+    }
+
+    // Module path guard: hide is not enough — block direct URL access for unauthorized roles.
+    if (doctor && !isPublicPath(pathname) && !canAccessPath(doctor.primaryRole, pathname)) {
+      const landing = defaultLandingPath(doctor.primaryRole);
+      if (landing !== pathname) router.replace(landing);
     }
   }, [checked, loading, doctor, pathname, router]);
 
