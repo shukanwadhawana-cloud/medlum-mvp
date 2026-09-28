@@ -98,7 +98,7 @@ if(action==="set-department"){const patientId=String(body.patientId||"").trim();
       },
     });
   }
-  await writeAudit({doctorId:session.doctorId,action:submit?"SUBMIT_FOR_VERIFICATION":"create",entity:"ClinicalNote",entityId:note.id,meta:{patientId,noteType,content,authorRole:actorRole,status:note.status,clinicId}});
+  await writeAudit({doctorId:session.doctorId,action:submit?"SUBMIT_FOR_VERIFICATION":"create",entity:"ClinicalNote",entityId:note.id,meta:{patientId,noteType,content,authorRole:actorRole,status:note.status,clinicId,atIst:istIsoLabel(new Date())}});
   return NextResponse.json({success:true,note});
 }
 if(action==="update-diagnosis"){
