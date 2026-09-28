@@ -58,3 +58,5 @@ This harmless marker is used to verify that GitHub-hosted Actions can execute a 
 
 
 Record lifecycle: clinical records require explicit confirmation; drafts may be deleted on cancellation, while submitted/final records are cancelled with an auditable retained state.
+
+<!-- Deployment verification remains tied to the exact main commit SHA. -->
