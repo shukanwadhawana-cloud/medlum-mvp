@@ -25,6 +25,7 @@
     "test:api-auth-coverage": "node scripts/verify-api-auth-coverage.mjs",
     "test:telemedicine": "node scripts/verify-telemedicine-foundation.mjs",
     "test:video-consultation": "node scripts/verify-video-consultation.mjs",
+    "test:telemedicine-clinical": "node scripts/verify-telemedicine-clinical-workflow.mjs",
     "test:responsive-ui": "node scripts/verify-responsive-ui.mjs",
     "test:mobile-packaging": "node scripts/verify-mobile-packaging.mjs",
     "test:desktop-packaging": "node scripts/verify-desktop-packaging.mjs",

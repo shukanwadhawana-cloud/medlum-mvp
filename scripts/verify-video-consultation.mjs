@@ -33,7 +33,7 @@ const doctorLifecycle =
   (doctorRoom.includes('status: "Active"') || doctorRoom.includes("status: 'Active'")) &&
   (doctorRoom.includes('status: "Completed"') || doctorRoom.includes("status: 'Completed'")) &&
   (doctorRoom.includes("startCallForGuest") || doctorRoom.includes("Start call")) &&
-  (doctorRoom.includes("hangUp") || doctorRoom.includes("Hang up"));
+  (doctorRoom.includes("hangUp") || doctorRoom.includes("Hang up") || doctorRoom.includes("End video"));
 
 const checks = [
   ["replaceable provider selection", helper.includes("getVideoProvider") && helper.includes('"external"') && helper.includes('"jitsi"') && helper.includes('"mirotalk"')],
@@ -50,6 +50,8 @@ const checks = [
   ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
   ["doctor lifecycle controls", doctorLifecycle],
   ["doctor new-tab join", doctorRoom.includes("openConferenceInNewTab") || doctorRoom.includes("Join video")],
+  ["clinical workspace fields", ["chiefComplaint", "diagnosis", "assessment", "plan"].every((f) => doctorRoom.includes(f))],
+  ["clinical save uses Encounter API", doctorRoom.includes("apiCreateEncounter") || doctorRoom.includes("/api/encounters")],
   ["patient waiting room", patientRoom.includes("You're in the waiting room")],
   ["patient join opens meeting", patientRoom.includes("session.meetingUrl") && (patientRoom.includes("openConferenceInNewTab") || patientRoom.includes("Join video call"))],
   ["post-call close page", endedRoom.includes("window.close()") && endedRoom.includes("Video consultation ended")],
