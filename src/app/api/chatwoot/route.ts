@@ -52,7 +52,7 @@ async function resolveInboxId() {
 
 export async function GET(req: Request) {
   try {
-    if (!isChatwootConfigured()) return NextResponse.json({ success: true, configured: false });
+    if (!isChatwootConfigured()) return NextResponse.json({ success: true, configured: true, mode: "knowledge", knowledgeVersion: MEDLUM_HELP_KNOWLEDGE_VERSION });
 
     const url = new URL(req.url);
     const conversationId = Number(url.searchParams.get("conversationId") || "");
@@ -84,10 +84,14 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    if (!isChatwootConfigured()) return fail("Chat service is not configured yet.", 503);
+    const chatwootConfigured = isChatwootConfigured();
 
     const { session, membership, doctor } = await resolveContext();
     if (!session || !membership || !doctor) return fail("Unauthorized", 401);
+
+    if (!chatwootConfigured) {
+      return NextResponse.json({ success: true, mode: "knowledge", message: { id: Date.now(), content: medLumHelpAnswer(content), message_type: "outgoing", sender: { name: "MedLum Help" } } });
+    }
 
     const body = await req.json().catch(() => ({}));
     const action = body.action === "message" ? "message" : "start";

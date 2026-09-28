@@ -25,7 +25,7 @@ type Appointment = {
   consultantSpecialty?: string;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 export default function AppointmentsPage() {
   const router = useRouter();

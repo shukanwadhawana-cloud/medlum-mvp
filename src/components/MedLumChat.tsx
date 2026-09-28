@@ -13,6 +13,7 @@ type ChatMessage = {
 export default function MedLumChat() {
   const [open, setOpen] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [mode, setMode] = useState<"chatwoot" | "knowledge" | null>(null);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
@@ -25,7 +26,7 @@ export default function MedLumChat() {
     if (Number.isInteger(stored) && stored > 0) setConversationId(stored);
     fetch("/api/chatwoot", { credentials: "include", cache: "no-store" })
       .then((r) => r.json())
-      .then((j) => setConfigured(Boolean(j.configured)))
+      .then((j) => { setConfigured(Boolean(j.configured)); setMode(j.mode === "knowledge" ? "knowledge" : "chatwoot"); })
       .catch(() => setConfigured(false));
   }, []);
 
@@ -80,7 +81,7 @@ export default function MedLumChat() {
       });
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j.error || "Unable to send message");
-      if (j.conversationId) {
+      if (j.message) { setMessages((prev) => [...prev, j.message]); }\n      if (j.conversationId) {
         setConversationId(j.conversationId);
         window.localStorage.setItem("medlum_chat_conversation", String(j.conversationId));
       }
@@ -115,7 +116,7 @@ export default function MedLumChat() {
           <div className="flex-1 overflow-y-auto bg-gray-50 p-3">
             {configured === false && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                Staff chat is not connected yet. The clinical workspace continues to work normally.
+                Staff support chat is not connected, so MedLum Help is using its free built-in workflow guide. You can still ask questions here.
               </div>
             )}
             {configured && messages.length === 0 && (
@@ -160,7 +161,7 @@ export default function MedLumChat() {
               onChange={(e) => setText(e.target.value)}
               disabled={configured !== true || busy}
               maxLength={4000}
-              placeholder={configured === false ? "Chat unavailable" : "Type your message…"}
+              placeholder={configured === false ? "Type a MedLum Help question…" : "Type your message…"}
               className="min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[#c2183a]"
             />
             <button
