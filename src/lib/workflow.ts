@@ -5,35 +5,71 @@ export const APPOINTMENT_STATUSES = [
   "In Consultation",
   "Completed",
   "Cancelled",
+  "No Show",
 ] as const;
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 
+/** Accept commercial aliases used in product docs while storing canonical labels. */
+const STATUS_ALIASES: Record<string, AppointmentStatus> = {
+  SCHEDULED: "Scheduled",
+  Scheduled: "Scheduled",
+  CONFIRMED: "Confirmed",
+  Confirmed: "Confirmed",
+  CHECKED_IN: "Waiting",
+  "Checked In": "Waiting",
+  "Checked-In": "Waiting",
+  Waiting: "Waiting",
+  IN_CONSULTATION: "In Consultation",
+  "In Consultation": "In Consultation",
+  COMPLETED: "Completed",
+  Completed: "Completed",
+  CANCELLED: "Cancelled",
+  Cancelled: "Cancelled",
+  Canceled: "Cancelled",
+  NO_SHOW: "No Show",
+  "No Show": "No Show",
+  "No-Show": "No Show",
+};
+
+export function normalizeAppointmentStatus(value: string): AppointmentStatus | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  if ((APPOINTMENT_STATUSES as readonly string[]).includes(raw)) return raw as AppointmentStatus;
+  const mapped = STATUS_ALIASES[raw] || STATUS_ALIASES[raw.toUpperCase()] || STATUS_ALIASES[raw.replace(/_/g, " ")];
+  return mapped || null;
+}
+
 const TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
-  Scheduled: ["Confirmed", "Waiting", "Cancelled"],
-  Confirmed: ["Waiting", "Cancelled"],
+  Scheduled: ["Confirmed", "Waiting", "Cancelled", "No Show"],
+  Confirmed: ["Waiting", "Cancelled", "No Show"],
   // Direct completion remains supported for the existing one-click OPD workflow;
   // video/clinical sessions can use the explicit In Consultation state first.
-  Waiting: ["In Consultation", "Completed", "Cancelled"],
-  "In Consultation": ["Completed"],
+  Waiting: ["In Consultation", "Completed", "Cancelled", "No Show"],
+  "In Consultation": ["Completed", "Cancelled"],
   Completed: [],
   Cancelled: [],
+  "No Show": [],
 };
 
 export function isAppointmentStatus(value: string): value is AppointmentStatus {
-  return (APPOINTMENT_STATUSES as readonly string[]).includes(value);
+  return normalizeAppointmentStatus(value) !== null;
 }
 
 export function canTransitionAppointment(from: string, to: string): boolean {
-  if (!isAppointmentStatus(from) || !isAppointmentStatus(to)) return false;
-  return TRANSITIONS[from].includes(to);
+  const f = normalizeAppointmentStatus(from);
+  const t = normalizeAppointmentStatus(to);
+  if (!f || !t) return false;
+  return TRANSITIONS[f].includes(t);
 }
 
 export function appointmentTransitionError(from: string, to: string): string | null {
-  if (!isAppointmentStatus(to)) return `Invalid appointment status: ${to}`;
-  if (!isAppointmentStatus(from)) return `Invalid current appointment status: ${from}`;
-  if (canTransitionAppointment(from, to)) return null;
-  return `Cannot change appointment from ${from} to ${to}.`;
+  const f = normalizeAppointmentStatus(from);
+  const t = normalizeAppointmentStatus(to);
+  if (!t) return `Invalid appointment status: ${to}`;
+  if (!f) return `Invalid current appointment status: ${from}`;
+  if (canTransitionAppointment(f, t)) return null;
+  return `Cannot change appointment from ${f} to ${t}.`;
 }
 
 export const CLINIC_ROLES = [

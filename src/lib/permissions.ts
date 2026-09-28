@@ -72,6 +72,7 @@ export const PATH_MODULE: Record<string, MedLumModule> = {
   "/dashboard": "dashboard",
   "/patients": "patients",
   "/opd": "opd",
+  "/appointments": "opd",
   "/ipd": "ipd",
   "/ipd-summaries": "ipd",
   "/emergency": "emergency",
@@ -190,6 +191,7 @@ const ALL_PRIMARY: NavItem[] = [
 
 const ALL_MENU: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "clinic", module: "dashboard" },
+  { href: "/appointments", label: "Appointments", icon: "clinic", module: "opd" },
   { href: "/duty", label: "Duty", icon: "duty", module: "duty" },
   { href: "/workforce", label: "Staff & Workforce", icon: "people", module: "workforce" },
   { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic", module: "clinic" },
