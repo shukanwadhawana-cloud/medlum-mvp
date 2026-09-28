@@ -93,6 +93,7 @@ export default function OpdPatientPrintPage() {
   const rxs: any[] = data.prescriptions || [];
   const notes: any[] = data.clinicalNotes || [];
   const appts: any[] = data.appointments || [];
+  const taxNote = String(data.taxNote || "").trim();
 
   const latestEncounter = encounters.length ? encounters[encounters.length - 1] : null;
   const vitalsFrom =
@@ -203,8 +204,8 @@ export default function OpdPatientPrintPage() {
                     <span className="font-semibold text-gray-700">
                       {idx + 1}. {e.date || fmtDate(e.createdAt)}
                     </span>
-                    <span>
-                      {[e.doctorName, fmtDate(e.createdAt)].filter(Boolean).join(" · ")}
+                    <span className="text-right">
+                      {[e.clinician?.name, e.clinician?.role, e.clinician?.staffCode, fmtDate(e.createdAt)].filter(Boolean).join(" · ")}
                     </span>
                   </div>
                   <Field label="Chief complaint" value={e.chiefComplaint} />
@@ -255,8 +256,8 @@ export default function OpdPatientPrintPage() {
                     <td className="py-1.5 pr-2">
                       <span className="font-medium">{l.testName}</span>
                       {l.category ? <span className="text-gray-400"> · {l.category}</span> : null}
-                      {l.doctorName ? (
-                        <div className="text-[10px] text-gray-400">Ordered by {l.doctorName}</div>
+                      {l.orderedBy?.name ? (
+                        <div className="text-[10px] text-gray-400">Ordered by {[l.orderedBy.name, l.orderedBy.role, l.orderedBy.staffCode].filter(Boolean).join(" · ")}</div>
                       ) : null}
                     </td>
                     <td className="py-1.5 pr-2">{l.status || "Ordered"}</td>
@@ -287,9 +288,7 @@ export default function OpdPatientPrintPage() {
                     {d.bodyPart ? ` · ${d.bodyPart}` : ""}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {[fmtDate(d.orderedAt), d.status, d.doctorName && `Dr ${d.doctorName}`]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {[fmtDate(d.orderedAt), d.status, d.orderedBy?.name && "Dr " + d.orderedBy.name, d.orderedBy?.role, d.orderedBy?.staffCode].filter(Boolean).join(" · ")}
                   </p>
                   <Field label="Indication" value={d.indication} />
                   <Field label="Findings" value={d.findings} />
@@ -311,7 +310,7 @@ export default function OpdPatientPrintPage() {
               {rxs.map((r) => (
                 <div key={r.id} style={{ breakInside: "avoid" }}>
                   <p className="text-xs text-gray-500">
-                    {[fmtDate(r.createdAt), r.doctorName].filter(Boolean).join(" · ")}
+                    {[fmtDate(r.createdAt), r.clinician?.name, r.clinician?.role, r.clinician?.staffCode].filter(Boolean).join(" · ")}
                   </p>
                   <pre className="mt-0.5 whitespace-pre-wrap font-sans text-sm">{r.medicines}</pre>
                   {r.advice && (
@@ -340,8 +339,9 @@ export default function OpdPatientPrintPage() {
                   <p className="text-xs text-gray-500">
                     {[
                       fmtDate(n.finalizedAt || n.createdAt),
-                      n.authorName,
-                      n.authorRole,
+                      n.author?.name,
+                      n.author?.role,
+                      n.author?.staffCode,
                       n.status,
                     ]
                       .filter(Boolean)
@@ -350,8 +350,8 @@ export default function OpdPatientPrintPage() {
                   <pre className="mt-1 whitespace-pre-wrap font-sans text-sm leading-relaxed">
                     {n.content}
                   </pre>
-                  {n.verifierName && (
-                    <p className="mt-1 text-[10px] text-gray-500">Verified by {n.verifierName}</p>
+                  {n.verifier?.name && (
+                    <p className="mt-1 text-[10px] text-gray-500">Verified by {[n.verifier.name, n.verifier.role, n.verifier.staffCode].filter(Boolean).join(" · ")}</p>
                   )}
                 </div>
               ))}
@@ -372,6 +372,13 @@ export default function OpdPatientPrintPage() {
             </ul>
           )}
         </Section>
+
+        {taxNote && (
+          <section className="mt-6 border-t border-gray-200 pt-3" style={{ breakInside: "avoid" }}>
+            <h2 className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Clinic / tax information</h2>
+            <p className="mt-1 text-[10px] leading-relaxed text-gray-500 whitespace-pre-wrap">{taxNote}</p>
+          </section>
+        )}
 
         {showMedlumFooter(h) && (
           <p className="mt-8 text-center text-[9px] tracking-wide text-gray-400">
