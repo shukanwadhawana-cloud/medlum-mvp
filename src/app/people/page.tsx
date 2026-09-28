@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import { parseJsonObject } from "@/lib/json-input";
 
 type Module = "overview"|"staff"|"leave"|"attendance"|"shifts"|"recruitment"|"onboarding"|"payroll"|"expenses"|"performance"|"training"|"discipline"|"compensation";
 const modules: {id:Module;label:string;desc:string}[] = [
@@ -40,7 +41,7 @@ export default function PeoplePage(){
  const loadStaff=useCallback(async()=>{try{const r=await fetch("/api/clinic/staff?status=active",{credentials:"include",cache:"no-store"});const j=await r.json().catch(()=>({}));if(r.ok)setStaff(j.members||[])}catch{}},[]);
  useEffect(()=>{void load(tab);void loadStaff()},[tab,load,loadStaff]);
 
- async function save(e:React.FormEvent){e.preventDefault();setError("");setMessage("");let data:any={};try{data=JSON.parse(form.data||"{}")}catch{setError("Details must be valid JSON.");return}
+ async function save(e:React.FormEvent){e.preventDefault();setError("");setMessage("");const data=parseJsonObject(form.data);
    const r=await fetch("/api/people",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,module:tab,data,recordType:form.recordType||typeFor[tab]||"Record"})});
    const j=await r.json().catch(()=>({}));if(!r.ok){setError(j.error||"Could not save.");return}setMessage("People record saved.");setShowForm(false);setForm({title:"",recordType:"",memberId:"",status:"DRAFT",data:"{}"});void load(tab)
  }
