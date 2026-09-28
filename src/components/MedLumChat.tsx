@@ -159,14 +159,14 @@ export default function MedLumChat() {
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
-              disabled={configured !== true || busy}
+              disabled={!(mode === "knowledge" || configured === true) || busy}
               maxLength={4000}
               placeholder={configured === false ? "Type a MedLum Help question…" : "Type your message…"}
               className="min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[#c2183a]"
             />
             <button
               type="submit"
-              disabled={configured !== true || busy || !text.trim()}
+              disabled={!(mode === "knowledge" || configured === true) || busy || !text.trim()}
               className="rounded-xl bg-[#c2183a] px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
               {busy ? "…" : "Send"}
