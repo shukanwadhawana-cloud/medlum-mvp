@@ -11,6 +11,7 @@ const required = [
   "src/app/telemedicine/[id]/page.tsx",
   "src/app/telemedicine/join/page.tsx",
   "src/app/telemedicine/ended/page.tsx",
+  "src/app/appointments/page.tsx",
 ];
 
 const failures = [];
@@ -24,6 +25,7 @@ const join = fs.readFileSync(path.join(root, "src/app/api/telemedicine/join/rout
 const doctorRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
 const patientRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/join/page.tsx"), "utf8");
 const endedRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/ended/page.tsx"), "utf8");
+const appointments = fs.readFileSync(path.join(root, "src/app/appointments/page.tsx"), "utf8");
 
 const doctorLifecycle =
   (doctorRoom.includes('status: "Waiting"') || doctorRoom.includes("status: 'Waiting'")) &&
@@ -37,6 +39,9 @@ const checks = [
   ["HTTPS video base URL default", helper.includes("https://meet.jit.si") || helper.includes("medlum-mirotalk-p2p")],
   ["per-session unpredictable room secret", helper.includes("randomBytes(24)") || helper.includes("randomBytes(18)")],
   ["video URL persisted at session creation", sessions.includes("meetingUrl") && sessions.includes("provider")],
+  ["facility scope is server-derived", sessions.includes("requireActiveClinicMembership") && sessions.includes("findAuthorizedPatient") && !sessions.includes("clinicId || patientClinicId")],
+  ["appointment video launch", appointments.includes("/api/telemedicine/sessions") && appointments.includes("Start Video") && appointments.includes("appointmentId")],
+  ["duplicate appointment session reuse", sessions.includes('status: { notIn: ["Completed", "Cancelled", "Expired"] }') && sessions.includes("reused: true")],
   ["join token remains hashed", sessions.includes("hashJoinToken(joinToken)")],
   ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
   ["doctor lifecycle controls", doctorLifecycle],

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { writeAudit } from "@/lib/audit";
 import { createJoinToken, createVideoMeetingUrl, getVideoProvider, hashJoinToken } from "@/lib/telemedicine";
 
 function isMissingTableError(error: unknown) {
@@ -64,7 +66,6 @@ export async function POST(req: Request) {
     const patientIdRaw = String(body.patientId || "").trim();
     const peerLabel = String(body.peerLabel || "").trim() || null;
     const appointmentId = body.appointmentId ? String(body.appointmentId).trim() : null;
-    const clinicId = body.clinicId ? String(body.clinicId).trim() : null;
     const scheduledAt = new Date(String(body.scheduledAt || ""));
     const expiresAt = body.expiresAt ? new Date(String(body.expiresAt)) : null;
 
@@ -81,23 +82,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "expiresAt must be after scheduledAt." }, { status: 400 });
     }
 
-    const membership = await prisma.clinicMember.findFirst({
-      where: { doctorId: session.doctorId, isActive: true },
-      select: { clinicId: true },
-    });
-    const clinicIdForDoctor = membership?.clinicId || null;
+    const membership = await requireActiveClinicMembership(session.doctorId);
+    if (!membership) return NextResponse.json({ success: false, error: "No active facility membership." }, { status: 403 });
+    const clinicIdForDoctor = membership.clinicId;
 
     let patientId: string | null = null;
     let patientName: string | null = null;
     let patientClinicId: string | null = null;
 
     if (sessionKind === "patient") {
-      const patient = await prisma.patient.findFirst({
-        where: clinicIdForDoctor
-          ? { id: patientIdRaw, OR: [{ doctorId: session.doctorId }, { clinicId: clinicIdForDoctor }] }
-          : { id: patientIdRaw, doctorId: session.doctorId },
-        select: { id: true, name: true, clinicId: true },
-      });
+      const patient = await findAuthorizedPatient(membership, patientIdRaw);
       if (!patient) {
         return NextResponse.json(
           { success: false, error: "Patient not found for this doctor or clinic. Register the patient first." },
@@ -119,6 +113,27 @@ export async function POST(req: Request) {
             { status: 400 }
           );
         }
+
+        const existing = await prisma.telemedicineSession.findFirst({
+          where: {
+            appointmentId,
+            status: { notIn: ["Completed", "Cancelled", "Expired"] },
+          },
+          orderBy: { createdAt: "desc" },
+          select: sessionSelect,
+        });
+        if (existing) {
+          return NextResponse.json(
+            {
+              success: true,
+              reused: true,
+              session: existing,
+              patientName: patient.name,
+              sessionKind: "patient",
+            },
+            { status: 200 }
+          );
+        }
       }
     }
 
@@ -130,7 +145,8 @@ export async function POST(req: Request) {
         doctorId: session.doctorId,
         patientId,
         appointmentId: sessionKind === "patient" ? appointmentId : null,
-        clinicId: clinicId || patientClinicId || clinicIdForDoctor,
+        // Facility scope is always derived server-side; never trust a client clinicId.
+        clinicId: patientClinicId || clinicIdForDoctor,
         sessionKind,
         peerLabel: sessionKind === "peer" ? peerLabel || "Consultant peer call" : null,
         scheduledAt,
@@ -141,6 +157,21 @@ export async function POST(req: Request) {
         joinTokenHash: hashJoinToken(joinToken),
       },
       select: sessionSelect,
+    });
+
+    await writeAudit({
+      doctorId: session.doctorId,
+      clinicId: clinicIdForDoctor,
+      action: "TELEMEDICINE_SESSION_CREATED",
+      entity: "TelemedicineSession",
+      entityId: created.id,
+      meta: {
+        sessionKind,
+        patientId,
+        appointmentId: created.appointmentId,
+        provider,
+        scheduledAt: scheduledAt.toISOString(),
+      },
     });
 
     // meetingUrl is final high-entropy room (mirotalk/jitsi); no PHI in path
