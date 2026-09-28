@@ -95,6 +95,8 @@ export default function MedLumChat() {
     }
   };
 
+  const canUse = mode === "knowledge" || configured === true;
+
   return (
     <>
       {open && (
@@ -115,12 +117,7 @@ export default function MedLumChat() {
           </header>
 
           <div className="flex-1 overflow-y-auto bg-gray-50 p-3">
-            {configured === false && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                Staff support chat is not connected, so MedLum Help is using its free built-in workflow guide. You can still ask questions here.
-              </div>
-            )}
-            {configured && messages.length === 0 && (
+            {messages.length === 0 && (
               <div className="rounded-xl border bg-white p-3 text-sm text-gray-600">
                 <p className="font-medium text-gray-900">How can we help?</p>
                 <p className="mt-1 text-xs">
@@ -160,14 +157,14 @@ export default function MedLumChat() {
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
-              disabled={!(mode === "knowledge" || configured === true) || busy}
+              disabled={!canUse || busy}
               maxLength={4000}
-              placeholder={configured === false ? "Type a MedLum Help question…" : "Type your message…"}
+              placeholder="Type your message…"
               className="min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[#c2183a]"
             />
             <button
               type="submit"
-              disabled={!(mode === "knowledge" || configured === true) || busy || !text.trim()}
+              disabled={!canUse || busy || !text.trim()}
               className="rounded-xl bg-[#c2183a] px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
             >
               {busy ? "…" : "Send"}
