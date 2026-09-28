@@ -11,6 +11,7 @@ import {
   chatwootSendMessage,
   isChatwootConfigured,
 } from "@/lib/chatwoot";
+import { medLumHelpAnswer, MEDLUM_HELP_KNOWLEDGE_VERSION } from "@/lib/medlum-help";
 
 function fail(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status });
@@ -89,14 +90,14 @@ export async function POST(req: Request) {
     const { session, membership, doctor } = await resolveContext();
     if (!session || !membership || !doctor) return fail("Unauthorized", 401);
 
-    if (!chatwootConfigured) {
-      return NextResponse.json({ success: true, mode: "knowledge", message: { id: Date.now(), content: medLumHelpAnswer(content), message_type: "outgoing", sender: { name: "MedLum Help" } } });
-    }
-
     const body = await req.json().catch(() => ({}));
     const action = body.action === "message" ? "message" : "start";
     const content = typeof body.content === "string" ? body.content.trim() : "";
     if (!content || content.length > 4000) return fail("Message must contain 1–4000 characters.");
+
+    if (!chatwootConfigured) {
+      return NextResponse.json({ success: true, mode: "knowledge", message: { id: Date.now(), content: medLumHelpAnswer(content), message_type: "outgoing", sender: { name: "MedLum Help" } } });
+    }
 
     const context = {
       clinicId: membership.clinicId,
