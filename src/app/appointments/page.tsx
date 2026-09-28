@@ -67,7 +67,7 @@ export default function AppointmentsPage() {
     const sorted = [...appts].sort(
       (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time),
     );
-    if (filter === "today") return sorted.filter((a) => a.date === today());
+    if (filter === "today") return sorted.filter((a) => a.date === today() && ["Scheduled", "Waiting"].includes(a.status));
     if (filter === "waiting") {
       return sorted.filter((a) => a.date === today() && a.status === "Waiting");
     }
@@ -81,7 +81,7 @@ export default function AppointmentsPage() {
     return sorted;
   }, [appts, filter]);
 
-  const todayAppts = useMemo(() => appts.filter((a) => a.date === today()), [appts]);
+  const todayAppts = useMemo(() => appts.filter((a) => a.date === today() && ["Scheduled", "Waiting"].includes(a.status)), [appts]);
   const waitingCount = todayAppts.filter((a) => a.status === "Waiting").length;
   const completedCount = todayAppts.filter((a) => a.status === "Completed").length;
   const nextPatient = useMemo(
@@ -169,7 +169,7 @@ export default function AppointmentsPage() {
   }
 
   const tabs = [
-    ["today", "Today"],
+    ["today", "Active today"],
     ["waiting", "Waiting"],
     ["completed", "Completed"],
     ["upcoming", "Upcoming"],
@@ -228,7 +228,7 @@ export default function AppointmentsPage() {
               <p className="text-xl font-semibold text-green-900">{completedCount}</p>
             </button>
             <div className="bg-white border rounded-xl p-3">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500">Today</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">Active today</p>
               <p className="text-xl font-semibold">{todayAppts.length}</p>
             </div>
           </div>
@@ -285,7 +285,7 @@ export default function AppointmentsPage() {
             <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
           ) : !visible.length ? (
             <div className="p-6 text-center text-gray-500 text-sm">
-              No appointments in this view.
+              No active appointments in this view.
             </div>
           ) : (
             <div className="divide-y">
