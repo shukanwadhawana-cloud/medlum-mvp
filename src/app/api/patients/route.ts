@@ -88,7 +88,7 @@ export async function GET(req: Request) {
     current.count += 1;
     if (!current.latestStatus) current.latestStatus = e.status || null;
     emergencyMeta.set(e.patientId, current);
-  });
+  }
   const latestVitalsByPatient = new Map<string, any>();
   const considerVitals = (patientId: string, vitals: any) => {
     if (!patientId) return;
