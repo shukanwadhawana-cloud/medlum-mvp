@@ -9,7 +9,7 @@ import {
 
 /**
  * OPD clinical print package — same auth + tenant isolation as patient detail.
- * Clinical content only; clinician/orderer attribution is intentionally omitted.
+ * Clinical content only, with server-derived clinician/orderer attribution for the print record.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -43,27 +43,69 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const [encounters, prescriptions, labOrders, diagnosticOrders, clinicalNotes, appointments] =
     await Promise.all([
-      prisma.encounter.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),
-      prisma.prescription.findMany({
-        where: { patientId: id, status: { not: "CANCELLED" } },
+      prisma.encounter.findMany({
+        where: { patientId: id, patient: { clinicId: membership.clinicId } },
+        include: { doctor: { select: { id: true, name: true } } },
         orderBy: { createdAt: "asc" },
       }),
-      prisma.labOrder.findMany({ where: { patientId: id }, orderBy: { orderedAt: "asc" } }),
-      prisma.diagnosticOrder.findMany({ where: { patientId: id }, orderBy: { orderedAt: "asc" } }),
+      prisma.prescription.findMany({
+        where: { patientId: id, patient: { clinicId: membership.clinicId }, status: { not: "CANCELLED" } },
+        include: { doctor: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.labOrder.findMany({
+        where: { patientId: id, patient: { clinicId: membership.clinicId } },
+        include: { doctor: { select: { id: true, name: true } } },
+        orderBy: { orderedAt: "asc" },
+      }),
+      prisma.diagnosticOrder.findMany({
+        where: { patientId: id, patient: { clinicId: membership.clinicId } },
+        include: { doctor: { select: { id: true, name: true } } },
+        orderBy: { orderedAt: "asc" },
+      }),
       prisma.clinicalNote.findMany({
         where: {
           clinicId: membership.clinicId,
           patientId: id,
-          status: { in: ["FINAL", "VERIFIED", "SUBMITTED"] },
+          status: { in: ["FINAL", "VERIFIED"] },
         },
         include: {
-          author: { select: { id: true } },
-          verifier: { select: { id: true } },
+          author: { select: { id: true, name: true } },
+          verifier: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "asc" },
       }),
-      prisma.appointment.findMany({ where: { patientId: id }, orderBy: { createdAt: "asc" } }),
+      prisma.appointment.findMany({
+        where: { patientId: id, patient: { clinicId: membership.clinicId } },
+        orderBy: { createdAt: "asc" },
+      }),
     ]);
+
+  const doctorIds = Array.from(
+    new Set([
+      ...encounters.map((e) => e.doctorId),
+      ...prescriptions.map((r) => r.doctorId),
+      ...labOrders.map((l) => l.doctorId),
+      ...diagnosticOrders.map((d) => d.doctorId),
+      ...clinicalNotes.flatMap((n) => [n.authorDoctorId, n.verifierDoctorId].filter(Boolean)),
+    ])
+  );
+  const staff = doctorIds.length
+    ? await prisma.clinicMember.findMany({
+        where: { clinicId: membership.clinicId, doctorId: { in: doctorIds as string[] } },
+        select: { doctorId: true, role: true, designation: true, staffCode: true },
+      })
+    : [];
+  const staffByDoctor = new Map(staff.map((m) => [m.doctorId, m]));
+  const clinicianLabel = (doctor: { id: string; name: string } | null | undefined) => {
+    if (!doctor) return null;
+    const member = staffByDoctor.get(doctor.id);
+    return {
+      name: doctor.name,
+      role: member?.designation || member?.role || null,
+      staffCode: member?.staffCode || null,
+    };
+  };
 
   const printable = {
     hospital: {
@@ -74,6 +116,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       registrationNo: clinic?.registrationNo || null,
       letterheadHeightMm: clinic?.letterheadHeightMm ?? null,
       showMedlumFooter: clinic?.showMedlumFooter ?? true,
+      invoiceFooter: (await prisma.clinic.findUnique({ where: { id: membership.clinicId }, select: { invoiceFooter: true } }))?.invoiceFooter || "",
     },
     patient: {
       name: patient.name,
@@ -103,12 +146,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       weight: e.weight || "",
       height: e.height || "",
       createdAt: e.createdAt.toISOString(),
+      clinician: clinicianLabel(e.doctor),
     })),
     prescriptions: prescriptions.map((r) => ({
       id: r.id,
       medicines: r.medicines || "",
       advice: r.advice || "",
       createdAt: r.createdAt.toISOString(),
+      clinician: clinicianLabel(r.doctor),
     })),
     labOrders: labOrders.map((l) => ({
       id: l.id,
@@ -119,6 +164,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       notes: l.notes || "",
       orderedAt: l.orderedAt.toISOString(),
       resultedAt: l.resultedAt?.toISOString() || null,
+      orderedBy: clinicianLabel(l.doctor),
     })),
     diagnosticOrders: diagnosticOrders.map((d) => ({
       id: d.id,
@@ -132,6 +178,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       notes: d.notes || "",
       orderedAt: d.orderedAt.toISOString(),
       reportedAt: d.reportedAt?.toISOString() || null,
+      orderedBy: clinicianLabel(d.doctor),
     })),
     clinicalNotes: clinicalNotes
       .filter((n) => n.status === "FINAL" || n.status === "VERIFIED")
@@ -143,6 +190,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         status: n.status,
         finalizedAt: n.finalizedAt?.toISOString() || null,
         createdAt: n.createdAt.toISOString(),
+        author: clinicianLabel(n.author),
+        verifier: n.verifier ? clinicianLabel(n.verifier) : null,
       })),
     appointments: appointments.map((a) => ({
       id: a.id,
