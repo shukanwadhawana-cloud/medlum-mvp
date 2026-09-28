@@ -16,6 +16,8 @@ import { apiAddPrescription, apiGetPrescriptions } from "@/lib/api";
 type Props = {
   patient: { id: string; name: string };
   onOrdered?: () => void;
+  /** Optional context retained in the existing prescription advice field. */
+  contextNote?: string;
 };
 
 type RxRow = {
@@ -36,7 +38,7 @@ const QUICK_FAVORITES: MedOrderLine[] = [
   { ...emptyMedOrderLine("BISACODYL SUPP"), dosage: "10 mg", route: "RECTAL", schedule: "STAT(ONE TIME ONLY)", priority: "STAT" },
 ];
 
-export default function MedOrderPanel({ patient, onOrdered }: Props) {
+export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props) {
   const [lines, setLines] = useState<MedOrderLine[]>([emptyMedOrderLine()]);
   const [advice, setAdvice] = useState("");
   const [list, setList] = useState<RxRow[]>([]);
@@ -95,11 +97,12 @@ export default function MedOrderPanel({ patient, onOrdered }: Props) {
     setBusy(true);
     try {
       const medicines = valid.map(formatMedOrderLine).join("\n");
+      const orderAdvice = [contextNote?.trim(), advice.trim()].filter(Boolean).join(" · ");
       const r = await apiAddPrescription({
         patientId: patient.id,
         patientName: patient.name,
         medicines,
-        advice: advice.trim(),
+        advice: orderAdvice,
       });
       if (!r.success) throw new Error(r.error || "Could not place order");
       setMsg(`Order confirmed · ${valid.length} line${valid.length === 1 ? "" : "s"}`);
@@ -131,7 +134,7 @@ export default function MedOrderPanel({ patient, onOrdered }: Props) {
           patientId: patient.id,
           noteType: "Progress Note",
           title: "Medication order discontinued",
-          content: `DISCONTINUE ORDER ${disc.id}\nReason: ${disc.reason}\nSigned electronic discontinue per CPRS workflow.`,
+          content: `DISCONTINUE ORDER ${disc.id}\nReason: ${disc.reason}\nSigned electronic discontinue per MedLum clinical workflow.`,
           submit: false,
         }),
       });
@@ -153,7 +156,7 @@ export default function MedOrderPanel({ patient, onOrdered }: Props) {
         <div>
           <h4 className="font-semibold text-sm">Order Medicines</h4>
           <p className="text-[10px] text-gray-500">
-            {patient.name} · horizontal CPRS row · dose · route · schedule · PRN · duration · priority · comment
+            {patient.name} · dose · route · schedule · PRN · duration · priority · comment
           </p>
         </div>
         <div className="flex flex-wrap gap-1">
