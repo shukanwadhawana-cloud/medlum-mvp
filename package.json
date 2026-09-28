@@ -63,7 +63,8 @@
     "test:clinical-signing": "node scripts/verify-clinical-signing.mjs",
     "test:record-confirmation": "node scripts/verify-record-confirmation.mjs",
     "test:ipd-save-error-handling": "node scripts/verify-ipd-save-error-handling.mjs",
-    "test:staff-workforce": "node scripts/verify-staff-workforce.mjs"
+    "test:staff-workforce": "node scripts/verify-staff-workforce.mjs",
+    "test:appointments": "node scripts/verify-appointments.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
