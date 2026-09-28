@@ -67,7 +67,8 @@
     "test:staff-workforce": "node scripts/verify-staff-workforce.mjs",
     "test:appointments": "node scripts/verify-appointments.mjs",
     "test:opd-clinical-record": "node scripts/verify-opd-clinical-record.mjs",
-    "test:ipd-clinical-workflow": "node scripts/verify-ipd-clinical-workflow.mjs"
+    "test:ipd-clinical-workflow": "node scripts/verify-ipd-clinical-workflow.mjs",
+    "test:clinical-ai-draft": "node scripts/verify-clinical-ai-draft.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
