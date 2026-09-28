@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { openConferenceInNewTab, warmConferenceOrigin } from "@/lib/telemedicine-client";
 
 /**
- * Patient-facing waiting room on MedLum (Vercel).
- * Never shows Render infrastructure URLs or loading chrome.
- * When the clinician starts the call (status Active), patient joins MiroTalk
+ * Patient-facing waiting room on MedLum.
+ * Never shows infrastructure URLs or third-party provider branding in the UI.
+ * When the clinician starts the call (status Active), patient joins video
  * via top-level navigation / new tab for reliable mic/camera on mobile Safari.
  */
 export default function TelemedicineJoinPage() {
@@ -62,7 +62,7 @@ export default function TelemedicineJoinPage() {
   function joinConference() {
     const url = session?.meetingUrl;
     if (!url) {
-      setError("Video room is not ready yet. Please wait for the clinician to start the call.");
+      setError("Video is not ready yet. Please wait for the clinician to start the call.");
       return;
     }
     setOpening(true);
@@ -125,7 +125,7 @@ export default function TelemedicineJoinPage() {
           <section className="rounded-2xl border bg-white p-6 text-center sm:p-8">
             <div className="text-lg font-semibold text-[#140a1f]">Your clinician is ready</div>
             <p className="mt-2 text-sm text-gray-600">
-              Tap below to open the video room. Allow microphone and camera when your browser asks.
+              Tap below to open the video call. Allow microphone and camera when your browser asks.
             </p>
             <button
               type="button"
@@ -139,7 +139,7 @@ export default function TelemedicineJoinPage() {
               Opens in a new tab when possible. If nothing opens, check popup settings, then try again.
             </p>
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-950">
-              <strong>Audio tip:</strong> If testing two phones in the same room, use headphones on one device to
+              <strong>Audio tip:</strong> If testing two phones in the same place, use headphones on one device to
               avoid echo. For real visits with devices in different places this is not needed.
             </div>
           </section>
@@ -159,7 +159,6 @@ export default function TelemedicineJoinPage() {
           </section>
         )}
 
-        {/* CSS contract: telemedicine-video-frame used for mobile layout CSS */}
         <div className="telemedicine-video-frame hidden" aria-hidden />
         <p className="mt-4 text-center text-[11px] text-gray-400">
           Do not share this consultation link. Powered by MedLum.
