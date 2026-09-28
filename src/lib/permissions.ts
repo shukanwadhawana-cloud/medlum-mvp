@@ -83,6 +83,7 @@ export const PATH_MODULE: Record<string, MedLumModule> = {
   "/nursing": "nursing",
   "/telemedicine": "telemedicine",
   "/workforce": "workforce",
+  "/people": "workforce",
   "/duty": "duty",
   "/clinic": "clinic",
   "/clinic/setup": "clinic_setup",
@@ -175,7 +176,7 @@ export function defaultLandingPath(role: string | null | undefined): string {
 export type NavItem = { href: string; label: string; icon: string; module: MedLumModule };
 
 const ALL_PRIMARY: NavItem[] = [
-  { href: "/workforce", label: "People", icon: "people", module: "workforce" },
+  { href: "/people", label: "People", icon: "people", module: "workforce" },
   { href: "/opd", label: "OPD", icon: "clinic", module: "opd" },
   { href: "/patients", label: "Patients", icon: "patients", module: "patients" },
   { href: "/ipd", label: "IPD", icon: "ipd", module: "ipd" },
@@ -193,6 +194,7 @@ const ALL_MENU: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "clinic", module: "dashboard" },
   { href: "/appointments", label: "Appointments", icon: "clinic", module: "opd" },
   { href: "/duty", label: "Duty", icon: "duty", module: "duty" },
+  { href: "/people", label: "People / HRIS", icon: "people", module: "workforce" },
   { href: "/workforce", label: "Staff & Workforce", icon: "people", module: "workforce" },
   { href: "/clinic", label: "Staff & Clinic settings", icon: "clinic", module: "clinic" },
   { href: "/clinic/setup", label: "Hospital / Clinic setup", icon: "clinic", module: "clinic_setup" },
