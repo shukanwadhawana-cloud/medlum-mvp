@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
 import { sendFacilityTelegramMessage } from "@/lib/facility-telegram";
+import { isMedlumOwnerEmail } from "@/lib/owner";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_LENGTH = 6;
@@ -15,6 +16,38 @@ export async function hashOtp(code: string): Promise<string> { return bcrypt.has
 export async function verifyOtpHash(code: string, hash: string): Promise<boolean> { return bcrypt.compare(code, hash); }
 export const OTP_REQUIRED_ROLES = new Set(["Owner", "Admin", "Manager", "MasterOwner", "Consultant", "Doctor", "RMO", "Nurse", "Pharmacy"]);
 export function roleRequiresOtp(role: string | null | undefined): boolean { return !!role && OTP_REQUIRED_ROLES.has(role); }
+
+/**
+ * Server-side gate before any personal Telegram OTP / auth delivery.
+ * Keeps TelegramIdentity as historical linkage; inactive accounts fail closed.
+ */
+export async function assertTelegramAuthDeliveryAllowed(doctorId: string): Promise<{
+  allowed: boolean;
+  reason?: string;
+}> {
+  const doctor = await prisma.doctor.findUnique({
+    where: { id: doctorId },
+    select: {
+      id: true,
+      email: true,
+      isActive: true,
+      clinicMemberships: {
+        where: { isActive: true },
+        select: { id: true, role: true, clinicId: true },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+  if (!doctor || !doctor.isActive) {
+    return { allowed: false, reason: "DOCTOR_INACTIVE" };
+  }
+  if (isMedlumOwnerEmail(doctor.email)) return { allowed: true };
+  if (!doctor.clinicMemberships.length) {
+    return { allowed: false, reason: "NO_ACTIVE_MEMBERSHIP" };
+  }
+  return { allowed: true };
+}
+
 function hashLinkToken(token: string): string { return createHash("sha256").update(token).digest("hex"); }
 
 function telegramBotConfig() {
@@ -41,50 +74,33 @@ async function telegramRequest<T>(method: string, body: Record<string, unknown> 
 export async function sendTelegramMessage(chatId: string, text: string): Promise<void> { await telegramRequest("sendMessage", { chat_id: chatId, text }); }
 
 /** Explicit deployment origin. On Render this MUST be MEDLUM_APP_URL=https://medlum-mvp.onrender.com. */
-export function getCanonicalAppOrigin(): string {
-  const explicit = String(process.env.MEDLUM_APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim().replace(/\/$/, "");
-  if (explicit.startsWith("http://") || explicit.startsWith("https://")) return explicit;
-  if (process.env.NODE_ENV === "production") return "";
-  const vercelUrl = String(process.env.VERCEL_URL || "").trim().replace(/\/$/, "");
-  if (vercelUrl) return vercelUrl.startsWith("http") ? vercelUrl : `https://${vercelUrl}`;
-  return "http://localhost:3000";
+export function getTelegramWebhookUrl(): string {
+  const origin = String(process.env.MEDLUM_APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "");
+  if (!origin) throw new Error("MEDLUM_APP_URL is required to register the Telegram webhook.");
+  return `${origin}/api/telegram/webhook`;
 }
-export function getTelegramWebhookUrl(): string { return `${getCanonicalAppOrigin()}/api/telegram/webhook`; }
 
-export type TelegramConfigStatus = { tokenConfigured: boolean; usernameConfigured: boolean; secretConfigured: boolean; webhookUrl: string };
-export function getTelegramConfigStatus(): TelegramConfigStatus {
+export function getTelegramConfigStatus() {
   const { token, username } = telegramBotConfig();
-  return { tokenConfigured: !!token, usernameConfigured: !!username, secretConfigured: !!String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim(), webhookUrl: getTelegramWebhookUrl() };
+  return { tokenConfigured: !!token, usernameConfigured: !!username, secretConfigured: !!String(process.env.TELEGRAM_WEBHOOK_SECRET || "").trim(), webhookUrl: (() => { try { return getTelegramWebhookUrl(); } catch { return null; } })() };
 }
 
-/** Validate credentials and force the bot webhook to this deployment's explicitly configured public origin. */
-export async function ensureTelegramWebhook(): Promise<{ webhookUrl: string; botUsername: string | null }> {
+export async function ensureTelegramWebhook(): Promise<void> {
   const cfg = getTelegramConfigStatus();
   if (!cfg.tokenConfigured) { const e: any = new Error("CONFIG_MISSING: TELEGRAM_BOT_TOKEN"); e.code = "CONFIG_MISSING"; throw e; }
   if (!cfg.secretConfigured) { const e: any = new Error("CONFIG_MISSING: TELEGRAM_WEBHOOK_SECRET"); e.code = "CONFIG_MISSING"; throw e; }
   try { await telegramRequest("getMe"); }
   catch (e: any) { const msg = String(e?.message || e); const err: any = new Error(/unauthorized|401/i.test(msg) ? "BOT_TOKEN_INVALID" : "TELEGRAM_API_UNREACHABLE"); err.code = err.message; throw err; }
-  try {
+  if (cfg.webhookUrl) {
     await telegramRequest("setWebhook", { url: cfg.webhookUrl, secret_token: String(process.env.TELEGRAM_WEBHOOK_SECRET).trim(), allowed_updates: ["message"], drop_pending_updates: false });
-    const info = await telegramRequest<{ url?: string }>("getWebhookInfo");
-    const registered = String(info?.url || "");
-    if (registered !== cfg.webhookUrl) { const e: any = new Error("WEBHOOK_VERIFY_FAILED"); e.code = "WEBHOOK_VERIFY_FAILED"; throw e; }
-  } catch (e: any) {
-    if (e?.code === "WEBHOOK_VERIFY_FAILED") throw e;
-    const err: any = new Error("WEBHOOK_SET_FAILED"); err.code = err.message; throw err;
   }
-  const { username } = telegramBotConfig();
-  return { webhookUrl: cfg.webhookUrl, botUsername: username || null };
 }
 
 export function classifyTelegramError(error: unknown): string {
   if (!error) return "TELEGRAM_UNKNOWN";
-  const code = (error as any)?.code; if (typeof code === "string" && code) return code;
   const msg = String((error as any)?.message || error);
-  if (msg.includes("CONFIG_MISSING")) return "CONFIG_MISSING";
-  if (msg.includes("BOT_TOKEN_INVALID") || /unauthorized/i.test(msg)) return "BOT_TOKEN_INVALID";
-  if (msg.includes("WEBHOOK_VERIFY_FAILED")) return "WEBHOOK_VERIFY_FAILED";
-  if (msg.includes("WEBHOOK_SET_FAILED")) return "WEBHOOK_SET_FAILED";
+  if (/CONFIG_MISSING/i.test(msg)) return "CONFIG_MISSING";
+  if (/BOT_TOKEN_INVALID|unauthorized|401/i.test(msg)) return "BOT_TOKEN_INVALID";
   if (/timeout|abort|fetch failed|ENOTFOUND|ECONN/i.test(msg)) return "TELEGRAM_API_UNREACHABLE";
   return "TELEGRAM_UNKNOWN";
 }
@@ -97,6 +113,11 @@ export async function createTelegramLinkChallenge(doctorId: string): Promise<{ t
 }
 
 export async function issueLoginOtp(params: { doctorId: string; clinicId?: string | null }): Promise<{ challengeId: string; delivery: OtpDeliveryResult; expiresAt: Date }> {
+  // Fail closed: never deliver OTP solely because TelegramIdentity exists.
+  const gate = await assertTelegramAuthDeliveryAllowed(params.doctorId);
+  if (!gate.allowed) {
+    throw new Error("This account is deactivated or no longer authorized.");
+  }
   await prisma.otpChallenge.updateMany({ where: { doctorId: params.doctorId, purpose: "login", consumedAt: null }, data: { consumedAt: new Date() } });
   const identity = await prisma.telegramIdentity.findUnique({ where: { doctorId: params.doctorId }, select: { telegramChatId: true } });
   const code = generateOtpCode(); const codeHash = await hashOtp(code); const expiresAt = new Date(Date.now() + OTP_TTL_MS);
