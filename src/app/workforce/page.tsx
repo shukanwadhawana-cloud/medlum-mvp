@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import PeopleHRISPanel from "@/components/PeopleHRISPanel";
 
 type StaffMember = {
   id: string;
@@ -223,6 +224,8 @@ export default function WorkforcePage() {
 
   return (
     <AppShell>
+      <PeopleHRISPanel />
+
       <div className="mb-4 space-y-1">
         <div className="text-xs text-gray-500">
           <Link href="/dashboard" className="text-[#c2183a]">Dashboard</Link>{" · "}
