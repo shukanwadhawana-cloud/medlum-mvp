@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 async function clinicForDoctor(doctorId: string) {
-  const member = await prisma.clinicMember.findFirst({
-    where: { doctorId, isActive: true },
-    select: { clinicId: true, role: true },
-    orderBy: { createdAt: "asc" },
-  });
-  return member;
+  // Prefer selected clinic membership (facility isolation); never trust client clinicId.
+  const membership = await requireActiveClinicMembership(doctorId);
+  if (!membership) return null;
+  return { clinicId: membership.clinicId, role: membership.role };
 }
 
 async function sharedPatient(patientId: string, clinicId: string) {
@@ -211,6 +210,7 @@ export async function POST(req: Request) {
 
     await writeAudit({
       doctorId: session.doctorId,
+      clinicId: member.clinicId,
       action: "create",
       entity: "Invoice",
       entityId: inv.id,
@@ -248,8 +248,19 @@ export async function PATCH(req: Request) {
     const total = Number(existing.total ?? existing.amount);
 
     if (action === "payment") {
+      if (existing.status === "Cancelled") {
+        return NextResponse.json(
+          { success: false, error: "Cannot record payment against a cancelled invoice" },
+          { status: 400 }
+        );
+      }
+      if (existing.status === "Paid") {
+        return NextResponse.json({ success: false, error: "Invoice is already fully paid" }, { status: 400 });
+      }
       const amount = Number(body.amount || 0);
-      if (amount <= 0) return NextResponse.json({ success: false, error: "Enter a valid payment" }, { status: 400 });
+      if (!(amount > 0) || !Number.isFinite(amount)) {
+        return NextResponse.json({ success: false, error: "Enter a valid payment" }, { status: 400 });
+      }
       const alreadyPaid = existing.payments.reduce((s, p) => s + Number(p.amount), 0);
       const balance = total - alreadyPaid;
       if (amount > balance + 0.0001) {
@@ -265,7 +276,10 @@ export async function PATCH(req: Request) {
           (p) => p.reference === reference && p.paidAt >= since && Math.abs(Number(p.amount) - amount) < 0.01
         );
         if (dup) {
-          return NextResponse.json({ success: false, error: "Duplicate payment reference within 60s" }, { status: 409 });
+          return NextResponse.json(
+            { success: false, error: "Duplicate payment reference within 60s" },
+            { status: 409 }
+          );
         }
       }
       const payment = await prisma.payment.create({
@@ -289,6 +303,7 @@ export async function PATCH(req: Request) {
       });
       await writeAudit({
         doctorId: session.doctorId,
+        clinicId: member.clinicId,
         action: "payment",
         entity: "Invoice",
         entityId: id,
@@ -309,6 +324,7 @@ export async function PATCH(req: Request) {
       });
       await writeAudit({
         doctorId: session.doctorId,
+        clinicId: member.clinicId,
         action: "update_status",
         entity: "Invoice",
         entityId: id,
