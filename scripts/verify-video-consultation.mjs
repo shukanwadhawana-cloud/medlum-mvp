@@ -41,7 +41,7 @@ const checks = [
   ["video URL persisted at session creation", sessions.includes("meetingUrl") && sessions.includes("provider")],
   ["facility scope is server-derived", sessions.includes("requireActiveClinicMembership") && sessions.includes("findAuthorizedPatient") && !sessions.includes("clinicId || patientClinicId")],
   ["appointment video launch", appointments.includes("/api/telemedicine/sessions") && appointments.includes("Start Video") && appointments.includes("appointmentId")],
-  ["duplicate appointment session reuse", sessions.includes("status: { notIn: ["Completed", "Cancelled", "Expired"] }") && sessions.includes("reused: true")],
+  ["duplicate appointment session reuse", sessions.includes('status: { notIn: ["Completed", "Cancelled", "Expired"] }') && sessions.includes("reused: true")],
   ["join token remains hashed", sessions.includes("hashJoinToken(joinToken)")],
   ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
   ["doctor lifecycle controls", doctorLifecycle],
