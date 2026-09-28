@@ -5,28 +5,63 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiCreateDiagnosticOrder, apiGetDiagnostics, apiGetPatients, apiUpdateDiagnosticOrder } from "@/lib/api";
+import {
+  apiCreateDiagnosticOrder,
+  apiGetDiagnostics,
+  apiGetPatients,
+  apiUpdateDiagnosticOrder,
+} from "@/lib/api";
 import { RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
-import { parseCareSetting } from "@/lib/patient-metadata";
+import { formatIst } from "@/lib/time";
 
-type Patient = { id: string; name: string; notes?: string; uhid?: string; registrationNo?: string };
-type DiagnosticOrder = { id: string; patientId: string; patientName: string; studyName: string; modality: string; bodyPart: string; indication: string; status: string; findings: string; impression: string; notes: string; orderedAt: string; performedAt?: string | null; reportedAt?: string | null };
-type PatientGroup = { patient: Patient; orders: DiagnosticOrder[] };
+type Patient = { id: string; name: string; uhid?: string };
+type DiagnosticOrder = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  studyName: string;
+  modality: string;
+  bodyPart: string;
+  indication: string;
+  status: string;
+  findings: string;
+  impression: string;
+  notes: string;
+  orderedAt: string;
+  performedAt?: string | null;
+  reportedAt?: string | null;
+  encounterId?: string | null;
+};
+
+const ACTIVE = new Set(["Ordered", "Performed"]);
+
+function badge(status: string) {
+  if (status === "Ordered") return "bg-amber-50 text-amber-800 border-amber-200";
+  if (status === "Performed") return "bg-blue-50 text-blue-800 border-blue-200";
+  if (status === "Reported") return "bg-green-50 text-green-800 border-green-200";
+  return "bg-gray-100 text-gray-600 border-gray-200";
+}
 
 export default function DiagnosticsPage() {
   const router = useRouter();
   const { doctor, loading: authLoading } = useDoctor();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [orders, setOrders] = useState<DiagnosticOrder[]>([]);
-  const [filter, setFilter] = useState("all");
-  const [careSetting, setCareSetting] = useState<"OPD" | "IPD">("OPD");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [queueTab, setQueueTab] = useState<"active" | "history">("active");
+  const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [reportOrder, setReportOrder] = useState<DiagnosticOrder | null>(null);
-  const [form, setForm] = useState({ patientId: "", studyName: "", modality: "X-ray", bodyPart: "", indication: "", notes: "" });
-  const [report, setReport] = useState({ findings: "", impression: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    patientId: "",
+    studyName: "",
+    modality: "Other",
+    bodyPart: "",
+    indication: "",
+    notes: "",
+  });
+  const [report, setReport] = useState({ findings: "", impression: "", notes: "" });
 
   const load = useCallback(async () => {
     const [pts, list] = await Promise.all([apiGetPatients(), apiGetDiagnostics()]);
@@ -36,88 +71,377 @@ export default function DiagnosticsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!doctor) { router.replace("/login"); return; }
+    if (!doctor) {
+      router.replace("/login");
+      return;
+    }
     void load();
   }, [doctor, authLoading, router, load]);
 
-  const patientById = useMemo(() => new Map(patients.map((p) => [p.id, p])), [patients]);
-  const visible = useMemo(() => filter === "all" ? orders : orders.filter((o) => o.status === filter), [orders, filter]);
-  const settingOrders = useMemo(() => visible.filter((o) => {
-    const patient = patientById.get(o.patientId);
-    return (parseCareSetting(patient?.notes || "") === "IPD" ? "IPD" : "OPD") === careSetting;
-  }), [visible, patientById, careSetting]);
-  const groups = useMemo<PatientGroup[]>(() => {
-    const map = new Map<string, PatientGroup>();
-    for (const order of settingOrders) {
-      const patient = patientById.get(order.patientId) || { id: order.patientId, name: order.patientName };
-      const group = map.get(order.patientId);
-      if (group) group.orders.push(order);
-      else map.set(order.patientId, { patient, orders: [order] });
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = orders.filter((o) =>
+      queueTab === "active" ? ACTIVE.has(o.status) : !ACTIVE.has(o.status)
+    );
+    if (q) {
+      list = list.filter(
+        (o) =>
+          o.patientName.toLowerCase().includes(q) ||
+          o.studyName.toLowerCase().includes(q) ||
+          o.modality.toLowerCase().includes(q) ||
+          (o.encounterId || "").toLowerCase().includes(q)
+      );
     }
-    return Array.from(map.values()).sort((a, b) => a.patient.name.localeCompare(b.patient.name));
-  }, [settingOrders, patientById]);
-  const counts = useMemo(() => ({
-    ordered: settingOrders.filter((o) => o.status === "Ordered").length,
-    performed: settingOrders.filter((o) => o.status === "Performed").length,
-    reported: settingOrders.filter((o) => o.status === "Reported").length,
-  }), [settingOrders]);
-  const selectedStudy = useMemo(() => RADIOLOGY_CATALOG.find((item) => item.name === form.studyName), [form.studyName]);
+    return list;
+  }, [orders, queueTab, search]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, { patientId: string; patientName: string; orders: DiagnosticOrder[] }>();
+    for (const o of filtered) {
+      const key = o.patientId || o.patientName;
+      let g = map.get(key);
+      if (!g) {
+        g = { patientId: o.patientId, patientName: o.patientName, orders: [] };
+        map.set(key, g);
+      }
+      g.orders.push(o);
+    }
+    return Array.from(map.values()).sort((a, b) => a.patientName.localeCompare(b.patientName));
+  }, [filtered]);
+
+  const counts = useMemo(
+    () => ({
+      active: orders.filter((o) => ACTIVE.has(o.status)).length,
+      history: orders.filter((o) => !ACTIVE.has(o.status)).length,
+      ordered: orders.filter((o) => o.status === "Ordered").length,
+      performed: orders.filter((o) => o.status === "Performed").length,
+      reported: orders.filter((o) => o.status === "Reported").length,
+    }),
+    [orders]
+  );
 
   const create = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(""); setSaving(true);
+    e.preventDefault();
+    setError("");
+    setSaving(true);
     const r = await apiCreateDiagnosticOrder(form);
-    if (r.success) { setShowAdd(false); setForm({ patientId: "", studyName: "", modality: "X-ray", bodyPart: "", indication: "", notes: "" }); await load(); }
-    else setError(r.error || "Could not create diagnostic order");
+    if (r.success) {
+      setShowAdd(false);
+      setForm({ patientId: "", studyName: "", modality: "Other", bodyPart: "", indication: "", notes: "" });
+      await load();
+    } else setError(r.error || "Could not create diagnostic order");
     setSaving(false);
   };
-  const markPerformed = async (order: DiagnosticOrder) => {
-    setError(""); const r = await apiUpdateDiagnosticOrder({ id: order.id, status: "Performed" });
-    if (r.success) await load(); else setError(r.error || "Could not update diagnostic order");
-  };
-  const cancel = async (order: DiagnosticOrder) => {
-    setError(""); const r = await apiUpdateDiagnosticOrder({ id: order.id, status: "Cancelled" });
-    if (r.success) await load(); else setError(r.error || "Could not cancel diagnostic order");
-  };
-  const openReport = (order: DiagnosticOrder) => { setError(""); setReportOrder(order); setReport({ findings: order.findings || "", impression: order.impression || "", notes: order.notes || "" }); };
+
   const saveReport = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!reportOrder) return; setSaving(true); setError("");
-    const r = await apiUpdateDiagnosticOrder({ id: reportOrder.id, status: "Reported", ...report });
-    if (r.success) { setReportOrder(null); setReport({ findings: "", impression: "", notes: "" }); await load(); } else setError(r.error || "Could not save diagnostic report");
+    e.preventDefault();
+    if (!reportOrder) return;
+    if (!report.findings.trim() || !report.impression.trim()) {
+      setError("Findings and impression are required.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    const r = await apiUpdateDiagnosticOrder({
+      id: reportOrder.id,
+      status: "Reported",
+      findings: report.findings,
+      impression: report.impression,
+      notes: report.notes,
+    });
+    if (r.success) {
+      setReportOrder(null);
+      setReport({ findings: "", impression: "", notes: "" });
+      await load();
+    } else setError(r.error || "Could not save report");
     setSaving(false);
   };
 
-  if (authLoading || !doctor) return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading...</div>;
-  const tabs = [["all", "All"], ["Ordered", "Ordered"], ["Performed", "Performed"], ["Reported", "Reported"], ["Cancelled", "Cancelled"]];
+  if (authLoading) {
+    return (
+      <AppShell>
+        <p className="text-sm text-gray-500">Loading…</p>
+      </AppShell>
+    );
+  }
 
-  return <AppShell>
-    <div className="flex items-center justify-between mb-4 gap-2">
-      <div><h2 className="text-lg font-semibold">Diagnostics</h2><p className="text-xs text-gray-500">Patient-first diagnostic queue · OPD and IPD separated</p></div>
-      <button onClick={() => { setError(""); setShowAdd(true); }} disabled={!patients.length} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-40">+ Order Study</button>
-    </div>
-    {error && !showAdd && !reportOrder && <div className="mb-3 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
+  return (
+    <AppShell>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold">Diagnostics</h2>
+          <p className="text-xs text-gray-500">Imaging & studies · Ordered → Performed → Reported</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setError("");
+            setShowAdd(true);
+          }}
+          disabled={!patients.length}
+          className="h-9 rounded-lg bg-[#c2183a] px-3 text-sm font-medium text-white disabled:opacity-40"
+        >
+          + Order study
+        </button>
+      </div>
 
-    <div className="mb-3 rounded-xl border bg-gray-50 p-1"><div className="grid grid-cols-2 gap-1" role="tablist" aria-label="Diagnostics care setting">
-      {(["OPD", "IPD"] as const).map((setting) => <button key={setting} type="button" role="tab" aria-selected={careSetting === setting} onClick={() => setCareSetting(setting)} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${careSetting === setting ? "bg-white text-[#140a1f] shadow-sm" : "text-gray-500"}`}>{setting}</button>)}
-    </div></div>
+      {error && !showAdd && !reportOrder && (
+        <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      )}
 
-    <div className="grid grid-cols-3 gap-2 mb-3"><button onClick={() => setFilter("Ordered")} className="text-left bg-amber-50 border border-amber-100 rounded-xl p-3"><p className="text-[11px] uppercase tracking-wide text-amber-700">Ordered</p><p className="text-xl font-semibold text-amber-900">{counts.ordered}</p></button><button onClick={() => setFilter("Performed")} className="text-left bg-blue-50 border border-blue-100 rounded-xl p-3"><p className="text-[11px] uppercase tracking-wide text-blue-700">Performed</p><p className="text-xl font-semibold text-blue-900">{counts.performed}</p></button><button onClick={() => setFilter("Reported")} className="text-left bg-green-50 border border-green-100 rounded-xl p-3"><p className="text-[11px] uppercase tracking-wide text-green-700">Reported</p><p className="text-xl font-semibold text-green-900">{counts.reported}</p></button></div>
-    <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">{tabs.map(([key, label]) => <button key={key} onClick={() => setFilter(key)} className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap border ${filter === key ? "bg-[#c2183a] text-white border-[#c2183a]" : "bg-white text-gray-600"}`}>{label}</button>)}</div>
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+          <p className="text-[11px] uppercase text-amber-700">Ordered</p>
+          <p className="text-xl font-semibold text-amber-900">{counts.ordered}</p>
+        </div>
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+          <p className="text-[11px] uppercase text-blue-700">Performed</p>
+          <p className="text-xl font-semibold text-blue-900">{counts.performed}</p>
+        </div>
+        <div className="rounded-xl border border-green-100 bg-green-50 p-3">
+          <p className="text-[11px] uppercase text-green-700">Reported</p>
+          <p className="text-xl font-semibold text-green-900">{counts.reported}</p>
+        </div>
+      </div>
 
-    <div className="space-y-2">
-      {groups.length === 0 ? <div className="bg-white rounded-xl border p-8 text-center text-gray-500 text-sm">No diagnostic orders for {careSetting} in this view.</div> : groups.map((group) => {
-        const open = expanded[group.patient.id] ?? false;
-        return <div key={group.patient.id} className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <button type="button" onClick={() => setExpanded((x) => ({ ...x, [group.patient.id]: !open }))} className="w-full p-3 text-left flex items-center justify-between gap-3">
-            <div className="min-w-0"><p className="font-semibold text-sm truncate">{group.patient.name}</p><p className="text-[11px] text-gray-500">{group.patient.uhid || group.patient.registrationNo || "Patient"} · {group.orders.length} investigation{group.orders.length === 1 ? "" : "s"}</p></div>
-            <span className="text-xs text-gray-500">{open ? "Hide" : "Show"}</span>
-          </button>
-          {open && <div className="border-t divide-y">{group.orders.map((o) => <div key={o.id} className="p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold text-sm truncate">{o.studyName}</p><p className="text-[11px] text-gray-500">{o.modality}{o.bodyPart ? ` · ${o.bodyPart}` : ""} · {new Date(o.orderedAt).toLocaleDateString()}</p><p className={`mt-1 text-[11px] ${o.status === "Reported" ? "text-green-700" : o.status === "Performed" ? "text-blue-700" : o.status === "Cancelled" ? "text-red-700" : "text-amber-700"}`}>{o.status}</p></div><Link href={`/patients/${o.patientId}`} className="text-xs text-[#c2183a] shrink-0">Patient</Link></div>{o.indication && <p className="mt-2 text-xs text-gray-600"><b>Indication:</b> {o.indication}</p>}{o.impression && <div className="mt-2 rounded-lg bg-green-50 border border-green-100 p-2 text-xs"><b>Impression:</b> {o.impression}</div>}{o.findings && <div className="mt-2 rounded-lg bg-gray-50 border p-2 text-xs whitespace-pre-wrap"><b>Findings:</b> {o.findings}</div>}<div className="mt-2 flex gap-2">{o.status === "Ordered" && <button onClick={() => markPerformed(o)} className="px-2.5 py-1.5 rounded-lg border text-[11px]">Mark performed</button>}{o.status === "Performed" && <button onClick={() => openReport(o)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Enter report</button>}{o.status === "Reported" && <button onClick={() => openReport(o)} className="px-2.5 py-1.5 rounded-lg border text-[11px]">Edit report</button>}{o.status === "Ordered" && <button onClick={() => cancel(o)} className="px-2.5 py-1.5 rounded-lg border text-red-600 text-[11px]">Cancel</button>}</div></div>)}</div>}
-        </div>;
-      })}
-    </div>
-    {patients.length === 0 && <p className="mt-3 text-xs text-gray-500">Add a patient before ordering a study.</p>}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setQueueTab("active")}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+            queueTab === "active" ? "bg-[#140a1f] text-white" : "bg-gray-100 text-gray-700"
+          }`}
+        >
+          Active ({counts.active})
+        </button>
+        <button
+          type="button"
+          onClick={() => setQueueTab("history")}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+            queueTab === "history" ? "bg-[#140a1f] text-white" : "bg-gray-100 text-gray-700"
+          }`}
+        >
+          History ({counts.history})
+        </button>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search patient, study, modality…"
+          className="min-h-9 min-w-[12rem] flex-1 rounded-lg border px-3 text-sm"
+        />
+      </div>
 
-    {showAdd && <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-3"><div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl max-h-[90vh] overflow-y-auto"><h3 className="text-base font-semibold mb-3">Order Diagnostic Study · {careSetting}</h3>{error && <div className="mb-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}<form onSubmit={create} className="space-y-2.5"><select required value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className="w-full h-11 px-3 rounded-lg border text-sm"><option value="">Select patient</option>{patients.filter((p) => (parseCareSetting(p.notes || "") === "IPD" ? "IPD" : "OPD") === careSetting).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><select required value={form.studyName} onChange={(e) => { const study = RADIOLOGY_CATALOG.find((item) => item.name === e.target.value); setForm({ ...form, studyName: e.target.value, modality: study?.modality || "Other", bodyPart: study?.category || "" }); }} className="w-full min-h-11 px-3 py-2 rounded-lg border text-sm"><option value="">Select investigation / radiodiagnosis study</option>{RADIOLOGY_CATALOG.map((item) => <option key={item.id} value={item.name}>{item.name}{item.isOutsourced ? " · Outsource" : " · In-house"}</option>)}</select>{selectedStudy && <div className="rounded-lg bg-gray-50 border p-2 text-[11px] text-gray-600"><div className="flex flex-wrap gap-1.5">{selectedStudy.isInpatientRoutine && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">IPD routine</span>}{selectedStudy.isOutsourced && <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">Outsource eligible</span>}{selectedStudy.requiresFasting && <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">Fasting required</span>}{selectedStudy.requiresContrastConsent && <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700">Contrast consent</span>}</div><p className="mt-1">Category: {selectedStudy.category}</p></div>}<input value={form.indication} onChange={(e) => setForm({ ...form, indication: e.target.value })} placeholder="Clinical indication (optional)" className="w-full h-11 px-3 rounded-lg border text-sm" /><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes / instructions (optional)" className="w-full min-h-20 px-3 py-2 rounded-lg border text-sm" /><div className="flex gap-2"><button type="button" onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button><button disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm disabled:opacity-60">{saving ? "Ordering…" : "Order"}</button></div></form></div></div>}
-    {reportOrder && <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-3"><div className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl"><h3 className="text-base font-semibold">Diagnostic Report</h3><p className="text-xs text-gray-500 mt-1">{reportOrder.patientName} · {reportOrder.studyName}</p>{error && <div className="my-2 bg-red-50 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}<form onSubmit={saveReport} className="mt-3 space-y-2.5"><textarea required value={report.findings} onChange={(e) => setReport({ ...report, findings: e.target.value })} placeholder="Findings" className="w-full min-h-28 px-3 py-2 rounded-lg border text-sm" /><textarea required value={report.impression} onChange={(e) => setReport({ ...report, impression: e.target.value })} placeholder="Impression / conclusion" className="w-full min-h-20 px-3 py-2 rounded-lg border text-sm" /><textarea value={report.notes} onChange={(e) => setReport({ ...report, notes: e.target.value })} placeholder="Report notes (optional)" className="w-full min-h-16 px-3 py-2 rounded-lg border text-sm" /><div className="flex gap-2"><button type="button" onClick={() => setReportOrder(null)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button><button disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm disabled:opacity-60">{saving ? "Saving…" : "Save report"}</button></div></form></div></div>}
-  </AppShell>;
+      <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+        {groups.length === 0 ? (
+          <div className="p-8 text-center text-sm text-gray-500">
+            {queueTab === "active" ? "No active diagnostic studies." : "No historical reports in this view."}
+          </div>
+        ) : (
+          <div className="divide-y">
+            {groups.map((g) => (
+              <div key={g.patientId} className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{g.patientName}</p>
+                    <p className="text-[11px] text-gray-500">
+                      {g.orders.length} stud{g.orders.length === 1 ? "y" : "ies"}
+                    </p>
+                  </div>
+                  <Link href={`/patients/${g.patientId}/chart`} className="text-xs font-medium text-[#c2183a]">
+                    Chart
+                  </Link>
+                </div>
+                <div className="mt-2 space-y-2">
+                  {g.orders.map((o) => (
+                    <div key={o.id} className="rounded-lg bg-gray-50 px-2.5 py-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{o.studyName}</p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500">
+                            <span className={`rounded border px-1.5 py-0.5 font-medium ${badge(o.status)}`}>
+                              {o.status}
+                            </span>
+                            <span>{o.modality}</span>
+                            {o.bodyPart ? <span>· {o.bodyPart}</span> : null}
+                            <span>· {formatIst(o.orderedAt)}</span>
+                            {o.encounterId ? <span>· Enc {o.encounterId.slice(0, 8)}</span> : null}
+                          </p>
+                          {o.impression && queueTab === "history" && (
+                            <p className="mt-1 text-[11px] text-gray-600">Impression: {o.impression}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-1">
+                          {o.status === "Ordered" && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await apiUpdateDiagnosticOrder({ id: o.id, status: "Performed" });
+                                await load();
+                              }}
+                              className="rounded-md border bg-white px-2 py-1 text-[11px] font-medium"
+                            >
+                              Mark performed
+                            </button>
+                          )}
+                          {(o.status === "Ordered" || o.status === "Performed") && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setError("");
+                                setReportOrder(o);
+                                setReport({
+                                  findings: o.findings || "",
+                                  impression: o.impression || "",
+                                  notes: o.notes || "",
+                                });
+                              }}
+                              className="rounded-md bg-[#c2183a] px-2 py-1 text-[11px] font-semibold text-white"
+                            >
+                              Enter report
+                            </button>
+                          )}
+                          {o.status === "Ordered" && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await apiUpdateDiagnosticOrder({ id: o.id, status: "Cancelled" });
+                                await load();
+                              }}
+                              className="rounded-md px-2 py-1 text-[11px] text-red-600"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold">Order diagnostic study</h3>
+            {error && <div className="my-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+            <form onSubmit={create} className="mt-3 space-y-2.5">
+              <select
+                required
+                value={form.patientId}
+                onChange={(e) => setForm({ ...form, patientId: e.target.value })}
+                className="min-h-11 w-full rounded-lg border px-3 py-2 text-sm"
+              >
+                <option value="">Select patient</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.uhid ? ` · ${p.uhid}` : ""}
+                  </option>
+                ))}
+              </select>
+              <select
+                required
+                value={form.studyName}
+                onChange={(e) => {
+                  const study = RADIOLOGY_CATALOG.find((s) => s.name === e.target.value);
+                  setForm({
+                    ...form,
+                    studyName: e.target.value,
+                    modality: study?.modality || form.modality,
+                  });
+                }}
+                className="min-h-11 w-full rounded-lg border px-3 py-2 text-sm"
+              >
+                <option value="">Select study</option>
+                {RADIOLOGY_CATALOG.map((s) => (
+                  <option key={s.id || s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={form.modality}
+                onChange={(e) => setForm({ ...form, modality: e.target.value })}
+                placeholder="Modality"
+                className="min-h-11 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <input
+                value={form.bodyPart}
+                onChange={(e) => setForm({ ...form, bodyPart: e.target.value })}
+                placeholder="Body part"
+                className="min-h-11 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <input
+                value={form.indication}
+                onChange={(e) => setForm({ ...form, indication: e.target.value })}
+                placeholder="Clinical indication"
+                className="min-h-11 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Notes"
+                className="min-h-16 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 rounded-lg border py-2 text-sm">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-[#c2183a] py-2 text-sm text-white disabled:opacity-50">
+                  {saving ? "Ordering…" : "Order"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {reportOrder && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold">Diagnostic report</h3>
+            <p className="text-xs text-gray-500">
+              {reportOrder.patientName} · {reportOrder.studyName}
+            </p>
+            {error && <div className="my-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+            <form onSubmit={saveReport} className="mt-3 space-y-2.5">
+              <textarea
+                required
+                value={report.findings}
+                onChange={(e) => setReport({ ...report, findings: e.target.value })}
+                placeholder="Findings"
+                className="min-h-28 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <textarea
+                required
+                value={report.impression}
+                onChange={(e) => setReport({ ...report, impression: e.target.value })}
+                placeholder="Impression"
+                className="min-h-20 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <textarea
+                value={report.notes}
+                onChange={(e) => setReport({ ...report, notes: e.target.value })}
+                placeholder="Notes (optional)"
+                className="min-h-16 w-full rounded-lg border px-3 py-2 text-sm"
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setReportOrder(null)} className="flex-1 rounded-lg border py-2 text-sm">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-[#c2183a] py-2 text-sm text-white disabled:opacity-50">
+                  {saving ? "Saving…" : "Save report"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </AppShell>
+  );
 }
