@@ -81,7 +81,13 @@ export function DoctorProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Module path guard: hide is not enough — block direct URL access for unauthorized roles.
-    if (doctor && !isPublicPath(pathname) && !canAccessPath(doctor.primaryRole, pathname)) {
+    // Platform MedLum owners (isOwner) retain /owner* access; clinic roles never receive owner_platform.
+    if (
+      doctor &&
+      !isPublicPath(pathname) &&
+      !(pathname.startsWith("/owner") && doctor.isOwner) &&
+      !canAccessPath(doctor.primaryRole, pathname)
+    ) {
       const landing = defaultLandingPath(doctor.primaryRole);
       if (landing !== pathname) router.replace(landing);
     }
