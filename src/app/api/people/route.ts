@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
 import { writeAudit } from "@/lib/audit";
+import { assertJsonObjectSize } from "@/lib/json-input";
 
 const MANAGERS = ["Owner","Admin","Manager"];
 
@@ -40,7 +41,10 @@ export async function POST(req: Request) {
   const recordType = String(body.recordType || "").trim();
   const title = String(body.title || "").trim();
   const status = String(body.status || "DRAFT").trim().toUpperCase();
-  const data = body.data && typeof body.data === "object" ? body.data : {};
+  let data: Record<string, unknown>;
+  try { data = assertJsonObjectSize(body.data); } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Invalid record details." }, { status: 400 });
+  }
   const memberId = body.memberId ? String(body.memberId) : null;
   const allowed = ["leave","shifts","recruitment","onboarding","payroll","expenses","performance","training","discipline","compensation"];
   if (!allowed.includes(module) || !recordType || !title) return NextResponse.json({ error: "module, recordType and title are required." }, { status: 400 });
@@ -65,7 +69,12 @@ export async function PATCH(req: Request) {
   if (!id) return NextResponse.json({error:"Record id is required."},{status:400});
   const existing = await prisma.workforceRecord.findFirst({where:{id,clinicId:c.membership.clinicId}});
   if (!existing) return NextResponse.json({error:"Record not found in selected facility."},{status:404});
-  const data = body.data && typeof body.data === "object" ? body.data : existing.data;
+  let data: Record<string, unknown> = existing.data as Record<string, unknown>;
+  if (body.data !== undefined) {
+    try { data = assertJsonObjectSize(body.data); } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Invalid record details." }, { status: 400 });
+    }
+  }
   const record = await prisma.workforceRecord.update({where:{id},data:{
     status: body.status ? String(body.status).toUpperCase() : existing.status,
     title: body.title ? String(body.title).trim() : existing.title,
