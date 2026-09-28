@@ -8,6 +8,7 @@ import { useDoctor } from "@/components/DoctorProvider";
 import {
   apiCreateDiagnosticOrder,
   apiGetDiagnostics,
+  apiGetPatients,
   apiUpdateDiagnosticOrder,
 } from "@/lib/api";
 import { RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
@@ -169,7 +170,7 @@ export default function DiagnosticsPage() {
       <div className="mb-4 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold">Diagnostics</h2>
-          <p className="text-xs text-gray-500">Imaging &amp; studies · Ordered → Performed → Reported</p>
+          <p className="text-xs text-gray-500">Imaging & studies · Ordered → Performed → Reported</p>
         </div>
         <button
           type="button"
