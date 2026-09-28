@@ -1,138 +1,126 @@
-import "server-only";
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
+import { prisma } from "@/lib/db";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import {
+  chatwootCreateContact,
+  chatwootCreateConversation,
+  chatwootListInboxes,
+  chatwootListMessages,
+  chatwootSendMessage,
+  isChatwootConfigured,
+} from "@/lib/chatwoot";
 
-type ChatwootConfig = {
-  baseUrl: string;
-  apiToken: string;
-  accountId: string;
-  inboxId?: number;
-};
+function fail(message: string, status = 400) {
+  return NextResponse.json({ success: false, error: message }, { status });
+}
 
-export type MedLumConversationContext = {
-  clinicId: string;
-  clinicName?: string;
-  patientId?: string;
-  uhid?: string;
-  encounterId?: string;
-  ipdAdmissionId?: string;
-  source?: "STAFF_HELP" | "PATIENT_COMMUNICATION";
-  role?: string;
-  staffId?: string;
-};
+async function resolveContext() {
+  const session = await getSession();
+  if (!session) return { session: null, membership: null, doctor: null };
 
-function getConfig(): ChatwootConfig | null {
-  const baseUrl = process.env.CHATWOOT_BASE_URL?.trim();
-  const apiToken = process.env.CHATWOOT_API_TOKEN?.trim();
-  const accountId = process.env.CHATWOOT_ACCOUNT_ID?.trim();
-  if (!baseUrl || !apiToken || !accountId) return null;
-  const parsedInbox = Number(process.env.CHATWOOT_INBOX_ID);
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return { session, membership: null, doctor: null };
+
+  const doctor = await prisma.doctor.findUnique({
+    where: { id: session.doctorId },
+    select: { id: true, name: true, email: true },
+  });
+  const clinic = await prisma.clinic.findUnique({
+    where: { id: membership.clinicId },
+    select: { name: true },
+  });
+
   return {
-    baseUrl: baseUrl.replace(/\/$/, ""),
-    apiToken,
-    accountId,
-    ...(Number.isInteger(parsedInbox) && parsedInbox > 0 ? { inboxId: parsedInbox } : {}),
+    session,
+    membership,
+    doctor: doctor ? { ...doctor, clinicName: clinic?.name || "" } : null,
   };
 }
 
-export function isChatwootConfigured() {
-  return getConfig() !== null;
+async function resolveInboxId() {
+  const configured = Number(process.env.CHATWOOT_INBOX_ID);
+  if (Number.isInteger(configured) && configured > 0) return configured;
+
+  const result = await chatwootListInboxes();
+  const inbox = (result.payload || []).find((item) => item.channel_type === "Channel::Api") || (result.payload || [])[0];
+  return inbox?.id || null;
 }
 
-async function chatwootFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const config = getConfig();
-  if (!config) throw new Error("Chatwoot integration is not configured");
+export async function GET(req: Request) {
+  try {
+    if (!isChatwootConfigured()) return NextResponse.json({ success: true, configured: false });
 
-  const response = await fetch(
-    `${config.baseUrl}/api/v1/accounts/${config.accountId}${path}`,
-    {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        api_access_token: config.apiToken,
-        ...(init?.headers || {}),
-      },
-      cache: "no-store",
-    },
-  );
-  const body = await response.text();
-  let parsed: unknown = {};
-  try { parsed = body ? JSON.parse(body) : {}; } catch { parsed = { raw: body }; }
-  if (!response.ok) {
-    throw new Error(`Chatwoot API ${response.status}: ${typeof parsed === "object" ? JSON.stringify(parsed) : String(parsed)}`);
+    const url = new URL(req.url);
+    const conversationId = Number(url.searchParams.get("conversationId") || "");
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
+      return NextResponse.json({ success: true, configured: true });
+    }
+
+    const result = await chatwootListMessages(conversationId);
+    return NextResponse.json({ success: true, configured: true, messages: result.payload || result });
+  } catch (error) {
+    console.error("chatwoot GET error", error);
+    return fail("Chat service is temporarily unavailable.", 502);
   }
-  return parsed as T;
 }
 
-export function buildMedLumConversationAttributes(context: MedLumConversationContext) {
-  return {
-    medlum_clinic_id: context.clinicId,
-    ...(context.clinicName ? { medlum_clinic_name: context.clinicName } : {}),
-    ...(context.patientId ? { medlum_patient_id: context.patientId } : {}),
-    ...(context.uhid ? { medlum_uhid: context.uhid } : {}),
-    ...(context.encounterId ? { medlum_encounter_id: context.encounterId } : {}),
-    ...(context.ipdAdmissionId ? { medlum_ipd_admission_id: context.ipdAdmissionId } : {}),
-    ...(context.source ? { medlum_source: context.source } : {}),
-    ...(context.role ? { medlum_role: context.role } : {}),
-    ...(context.staffId ? { medlum_staff_id: context.staffId } : {}),
-  };
-}
+export async function POST(req: Request) {
+  try {
+    if (!isChatwootConfigured()) return fail("Chat service is not configured yet.", 503);
 
-export async function chatwootListInboxes() {
-  return chatwootFetch<{ payload?: Array<{ id: number; name: string; channel_type?: string }> }>("/inboxes");
-}
+    const { session, membership, doctor } = await resolveContext();
+    if (!session || !membership || !doctor) return fail("Unauthorized", 401);
 
-export async function chatwootCreateContact(input: {
-  inboxId: number;
-  name: string;
-  email: string;
-  identifier: string;
-  context: MedLumConversationContext;
-}) {
-  return chatwootFetch<any>("/contacts", {
-    method: "POST",
-    body: JSON.stringify({
-      inbox_id: input.inboxId,
-      name: input.name,
-      email: input.email,
-      identifier: input.identifier,
-      custom_attributes: buildMedLumConversationAttributes(input.context),
-    }),
-  });
-}
+    const body = await req.json().catch(() => ({}));
+    const action = body.action === "message" ? "message" : "start";
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    if (!content || content.length > 4000) return fail("Message must contain 1–4000 characters.");
 
-export async function chatwootCreateConversation(input: {
-  inboxId: number;
-  contactId: number;
-  content: string;
-  context: MedLumConversationContext;
-}) {
-  return chatwootFetch<any>("/conversations", {
-    method: "POST",
-    body: JSON.stringify({
-      inbox_id: input.inboxId,
-      contact_id: input.contactId,
-      message: { content: input.content },
-      custom_attributes: buildMedLumConversationAttributes(input.context),
-    }),
-  });
-}
+    const context = {
+      clinicId: membership.clinicId,
+      clinicName: doctor.clinicName,
+      source: "STAFF_HELP" as const,
+      role: membership.role,
+      staffId: membership.membershipId,
+    };
 
-export async function chatwootListMessages(conversationId: number) {
-  return chatwootFetch<any>(`/conversations/${conversationId}/messages`);
-}
+    if (action === "message") {
+      const conversationId = Number(body.conversationId);
+      if (!Number.isInteger(conversationId) || conversationId <= 0) return fail("Conversation is required.");
+      const result = await chatwootSendMessage(conversationId, content);
+      return NextResponse.json({ success: true, message: result });
+    }
 
-export async function chatwootSendMessage(conversationId: number, content: string) {
-  return chatwootFetch<any>(`/conversations/${conversationId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ content, message_type: "incoming", private: false }),
-  });
-}
+    const inboxId = await resolveInboxId();
+    if (!inboxId) return fail("No Chatwoot API inbox is configured.", 503);
 
-export async function chatwootUpdateConversationAttributes(
-  conversationId: number,
-  context: MedLumConversationContext,
-) {
-  return chatwootFetch<any>(`/conversations/${conversationId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ custom_attributes: buildMedLumConversationAttributes(context) }),
-  });
+    const identifier = `medlum:${membership.clinicId}:${session.doctorId}`;
+    const contact = await chatwootCreateContact({
+      inboxId,
+      name: doctor.name,
+      email: doctor.email,
+      identifier,
+      context,
+    });
+
+    const contactId = Number(contact.id);
+    if (!Number.isInteger(contactId) || contactId <= 0) return fail("Chat service did not return a contact.", 502);
+
+    const conversation = await chatwootCreateConversation({
+      inboxId,
+      contactId,
+      content,
+      context,
+    });
+
+    return NextResponse.json({
+      success: true,
+      conversationId: Number(conversation.id),
+      messages: conversation.messages || [],
+    });
+  } catch (error) {
+    console.error("chatwoot POST error", error);
+    return fail("Chat service is temporarily unavailable.", 502);
+  }
 }
