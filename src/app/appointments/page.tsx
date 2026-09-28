@@ -45,6 +45,7 @@ export default function AppointmentsPage() {
     consultantSpecialty: "",
   });
   const [dataLoading, setDataLoading] = useState(true);
+  const [startingVideoId, setStartingVideoId] = useState("");
 
   const refresh = useCallback(async () => {
     const [pts, list] = await Promise.all([apiGetPatients(), apiGetAppointments()]);
@@ -95,6 +96,28 @@ export default function AppointmentsPage() {
     const r = await apiUpdateAppointmentStatus(id, status);
     if (r.success) await refresh();
     else setError(r.error || "Could not update appointment");
+  };
+
+  const startVideo = async (appointment: Appointment) => {
+    setError("");
+    setStartingVideoId(appointment.id);
+    try {
+      const scheduledAt = new Date(appointment.date + "T" + appointment.time + ":00");
+      if (Number.isNaN(scheduledAt.getTime())) throw new Error("Appointment date/time is invalid.");
+      const r = await fetch("/api/telemedicine/sessions", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionKind: "patient", patientId: appointment.patientId, appointmentId: appointment.id, scheduledAt: scheduledAt.toISOString() }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.session?.id) throw new Error(j?.error || j?.hint || "Could not start video consultation.");
+      router.push("/telemedicine/" + j.session.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start video consultation.");
+    } finally {
+      setStartingVideoId("");
+    }
   };
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -305,6 +328,11 @@ export default function AppointmentsPage() {
                         Start Consult
                       </Link>
                     )}
+                    {(a.status === "Scheduled" || a.status === "Waiting") && (
+                      <button type="button" disabled={startingVideoId === a.id} onClick={() => void startVideo(a)} className="text-xs text-[#140a1f] font-medium disabled:opacity-50">
+                        {startingVideoId === a.id ? "Opening video…" : "Start Video"}
+                      </button>
+                    )}
                     {a.status === "Completed" && (
                       <Link
                         href={`/patients/${a.patientId}`}
@@ -384,6 +412,7 @@ export default function AppointmentsPage() {
                 className="w-full h-11 px-3 rounded-lg border text-sm"
               >
                 <option>Consultation</option>
+                <option>Video Consultation</option>
                 <option>Follow-up</option>
                 <option>Lab Review</option>
                 <option>IPD Care Consultation</option>
