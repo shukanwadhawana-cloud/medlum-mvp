@@ -182,7 +182,9 @@ export default function DutyPage() {
           dutyEnabled: geoForm.dutyEnabled,
           dutyLat: geoForm.dutyLat ? Number(geoForm.dutyLat) : null,
           dutyLng: geoForm.dutyLng ? Number(geoForm.dutyLng) : null,
-          dutyRadiusMeters: Number(geoForm.dutyRadiusMeters) || 200,
+          dutyRadiusMeters: Math.max(100, Math.min(300, Number(geoForm.dutyRadiusMeters) || 200)),
+          currentLat: geoForm.dutyLat ? Number(geoForm.dutyLat) : null,
+          currentLng: geoForm.dutyLng ? Number(geoForm.dutyLng) : null,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -214,7 +216,7 @@ export default function DutyPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-[#140a1f]">MedLum Duty</h1>
-            <p className="text-sm text-gray-500">Hospital attendance · geofenced punch · IST</p>
+            <p className="text-sm text-gray-500">Hospital attendance · shared geofence · IST</p>
           </div>
           <Link href="/dashboard" className="text-sm text-[#c2183a]">Dashboard</Link>
         </div>
@@ -230,7 +232,7 @@ export default function DutyPage() {
               <select className="mt-2 w-full rounded-lg border px-3 py-2.5 text-sm bg-white" value={selectedClinicId} onChange={(e) => { setSelectedClinicId(e.target.value); void load(e.target.value); }}>
                 {data.clinics.map((clinic) => <option key={clinic.id} value={clinic.id}>{clinic.name}{clinic.address ? ` · ${clinic.address}` : ""}</option>)}
               </select>
-              {data.clinics.length > 1 && <p className="mt-2 text-xs text-gray-500">Punches and geofence settings apply only to the selected hospital.</p>}
+              {data.clinics.length > 1 && <p className="mt-2 text-xs text-gray-500">One geofence is stored on the selected hospital and is shared by every active staff member of that hospital. It is not a per-device fence.</p>}
             </section>
 
             <section className="rounded-2xl border bg-white p-4 shadow-sm">
@@ -288,9 +290,9 @@ export default function DutyPage() {
                   <input className="rounded-lg border px-3 py-2 text-sm" placeholder="Lat" value={geoForm.dutyLat} onChange={(e) => setGeoForm((f) => ({ ...f, dutyLat: e.target.value }))} />
                   <input className="rounded-lg border px-3 py-2 text-sm" placeholder="Lng" value={geoForm.dutyLng} onChange={(e) => setGeoForm((f) => ({ ...f, dutyLng: e.target.value }))} />
                 </div>
-                <input className="mt-2 w-full rounded-lg border px-3 py-2 text-sm" placeholder="Radius meters (50–5000)" value={geoForm.dutyRadiusMeters} onChange={(e) => setGeoForm((f) => ({ ...f, dutyRadiusMeters: e.target.value }))} />
+                <input className="mt-2 w-full rounded-lg border px-3 py-2 text-sm" inputMode="numeric" min="100" max="300" placeholder="Punch radius (100–300 m)" value={geoForm.dutyRadiusMeters} onChange={(e) => setGeoForm((f) => ({ ...f, dutyRadiusMeters: e.target.value }))} />
                 <div className="mt-2 flex gap-2">
-                  <button type="button" onClick={useMyLocation} className="rounded-lg border px-3 py-2 text-xs">Use my GPS</button>
+                  <button type="button" onClick={useMyLocation} className="rounded-lg border px-3 py-2 text-xs">Use my GPS (required)</button>
                   <button type="button" disabled={busy} onClick={saveGeofence} className="rounded-lg bg-[#140a1f] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Save geofence</button>
                 </div>
               </section>
