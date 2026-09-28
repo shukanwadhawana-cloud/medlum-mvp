@@ -100,12 +100,12 @@ export default function MedLumChat() {
               </div>
             )}
             {messages.map((m, i) => {
-              const incoming = m.message_type !== "incoming";
+              const fromSupport = m.message_type === "outgoing";
               return (
-                <div key={m.id || i} className={`mb-2 flex ${incoming ? "justify-start" : "justify-end"}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${incoming ? "bg-white border text-gray-800" : "bg-[#c2183a] text-white"}`}>
+                <div key={m.id || i} className={`mb-2 flex ${fromSupport ? "justify-start" : "justify-end"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${fromSupport ? "bg-white border text-gray-800" : "bg-[#c2183a] text-white"}`}>
                     <p className="whitespace-pre-wrap break-words">{m.content || ""}</p>
-                    {m.sender?.name && incoming && <p className="mt-1 text-[9px] text-gray-400">{m.sender.name}</p>}
+                    {m.sender?.name && fromSupport && <p className="mt-1 text-[9px] text-gray-400">{m.sender.name}</p>}
                   </div>
                 </div>
               );
