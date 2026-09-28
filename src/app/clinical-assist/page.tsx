@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDoctor } from "@/components/DoctorProvider";
+import { canAccessModule } from "@/lib/permissions";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { apiAddPatient, apiAddPrescriptionWithEncounter, apiCreateEncounter, apiGetPatientDetail, apiGetPatients } from "@/lib/api";
@@ -109,7 +111,11 @@ export default function ClinicalAssistPage() {
   const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", chiefComplaint: "", clinicalNotes: "", diagnosis: "", assessment: "", plan: "", medicines: "", advice: "" });
 
   useEffect(() => {
-    apiGetPatients().then((x) => setPatients(x as Patient[]));
+    if (!authLoading && doctor && canAccessModule(doctor.primaryRole, "clinical_assist")) {
+      apiGetPatients().then((x) => setPatients(x as Patient[]));
+    }
+  }, [authLoading, doctor]);
+  useEffect(() => {
     const initialPatientId = new URLSearchParams(window.location.search).get("patientId") || "";
     if (initialPatientId) { setPatientId(initialPatientId); setMode("followup"); }
   }, []);
@@ -183,6 +189,9 @@ export default function ClinicalAssistPage() {
       setMessage(mode === "new" ? "New patient + clinical encounter saved." : "Follow-up clinical encounter saved."); setScanText("");
     } catch(e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setSaving(false); }
   }
+
+  if (authLoading || !doctor) return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading...</div>;
+  if (!canAccessModule(doctor.primaryRole, "clinical_assist")) return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Clinical Assist is not available for this role.</div>;
 
   return <AppShell><div className="mb-3"><Link href="/patients" className="text-xs text-[#c2183a]">← Patients</Link><h2 className="text-lg font-semibold mt-1">Clinical AI Assistant</h2><p className="text-xs text-gray-500">Scan a previous summary or dictate your note, then review before saving.</p></div>
     <div className="space-y-3">
