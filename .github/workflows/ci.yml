@@ -101,6 +101,8 @@ jobs:
         run: npm run test:clinical-signing
       - name: Verify record confirmation and cancellation lifecycle
         run: npm run test:record-confirmation
+      - name: Verify OPD clinical record workflow
+        run: npm run test:opd-clinical-record
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
