@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
 import { writeAudit } from "@/lib/audit";
-import { assertJsonObjectSize } from "@/lib/json-input";
+import { assertJsonObjectSize, type NormalizedJsonObject } from "@/lib/json-input";
 
 const MANAGERS = ["Owner","Admin","Manager"];
 
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   const recordType = String(body.recordType || "").trim();
   const title = String(body.title || "").trim();
   const status = String(body.status || "DRAFT").trim().toUpperCase();
-  let data: Record<string, unknown>;
+  let data: NormalizedJsonObject;
   try { data = assertJsonObjectSize(body.data); } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Invalid record details." }, { status: 400 });
   }
@@ -69,7 +69,9 @@ export async function PATCH(req: Request) {
   if (!id) return NextResponse.json({error:"Record id is required."},{status:400});
   const existing = await prisma.workforceRecord.findFirst({where:{id,clinicId:c.membership.clinicId}});
   if (!existing) return NextResponse.json({error:"Record not found in selected facility."},{status:404});
-  let data: Record<string, unknown> = existing.data as Record<string, unknown>;
+  let data: NormalizedJsonObject = (existing.data && typeof existing.data === "object" && !Array.isArray(existing.data)
+    ? (existing.data as NormalizedJsonObject)
+    : {});
   if (body.data !== undefined) {
     try { data = assertJsonObjectSize(body.data); } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : "Invalid record details." }, { status: 400 });
