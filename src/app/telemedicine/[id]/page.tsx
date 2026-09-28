@@ -1,9 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { openConferenceInNewTab, warmConferenceOrigin } from "@/lib/telemedicine-client";
+import { apiCreateEncounter, apiGetPatientDetail } from "@/lib/api";
+
+type ClinicalForm = {
+  chiefComplaint: string;
+  clinicalNotes: string;
+  diagnosis: string;
+  assessment: string;
+  plan: string;
+  followUpDate: string;
+  bp: string;
+  pulse: string;
+  temperature: string;
+  spo2: string;
+  rr: string;
+  weight: string;
+  height: string;
+};
+
+const emptyForm = (): ClinicalForm => ({
+  chiefComplaint: "",
+  clinicalNotes: "",
+  diagnosis: "",
+  assessment: "",
+  plan: "",
+  followUpDate: "",
+  bp: "",
+  pulse: "",
+  temperature: "",
+  spo2: "",
+  rr: "",
+  weight: "",
+  height: "",
+});
 
 function isAppleTouchDevice() {
   if (typeof navigator === "undefined") return false;
@@ -19,9 +53,28 @@ async function requestCameraMic() {
   for (const t of stream.getTracks()) t.stop();
 }
 
+type SpeechRecognitionResultEvent = {
+  resultIndex: number;
+  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
+};
+type SpeechRecognitionInstance = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
+
 export default function TelemedicineVideoPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const [id, setId] = useState("");
   const [session, setSession] = useState<any>(null);
+  const [patient, setPatient] = useState<any>(null);
+  const [recentEncounters, setRecentEncounters] = useState<any[]>([]);
   const [inviteLink, setInviteLink] = useState("");
   const [participants, setParticipants] = useState<any[]>([]);
   const [participantName, setParticipantName] = useState("");
@@ -30,10 +83,15 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [permHint, setPermHint] = useState("");
   const [isIos, setIsIos] = useState(false);
+  const [form, setForm] = useState<ClinicalForm>(emptyForm);
+  const [savedEncounterId, setSavedEncounterId] = useState("");
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   async function load(sessionId: string) {
     setLoading(true);
@@ -47,6 +105,20 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       if (!r.ok) throw new Error(j.error || "Unable to load consultation.");
       setSession(j.session);
       void loadParticipants(sessionId);
+      if (j.session?.patientId) {
+        try {
+          const detail = await apiGetPatientDetail(j.session.patientId);
+          setPatient(detail.patient || detail);
+          const enc = Array.isArray(detail.encounters) ? detail.encounters : [];
+          setRecentEncounters(enc.slice(0, 5));
+        } catch {
+          setPatient(null);
+          setRecentEncounters([]);
+        }
+      } else {
+        setPatient(null);
+        setRecentEncounters([]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load consultation.");
     } finally {
@@ -60,6 +132,13 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       setId(value);
       void load(value);
     });
+    return () => {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
+    };
   }, [params]);
 
   useEffect(() => {
@@ -68,10 +147,15 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
 
   async function loadParticipants(sessionId: string) {
     try {
-      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(sessionId)}/participants`, { credentials: "include", cache: "no-store" });
+      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(sessionId)}/participants`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       const j = await r.json().catch(() => ({}));
       if (r.ok) setParticipants(j.participants || []);
-    } catch { /* participant list is supplementary */ }
+    } catch {
+      /* supplementary */
+    }
   }
 
   async function inviteParticipant() {
@@ -80,14 +164,18 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     setError("");
     try {
       const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(id)}/participants`, {
-        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: participantName.trim(), role: participantRole }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Unable to invite participant.");
       setParticipants((current) => [...current, j.participant]);
       setParticipantName("");
-      setParticipantInviteLink(`${window.location.origin}/telemedicine/join?token=${encodeURIComponent(j.joinToken)}`);
+      setParticipantInviteLink(
+        `${window.location.origin}/telemedicine/join?token=${encodeURIComponent(j.joinToken)}`
+      );
       setMsg("Participant invitation created. Share the link below.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to invite participant.");
@@ -99,10 +187,13 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
   async function revokeParticipant(participantId: string) {
     setBusy(true);
     try {
-      const r = await fetch(`/api/telemedicine/sessions/${encodeURIComponent(id)}/participants?participantId=${encodeURIComponent(participantId)}`, { method: "DELETE", credentials: "include" });
+      const r = await fetch(
+        `/api/telemedicine/sessions/${encodeURIComponent(id)}/participants?participantId=${encodeURIComponent(participantId)}`,
+        { method: "DELETE", credentials: "include" }
+      );
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Unable to revoke participant.");
-      setParticipants((current) => current.map((p) => p.id === participantId ? j.participant : p));
+      setParticipants((current) => current.map((p) => (p.id === participantId ? j.participant : p)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to revoke participant.");
     } finally {
@@ -129,10 +220,10 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     setError("");
     try {
       await requestCameraMic();
-      setMsg("Microphone and camera unlocked for this site. Open video in a new tab next so audio is sent.");
+      setMsg("Microphone and camera unlocked for this site. Open video in a new tab next.");
     } catch {
       setPermHint(
-        "Microphone blocked on this device. Settings → Safari → Microphone → Allow, then tap Allow camera & mic again."
+        "Microphone blocked on this device. Settings → Safari → Microphone → Allow, then try again."
       );
     }
   }
@@ -147,10 +238,10 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     }
     openConferenceInNewTab(url);
     void requestCameraMic()
-      .then(() => setMsg("Video opened in a new tab. Allow microphone/camera if asked, then join the MiroTalk room."))
+      .then(() => setMsg("Video opened in a new tab. Allow microphone/camera if asked."))
       .catch(() =>
         setPermHint(
-          "Allow Microphone when the browser asks. Settings > Safari > Microphone > Allow for this website. Then use the mic control inside the video room."
+          "Allow Microphone when the browser asks. Settings → Safari → Microphone → Allow for this website."
         )
       );
   }
@@ -167,9 +258,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
       }
       if (session?.status === "Scheduled") await patch({ status: "Waiting" });
       await patch({ status: "Active" });
-      setMsg(
-        "Call is live for the guest. Tap Join video (new tab) so your microphone is sent — required on iPhone/iPad and recommended on desktop."
-      );
+      setMsg("Call is live for the guest. Join video on this device so your microphone is sent.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to start call.");
     } finally {
@@ -177,12 +266,12 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     }
   }
 
-  async function hangUp() {
+  async function hangUpOnly() {
     setBusy(true);
     setError("");
     try {
       await patch({ status: "Completed" });
-      setMsg("Call ended. You can leave this page.");
+      setMsg("Call ended. Save clinical documentation below, then complete the consultation.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to end call.");
     } finally {
@@ -235,10 +324,137 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
     }
   }
 
+  function setField<K extends keyof ClinicalForm>(key: K, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function toggleDictation() {
+    const SR =
+      (window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor })
+        .SpeechRecognition ||
+      (window as Window & { webkitSpeechRecognition?: SpeechRecognitionCtor }).webkitSpeechRecognition;
+    if (!SR) {
+      setError("Speech dictation is not available in this browser. Type the note instead.");
+      return;
+    }
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
+      return;
+    }
+    const recognition = new SR();
+    recognition.lang = "en-IN";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      let finalText = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) finalText += result[0].transcript;
+      }
+      if (finalText) {
+        setForm((f) => ({
+          ...f,
+          clinicalNotes: (f.clinicalNotes ? f.clinicalNotes + " " : "") + finalText.trim(),
+        }));
+      }
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+    setMsg("Listening… speak clinical notes. Tap Stop dictation when finished. Review before saving.");
+  }
+
+  async function saveClinicalDocumentation(): Promise<string | null> {
+    if (!session?.patientId) {
+      setError("This session has no patient linked. Clinical documentation requires a patient session.");
+      return null;
+    }
+    const hasContent =
+      form.chiefComplaint.trim() ||
+      form.clinicalNotes.trim() ||
+      form.diagnosis.trim() ||
+      form.assessment.trim() ||
+      form.plan.trim();
+    if (!hasContent) {
+      setError("Enter at least a chief complaint, notes, diagnosis, assessment, or plan before saving.");
+      return null;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        patientId: session.patientId,
+        appointmentId: session.appointmentId || undefined,
+        date: new Date().toISOString().slice(0, 10),
+        chiefComplaint: form.chiefComplaint,
+        clinicalNotes: form.clinicalNotes,
+        diagnosis: form.diagnosis,
+        assessment: form.assessment,
+        plan: form.plan,
+        followUpDate: form.followUpDate || undefined,
+        bp: form.bp,
+        pulse: form.pulse,
+        temperature: form.temperature,
+        spo2: form.spo2,
+        rr: form.rr,
+        weight: form.weight,
+        height: form.height,
+      };
+      const r = await apiCreateEncounter(payload);
+      if (!r.success || !r.encounter?.id) {
+        throw new Error(r.error || "Could not save clinical consultation.");
+      }
+      setSavedEncounterId(r.encounter.id);
+      setMsg("Clinical consultation saved to the patient chart. Review or complete the consultation.");
+      return r.encounter.id as string;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save clinical consultation.");
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function completeConsultation() {
+    setBusy(true);
+    setError("");
+    setMsg("");
+    try {
+      let encounterId = savedEncounterId;
+      if (!encounterId) {
+        encounterId = (await saveClinicalDocumentation()) || "";
+        if (!encounterId) {
+          return;
+        }
+      }
+      if (session?.status !== "Completed" && session?.status !== "Cancelled" && session?.status !== "Expired") {
+        await patch({ status: "Completed" });
+      }
+      setMsg("Consultation completed. Opening patient chart…");
+      const patientId = session?.patientId;
+      if (patientId) {
+        router.push(`/patients/${patientId}/chart`);
+      } else {
+        router.push("/telemedicine");
+      }
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Clinical record may be saved, but the session could not be completed. Check the chart and try ending the call again."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <AppShell>
-        <div className="text-sm text-gray-500">Loading video consultation…</div>
+        <div className="text-sm text-gray-500">Loading consultation…</div>
       </AppShell>
     );
   }
@@ -253,6 +469,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
   const canJoin = session?.status !== "Completed" && session?.status !== "Cancelled" && session?.status !== "Expired";
   const active = session?.status === "Active";
   const ended = !canJoin;
+  const patientName = patient?.name || "Patient";
 
   return (
     <AppShell>
@@ -261,22 +478,71 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
           <Link href="/telemedicine" className="text-xs text-[#c2183a]">
             ← Telemedicine
           </Link>
-          <h1 className="mt-1 text-xl font-bold sm:text-2xl">Video consultation</h1>
-          <p className="text-sm text-gray-500">Start the call for the guest, then join with mic on this device.</p>
+          <h1 className="mt-1 text-xl font-bold sm:text-2xl">MedLum consultation</h1>
+          <p className="text-sm text-gray-500">
+            Video + clinical documentation in one workspace. Save the encounter, then complete.
+          </p>
         </div>
         <span className="self-start rounded-full bg-gray-100 px-3 py-1 text-xs">{session?.status}</span>
       </div>
 
-      {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      {msg && <div className="mb-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{msg}</div>}
+      {error && (
+        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+      )}
+      {msg && (
+        <div className="mb-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{msg}</div>
+      )}
       {permHint && (
-        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">{permHint}</div>
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          {permHint}
+        </div>
+      )}
+
+      {session?.patientId && (
+        <section className="mb-3 rounded-2xl border bg-white p-3 sm:p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold">{patientName}</div>
+              <p className="text-xs text-gray-500">
+                {[
+                  patient?.age != null ? `${patient.age}y` : null,
+                  patient?.gender,
+                  patient?.phone,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Linked patient"}
+                {session.appointmentId ? " · Appointment linked" : ""}
+              </p>
+              {patient?.allergies ? (
+                <p className="mt-1 text-xs text-red-700">Allergies: {patient.allergies}</p>
+              ) : null}
+            </div>
+            <Link
+              href={`/patients/${session.patientId}/chart`}
+              className="text-xs font-medium text-[#c2183a]"
+            >
+              Open chart
+            </Link>
+          </div>
+          {recentEncounters.length > 0 && (
+            <div className="mt-3 border-t pt-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-400">Recent consultations</p>
+              <ul className="mt-1 space-y-1">
+                {recentEncounters.map((e) => (
+                  <li key={e.id} className="text-xs text-gray-600">
+                    {e.date || ""} — {e.diagnosis || e.chiefComplaint || "Consultation"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
       )}
 
       <section className="mb-3 rounded-2xl border bg-white p-3 sm:p-4">
-        <div className="text-sm font-semibold">Consultation room</div>
-        <div className="mt-1 break-all text-xs text-gray-500">
-          Provider: {session?.provider || "mirotalk"} · {session?.sessionKind || "patient"}
+        <div className="text-sm font-semibold">Video session</div>
+        <div className="mt-1 text-xs text-gray-500">
+          {session?.sessionKind === "peer" ? "Peer consultation" : "Patient consultation"}
           {session?.peerLabel ? ` · ${session.peerLabel}` : ""}
         </div>
 
@@ -297,7 +563,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               onClick={() => openVideoWithMic()}
               className="rounded-xl bg-[#140a1f] px-3.5 py-2.5 text-sm font-medium text-white"
             >
-              Join video (new tab) — required on iPad
+              Join video (new tab)
             </button>
           )}
           {canJoin && (
@@ -313,10 +579,10 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
           {canJoin && (
             <button
               disabled={busy}
-              onClick={() => void hangUp()}
+              onClick={() => void hangUpOnly()}
               className="rounded-xl bg-red-600 px-3.5 py-2.5 text-sm font-medium text-white"
             >
-              Hang up / end call
+              End video only
             </button>
           )}
           {canJoin && (
@@ -328,39 +594,73 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               Get / refresh invite link
             </button>
           )}
-          {ended && (
-            <Link href="/telemedicine" className="rounded-xl border px-3.5 py-2.5 text-sm font-medium">
-              Back to Telemedicine
-            </Link>
-          )}
         </div>
 
-        <section className="mt-4 rounded-2xl border bg-white p-4">
+        <section className="mt-4 rounded-2xl border bg-slate-50 p-3">
           <div className="text-sm font-semibold">Invite additional people</div>
-          <p className="mt-1 text-xs text-gray-500">Zoom-style group call: invite another consultant, RMO, nurse, specialist, pharmacist, or observer. Everyone uses this same consultation room.</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Invite another clinician or observer to the same consultation room.
+          </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_180px_auto]">
-            <input value={participantName} onChange={(e) => setParticipantName(e.target.value)} placeholder="Person name" className="rounded-xl border px-3 py-2.5 text-sm" />
-            <select value={participantRole} onChange={(e) => setParticipantRole(e.target.value)} className="rounded-xl border px-3 py-2.5 text-sm">
-              <option>Consultant</option><option>Specialist</option><option>RMO</option><option>Nurse</option><option>Pharmacist</option><option>Observer</option><option>Guest</option>
+            <input
+              value={participantName}
+              onChange={(e) => setParticipantName(e.target.value)}
+              placeholder="Person name"
+              className="rounded-xl border px-3 py-2.5 text-sm"
+            />
+            <select
+              value={participantRole}
+              onChange={(e) => setParticipantRole(e.target.value)}
+              className="rounded-xl border px-3 py-2.5 text-sm"
+            >
+              <option>Consultant</option>
+              <option>Specialist</option>
+              <option>RMO</option>
+              <option>Nurse</option>
+              <option>Pharmacist</option>
+              <option>Observer</option>
+              <option>Guest</option>
             </select>
-            <button type="button" disabled={busy || !participantName.trim()} onClick={() => void inviteParticipant()} className="rounded-xl bg-[#c2183a] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">Invite</button>
+            <button
+              type="button"
+              disabled={busy || !participantName.trim()}
+              onClick={() => void inviteParticipant()}
+              className="rounded-xl bg-[#c2183a] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Invite
+            </button>
           </div>
           {participantInviteLink && (
             <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
               <div className="text-xs font-semibold text-green-900">New participant link</div>
-              <input readOnly value={participantInviteLink} onFocus={(e) => e.target.select()} className="mt-2 w-full rounded-lg border bg-white px-2 py-2 text-[11px]" />
-              <div className="mt-2 flex gap-2">
-                <button type="button" onClick={() => void navigator.clipboard?.writeText(participantInviteLink)} className="rounded-xl bg-[#140a1f] px-4 py-2 text-xs font-medium text-white">Copy link</button>
-                {typeof navigator !== "undefined" && navigator.share && <button type="button" onClick={() => void navigator.share({ title: "MedLum consultation", text: "Join the MedLum consultation", url: participantInviteLink })} className="rounded-xl border px-4 py-2 text-xs font-medium">Share…</button>}
-              </div>
+              <input
+                readOnly
+                value={participantInviteLink}
+                onFocus={(e) => e.target.select()}
+                className="mt-2 w-full rounded-lg border bg-white px-2 py-2 text-[11px]"
+              />
             </div>
           )}
           {participants.length > 0 && (
             <div className="mt-4 space-y-2">
               {participants.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs">
-                  <div><span className="font-medium">{p.name}</span><span className="ml-2 text-gray-500">{p.role} · {p.status}</span></div>
-                  {p.status !== "REVOKED" && <button type="button" disabled={busy} onClick={() => void revokeParticipant(p.id)} className="text-red-600">Revoke</button>}
+                <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border bg-white px-3 py-2 text-xs">
+                  <div>
+                    <span className="font-medium">{p.name}</span>
+                    <span className="ml-2 text-gray-500">
+                      {p.role} · {p.status}
+                    </span>
+                  </div>
+                  {p.status !== "REVOKED" && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void revokeParticipant(p.id)}
+                      className="text-red-600"
+                    >
+                      Revoke
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -369,7 +669,7 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
 
         {inviteLink && (
           <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
-            <div className="text-xs font-semibold text-green-900">Invite link (tap Copy or Share)</div>
+            <div className="text-xs font-semibold text-green-900">Invite link</div>
             <input
               readOnly
               value={inviteLink}
@@ -392,20 +692,14 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
         )}
 
         {canJoin && (
-          <div className="mt-2 space-y-1 text-[11px] text-gray-500">
-            <p>
-              <strong>iPad audio:</strong> Tap <strong>Join video (new tab)</strong>, allow microphone, and unmute
-              in the MiroTalk room if needed.
-            </p>
-            <p>
-              <strong>Same room testing?</strong> Headphones on one device to avoid echo.
-            </p>
-          </div>
+          <p className="mt-2 text-[11px] text-gray-500">
+            On iPhone/iPad, use <strong>Join video (new tab)</strong> so microphone audio is sent reliably.
+          </p>
         )}
       </section>
 
       {canJoin && session?.meetingUrl && !isIos ? (
-        <section className="overflow-hidden rounded-2xl border bg-black">
+        <section className="mb-3 overflow-hidden rounded-2xl border bg-black">
           <div className="telemedicine-video-frame w-full">
             <iframe
               title="MedLum video consultation"
@@ -419,10 +713,10 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
           </p>
         </section>
       ) : canJoin && session?.meetingUrl && isIos ? (
-        <section className="rounded-2xl border bg-white p-6 text-center">
-          <div className="text-sm font-semibold">Use the new-tab join for reliable iPad audio</div>
+        <section className="mb-3 rounded-2xl border bg-white p-6 text-center">
+          <div className="text-sm font-semibold">Join video in a new tab for reliable audio</div>
           <p className="mt-2 text-xs text-gray-500">
-            Embedded video on iPad often shows you to others without sending your microphone.
+            Embedded video on iPad often shows you without sending your microphone.
           </p>
           <button
             type="button"
@@ -432,15 +726,157 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
             Join video (new tab)
           </button>
         </section>
-      ) : (
-        <section className="rounded-2xl border bg-white p-6 text-center">
-          <div className="text-sm font-medium">{ended ? "This consultation has ended." : "Video room unavailable"}</div>
-          <p className="mt-1 text-xs text-gray-500">
-            {ended
-              ? "Use Back to Telemedicine to start another session."
-              : "This session is configured for an external video provider or is no longer joinable."}
+      ) : null}
+
+      <section className="mb-3 rounded-2xl border bg-white p-3 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold">Clinical documentation</div>
+            <p className="text-xs text-gray-500">
+              Same MedLum encounter fields as OPD. Review before save. Notes stay draft until you finalize in the chart.
+            </p>
+          </div>
+          {session?.patientId && (
+            <button
+              type="button"
+              onClick={() => toggleDictation()}
+              className={`rounded-xl px-3 py-2 text-xs font-medium ${
+                listening ? "bg-red-600 text-white" : "border"
+              }`}
+            >
+              {listening ? "Stop dictation" : "Dictate notes"}
+            </button>
+          )}
+        </div>
+
+        {!session?.patientId ? (
+          <p className="mt-3 text-sm text-amber-800">
+            Peer sessions have no patient chart. Clinical encounters require a patient-linked session.
           </p>
-        </section>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="text-[11px] text-gray-500">Chief complaint</label>
+              <input
+                value={form.chiefComplaint}
+                onChange={(e) => setField("chiefComplaint", e.target.value)}
+                className="mt-1 w-full rounded-xl border px-3 py-2.5 text-sm"
+                placeholder="Main reason for visit"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500">Clinical notes / history</label>
+              <textarea
+                value={form.clinicalNotes}
+                onChange={(e) => setField("clinicalNotes", e.target.value)}
+                className="mt-1 min-h-[100px] w-full rounded-xl border px-3 py-2.5 text-sm"
+                placeholder="History, examination findings…"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(
+                [
+                  ["bp", "BP"],
+                  ["pulse", "Pulse"],
+                  ["rr", "RR"],
+                  ["temperature", "Temp"],
+                  ["spo2", "SpO₂"],
+                  ["weight", "Weight"],
+                  ["height", "Height"],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key}>
+                  <label className="text-[11px] text-gray-500">{label}</label>
+                  <input
+                    value={form[key]}
+                    onChange={(e) => setField(key, e.target.value)}
+                    className="mt-1 w-full rounded-xl border px-2 py-2 text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500">Diagnosis</label>
+              <input
+                value={form.diagnosis}
+                onChange={(e) => setField("diagnosis", e.target.value)}
+                className="mt-1 w-full rounded-xl border px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500">Assessment</label>
+              <textarea
+                value={form.assessment}
+                onChange={(e) => setField("assessment", e.target.value)}
+                className="mt-1 min-h-[72px] w-full rounded-xl border px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500">Plan</label>
+              <textarea
+                value={form.plan}
+                onChange={(e) => setField("plan", e.target.value)}
+                className="mt-1 min-h-[72px] w-full rounded-xl border px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500">Follow-up date</label>
+              <input
+                type="date"
+                value={form.followUpDate}
+                onChange={(e) => setField("followUpDate", e.target.value)}
+                className="mt-1 w-full rounded-xl border px-3 py-2.5 text-sm sm:max-w-xs"
+              />
+            </div>
+
+            <p className="text-[10px] text-gray-400">
+              Dictated or typed content is a drafting aid only. Verify all clinical content before saving. ClinicalNote
+              remains DRAFT until finalized through the existing chart signing flow.
+            </p>
+
+            {savedEncounterId && (
+              <p className="text-xs text-green-700">
+                Encounter saved ({savedEncounterId.slice(0, 8)}…). You can still edit fields and save again, or complete
+                the consultation.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={saving || busy || !session?.patientId}
+                onClick={() => void saveClinicalDocumentation()}
+                className="rounded-xl border px-4 py-2.5 text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save clinical consultation"}
+              </button>
+              <button
+                type="button"
+                disabled={saving || busy || !session?.patientId}
+                onClick={() => void completeConsultation()}
+                className="rounded-xl bg-[#c2183a] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {busy ? "Completing…" : "Complete consultation"}
+              </button>
+              {session?.patientId && (
+                <Link
+                  href={`/patients/${session.patientId}/chart`}
+                  className="rounded-xl border px-4 py-2.5 text-center text-sm font-medium"
+                >
+                  Open patient chart
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {ended && (
+        <div className="mb-6 text-center">
+          <Link href="/telemedicine" className="text-sm text-[#c2183a]">
+            Back to Telemedicine
+          </Link>
+        </div>
       )}
     </AppShell>
   );
