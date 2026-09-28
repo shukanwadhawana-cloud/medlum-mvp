@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { medLumHelpAnswer, MEDLUM_HELP_KNOWLEDGE_VERSION } from "@/lib/medlum-help";
 import {
   chatwootCreateContact,
   chatwootCreateConversation,
@@ -52,7 +53,7 @@ async function resolveInboxId() {
 
 export async function GET(req: Request) {
   try {
-    if (!isChatwootConfigured()) return NextResponse.json({ success: true, configured: true, mode: "knowledge", knowledgeVersion: MEDLUM_HELP_KNOWLEDGE_VERSION });
+    if (!isChatwootConfigured()) return NextResponse.json({ success: true, configured: false, mode: "knowledge", knowledgeVersion: MEDLUM_HELP_KNOWLEDGE_VERSION });
 
     const url = new URL(req.url);
     const conversationId = Number(url.searchParams.get("conversationId") || "");
@@ -89,14 +90,20 @@ export async function POST(req: Request) {
     const { session, membership, doctor } = await resolveContext();
     if (!session || !membership || !doctor) return fail("Unauthorized", 401);
 
-    if (!chatwootConfigured) {
-      return NextResponse.json({ success: true, mode: "knowledge", message: { id: Date.now(), content: medLumHelpAnswer(content), message_type: "outgoing", sender: { name: "MedLum Help" } } });
-    }
-
     const body = await req.json().catch(() => ({}));
     const action = body.action === "message" ? "message" : "start";
     const content = typeof body.content === "string" ? body.content.trim() : "";
     if (!content || content.length > 4000) return fail("Message must contain 1–4000 characters.");
+
+    if (!chatwootConfigured) {
+      return NextResponse.json({
+        success: true,
+        configured: false,
+        mode: "knowledge",
+        knowledgeVersion: MEDLUM_HELP_KNOWLEDGE_VERSION,
+        message: { id: Date.now(), content: medLumHelpAnswer(content), message_type: "outgoing", sender: { name: "MedLum Help" } },
+      });
+    }
 
     const context = {
       clinicId: membership.clinicId,
