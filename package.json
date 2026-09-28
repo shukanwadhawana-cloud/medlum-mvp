@@ -65,7 +65,8 @@
     "test:record-confirmation": "node scripts/verify-record-confirmation.mjs",
     "test:ipd-save-error-handling": "node scripts/verify-ipd-save-error-handling.mjs",
     "test:staff-workforce": "node scripts/verify-staff-workforce.mjs",
-    "test:appointments": "node scripts/verify-appointments.mjs"
+    "test:appointments": "node scripts/verify-appointments.mjs",
+    "test:opd-clinical-record": "node scripts/verify-opd-clinical-record.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
