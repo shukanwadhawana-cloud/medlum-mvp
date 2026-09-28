@@ -94,6 +94,11 @@ export async function POST(req: Request) {
     if (action === "message") {
       const conversationId = Number(body.conversationId);
       if (!Number.isInteger(conversationId) || conversationId <= 0) return fail("Conversation is required.");
+      const conversation = await chatwootGetConversation(conversationId);
+      const attrs = conversation.custom_attributes || {};
+      if (attrs.medlum_clinic_id !== membership.clinicId || attrs.medlum_staff_id !== membership.membershipId) {
+        return fail("Conversation is not authorized for this staff member.", 403);
+      }
       const result = await chatwootSendMessage(conversationId, content);
       return NextResponse.json({ success: true, message: result });
     }
