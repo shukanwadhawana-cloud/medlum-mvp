@@ -38,6 +38,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       registrationNo: true,
       letterheadHeightMm: true,
       showMedlumFooter: true,
+      invoiceFooter: true,
     },
   });
 
@@ -116,7 +117,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       registrationNo: clinic?.registrationNo || null,
       letterheadHeightMm: clinic?.letterheadHeightMm ?? null,
       showMedlumFooter: clinic?.showMedlumFooter ?? true,
-      invoiceFooter: (await prisma.clinic.findUnique({ where: { id: membership.clinicId }, select: { invoiceFooter: true } }))?.invoiceFooter || "",
+      invoiceFooter: clinic?.invoiceFooter || "",
     },
     patient: {
       name: patient.name,
