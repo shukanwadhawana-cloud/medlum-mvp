@@ -23,7 +23,9 @@ const helper = fs.readFileSync(path.join(root, "src/lib/telemedicine.ts"), "utf8
 const sessions = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/route.ts"), "utf8");
 const sessionIdRoute = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/[id]/route.ts"), "utf8");
 const join = fs.readFileSync(path.join(root, "src/app/api/telemedicine/join/route.ts"), "utf8");
-const doctorRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
+const pageRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
+const componentPath = path.join(root, "src/components/TelemedicineConsultationPage.tsx");
+const doctorRoom = pageRoom + (fs.existsSync(componentPath) ? fs.readFileSync(componentPath, "utf8") : "");
 const patientRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/join/page.tsx"), "utf8");
 const endedRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/ended/page.tsx"), "utf8");
 const appointments = fs.readFileSync(path.join(root, "src/app/appointments/page.tsx"), "utf8");
@@ -33,7 +35,7 @@ const doctorLifecycle =
   (doctorRoom.includes('status: "Active"') || doctorRoom.includes("status: 'Active'")) &&
   (doctorRoom.includes('status: "Completed"') || doctorRoom.includes("status: 'Completed'")) &&
   (doctorRoom.includes("startCallForGuest") || doctorRoom.includes("Start call")) &&
-  (doctorRoom.includes("hangUp") || doctorRoom.includes("Hang up") || doctorRoom.includes("End video"));
+  (doctorRoom.includes("hangUp") || doctorRoom.includes("Hang up") || doctorRoom.includes("End video") || doctorRoom.includes("End call"));
 
 const checks = [
   ["replaceable provider selection", helper.includes("getVideoProvider") && helper.includes('"external"') && helper.includes('"jitsi"') && helper.includes('"mirotalk"')],
