@@ -43,53 +43,21 @@ function parseScan(text: string) {
   return out;
 }
 
-async function preprocessImage(file: File, variant: "clean" | "contrast" | "threshold") {
-  const bitmap = await createImageBitmap(file);
-  const maxWidth = 2400;
-  const scale = Math.min(1, maxWidth / bitmap.width);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) throw new Error("Canvas is unavailable on this device.");
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = image.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    if (variant === "threshold") {
-      const v = gray > 170 ? 255 : gray < 95 ? 0 : Math.round(((gray - 95) / 75) * 255);
-      data[i] = data[i + 1] = data[i + 2] = v;
-    } else if (variant === "contrast") {
-      const v = Math.max(0, Math.min(255, (gray - 128) * 1.45 + 128));
-      data[i] = data[i + 1] = data[i + 2] = v;
-    } else {
-      data[i] = data[i + 1] = data[i + 2] = gray;
-    }
-  }
-  ctx.putImageData(image, 0, 0);
-  return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare scan.")), "image/png", 1));
-}
-
 async function runOcr(file: File): Promise<ScanResult> {
-  const { createWorker, PSM } = await import("tesseract.js");
-  const variants: Array<"clean" | "contrast" | "threshold"> = ["clean", "contrast", "threshold"];
-  const worker = await createWorker("eng");
-  const results: ScanResult[] = [];
-  for (const variant of variants) {
-    const prepared = await preprocessImage(file, variant);
-    await worker.setParameters({ tessedit_pageseg_mode: variant === "contrast" ? PSM.SPARSE_TEXT : PSM.AUTO });
-    const result = await worker.recognize(prepared);
-    results.push({ text: result.data.text.trim(), confidence: result.data.confidence || 0, label: variant });
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch("/api/clinical-ai/ocr", {
+    method: "POST",
+    headers: { "X-MedLum-Requested-With": "MedLum" },
+    body,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.success) {
+    throw new Error(payload?.error || "Document OCR could not be completed.");
   }
-  await worker.terminate();
-  results.sort((a, b) => b.confidence - a.confidence);
-  const best = results[0];
-  if (!best?.text) throw new Error("No readable text was detected. Try a sharper, better-lit photo.");
-  return best;
+  const text = String(payload.text || "").trim();
+  if (!text) throw new Error("No readable text was detected. Try a sharper, better-lit document.");
+  return { text, confidence: 100, label: "server" };
 }
 
 export default function ClinicalAssistPage() {
@@ -148,7 +116,7 @@ export default function ClinicalAssistPage() {
       const clinicalText = normalizeClinicalText(text);
       setDetectedTerms(clinicalText.detected);
       setForm(f=>({...f, ...(parsed.name ? {name:parsed.name}:{}), ...(parsed.age ? {age:parsed.age}:{}), ...(parsed.gender ? {gender:parsed.gender}:{}), ...(parsed.phone ? {phone:parsed.phone}:{}), ...(parsed.bp ? {bp:parsed.bp}:{}), ...(parsed.diagnosis ? {diagnosis:parsed.diagnosis}:{}), ...(parsed.medicines ? {medicines:parsed.medicines}:{}), ...(parsed.advice ? {advice:parsed.advice}:{}), clinicalNotes:text}));
-      setScanStatus(best.confidence >= 80 ? "High-confidence OCR completed. Review the extracted fields." : best.confidence >= 55 ? "OCR completed with moderate confidence. Review the text carefully." : "OCR completed with low confidence. Retake the photo if possible.");
+      setScanStatus("OCR completed on MedLum server. Review the extracted text and fields carefully.");
     } catch (e) { setError(e instanceof Error ? e.message : "Document OCR could not complete on this device."); setScanStatus(""); } finally { setScanBusy(false); }
   }
 
@@ -199,7 +167,7 @@ export default function ClinicalAssistPage() {
       <section className="bg-white border rounded-xl p-3"><div className="flex gap-2"><button onClick={()=>setMode("followup")} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="followup"?"bg-[#c2183a] text-white":""}`}>Existing patient</button><button onClick={()=>{setMode("new");setPatientId("");}} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="new"?"bg-[#c2183a] text-white":""}`}>New patient</button></div>
         {mode==="followup" && <><input value={patientSearch} onChange={e=>setPatientSearch(e.target.value)} placeholder="Search patient by name or phone" className="w-full h-10 border rounded-lg px-3 text-sm mt-3"/><div className="mt-2 space-y-1">{filteredPatients.map(p=><button key={p.id} onClick={()=>{setPatientId(p.id);setPatientSearch("");}} className={`w-full text-left px-3 py-2 rounded-lg border text-xs ${patientId===p.id?"border-[#c2183a] bg-red-50":""}`}>{p.name} · {p.age} yrs · {p.phone}</button>)}</div></>}
       </section>
-      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">📷 Document scanner + OCR</h3><p className="text-[11px] text-gray-500 mt-1">Take a clear photo of a discharge summary, prescription, referral or report. MedLum preprocesses the image and runs several OCR passes locally before choosing the strongest result.</p><input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f)}} className="mt-3 w-full text-xs"/>{scanBusy&&<p className="text-xs text-gray-500 mt-2">{scanStatus}</p>}{scanStatus&&!scanBusy&&<p className="text-xs text-green-700 mt-2">{scanStatus}{scanConfidence!==null?` OCR confidence: ${Math.round(scanConfidence)}%.`:""}</p>}{scanText&&<details className="mt-2" open><summary className="text-xs font-medium">Review extracted OCR text</summary><textarea value={scanText} onChange={e=>setScanText(e.target.value)} className="w-full mt-2 min-h-36 border rounded-lg p-2 text-xs"/><p className="text-[10px] text-gray-400 mt-1">The extracted text is only a drafting aid. Do not treat OCR confidence as clinical correctness.</p></details>}</section>
+      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">📷 Document scanner + OCR</h3><p className="text-[11px] text-gray-500 mt-1">Take a clear photo of a discharge summary, prescription, referral or report. MedLum processes the uploaded PDF or image on the MedLum server and returns editable draft text; no clinical record is finalized automatically.</p><input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f)}} className="mt-3 w-full text-xs"/>{scanBusy&&<p className="text-xs text-gray-500 mt-2">{scanStatus}</p>}{scanStatus&&!scanBusy&&<p className="text-xs text-green-700 mt-2">{scanStatus}{scanConfidence!==null?` `:""}</p>}{scanText&&<details className="mt-2" open><summary className="text-xs font-medium">Review extracted OCR text</summary><textarea value={scanText} onChange={e=>setScanText(e.target.value)} className="w-full mt-2 min-h-36 border rounded-lg p-2 text-xs"/><p className="text-[10px] text-gray-400 mt-1">The extracted text is only a drafting aid. Do not treat OCR confidence as clinical correctness.</p></details>}</section>
       {detectedTerms.length > 0 && <section className="bg-blue-50 border border-blue-100 rounded-xl p-3"><div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-sm">Clinical terminology detected</h3><p className="text-[10px] text-gray-500 mt-1">MedLum recognizes common clinical wording and suggests clinician-standard terminology. It does not diagnose.</p></div><span className="text-[10px] font-medium text-blue-700">{detectedTerms.length} term{detectedTerms.length === 1 ? "" : "s"}</span></div><div className="flex flex-wrap gap-1.5 mt-2">{detectedTerms.map((term) => <span key={`${term.phrase}-${term.preferred}`} className="px-2 py-1 rounded-full bg-white border border-blue-100 text-[10px]"><span className="text-gray-500">{term.phrase}</span><span className="mx-1">→</span><span className="font-semibold text-blue-800">{term.preferred}</span></span>)}</div></section>}
       {error&&<div className="bg-red-50 text-red-700 rounded-lg p-3 text-xs">{error}</div>}{message&&<div className="bg-green-50 text-green-700 rounded-lg p-3 text-xs">{message}</div>}
       <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm mb-2">Patient details</h3><div className="grid grid-cols-2 gap-2"><Input label="Name" value={form.name} onChange={v=>setField("name",v)}/><Input label="Mobile" value={form.phone} onChange={v=>setField("phone",v)}/><Input label="Age" value={form.age} onChange={v=>setField("age",v)}/><label className="text-[11px] font-medium">Gender<select value={form.gender} onChange={e=>setField("gender",e.target.value)} className="mt-1 w-full h-10 border rounded-lg px-2 text-sm"><option>Male</option><option>Female</option><option>Other</option></select></label><Input label="BP" value={form.bp} onChange={v=>setField("bp",v)}/><Input label="Allergies" value={form.allergies} onChange={v=>setField("allergies",v)}/></div></section>
