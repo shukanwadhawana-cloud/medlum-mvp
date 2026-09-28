@@ -24,6 +24,9 @@ async function requirePrivilegedSession() {
     orderBy: { createdAt: "asc" },
   });
   const isOwner = isMedlumOwnerEmail(doctor.email);
+  if (!isOwner && !membership) {
+    return { error: NextResponse.json({ success: false, error: "No active facility membership." }, { status: 403 }) };
+  }
   if (!isOwner && !roleRequiresOtp(normalizeClinicRole(membership?.role))) {
     return { error: NextResponse.json({ success: false, error: "Telegram linking is restricted to privileged accounts." }, { status: 403 }) };
   }
