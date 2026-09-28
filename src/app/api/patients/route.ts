@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { writeAudit } from "@/lib/audit";
@@ -67,10 +68,27 @@ export async function GET(req: Request) {
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
   const visible = membership.role === "Owner" ? patients : setup?.subscriptionModel === "OPD" ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD") : setup?.subscriptionModel === "IPD" ? patients.filter((p) => parseCareSetting(p.notes) === "IPD") : patients;
   const visibleIds = visible.map((p) => p.id);
-  const [encounters, vitalLogs] = await Promise.all([
+  const [encounters, vitalLogs, appointments, emergencyCases] = await Promise.all([
     visibleIds.length ? prisma.encounter.findMany({ where: { patientId: { in: visibleIds } }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
     visibleIds.length ? prisma.auditLog.findMany({ where: { entity: "NursingVital", entityId: { in: visibleIds } }, orderBy: { createdAt: "desc" }, take: Math.min(visibleIds.length * 5, 2500) }) : Promise.resolve([]),
+    visibleIds.length ? prisma.appointment.findMany({ where: { patientId: { in: visibleIds }, status: { notIn: ["Cancelled", "No Show"] } }, select: { id: true, patientId: true, date: true, time: true, status: true }, orderBy: [{ date: "asc" }, { time: "asc" }] }) : Promise.resolve([]),
+    visibleIds.length ? prisma.$queryRaw<any[]>(Prisma.sql`SELECT "patientId","status","arrivalTime" FROM "EmergencyCase" WHERE "clinicId"=${clinicId} AND "patientId" IN (${Prisma.join(visibleIds)}) ORDER BY "arrivalTime" DESC`) : Promise.resolve([]),
   ]);
+  const appointmentMeta = new Map<string, { count: number; next: any | null }>();
+  for (const a of appointments) {
+    const current = appointmentMeta.get(a.patientId) || { count: 0, next: null };
+    current.count += 1;
+    if (!current.next) current.next = a;
+    appointmentMeta.set(a.patientId, current);
+  }
+  const emergencyMeta = new Map<string, { count: number; latestStatus: string | null }>();
+  for (const e of emergencyCases) {
+    if (!e.patientId) continue;
+    const current = emergencyMeta.get(e.patientId) || { count: 0, latestStatus: null };
+    current.count += 1;
+    if (!current.latestStatus) current.latestStatus = e.status || null;
+    emergencyMeta.set(e.patientId, current);
+  });
   const latestVitalsByPatient = new Map<string, any>();
   const considerVitals = (patientId: string, vitals: any) => {
     if (!patientId) return;
@@ -81,7 +99,7 @@ export async function GET(req: Request) {
   };
   for (const e of encounters) if (e.bp || e.pulse || e.rr || e.spo2 || e.temperature || e.weight || e.height) considerVitals(e.patientId, { bp: e.bp, pulse: e.pulse, rr: e.rr, spo2: e.spo2, temperature: e.temperature, weight: e.weight, height: e.height, recordedAt: e.createdAt.toISOString(), source: "OPD" });
   for (const log of vitalLogs) { let meta: any = {}; try { meta = JSON.parse(log.meta || "{}"); } catch {} considerVitals(log.entityId || "", { bp: String(meta.bp || ""), pulse: String(meta.pulse || ""), rr: String(meta.rr || ""), spo2: String(meta.spo2 || ""), temperature: String(meta.temperature || ""), recordedAt: log.createdAt.toISOString(), source: "IPD" }); }
-  return NextResponse.json({ patients: visible.map((p) => serialize(p, latestVitalsByPatient.get(p.id) || null)) }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ patients: visible.map((p) => ({ ...serialize(p, latestVitalsByPatient.get(p.id) || null), appointmentsCount: appointmentMeta.get(p.id)?.count || 0, nextAppointment: appointmentMeta.get(p.id)?.next || null, emergencyCaseCount: emergencyMeta.get(p.id)?.count || 0, latestEmergencyStatus: emergencyMeta.get(p.id)?.latestStatus || null })) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
