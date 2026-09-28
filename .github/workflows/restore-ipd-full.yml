@@ -1,0 +1,40 @@
+name: Restore full IPD page
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Restore IPD page from fix/json-input-hardening
+        run: |
+          set -euo pipefail
+          git show origin/fix/json-input-hardening:src/app/ipd/[id]/page.tsx > src/app/ipd/[id]/page.tsx
+          # Ensure real newline (not literal backslash-n)
+          python3 - <<'PY'
+          path = 'src/app/ipd/[id]/page.tsx'
+          with open(path) as f:
+              c = f.read()
+          old = '};' + chr(92) + 'n' + ' const saveVitals'
+          if old in c:
+              c = c.replace(old, '};\n const saveVitals', 1)
+              with open(path, 'w') as f:
+                  f.write(c)
+              print('normalized literal newline')
+          else:
+              print('no literal newline present; size', len(c))
+          PY
+          git config user.name 'medlum-bot'
+          git config user.email 'bot@medlum.local'
+          git add 'src/app/ipd/[id]/page.tsx'
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+          else
+            git commit -m 'fix(ipd): restore full patient workspace (remove placeholder)'
+            git push origin HEAD:main
+          fi
