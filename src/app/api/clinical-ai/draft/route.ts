@@ -33,7 +33,8 @@ export async function POST(req: Request) {
   if (!membership) return fail("No active clinic membership", 403);
 
   const role = normalizeClinicRole(membership.role);
-  if (!canAccessModule(role, "clinical_assist") && !canAccessModule(role, "opd") && !canAccessModule(role, "telemedicine")) {
+  // Only the clinical_assist module — not broader OPD/reception access.
+  if (!canAccessModule(role, "clinical_assist")) {
     return fail("Your role cannot use clinical documentation assist.", 403);
   }
 
@@ -47,11 +48,20 @@ export async function POST(req: Request) {
     return NextResponse.json(limited.body, { status: 429, headers: limited.headers });
   }
 
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > 64_000) {
+    return fail("Request body is too large.", 413);
+  }
+
   let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch {
     return fail("Invalid JSON body.");
+  }
+  // Reject client-supplied facility/role claims; membership is server-derived only.
+  if (body.clinicId != null || body.role != null || body.membershipId != null) {
+    return fail("Facility and role are derived from your session and cannot be supplied by the client.", 400);
   }
 
   const patientId = clipClient(body.patientId, 64);
@@ -202,6 +212,14 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  const session = await getSession();
+  if (!session) return fail("Unauthorized", 401);
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return fail("No active clinic membership", 403);
+  const role = normalizeClinicRole(membership.role);
+  if (!canAccessModule(role, "clinical_assist")) {
+    return fail("Your role cannot use clinical documentation assist.", 403);
+  }
   return NextResponse.json({
     success: true,
     configured: isClinicalAiConfigured(),
