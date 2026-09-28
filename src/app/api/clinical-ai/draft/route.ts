@@ -67,9 +67,7 @@ export async function POST(req: Request) {
       gender: true,
       allergies: true,
       bp: true,
-      diagnosis: true,
-      workingDiagnosis: true,
-      chiefComplaint: true,
+      notes: true,
     },
   });
   if (!patient) return fail("Patient not found in the selected facility.", 404);
@@ -118,18 +116,13 @@ export async function POST(req: Request) {
     patientName: patient.name,
     age: patient.age,
     gender: patient.gender,
-    chiefComplaint:
-      encounter?.chiefComplaint ||
-      clipClient(body.chiefComplaint) ||
-      patient.chiefComplaint ||
+    chiefComplaint: encounter?.chiefComplaint || clipClient(body.chiefComplaint) || "",
+    clinicalNotes:
+      encounter?.clinicalNotes ||
+      clipClient(body.clinicalNotes) ||
+      patient.notes ||
       "",
-    clinicalNotes: encounter?.clinicalNotes || clipClient(body.clinicalNotes) || "",
-    diagnosis:
-      encounter?.diagnosis ||
-      clipClient(body.diagnosis) ||
-      patient.diagnosis ||
-      patient.workingDiagnosis ||
-      "",
+    diagnosis: encounter?.diagnosis || clipClient(body.diagnosis) || "",
     assessment: encounter?.assessment || clipClient(body.assessment) || "",
     plan: encounter?.plan || clipClient(body.plan) || "",
     allergies: patient.allergies || "",

@@ -49,11 +49,24 @@ ok(!route?.includes("status: \"FINAL\""), "draft route does not finalize notes")
 
 ok(signing?.includes("canFinalizeClinicalNote"), "clinical signing helpers preserved");
 ok(notes?.includes("FINAL_SIGN") || notes?.includes("finalize"), "clinical-notes finalize path preserved");
-ok(page?.includes("clinical-ai/draft") || page?.includes("AI-GENERATED DRAFT") || page?.includes("Generate AI draft"), "clinical-assist UI wires draft assist");
+const panel = read("src/components/ClinicalAiDraftPanel.tsx");
+ok(!!panel, "src/components/ClinicalAiDraftPanel.tsx exists");
+ok(
+  page?.includes("ClinicalAiDraftPanel") ||
+    page?.includes("clinical-ai/draft") ||
+    page?.includes("AI-GENERATED DRAFT") ||
+    page?.includes("Generate AI draft"),
+  "clinical-assist UI wires draft assist",
+);
+ok(panel?.includes("/api/clinical-ai/draft"), "draft panel calls generation endpoint");
+ok(panel?.includes("not a final clinical record") || panel?.includes("AI-generated draft"), "draft panel labels draft status");
+ok(!route?.includes("patient.diagnosis") && !route?.includes("workingDiagnosis"), "draft route does not select non-schema Patient fields");
+ok(route?.includes("notes: true") || route?.includes("patient.notes"), "draft route uses existing Patient.notes when available");
 
 // Ensure no client exposure of secrets in UI
 ok(!page?.includes("OPENAI_API_KEY"), "UI does not reference provider secrets");
 ok(!page?.includes("GEMINI_API_KEY"), "UI does not reference Gemini secrets");
+ok(!panel?.includes("OPENAI_API_KEY") && !panel?.includes("GEMINI_API_KEY"), "panel does not reference provider secrets");
 
 if (failed) {
   console.error(`\nFAILED (${failed})`);
