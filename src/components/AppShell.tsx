@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDoctor } from "./DoctorProvider";
 import { menuNavForRole, primaryNavForRole } from "@/lib/permissions";
+import MedLumChat from "./MedLumChat";
 
 const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -44,6 +45,7 @@ const isActive = (pathname: string, href: string) =>
   (href === "/more" && pathname.startsWith("/more")) ||
   (href === "/duty" && pathname.startsWith("/duty")) ||
   (href === "/workforce" && pathname.startsWith("/workforce")) ||
+  (href === "/people" && pathname.startsWith("/people")) ||
   (href === "/clinic" && (pathname === "/clinic" || pathname.startsWith("/clinic?"))) ||
   (href === "/nursing" && pathname.startsWith("/nursing"));
 
@@ -87,7 +89,6 @@ function MoreSidebar({
                 <span>{item.label}</span>
               </Link>
             ))}
-            {/* Always available non-role paths */}
             <Link href="/help" onClick={onClose} className="mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm text-[#140a1f]">
               <Icon name="reports" size={16} /><span>Help & FAQs</span>
             </Link>
@@ -122,7 +123,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
   const [switchingFacility, setSwitchingFacility] = useState(false);
 
-  // Facility membership role is authoritative for nav; fall back to primaryRole from /api/auth/me.
   const activeRole = useMemo(() => {
     if (selectedFacilityId) {
       const match = facilities.find((f) => f.clinicId === selectedFacilityId);
@@ -292,6 +292,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         onLogout={() => logout()}
         menuItems={menuItems}
       />
+      <MedLumChat />
     </div>
   );
 }
