@@ -45,7 +45,30 @@ export async function POST(req:Request){const session=await getSession();if(!ses
     return NextResponse.json(result.body,{status:result.status});
   }catch(e:any){if(e?.code==="P2034")return NextResponse.json({success:false,error:"A concurrent handover was detected. Please refresh and try again."},{status:409});throw e;}
 }
-if(action==="set-department"){const patientId=String(body.patientId||"").trim();const department=String(body.department||"").trim();if(!patientId||!department)return NextResponse.json({success:false,error:"Patient and department are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const profile=parsePatientProfile(patient.notes);const nextProfile={...profile,department};await prisma.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),parseCareSetting(patient.notes),nextProfile)}});await writeAudit({doctorId:session.doctorId,action:"update",entity:"Patient",entityId:patientId,meta:{department,clinicId}});return NextResponse.json({success:true,department});}if(action==="room"){const roomNumber=String(body.roomNumber||"").trim();if(!roomNumber)return NextResponse.json({success:false,error:"Room number required"},{status:400});const existingRooms=await prisma.auditLog.findMany({where:{doctorId:{in:(await prisma.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}})).map(x=>x.doctorId)},entity:"HospitalRoom"},orderBy:{createdAt:"desc"},take:3000});if(existingRooms.some(l=>{const m=metaOf(l);return String(m.clinicId||"")===String(clinicId||"")&&String(m.roomNumber||"").trim()===roomNumber;}))return NextResponse.json({success:false,error:"Room already exists in this clinic."},{status:409});await writeAudit({doctorId:session.doctorId,action:"create",entity:"HospitalRoom",entityId:crypto.randomUUID(),meta:{roomNumber,roomCategory:String(body.roomCategory||"General Ward"),unitType:String(body.unitType||"Ward"),clinicId}});return NextResponse.json({success:true});}if(action==="clinical-note"){
+if(action==="set-department"){const patientId=String(body.patientId||"").trim();const department=String(body.department||"").trim();if(!patientId||!department)return NextResponse.json({success:false,error:"Patient and department are required"},{status:400});const patient=await getPatient(patientId,session.doctorId,clinicId);if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});const profile=parsePatientProfile(patient.notes);const nextProfile={...profile,department};await prisma.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),parseCareSetting(patient.notes),nextProfile)}});await writeAudit({doctorId:session.doctorId,action:"update",entity:"Patient",entityId:patientId,meta:{department,clinicId}});return NextResponse.json({success:true,department});}if(action==="room"){const roomNumber=String(body.roomNumber||"").trim();if(!roomNumber)return NextResponse.json({success:false,error:"Room number required"},{status:400});const existingRooms=await prisma.auditLog.findMany({where:{doctorId:{in:(await prisma.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}})).map(x=>x.doctorId)},entity:"HospitalRoom"},orderBy:{createdAt:"desc"},take:3000});if(existingRooms.some(l=>{const m=metaOf(l);return String(m.clinicId||"")===String(clinicId||"")&&String(m.roomNumber||"").trim()===roomNumber;}))return NextResponse.json({success:false,error:"Room already exists in this clinic."},{status:409});await writeAudit({doctorId:session.doctorId,action:"create",entity:"HospitalRoom",entityId:crypto.randomUUID(),meta:{roomNumber,roomCategory:String(body.roomCategory||"General Ward"),unitType:String(body.unitType||"Ward"),clinicId}});return NextResponse.json({success:true});}if(action==="discharge"){
+  const patientId=String(body.patientId||"").trim();
+  const content=String(body.content||"").trim();
+  const title=String(body.title||"Discharge Summary");
+  const authorRole=String(body.authorRole||actorRole||"Clinician");
+  if(!patientId||!content)return NextResponse.json({success:false,error:"Patient and discharge summary content are required"},{status:400});
+  const patient=await getPatient(patientId,session.doctorId,clinicId);
+  if(!patient)return NextResponse.json({success:false,error:"Patient not found"},{status:404});
+  if(parseCareSetting(patient.notes)!=="IPD")return NextResponse.json({success:false,error:"Only an active IPD patient can be discharged from the IPD workflow."},{status:400});
+  if(patient.status==="DISCHARGED")return NextResponse.json({success:false,error:"Patient is already discharged"},{status:409});
+  const note=await prisma.$transaction(async(tx)=>{
+    const created=await tx.clinicalNote.create({data:{
+      clinicId:clinicId!, patientId, authorDoctorId:session.doctorId,
+      noteType:"Discharge Summary", title, content, status:"FINAL", version:1,
+      contentHash:hashClinicalNote(content,1), submittedAt:new Date(), finalizedAt:new Date(),
+    }});
+    await tx.patient.update({where:{id:patient.id},data:{status:"DISCHARGED"}});
+    return created;
+  });
+  await writeAudit({doctorId:session.doctorId,action:"discharge",entity:"Patient",entityId:patient.id,meta:{reason:String(body.reason||"Final Discharge Summary completed"),clinicId,noteId:note.id}});
+  await writeAudit({doctorId:session.doctorId,action:"create",entity:"ClinicalNote",entityId:note.id,meta:{patientId,noteType:"Discharge Summary",status:"FINAL",authorRole,clinicId}});
+  return NextResponse.json({success:true,patient:{id:patient.id,status:"DISCHARGED"},note});
+}
+if(action==="clinical-note"){
   const requestedNoteType=String(body.noteType||"");
   if(requestedNoteType.toLowerCase().startsWith("nursing") || requestedNoteType.toLowerCase().includes("fall risk") || requestedNoteType.toLowerCase().includes("pressure injury")){
     if(normalizeClinicRole(actorRole)!=="Nurse")return NextResponse.json({success:false,error:"Only an active Nurse can create nursing documentation."},{status:403});
