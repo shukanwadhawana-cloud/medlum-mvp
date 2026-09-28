@@ -353,7 +353,7 @@ export async function PATCH(req: Request) {
   const currentLng = body.currentLng != null ? Number(body.currentLng) : null;
   let dutyRadiusMeters = body.dutyRadiusMeters != null ? Number(body.dutyRadiusMeters) : 200;
   if (!Number.isFinite(dutyRadiusMeters)) dutyRadiusMeters = 200;
-  dutyRadiusMeters = Math.max(50, Math.min(5000, Math.round(dutyRadiusMeters)));
+  dutyRadiusMeters = Math.max(100, Math.min(300, Math.round(dutyRadiusMeters)));
 
   if (dutyEnabled && (dutyLat == null || dutyLng == null || Number.isNaN(dutyLat) || Number.isNaN(dutyLng))) {
     return NextResponse.json({ error: "Enable geofence requires a valid hospital location." }, { status: 400 });
