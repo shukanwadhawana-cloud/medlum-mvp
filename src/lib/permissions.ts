@@ -179,6 +179,7 @@ const ALL_PRIMARY: NavItem[] = [
   { href: "/people", label: "People", icon: "people", module: "workforce" },
   { href: "/opd", label: "OPD", icon: "clinic", module: "opd" },
   { href: "/patients", label: "Patients", icon: "patients", module: "patients" },
+  { href: "/clinical-assist", label: "AI Assist", icon: "ai", module: "clinical_assist" },
   { href: "/ipd", label: "IPD", icon: "ipd", module: "ipd" },
   { href: "/emergency", label: "Emergency", icon: "emergency", module: "emergency" },
   { href: "/nursing", label: "Nursing", icon: "patients", module: "nursing" },
