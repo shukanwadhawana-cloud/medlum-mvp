@@ -5,6 +5,7 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { apiAddPatient, apiAddPrescriptionWithEncounter, apiCreateEncounter, apiGetPatientDetail, apiGetPatients } from "@/lib/api";
 import { detectClinicalTerms, normalizeClinicalText, type ClinicalTerm } from "@/lib/clinical/terminology";
+import ClinicalAiAssistButton, { type ClinicalAiDraftFields } from "@/components/ClinicalAiAssistButton";
 
 type Patient = { id: string; name: string; age: number; gender: string; phone: string; allergies?: string; bp?: string };
 type Field = "chiefComplaint" | "clinicalNotes" | "diagnosis" | "assessment" | "plan" | "medicines" | "advice";
@@ -157,6 +158,20 @@ export default function ClinicalAssistPage() {
     recognitionRef.current = r; r.start(); setVoiceField(field); setVoiceStatus("Listening… finalized speech is inserted and common clinical wording is recognized.");
   }
 
+  function applyAiDraft(draft: ClinicalAiDraftFields) {
+    setForm((f) => ({
+      ...f,
+      chiefComplaint: draft.chiefComplaint || f.chiefComplaint,
+      clinicalNotes: draft.clinicalNotes || draft.history || f.clinicalNotes,
+      diagnosis: draft.diagnosis || f.diagnosis,
+      assessment: draft.assessment || f.assessment,
+      plan: draft.plan || f.plan,
+      medicines: draft.medications || f.medicines,
+      advice: draft.followUp || draft.plan || f.advice,
+    }));
+    setMessage("AI draft inserted into the form. Review and edit every field before saving.");
+  }
+
   async function save() {
     setSaving(true); setError(""); setMessage("");
     try {
@@ -183,6 +198,27 @@ export default function ClinicalAssistPage() {
       {detectedTerms.length > 0 && <section className="bg-blue-50 border border-blue-100 rounded-xl p-3"><div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-sm">Clinical terminology detected</h3><p className="text-[10px] text-gray-500 mt-1">MedLum recognizes common clinical wording and suggests clinician-standard terminology. It does not diagnose.</p></div><span className="text-[10px] font-medium text-blue-700">{detectedTerms.length} term{detectedTerms.length === 1 ? "" : "s"}</span></div><div className="flex flex-wrap gap-1.5 mt-2">{detectedTerms.map((term) => <span key={`${term.phrase}-${term.preferred}`} className="px-2 py-1 rounded-full bg-white border border-blue-100 text-[10px]"><span className="text-gray-500">{term.phrase}</span><span className="mx-1">→</span><span className="font-semibold text-blue-800">{term.preferred}</span></span>)}</div></section>}
       {error&&<div className="bg-red-50 text-red-700 rounded-lg p-3 text-xs">{error}</div>}{message&&<div className="bg-green-50 text-green-700 rounded-lg p-3 text-xs">{message}</div>}
       <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm mb-2">Patient details</h3><div className="grid grid-cols-2 gap-2"><Input label="Name" value={form.name} onChange={v=>setField("name",v)}/><Input label="Mobile" value={form.phone} onChange={v=>setField("phone",v)}/><Input label="Age" value={form.age} onChange={v=>setField("age",v)}/><label className="text-[11px] font-medium">Gender<select value={form.gender} onChange={e=>setField("gender",e.target.value)} className="mt-1 w-full h-10 border rounded-lg px-2 text-sm"><option>Male</option><option>Female</option><option>Other</option></select></label><Input label="BP" value={form.bp} onChange={v=>setField("bp",v)}/><Input label="Allergies" value={form.allergies} onChange={v=>setField("allergies",v)}/></div></section>
+      <section className="bg-white border rounded-xl p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h3 className="font-semibold text-sm">AI-assisted draft</h3><p className="text-[10px] text-gray-500">Draft only. Nothing is saved or signed automatically.</p></div>
+          <ClinicalAiAssistButton
+            getSource={() => ({
+              sourceText: [form.chiefComplaint, form.clinicalNotes, form.diagnosis, form.assessment, form.plan, form.medicines, form.advice].filter(Boolean).join("\n"),
+              existing: {
+                chiefComplaint: form.chiefComplaint,
+                clinicalNotes: form.clinicalNotes,
+                diagnosis: form.diagnosis,
+                assessment: form.assessment,
+                plan: form.plan,
+                medications: form.medicines,
+                followUp: form.advice,
+              },
+              patientContext: { age: form.age, gender: form.gender },
+            })}
+            onDraft={(draft) => applyAiDraft(draft)}
+          />
+        </div>
+      </section>
       <section className="bg-white border rounded-xl p-3 space-y-2"><h3 className="font-semibold text-sm">Clinical note + voice dictation</h3>{(["chiefComplaint","clinicalNotes","diagnosis","assessment","plan","medicines","advice"] as Field[]).map(field=><Dictated label={field.replace(/([A-Z])/g," $1")} value={form[field]} active={voiceField===field} onChange={v=>setField(field,v)} onVoice={()=>toggleVoice(field)} onTerminology={()=>applyTerminology(field)} />)}{voiceStatus&&<p className="text-xs text-[#c2183a]">{voiceStatus}</p>}</section>
       <button onClick={save} disabled={saving || scanBusy} className="w-full h-11 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-50">{saving?"Saving…":"Review & save clinical encounter"}</button>
       <p className="text-[10px] text-gray-400 text-center">AI assistant output is a drafting aid. Verify patient identity, extracted text, diagnosis, medicines and doses before saving or acting clinically.</p>
