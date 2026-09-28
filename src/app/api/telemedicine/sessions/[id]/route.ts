@@ -74,6 +74,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       data,
       select: sessionSelect,
     });
+
+    // When video consult completes, mark linked Appointment Completed if still open.
+    if (nextStatus === "Completed" && existing.appointmentId) {
+      const appt = await prisma.appointment.findFirst({
+        where: { id: existing.appointmentId, doctorId: session.doctorId },
+        select: { id: true, status: true },
+      });
+      if (appt && !["Completed", "Cancelled", "No Show"].includes(appt.status)) {
+        await prisma.appointment.update({
+          where: { id: appt.id },
+          data: { status: "Completed" },
+        });
+      }
+    }
+
     return NextResponse.json({ success: true, session: updated, ...(joinToken ? { joinToken } : {}) });
   } catch (error) {
     console.error("update telemedicine session", error);
