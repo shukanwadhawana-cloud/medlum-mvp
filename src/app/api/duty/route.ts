@@ -349,12 +349,27 @@ export async function PATCH(req: Request) {
   const dutyEnabled = Boolean(body.dutyEnabled);
   const dutyLat = body.dutyLat != null ? Number(body.dutyLat) : null;
   const dutyLng = body.dutyLng != null ? Number(body.dutyLng) : null;
+  const currentLat = body.currentLat != null ? Number(body.currentLat) : null;
+  const currentLng = body.currentLng != null ? Number(body.currentLng) : null;
   let dutyRadiusMeters = body.dutyRadiusMeters != null ? Number(body.dutyRadiusMeters) : 200;
   if (!Number.isFinite(dutyRadiusMeters)) dutyRadiusMeters = 200;
   dutyRadiusMeters = Math.max(50, Math.min(5000, Math.round(dutyRadiusMeters)));
 
   if (dutyEnabled && (dutyLat == null || dutyLng == null || Number.isNaN(dutyLat) || Number.isNaN(dutyLng))) {
-    return NextResponse.json({ error: "Enable geofence requires dutyLat and dutyLng" }, { status: 400 });
+    return NextResponse.json({ error: "Enable geofence requires a valid hospital location." }, { status: 400 });
+  }
+  if (dutyEnabled && (currentLat == null || currentLng == null || Number.isNaN(currentLat) || Number.isNaN(currentLng))) {
+    return NextResponse.json({ error: "Hospital geofence can only be configured while you are physically at the hospital. Turn on Location Services and use your current GPS location." }, { status: 400 });
+  }
+  if (dutyEnabled) {
+    const setupCheck = evaluateGeofence(
+      { enabled: true, lat: dutyLat, lng: dutyLng, radiusMeters: 300 },
+      currentLat,
+      currentLng,
+    );
+    if (!setupCheck.within) {
+      return NextResponse.json({ error: setupCheck.error || "You must be within 300 m of the hospital to configure its geofence." }, { status: 403 });
+    }
   }
 
   await prisma.clinic.update({
@@ -367,7 +382,7 @@ export async function PATCH(req: Request) {
     action: "DUTY_GEOFENCE_CONFIG",
     entity: "Clinic",
     entityId: ctx.clinicId,
-    meta: { dutyEnabled, dutyLat, dutyLng, dutyRadiusMeters },
+    meta: { dutyEnabled, dutyLat, dutyLng, dutyRadiusMeters, configuredFromLat: currentLat, configuredFromLng: currentLng },
     clinicId: ctx.clinicId,
   });
 
