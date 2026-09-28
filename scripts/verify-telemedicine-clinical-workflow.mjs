@@ -16,7 +16,12 @@ for (const file of required) {
   if (!fs.existsSync(path.join(root, file))) failures.push(`missing ${file}`);
 }
 
-const workspace = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
+const pagePath = path.join(root, "src/app/telemedicine/[id]/page.tsx");
+const componentPath = path.join(root, "src/components/TelemedicineConsultationPage.tsx");
+const workspace = [
+  fs.readFileSync(pagePath, "utf8"),
+  fs.existsSync(componentPath) ? fs.readFileSync(componentPath, "utf8") : "",
+].join("\n");
 const encounters = fs.readFileSync(path.join(root, "src/app/api/encounters/route.ts"), "utf8");
 const sessions = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/route.ts"), "utf8");
 const sessionId = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/[id]/route.ts"), "utf8");
