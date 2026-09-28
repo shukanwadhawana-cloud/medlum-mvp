@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDoctor } from "./DoctorProvider";
-import { menuNavForRole, primaryNavForRole } from "@/lib/permissions";
+import { menuNavForRole, primaryNavForRole } from "@/lib/permissions";\nimport MedLumChat from "./MedLumChat";
 
 const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
