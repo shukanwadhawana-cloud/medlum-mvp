@@ -81,7 +81,8 @@ export default function MedLumChat() {
       });
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j.error || "Unable to send message");
-      if (j.message) { setMessages((prev) => [...prev, j.message]); }\n      if (j.conversationId) {
+      if (j.message) { setMessages((prev) => [...prev, j.message]); }
+      if (j.conversationId) {
         setConversationId(j.conversationId);
         window.localStorage.setItem("medlum_chat_conversation", String(j.conversationId));
       }
