@@ -173,23 +173,43 @@ export default function DutyPage() {
     setError("");
     setMsg("");
     try {
-      const res = await fetch(`/api/duty${selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : ""}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          clinicId: selectedClinicId || data?.selectedClinicId,
-          dutyEnabled: geoForm.dutyEnabled,
-          dutyLat: geoForm.dutyLat ? Number(geoForm.dutyLat) : null,
-          dutyLng: geoForm.dutyLng ? Number(geoForm.dutyLng) : null,
-          dutyRadiusMeters: Math.max(100, Math.min(300, Number(geoForm.dutyRadiusMeters) || 200)),
-          currentLat: geoForm.dutyLat ? Number(geoForm.dutyLat) : null,
-          currentLng: geoForm.dutyLng ? Number(geoForm.dutyLng) : null,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || "Save failed");
-      setMsg("Hospital geofence updated");
+      if (!geoForm.dutyEnabled) {
+        const res = await fetch(`/api/duty${selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : ""}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            clinicId: selectedClinicId || data?.selectedClinicId,
+            dutyEnabled: false,
+            dutyLat: null,
+            dutyLng: null,
+            dutyRadiusMeters: 200,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Save failed");
+      } else {
+        const pos = await getPosition();
+        const radius = Math.max(100, Math.min(300, Number(geoForm.dutyRadiusMeters) || 200));
+        const res = await fetch(`/api/duty${selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : ""}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            clinicId: selectedClinicId || data?.selectedClinicId,
+            dutyEnabled: true,
+            dutyLat: pos.lat,
+            dutyLng: pos.lng,
+            dutyRadiusMeters: radius,
+            currentLat: pos.lat,
+            currentLng: pos.lng,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Save failed");
+        setGeoForm((f) => ({ ...f, dutyLat: String(pos.lat), dutyLng: String(pos.lng), dutyRadiusMeters: String(radius) }));
+      }
+      setMsg(geoForm.dutyEnabled ? "Hospital geofence saved from your current on-site GPS location." : "Hospital geofence disabled.");
       await load(selectedClinicId || data?.selectedClinicId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -287,8 +307,8 @@ export default function DutyPage() {
                   Require campus location for punch
                 </label>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <input className="rounded-lg border px-3 py-2 text-sm" placeholder="Lat" value={geoForm.dutyLat} onChange={(e) => setGeoForm((f) => ({ ...f, dutyLat: e.target.value }))} />
-                  <input className="rounded-lg border px-3 py-2 text-sm" placeholder="Lng" value={geoForm.dutyLng} onChange={(e) => setGeoForm((f) => ({ ...f, dutyLng: e.target.value }))} />
+                  <input className="rounded-lg border px-3 py-2 text-sm" placeholder="Saved hospital latitude" value={geoForm.dutyLat} onChange={(e) => setGeoForm((f) => ({ ...f, dutyLat: e.target.value }))} />
+                  <input className="rounded-lg border px-3 py-2 text-sm" placeholder="Saved hospital longitude" value={geoForm.dutyLng} onChange={(e) => setGeoForm((f) => ({ ...f, dutyLng: e.target.value }))} />
                 </div>
                 <input className="mt-2 w-full rounded-lg border px-3 py-2 text-sm" inputMode="numeric" min="100" max="300" placeholder="Punch radius (100–300 m)" value={geoForm.dutyRadiusMeters} onChange={(e) => setGeoForm((f) => ({ ...f, dutyRadiusMeters: e.target.value }))} />
                 <div className="mt-2 flex gap-2">
