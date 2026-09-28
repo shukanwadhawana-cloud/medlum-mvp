@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { openConferenceInNewTab, warmConferenceOrigin } from "@/lib/telemedicine-client";
 import { apiCreateEncounter, apiGetPatientDetail } from "@/lib/api";
+import ClinicalAiAssistButton, { type ClinicalAiDraftFields } from "@/components/ClinicalAiAssistButton";
 
 type ClinicalForm = {
   chiefComplaint: string;
@@ -326,6 +327,19 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
 
   function setField<K extends keyof ClinicalForm>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function applyAiDraft(draft: ClinicalAiDraftFields) {
+    setForm((f) => ({
+      ...f,
+      chiefComplaint: draft.chiefComplaint || f.chiefComplaint,
+      clinicalNotes: draft.clinicalNotes || draft.history || f.clinicalNotes,
+      diagnosis: draft.diagnosis || f.diagnosis,
+      assessment: draft.assessment || f.assessment,
+      plan: draft.plan || f.plan,
+      followUpDate: draft.followUp || f.followUpDate,
+    }));
+    setMsg("AI draft inserted into the form. Review and edit every field before saving.");
   }
 
   function toggleDictation() {
@@ -736,6 +750,26 @@ export default function TelemedicineVideoPage({ params }: { params: Promise<{ id
               Same MedLum encounter fields as OPD. Review before save. Notes stay draft until you finalize in the chart.
             </p>
           </div>
+          {session?.patientId && (
+            <ClinicalAiAssistButton
+              label="AI Assist"
+              getSource={() => ({
+                sourceText: [form.chiefComplaint, form.clinicalNotes, form.diagnosis, form.assessment, form.plan]
+                  .filter(Boolean)
+                  .join("\n"),
+                existing: {
+                  chiefComplaint: form.chiefComplaint,
+                  clinicalNotes: form.clinicalNotes,
+                  diagnosis: form.diagnosis,
+                  assessment: form.assessment,
+                  plan: form.plan,
+                  followUp: form.followUpDate,
+                },
+                patientContext: { age: patient?.age, gender: patient?.gender },
+              })}
+              onDraft={(draft) => applyAiDraft(draft)}
+            />
+          )}
           {session?.patientId && (
             <button
               type="button"
