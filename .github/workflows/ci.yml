@@ -105,6 +105,8 @@ jobs:
         run: npm run test:opd-clinical-record
       - name: Verify IPD clinical workflow
         run: npm run test:ipd-clinical-workflow
+      - name: Verify clinical AI draft workflow
+        run: npm run test:clinical-ai
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
