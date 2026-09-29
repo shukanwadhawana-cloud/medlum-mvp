@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
+import { requireActiveClinicMembership, normalizeClinicRole, findAuthorizedPatient } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
 import { writeAudit } from "@/lib/audit";
 import { consumeRateLimit, authBucketKey, rateLimitResponse } from "@/lib/rate-limit";
@@ -24,6 +24,8 @@ function clipClient(value: unknown, max = 2000): string {
  * POST /api/clinical-ai/draft
  * Returns an editable structured clinical documentation draft.
  * Does NOT create, finalize, or sign ClinicalNote rows.
+ * Existing patients: facility-scoped lookup (incl. legacy null clinicId).
+ * New patients: draft from form/OCR context only — no patient row required.
  */
 export async function POST(req: Request) {
   const session = await getSession();
@@ -64,23 +66,55 @@ export async function POST(req: Request) {
     return fail("Facility and role are derived from your session and cannot be supplied by the client.", 400);
   }
 
-  const patientId = clipClient(body.patientId, 64);
-  if (!patientId) return fail("patientId is required.");
+  const patientIdRaw = clipClient(body.patientId, 64);
+  // "new" / empty = draft-only for a patient not yet registered in this facility.
+  const patientId = !patientIdRaw || patientIdRaw === "new" ? "" : patientIdRaw;
 
-  // Facility isolation: patient must belong to active membership clinic.
-  const patient = await prisma.patient.findFirst({
-    where: { id: patientId, clinicId: membership.clinicId, deletedAt: null },
-    select: {
-      id: true,
-      name: true,
-      age: true,
-      gender: true,
-      allergies: true,
-      bp: true,
-      notes: true,
-    },
-  });
-  if (!patient) return fail("Patient not found in the selected facility.", 404);
+  const clinicianNotes = clipClient(body.clinicianNotes);
+  const noteType = clipClient(body.noteType, 80) || "Progress Note";
+  const bodyChief = clipClient(body.chiefComplaint);
+  const bodyNotes = clipClient(body.clinicalNotes);
+  const bodyDiagnosis = clipClient(body.diagnosis);
+  const bodyAssessment = clipClient(body.assessment);
+  const bodyPlan = clipClient(body.plan);
+  const bodyName = clipClient(body.patientName, 120);
+  const bodyAgeRaw = clipClient(body.age, 10);
+  const bodyAge = bodyAgeRaw && /^\d{1,3}$/.test(bodyAgeRaw) ? Number(bodyAgeRaw) : null;
+  const bodyGender = clipClient(body.gender, 20);
+  const bodyAllergies = clipClient(body.allergies, 500);
+
+  let patient: {
+    id: string;
+    name: string;
+    age: number | null;
+    gender: string | null;
+    allergies: string;
+    bp: string;
+    notes: string;
+  } | null = null;
+
+  if (patientId) {
+    // Facility + legacy doctor-owned rows (null clinicId).
+    const authorized = await findAuthorizedPatient(membership, patientId);
+    if (!authorized) {
+      return fail("Patient not found in the selected facility. Select an existing patient from this clinic, or use New patient with typed notes.", 404);
+    }
+    patient = {
+      id: authorized.id,
+      name: authorized.name,
+      age: authorized.age,
+      gender: authorized.gender,
+      allergies: authorized.allergies || "",
+      bp: authorized.bp || "",
+      notes: authorized.notes || "",
+    };
+  } else {
+    // New-patient / pre-registration draft: require some clinical context from the form.
+    const hasContext = Boolean(bodyNotes || bodyChief || bodyDiagnosis || bodyAssessment || bodyPlan || clinicianNotes);
+    if (!hasContext) {
+      return fail("Add chief complaint, clinical notes, or OCR text before generating a draft for a new patient.", 400);
+    }
+  }
 
   const encounterId = clipClient(body.encounterId, 64);
   let encounter: {
@@ -98,6 +132,7 @@ export async function POST(req: Request) {
   } | null = null;
 
   if (encounterId) {
+    if (!patient) return fail("Encounter lookup requires an existing patient.", 400);
     encounter = await prisma.encounter.findFirst({
       where: { id: encounterId, patientId: patient.id },
       select: {
@@ -117,28 +152,20 @@ export async function POST(req: Request) {
     if (!encounter) return fail("Encounter not found for this patient.", 404);
   }
 
-  // Optional clinician-typed context from the workspace (untrusted; clipped).
-  const clinicianNotes = clipClient(body.clinicianNotes);
-  const noteType = clipClient(body.noteType, 80) || "Progress Note";
-
   const ctx: ClinicalAiContext = {
     noteType,
-    patientName: patient.name,
-    age: patient.age,
-    gender: patient.gender,
-    chiefComplaint: encounter?.chiefComplaint || clipClient(body.chiefComplaint) || "",
-    clinicalNotes:
-      encounter?.clinicalNotes ||
-      clipClient(body.clinicalNotes) ||
-      patient.notes ||
-      "",
-    diagnosis: encounter?.diagnosis || clipClient(body.diagnosis) || "",
-    assessment: encounter?.assessment || clipClient(body.assessment) || "",
-    plan: encounter?.plan || clipClient(body.plan) || "",
-    allergies: patient.allergies || "",
+    patientName: patient?.name || bodyName || undefined,
+    age: patient?.age ?? bodyAge,
+    gender: patient?.gender || bodyGender || undefined,
+    chiefComplaint: encounter?.chiefComplaint || bodyChief || "",
+    clinicalNotes: encounter?.clinicalNotes || bodyNotes || patient?.notes || "",
+    diagnosis: encounter?.diagnosis || bodyDiagnosis || "",
+    assessment: encounter?.assessment || bodyAssessment || "",
+    plan: encounter?.plan || bodyPlan || "",
+    allergies: patient?.allergies || bodyAllergies || "",
     clinicianNotes,
     vitals: {
-      bp: encounter?.bp || patient.bp || clipClient(body.bp, 40),
+      bp: encounter?.bp || patient?.bp || clipClient(body.bp, 40),
       pulse: encounter?.pulse || clipClient(body.pulse, 40),
       temperature: encounter?.temperature || clipClient(body.temperature, 40),
       spo2: encounter?.spo2 || clipClient(body.spo2, 40),
@@ -151,9 +178,9 @@ export async function POST(req: Request) {
     clinicId: membership.clinicId,
     action: "AI_DRAFT_REQUESTED",
     entity: "ClinicalAiDraft",
-    entityId: patient.id,
+    entityId: patient?.id || "new-patient-draft",
     meta: {
-      patientId: patient.id,
+      patientId: patient?.id || null,
       encounterId: encounter?.id || null,
       noteType,
       configured: isClinicalAiConfigured(),
@@ -168,9 +195,9 @@ export async function POST(req: Request) {
       clinicId: membership.clinicId,
       action: "AI_DRAFT_GENERATED",
       entity: "ClinicalAiDraft",
-      entityId: patient.id,
+      entityId: patient?.id || "new-patient-draft",
       meta: {
-        patientId: patient.id,
+        patientId: patient?.id || null,
         encounterId: encounter?.id || null,
         noteType,
         source: draft.source,
@@ -204,8 +231,8 @@ export async function POST(req: Request) {
       clinicId: membership.clinicId,
       action: "AI_DRAFT_FAILED",
       entity: "ClinicalAiDraft",
-      entityId: patient.id,
-      meta: { patientId: patient.id, encounterId: encounter?.id || null },
+      entityId: patient?.id || "new-patient-draft",
+      meta: { patientId: patient?.id || null, encounterId: encounter?.id || null },
     });
     return fail("Clinical draft could not be generated. Try again or continue with a manual note.", 502);
   }
