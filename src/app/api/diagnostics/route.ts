@@ -88,7 +88,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Invalid diagnostic status" }, { status: 400 });
   }
   const existing = await prisma.diagnosticOrder.findFirst({
-    where: { id: String(id), patient: { clinicId: membership.clinicId } },
+    where: {\n      id: String(id),\n      patient: { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] },\n    },
   });
   if (!existing) return NextResponse.json({ error: "Diagnostic order not found" }, { status: 404 });
 
