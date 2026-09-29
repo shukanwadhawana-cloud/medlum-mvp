@@ -9,7 +9,7 @@ import {
 
 /**
  * OPD clinical print package — same auth + tenant isolation as patient detail.
- * Clinical content only, with server-derived clinician/orderer attribution for the print record.
+ * Patient-facing: no staff login codes or internal facility roles on the printout.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -65,11 +65,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         orderBy: { orderedAt: "asc" },
       }),
       prisma.clinicalNote.findMany({
-        where: {
-          clinicId: membership.clinicId,
-          patientId: id,
-          status: { in: ["FINAL", "VERIFIED"] },
-        },
+        where: { patientId: id, clinicId: membership.clinicId },
         include: {
           author: { select: { id: true, name: true } },
           verifier: { select: { id: true, name: true } },
@@ -77,7 +73,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         orderBy: { createdAt: "asc" },
       }),
       prisma.appointment.findMany({
-        where: { patientId: id, patient: { clinicId: membership.clinicId } },
+        where: { patientId: id },
         orderBy: { createdAt: "asc" },
       }),
     ]);
@@ -98,13 +94,44 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       })
     : [];
   const staffByDoctor = new Map(staff.map((m) => [m.doctorId, m]));
+
+  // Patient-facing print: never expose staff login codes or Owner/Admin roles.
   const clinicianLabel = (doctor: { id: string; name: string } | null | undefined) => {
     if (!doctor) return null;
     const member = staffByDoctor.get(doctor.id);
+    const designation = (member?.designation || "").trim();
+    const role = (member?.role || "").trim();
+    const clinicalTitle =
+      designation && !/^(Owner|Admin|Manager|Staff|Receptionist)$/i.test(designation)
+        ? designation
+        : role && !/^(Owner|Admin|Manager|Staff|Receptionist)$/i.test(role)
+          ? role
+          : null;
     return {
       name: doctor.name,
-      role: member?.designation || member?.role || null,
-      staffCode: member?.staffCode || null,
+      role: clinicalTitle,
+      staffCode: null as string | null,
+    };
+  };
+
+  const APPT_MARKER = "__MEDLUM_CONSULTANT__";
+  const parseAppointmentType = (raw: string) => {
+    const parts = String(raw || "").split(`|${APPT_MARKER}|`);
+    const type = (parts[0] || raw || "Appointment").trim();
+    const meta = Object.fromEntries(
+      String(parts[1] || "")
+        .split("|")
+        .filter(Boolean)
+        .map((x: string) => {
+          const i = x.indexOf("=");
+          return i > 0 ? [x.slice(0, i), x.slice(i + 1)] : [x, ""];
+        })
+    );
+    return {
+      type: type.replace(/\|/g, " · ").trim() || "Appointment",
+      consultantName: String(meta.name || "").trim(),
+      consultantSpecialty: String(meta.specialty || "").trim(),
+      notes: String(meta.notes || "").trim(),
     };
   };
 
@@ -194,14 +221,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         author: clinicianLabel(n.author),
         verifier: n.verifier ? clinicianLabel(n.verifier) : null,
       })),
-    appointments: appointments.map((a) => ({
-      id: a.id,
-      date: a.date,
-      time: a.time,
-      type: a.type,
-      status: a.status,
-      createdAt: a.createdAt.toISOString(),
-    })),
+    appointments: appointments.map((a) => {
+      const parsed = parseAppointmentType(a.type);
+      return {
+        id: a.id,
+        date: a.date,
+        time: a.time,
+        type: parsed.type,
+        status: a.status,
+        consultantName: parsed.consultantName || null,
+        consultantSpecialty: parsed.consultantSpecialty || null,
+        notes: parsed.notes || null,
+        createdAt: a.createdAt.toISOString(),
+      };
+    }),
   };
 
   return NextResponse.json(
