@@ -38,6 +38,22 @@ function resolveMime(file: File): string {
   return raw;
 }
 
+function looksLikePdf(bytes: Buffer) {
+  return bytes.subarray(0, 5).toString("ascii") === "%PDF-";
+}
+
+function looksLikeJpeg(bytes: Buffer) {
+  return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+}
+
+function looksLikePng(bytes: Buffer) {
+  return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+}
+
+function looksLikeWebp(bytes: Buffer) {
+  return bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+}
+
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return fail("Unauthorized", 401);
@@ -66,6 +82,7 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) return fail("A document file is required.");
   if (file.size <= 0) return fail("The uploaded document is empty.");
   if (file.size > MAX_UPLOAD_BYTES) return fail("Document is too large. Maximum size is 8 MB.", 413);
+
   const mime = resolveMime(file);
   if (!ALLOWED_MIME.has(mime) && !mime.startsWith("image/")) {
     return fail("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image.");
@@ -76,20 +93,27 @@ export async function POST(req: Request) {
 
   try {
     const bytes = Buffer.from(await file.arrayBuffer());
-    const ocrPromise = extractClinicalOcrText(bytes, mime);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("OCR_TIMEOUT")), 40_000)
-    );
-    const extracted = await Promise.race([ocrPromise, timeoutPromise]);
-    if (!extracted.trim()) {
+    if (mime === "application/pdf" && !looksLikePdf(bytes)) return fail("The selected PDF is not a valid PDF file.");
+    if (mime === "image/jpeg" && !looksLikeJpeg(bytes)) return fail("The selected JPG is not a valid JPEG image.");
+    if (mime === "image/png" && !looksLikePng(bytes)) return fail("The selected PNG is not a valid PNG image.");
+    if (mime === "image/webp" && !looksLikeWebp(bytes)) return fail("The selected WebP is not a valid WebP image.");
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("OCR_TIMEOUT")), 40_000);
+    });
+    const extracted = await Promise.race([extractClinicalOcrText(bytes, mime), timeoutPromise]);
+    if (!extracted.text.trim()) {
       return fail("OCR completed but no readable text was detected. Try a higher-contrast scan or a text-based PDF.", 422);
     }
 
     return NextResponse.json({
       success: true,
-      text: extracted.slice(0, 20_000),
-      truncated: extracted.length > 20_000,
+      text: extracted.text.slice(0, 20_000),
+      truncated: extracted.text.length > 20_000,
       source: "server",
+      method: extracted.method,
+      confidence: extracted.confidence,
+      pageLimitReached: Boolean(extracted.pageLimitReached),
       mime,
       status: "DRAFT",
       disclaimer: "OCR output is a drafting aid. Verify the source document and extracted text before saving or acting clinically.",
@@ -100,11 +124,11 @@ export async function POST(req: Request) {
     if (msg === "OCR_TIMEOUT") {
       return fail("OCR is taking too long on this document. Try a clearer photo, a smaller PDF, or a text-based PDF.", 504);
     }
+    if (/password|encrypted/i.test(msg)) {
+      return fail("This PDF appears protected or encrypted. Upload an unlocked PDF.", 422);
+    }
     if (/Unsupported document type/i.test(msg)) {
       return fail("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image.");
-    }
-    if (/pdf|PDF/i.test(msg) && /password|encrypted/i.test(msg)) {
-      return fail("This PDF appears protected or encrypted. Upload an unlocked PDF.");
     }
     return fail("Document OCR could not be completed. Try a clearer PDF or image, or a different file.", 422);
   }
