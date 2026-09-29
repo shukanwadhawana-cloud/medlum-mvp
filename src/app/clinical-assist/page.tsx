@@ -75,21 +75,38 @@ async function preprocessImage(file: File, variant: "clean" | "contrast" | "thre
 }
 
 async function runOcr(file: File): Promise<ScanResult> {
-  const body = new FormData();
-  body.append("file", file);
-  const response = await fetch("/api/clinical-ai/ocr", {
-    method: "POST",
-    credentials: "include",
-    headers: { "X-MedLum-Requested-With": "MedLum" },
-    body,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload?.success) {
-    throw new Error(payload?.error || "Document OCR could not be completed.");
+  if (file.size <= 0) throw new Error("The selected document is empty.");
+  if (file.size > 8 * 1024 * 1024) throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image.");
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 42_000);
+  try {
+    const body = new FormData();
+    body.append("file", file);
+    const response = await fetch("/api/clinical-ai/ocr", {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-MedLum-Requested-With": "MedLum" },
+      body,
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.success) throw new Error(payload?.error || "Document OCR could not be completed.");
+    const text = String(payload.text || "").trim();
+    if (!text) throw new Error("No readable text was detected. Try a sharper, better-lit photo.");
+    return {
+      text,
+      confidence: typeof payload.confidence === "number" ? payload.confidence : null,
+      label: String(payload.method || "server"),
+      partial: Boolean(payload.pageLimitReached),
+    };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("OCR timed out. Try a clearer photo, a smaller PDF, or a text-based PDF.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  const text = String(payload.text || "").trim();
-  if (!text) throw new Error("No readable text was detected. Try a sharper, better-lit photo.");
-  return { text, confidence: Number(payload.confidence || 0), label: "server" };
 }
 
 export default function ClinicalAssistPage() {
@@ -140,23 +157,66 @@ export default function ClinicalAssistPage() {
   }
 
   async function scan(file: File) {
-    setScanBusy(true); setScanStatus("Uploading document for OCR…"); setScanConfidence(null); setError("");
+    setScanBusy(true); setScanStatus("Preparing document…"); setScanConfidence(null); setError("");
     try {
+      const lowerName = file.name.toLowerCase();
+      const isPdf = file.type === "application/pdf" || lowerName.endsWith(".pdf");
+      const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(lowerName);
+      if (!isPdf && !isImage) throw new Error("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image.");
+      if (/\.heic$|\.heif$/i.test(lowerName) || file.type === "image/heic" || file.type === "image/heif") {
+        throw new Error("HEIC/HEIF is not supported yet. Retake or export the image as JPG/PNG, or upload a PDF.");
+      }
+      if (file.size > 8 * 1024 * 1024) throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image.");
+
       let ocrFile = file;
-      if (file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif") {
+      if (isImage) {
         setScanStatus("Preparing photo for OCR…");
         const prepared = await preprocessImage(file, "clean");
         ocrFile = new File([prepared], "medlum-scan.png", { type: "image/png" });
+        if (ocrFile.size > 8 * 1024 * 1024) {
+          const compressed = await new Promise<Blob>((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(ocrFile);
+            img.onload = () => {
+              const max = 1600;
+              const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+              canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+              const ctx = canvas.getContext("2d");
+              if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Could not prepare scan.")); return; }
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              URL.revokeObjectURL(url);
+              canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not compress scan.")), "image/jpeg", 0.86);
+            };
+            img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read the prepared scan.")); };
+            img.src = url;
+          });
+          ocrFile = new File([compressed], "medlum-scan.jpg", { type: "image/jpeg" });
+        }
       }
-      setScanStatus("Running OCR on the document…");
+
+      setScanStatus(isPdf ? "Reading PDF… text PDFs are processed directly; scanned PDFs may require OCR." : "Running OCR on the photo…");
       const best = await runOcr(ocrFile);
       const text = best.text; setScanText(text); setScanConfidence(best.confidence);
       const parsed = parseScan(text);
       const clinicalText = normalizeClinicalText(text);
       setDetectedTerms(clinicalText.detected);
       setForm(f=>({...f, ...(parsed.name ? {name:parsed.name}:{}), ...(parsed.age ? {age:parsed.age}:{}), ...(parsed.gender ? {gender:parsed.gender}:{}), ...(parsed.phone ? {phone:parsed.phone}:{}), ...(parsed.bp ? {bp:parsed.bp}:{}), ...(parsed.diagnosis ? {diagnosis:parsed.diagnosis}:{}), ...(parsed.medicines ? {medicines:parsed.medicines}:{}), ...(parsed.advice ? {advice:parsed.advice}:{}), clinicalNotes:text}));
-      setScanStatus(best.confidence >= 80 ? "High-confidence OCR completed. Review the extracted fields." : best.confidence >= 55 ? "OCR completed with moderate confidence. Review the text carefully." : "OCR completed with low confidence. Retake the photo if possible.");
-    } catch (e) { setError(e instanceof Error ? e.message : "Document OCR could not complete on this device."); setScanStatus(""); } finally { setScanBusy(false); }
+      const confidenceMessage = best.confidence === null
+        ? "Document text extracted. Review it carefully."
+        : best.confidence >= 80
+          ? "High-confidence OCR completed. Review the extracted fields."
+          : best.confidence >= 55
+            ? "OCR completed with moderate confidence. Review the text carefully."
+            : "OCR completed with low confidence. Retake the photo if possible.";
+      setScanStatus(best.partial ? confidenceMessage + " Only the first OCR pages were processed." : confidenceMessage);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Document OCR could not complete on this device.");
+      setScanStatus("");
+    } finally {
+      setScanBusy(false);
+    }
   }
 
   function toggleVoice(field: Field) {
@@ -206,7 +266,7 @@ export default function ClinicalAssistPage() {
       <section className="bg-white border rounded-xl p-3"><div className="flex gap-2"><button onClick={()=>setMode("followup")} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="followup"?"bg-[#c2183a] text-white":""}`}>Existing patient</button><button onClick={()=>{setMode("new");setPatientId("");}} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="new"?"bg-[#c2183a] text-white":""}`}>New patient</button></div>
         {mode==="followup" && <><input value={patientSearch} onChange={e=>setPatientSearch(e.target.value)} placeholder="Search patient by name or phone" className="w-full h-10 border rounded-lg px-3 text-sm mt-3"/><div className="mt-2 space-y-1">{filteredPatients.map(p=><button key={p.id} onClick={()=>{setPatientId(p.id);setPatientSearch("");}} className={`w-full text-left px-3 py-2 rounded-lg border text-xs ${patientId===p.id?"border-[#c2183a] bg-red-50":""}`}>{p.name} · {p.age} yrs · {p.phone}</button>)}</div></>}
       </section>
-      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">📷 Document scanner + OCR</h3><p className="text-[11px] text-gray-500 mt-1">Take a clear photo of a discharge summary, prescription, referral or report. MedLum preprocesses the image and runs several OCR passes locally before choosing the strongest result.</p><input id="clinical-document-upload" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f);e.currentTarget.value=""}} className="sr-only"/>
+      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">📷 Document scanner + OCR</h3><p className="text-[11px] text-gray-500 mt-1">Upload a PDF/document or take a clear photo of a discharge summary, prescription, referral or report. Text PDFs are extracted directly; image/scanned documents use server OCR with a bounded runtime.</p><input id="clinical-document-upload" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f);e.currentTarget.value=""}} className="sr-only"/>
         <input id="clinical-document-camera" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f);e.currentTarget.value=""}} className="sr-only"/>
         <div className="grid grid-cols-2 gap-2 mt-3">
           <label htmlFor="clinical-document-upload" className="h-11 rounded-lg bg-[#c2183a] text-white text-xs font-semibold flex items-center justify-center cursor-pointer">Upload PDF / document</label>
