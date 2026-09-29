@@ -3,13 +3,9 @@
  * Documents are processed in memory and returned only as editable draft text.
  * No clinical record is created or finalized by this helper.
  */
-import { createRequire } from "node:module";
-
-const nodeRequire = createRequire(import.meta.url);
-
 async function ocrImage(data: Buffer): Promise<string> {
   const { createWorker } = await import("tesseract.js");
-  const workerPath = nodeRequire.resolve("tesseract.js/src/worker-script/node/index.js");
+  // Next.js/Vercel can rewrite createRequire().resolve() into an asset number.\n  // Tesseract expects a real worker filename, so keep the Node worker path literal.\n  const workerPath = "./node_modules/tesseract.js/src/worker-script/node/index.js";
   const worker = await createWorker("eng", 1, {
     workerPath,
     cachePath: "/tmp/medlum-tessdata",
