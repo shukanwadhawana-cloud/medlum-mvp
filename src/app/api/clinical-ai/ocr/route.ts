@@ -4,7 +4,8 @@ import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic
 import { canAccessModule } from "@/lib/permissions";
 import { extractClinicalOcrText } from "@/lib/clinical-ocr";
 
-export const maxDuration = 45;
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
@@ -47,11 +48,15 @@ function looksLikeJpeg(bytes: Buffer) {
 }
 
 function looksLikePng(bytes: Buffer) {
-  return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
 }
 
 function looksLikeWebp(bytes: Buffer) {
-  return bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+  return (
+    bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+    bytes.subarray(8, 12).toString("ascii") === "WEBP"
+  );
 }
 
 export async function POST(req: Request) {
@@ -68,42 +73,53 @@ export async function POST(req: Request) {
 
   const contentLength = Number(req.headers.get("content-length") || 0);
   if (contentLength > MAX_UPLOAD_BYTES + 32_768) {
-    return fail("Document is too large. Maximum size is 8 MB.", 413);
+    return fail("Document is larger than 8 MB. Choose a smaller PDF or image.", 413);
   }
 
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return fail("Invalid document upload.");
+    return fail("Could not read the uploaded document.");
   }
 
   const file = form.get("file");
-  if (!(file instanceof File)) return fail("A document file is required.");
-  if (file.size <= 0) return fail("The uploaded document is empty.");
-  if (file.size > MAX_UPLOAD_BYTES) return fail("Document is too large. Maximum size is 8 MB.", 413);
+  if (!(file instanceof File)) return fail("No document was uploaded.");
+  if (file.size <= 0) return fail("The selected document is empty.");
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return fail("Document is larger than 8 MB. Choose a smaller PDF or image.", 413);
+  }
 
   const mime = resolveMime(file);
-  if (!ALLOWED_MIME.has(mime) && !mime.startsWith("image/")) {
+  if (!mime || (!mime.startsWith("image/") && mime !== "application/pdf")) {
     return fail("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image.");
   }
   if (mime === "image/heic" || mime === "image/heif") {
-    return fail("HEIC/HEIF photos are not supported for OCR yet. Export or retake as JPG or PNG, or upload a PDF.");
+    return fail(
+      "HEIC/HEIF photos are not supported for OCR yet. Export or retake as JPG or PNG, or upload a PDF."
+    );
   }
 
   try {
     const bytes = Buffer.from(await file.arrayBuffer());
-    if (mime === "application/pdf" && !looksLikePdf(bytes)) return fail("The selected PDF is not a valid PDF file.");
-    if (mime === "image/jpeg" && !looksLikeJpeg(bytes)) return fail("The selected JPG is not a valid JPEG image.");
-    if (mime === "image/png" && !looksLikePng(bytes)) return fail("The selected PNG is not a valid PNG image.");
-    if (mime === "image/webp" && !looksLikeWebp(bytes)) return fail("The selected WebP is not a valid WebP image.");
+    if (mime === "application/pdf" && !looksLikePdf(bytes))
+      return fail("The selected PDF is not a valid PDF file.");
+    if (mime === "image/jpeg" && !looksLikeJpeg(bytes))
+      return fail("The selected JPG is not a valid JPEG image.");
+    if (mime === "image/png" && !looksLikePng(bytes))
+      return fail("The selected PNG is not a valid PNG image.");
+    if (mime === "image/webp" && !looksLikeWebp(bytes))
+      return fail("The selected WebP is not a valid WebP image.");
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("OCR_TIMEOUT")), 40_000);
+      setTimeout(() => reject(new Error("OCR_TIMEOUT")), 55_000);
     });
     const extracted = await Promise.race([extractClinicalOcrText(bytes, mime), timeoutPromise]);
     if (!extracted.text.trim()) {
-      return fail("OCR completed but no readable text was detected. Try a higher-contrast scan or a text-based PDF.", 422);
+      return fail(
+        "OCR completed but no readable text was detected. Try a higher-contrast scan or a text-based PDF.",
+        422
+      );
     }
 
     return NextResponse.json({
@@ -116,20 +132,43 @@ export async function POST(req: Request) {
       pageLimitReached: Boolean(extracted.pageLimitReached),
       mime,
       status: "DRAFT",
-      disclaimer: "OCR output is a drafting aid. Verify the source document and extracted text before saving or acting clinically.",
+      disclaimer:
+        "OCR output is a drafting aid. Verify the source document and extracted text before saving or acting clinically.",
     });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "error";
+    const msg = error instanceof Error ? error.message : String(error);
     console.error("clinical OCR error", msg);
     if (msg === "OCR_TIMEOUT") {
-      return fail("OCR is taking too long on this document. Try a clearer photo, a smaller PDF, or a text-based PDF.", 504);
+      return fail(
+        "OCR is taking too long on this document. Try a clearer photo, a smaller PDF, or a text-based PDF.",
+        504
+      );
     }
     if (/password|encrypted/i.test(msg)) {
       return fail("This PDF appears protected or encrypted. Upload an unlocked PDF.", 422);
     }
-    if (/Unsupported document type/i.test(msg)) {
-      return fail("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image.");
+    if (/Unsupported document type|HEIC|HEIF/i.test(msg)) {
+      return fail("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image (not HEIC).");
     }
-    return fail("Document OCR could not be completed. Try a clearer PDF or image, or a different file.", 422);
+    if (/Cannot find module|worker|wasm|ENOENT|network|fetch/i.test(msg)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Server OCR is unavailable on this deployment. Retrying on your device…",
+          code: "OCR_SERVER_UNAVAILABLE",
+          detail: msg.slice(0, 200),
+        },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Document OCR could not be completed. Try a clearer PDF or image, or a different file.",
+        code: "OCR_FAILED",
+        detail: msg.slice(0, 200),
+      },
+      { status: 422 }
+    );
   }
 }
