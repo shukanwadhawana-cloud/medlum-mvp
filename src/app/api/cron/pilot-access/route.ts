@@ -7,13 +7,12 @@ import { writeAudit } from "@/lib/audit";
 export async function POST(req: Request) {
   const secret = process.env.CRON_SECRET || "";
   const auth = req.headers.get("authorization") || "";
-  const vercelCron = req.headers.get("x-vercel-cron");
-  if (secret) {
-    if (auth !== `Bearer ${secret}` && !vercelCron) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
     }
-  } else if (process.env.NODE_ENV === "production" && !vercelCron) {
-    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 503 });
+  } else if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   await ensureClinicProductTable();
