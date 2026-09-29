@@ -20,6 +20,10 @@ export type ClinicSetup = {
   phone: string;
   email: string;
   onboardingCompleted: boolean;
+  pilotEndsAt: Date | null;
+  pilotGraceDays: number;
+  pilotWarnedAt: Date | null;
+  pilotLockedAt: Date | null;
 };
 
 let tableReady: Promise<void> | null = null;
@@ -47,9 +51,18 @@ export function ensureClinicProductTable() {
         "phone" TEXT NOT NULL DEFAULT '',
         "email" TEXT NOT NULL DEFAULT '',
         "onboardingCompleted" BOOLEAN NOT NULL DEFAULT FALSE,
+        "pilotEndsAt" TIMESTAMP(3),
+        "pilotGraceDays" INTEGER NOT NULL DEFAULT 5,
+        "pilotWarnedAt" TIMESTAMP(3),
+        "pilotLockedAt" TIMESTAMP(3),
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
+      );
+      ALTER TABLE "MedLumClinicSetup"
+        ADD COLUMN IF NOT EXISTS "pilotEndsAt" TIMESTAMP(3),
+        ADD COLUMN IF NOT EXISTS "pilotGraceDays" INTEGER NOT NULL DEFAULT 5,
+        ADD COLUMN IF NOT EXISTS "pilotWarnedAt" TIMESTAMP(3),
+        ADD COLUMN IF NOT EXISTS "pilotLockedAt" TIMESTAMP(3)
     `).then(() => undefined).catch((error) => {
       tableReady = null;
       throw error;
