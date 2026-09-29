@@ -24,8 +24,8 @@ export async function GET(req: Request) {
   }
   const orders = await prisma.diagnosticOrder.findMany({
     where: patientId
-      ? { patientId, patient: { clinicId: membership.clinicId } }
-      : { patient: { clinicId: membership.clinicId } },
+      ? { patientId, patient: { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] } }
+      : { patient: { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] } },
     orderBy: { createdAt: "desc" },
     take: 150,
   });
