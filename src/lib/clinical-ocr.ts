@@ -5,7 +5,9 @@
  */
 async function ocrImage(data: Buffer): Promise<string> {
   const { createWorker } = await import("tesseract.js");
-  // Next.js/Vercel can rewrite createRequire().resolve() into an asset number.\n  // Tesseract expects a real worker filename, so keep the Node worker path literal.\n  const workerPath = "./node_modules/tesseract.js/src/worker-script/node/index.js";
+  // Next.js/Vercel can rewrite createRequire().resolve() into an asset number.
+  // Tesseract expects a real worker filename, so keep the Node worker path literal.
+  const workerPath = "./node_modules/tesseract.js/src/worker-script/node/index.js";
   const worker = await createWorker("eng", 1, {
     workerPath,
     cachePath: "/tmp/medlum-tessdata",
@@ -35,7 +37,7 @@ async function extractPdf(data: Buffer): Promise<string> {
       page.cleanup();
     }
 
-    const textLayer = textParts.join("\\n").trim();
+    const textLayer = textParts.join("\n").trim();
     if (textLayer.length >= 20) return textLayer;
 
     const { createCanvas } = await import("@napi-rs/canvas");
@@ -66,7 +68,7 @@ async function extractPdf(data: Buffer): Promise<string> {
       factory.destroy({ canvas, context });
       page.cleanup();
     }
-    return [textLayer, ...ocrParts].filter(Boolean).join("\\n").trim();
+    return [textLayer, ...ocrParts].filter(Boolean).join("\n").trim();
   } finally {
     await document.destroy();
   }
