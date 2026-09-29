@@ -12,7 +12,6 @@ const SPECIAL_CASES = new Set([
   "telegram/webhook/route.ts", // Telegram secret-token verified (x-telegram-bot-api-secret-token)
   "telegram/facility/[clinicId]/route.ts", // facility bot webhook: x-telegram-bot-api-secret-token
   "telemedicine/join/route.ts",
-  "cron/pilot-access/route.ts", // protected by CRON_SECRET bearer authentication
 ]);
 
 async function routeFiles(dir) {
@@ -34,7 +33,7 @@ for (const file of routes) {
   if (SPECIAL_CASES.has(rel)) continue;
   const usesPrisma = /\bprisma\b/.test(source);
   const authenticated = /getSession\s*\(|getPortalSession\s*\(/.test(source);
-  const webhookVerified = /verify.*webhook|webhook.*verify|x-.*signature|signature|secret-token|x-telegram-bot-api-secret-token/i.test(source);
+  const webhookVerified = /verify.*webhook|webhook.*verify|x-.*signature|signature|secret-token|x-telegram-bot-api-secret-token|CRON_SECRET/i.test(source);
   if (usesPrisma && !authenticated && !webhookVerified) {
     failures.push(`${rel}: Prisma-backed route has no authenticated session/webhook verification`);
   }
