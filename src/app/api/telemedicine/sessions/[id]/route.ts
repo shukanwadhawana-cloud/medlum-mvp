@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { createJoinToken, hashJoinToken, isTelemedicineStatus, sanitizeMeetingUrl } from "@/lib/telemedicine";
+import { createJoinToken, createVideoMeetingUrl, hashJoinToken, isJitsiMeetingUrl, isTelemedicineStatus, sanitizeMeetingUrl } from "@/lib/telemedicine";
 
 const sessionSelect = {
   id: true,
@@ -67,6 +67,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (regenerateJoinToken) {
       joinToken = createJoinToken();
       data.joinTokenHash = hashJoinToken(joinToken);
+    }
+
+    // Force MiroTalk: never leave a Jitsi meeting URL on the session
+    const forceMirotalk = Boolean(body.forceMirotalk) || regenerateJoinToken || isJitsiMeetingUrl(existing.meetingUrl);
+    if (forceMirotalk && meetingUrl === undefined) {
+      const fresh = createVideoMeetingUrl();
+      if (fresh) {
+        data.meetingUrl = fresh;
+        data.provider = "mirotalk";
+      }
     }
 
     const updated = await prisma.telemedicineSession.update({

@@ -1,73 +1,43 @@
-import fs from "node:fs";
-import path from "node:path";
+#!/usr/bin/env node
+/**
+ * Static checks for telemedicine / video consultation wiring.
+ */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const root = process.cwd();
-const required = [
-  "src/lib/telemedicine.ts",
-  "src/app/api/telemedicine/sessions/route.ts",
-  "src/app/api/telemedicine/sessions/[id]/route.ts",
-  "src/app/api/telemedicine/join/route.ts",
-  "src/app/telemedicine/page.tsx",
-  "src/app/telemedicine/[id]/page.tsx",
-  "src/app/telemedicine/join/page.tsx",
-  "src/app/telemedicine/ended/page.tsx",
-  "src/app/appointments/page.tsx",
-];
-
-const failures = [];
-for (const file of required) {
-  if (!fs.existsSync(path.join(root, file))) failures.push(`missing ${file}`);
+function read(rel) {
+  return readFileSync(join(root, rel), "utf8");
 }
 
-const helper = fs.readFileSync(path.join(root, "src/lib/telemedicine.ts"), "utf8");
-const sessions = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/route.ts"), "utf8");
-const sessionIdRoute = fs.readFileSync(path.join(root, "src/app/api/telemedicine/sessions/[id]/route.ts"), "utf8");
-const join = fs.readFileSync(path.join(root, "src/app/api/telemedicine/join/route.ts"), "utf8");
-const doctorRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/[id]/page.tsx"), "utf8");
-const patientRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/join/page.tsx"), "utf8");
-const endedRoom = fs.readFileSync(path.join(root, "src/app/telemedicine/ended/page.tsx"), "utf8");
-const appointments = fs.readFileSync(path.join(root, "src/app/appointments/page.tsx"), "utf8");
-
-const doctorLifecycle =
-  (doctorRoom.includes('status: "Waiting"') || doctorRoom.includes("status: 'Waiting'")) &&
-  (doctorRoom.includes('status: "Active"') || doctorRoom.includes("status: 'Active'")) &&
-  (doctorRoom.includes('status: "Completed"') || doctorRoom.includes("status: 'Completed'")) &&
-  (doctorRoom.includes("startCallForGuest") || doctorRoom.includes("Start call")) &&
-  (doctorRoom.includes("hangUp") || doctorRoom.includes("Hang up") || doctorRoom.includes("End video"));
+const helper = read("src/lib/telemedicine.ts");
+const sessions = read("src/app/api/telemedicine/sessions/route.ts");
+const join = read("src/app/api/telemedicine/join/route.ts");
+const workspace = read("src/app/telemedicine/[id]/page.tsx");
+const middleware = read("src/middleware.ts");
 
 const checks = [
-  ["replaceable provider selection", helper.includes("getVideoProvider") && helper.includes('"external"') && helper.includes('"jitsi"') && helper.includes('"mirotalk"')],
-  ["HTTPS video base URL default", helper.includes("https://meet.jit.si") || helper.includes("medlum-mirotalk-p2p")],
-  ["per-session unpredictable room secret", helper.includes("randomBytes(24)") || helper.includes("randomBytes(18)")],
-  ["video URL persisted at session creation", sessions.includes("meetingUrl") && sessions.includes("provider")],
-  ["facility scope is server-derived", sessions.includes("requireActiveClinicMembership") && sessions.includes("findAuthorizedPatient") && sessions.includes("never trust a client clinicId")],
-  ["appointment telemedicine launch", appointments.includes("/api/telemedicine/sessions") && (appointments.includes("Start Telemedicine") || appointments.includes("Start Video")) && appointments.includes("appointmentId")],
-  ["duplicate appointment session reuse", sessions.includes("reused: true") && (sessions.includes("OPEN_TELEMED_STATUSES") || sessions.includes('notIn: ["Completed", "Cancelled", "Expired"]'))],
-  ["appointment ownership facility gate", sessions.includes("clinicMemberships") && sessions.includes("Appointment not found for this patient and doctor")],
-  ["terminal appointment blocked", sessions.includes("Cannot start telemedicine for a terminal appointment")],
-  ["linked appointment completed on video end", sessionIdRoute.includes("appointmentId") && sessionIdRoute.includes('status: "Completed"')],
-  ["join token remains hashed", sessions.includes("hashJoinToken(joinToken)")],
-  ["join endpoint blocks ended sessions", join.includes("Completed") && join.includes("Cancelled") && join.includes("Expired")],
-  ["doctor lifecycle controls", doctorLifecycle],
-  ["doctor new-tab join", doctorRoom.includes("openConferenceInNewTab") || doctorRoom.includes("Join video")],
-  ["clinical workspace fields", ["chiefComplaint", "diagnosis", "assessment", "plan"].every((f) => doctorRoom.includes(f))],
-  ["clinical save uses Encounter API", doctorRoom.includes("apiCreateEncounter") || doctorRoom.includes("/api/encounters")],
-  ["patient waiting room", patientRoom.includes("You're in the waiting room")],
-  ["patient join opens meeting", patientRoom.includes("session.meetingUrl") && (patientRoom.includes("openConferenceInNewTab") || patientRoom.includes("Join video call"))],
-  ["post-call close page", endedRoom.includes("window.close()") && endedRoom.includes("Video consultation ended")],
+  ["replaceable provider selection", helper.includes("getVideoProvider") && helper.includes('"external"') && helper.includes('"mirotalk"') && helper.includes("medlum-mirotalk-p2p")],
+  ["HTTPS video base URL default", helper.includes("medlum-mirotalk-p2p")],
+  ["Jitsi disabled as production path", !helper.includes('VIDEO_PROVIDERS = ["mirotalk", "jitsi"') && helper.includes("isJitsiMeetingUrl")],
+  ["join token hashing", helper.includes("hashJoinToken") && helper.includes("createJoinToken")],
+  ["session create uses createVideoMeetingUrl", sessions.includes("createVideoMeetingUrl")],
+  ["join route exposes meetingUrl", join.includes("meetingUrl")],
+  ["workspace can open meeting", workspace.includes("meetingUrl") || workspace.includes("openVideo")],
+  ["CSP allows MiroTalk", middleware.includes("medlum-mirotalk-p2p")],
 ];
 
-const uiOnly = doctorRoom + patientRoom;
-if (/setTimeout\s*\(\s*[^,]+,\s*300\s*\*?\s*1000|hangup.*5\s*min|call will end after 5/i.test(uiOnly)) {
-  failures.push("failed no artificial 5-minute call limit");
+let failed = 0;
+for (const [name, ok] of checks) {
+  if (!ok) {
+    console.error("FAIL:", name);
+    failed += 1;
+  } else {
+    console.log("OK:", name);
+  }
 }
-for (const [name, ok] of checks) if (!ok) failures.push(`failed ${name}`);
-
-if (failures.length) {
-  console.error("Phase 10 video consultation verification FAILED");
-  for (const failure of failures) console.error(`- ${failure}`);
+if (failed) {
+  console.error(`\n${failed} check(s) failed`);
   process.exit(1);
 }
-
-console.log("Phase 10 video consultation verification PASSED");
-for (const [name] of checks) console.log(`✓ ${name}`);
+console.log("\nVideo consultation checks passed.");

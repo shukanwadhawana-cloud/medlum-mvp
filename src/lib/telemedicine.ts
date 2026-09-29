@@ -3,9 +3,11 @@ import { createHash, randomBytes } from "node:crypto";
 export const TELEMEDICINE_STATUSES = ["Scheduled", "Waiting", "Active", "Completed", "Cancelled", "Expired"] as const;
 export type TelemedicineStatus = (typeof TELEMEDICINE_STATUSES)[number];
 
-/** Video transport providers. MedLum remains source of truth for session lifecycle. */
-export const VIDEO_PROVIDERS = ["mirotalk", "jitsi", "external"] as const;
+/** Video transport. MiroTalk is the only production engine — Jitsi is disabled. */
+export const VIDEO_PROVIDERS = ["mirotalk", "external"] as const;
 export type VideoProvider = (typeof VIDEO_PROVIDERS)[number];
+
+const MIROTALK_DEFAULT = "https://medlum-mirotalk-p2p.onrender.com";
 
 export function createJoinToken() {
   return randomBytes(32).toString("base64url");
@@ -30,70 +32,66 @@ export function sanitizeMeetingUrl(value: unknown) {
   }
 }
 
+/** True if URL is Jitsi / meet.jit.si (must not be used). */
+export function isJitsiMeetingUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "meet.jit.si" || host.endsWith(".jit.si") || host.includes("jitsi");
+  } catch {
+    return /jit\.si|jitsi/i.test(url);
+  }
+}
+
 /**
- * Production default: MiroTalk P2P (primary MedLum conference engine).
- * VIDEO_PROVIDER=mirotalk (default) | jitsi (legacy fallback only) | external.
- * VIDEO_BASE_URL overrides the MiroTalk public origin when set.
- * No secrets committed — base URL from env.
+ * Production video is MiroTalk P2P only.
+ * VIDEO_PROVIDER=jitsi is ignored (legacy env mistake).
+ * VIDEO_BASE_URL may override origin only if it is not a Jitsi host.
  */
 export function getVideoProvider(): VideoProvider {
   const raw = String(process.env.VIDEO_PROVIDER || "mirotalk").toLowerCase().trim();
-  if (raw === "jitsi" || raw === "external" || raw === "mirotalk") return raw;
+  if (raw === "external") return "external";
+  // jitsi and anything else → mirotalk
   return "mirotalk";
 }
 
-/**
- * High-entropy room URL with no PHI, patient id, doctor id, or appointment id.
- * Invitation/session expiry remains expiresAt on TelemedicineSession — NOT call duration.
- * There is no 5-minute call cutoff.
- * Room secret is stored once on the session so clinician and patient always share the same room.
- */
-export function createVideoMeetingUrl(_sessionId?: string): string | null {
-  const provider = getVideoProvider();
-  if (provider === "external") return null;
-
-  // 24 bytes → base64url ~32 chars; unpredictable, non-enumerable room name
-  const roomSecret = randomBytes(24).toString("base64url");
-
-  if (provider === "mirotalk") {
-    const base = (process.env.VIDEO_BASE_URL || "https://medlum-mirotalk-p2p.onrender.com").replace(/\/+$/, "");
-    // MiroTalk P2P join path: /join/<roomId>
-    return `${base}/join/${roomSecret}`;
+function mirotalkBase(): string {
+  const fromEnv = String(process.env.VIDEO_BASE_URL || "").trim().replace(/\/+$/, "");
+  if (fromEnv) {
+    try {
+      const host = new URL(fromEnv).hostname.toLowerCase();
+      // Never allow a Jitsi base even if env is mis-set
+      if (host === "meet.jit.si" || host.endsWith(".jit.si") || host.includes("jitsi")) {
+        return MIROTALK_DEFAULT;
+      }
+      if (fromEnv.startsWith("https://")) return fromEnv;
+    } catch {
+      /* fall through */
+    }
   }
-
-  // Legacy Jitsi fallback only when VIDEO_PROVIDER=jitsi explicitly set
-  const base = (process.env.VIDEO_BASE_URL || "https://meet.jit.si").replace(/\/+$/, "");
-  const room = `${base}/medlum-${roomSecret}`;
-  const hash = [
-    "config.prejoinConfig.enabled=false",
-    "config.prejoinPageEnabled=false",
-    "config.startWithAudioMuted=false",
-    "config.startWithVideoMuted=false",
-    "config.startSilent=false",
-    "config.disableAP=false",
-    "config.enableNoAudioDetection=true",
-    "config.enableNoisyMicDetection=true",
-    "config.disableAudioLevels=false",
-    "interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=true",
-  ].join("&");
-  return `${room}#${hash}`;
+  return MIROTALK_DEFAULT;
 }
 
-/** Hostnames allowed for video iframe/CSP (no PHI in URLs). */
+/**
+ * Always creates a MiroTalk room URL (unless external provider).
+ * No PHI in room id. No Jitsi.
+ */
+export function createVideoMeetingUrl(_sessionId?: string): string | null {
+  if (getVideoProvider() === "external") return null;
+  const roomSecret = randomBytes(24).toString("base64url");
+  const base = mirotalkBase();
+  return `${base}/join/${roomSecret}`;
+}
+
+/** Hostnames allowed for video iframe/CSP. */
 export function videoFrameHosts(): string[] {
-  const hosts = new Set<string>([
-    "https://meet.jit.si",
-    "https://*.jit.si",
-    "https://medlum-mirotalk-p2p.onrender.com",
-  ]);
+  const hosts = new Set<string>([MIROTALK_DEFAULT, "https://meet.jit.si", "https://*.jit.si"]);
   try {
-    const base = process.env.VIDEO_BASE_URL;
-    if (base) {
-      const u = new URL(base);
-      if (u.protocol === "https:") hosts.add(`${u.protocol}//${u.host}`);
-    }
+    const base = mirotalkBase();
+    const u = new URL(base);
+    if (u.protocol === "https:") hosts.add(`${u.protocol}//${u.host}`);
   } catch {
-    /* ignore invalid VIDEO_BASE_URL */
+    /* ignore */
   }
   return [...hosts];
 }
