@@ -64,7 +64,7 @@ export function ensureClinicProductTable() {
         ADD COLUMN IF NOT EXISTS "pilotGraceDays" INTEGER NOT NULL DEFAULT 5,
         ADD COLUMN IF NOT EXISTS "pilotWarnedAt" TIMESTAMP(3),
         ADD COLUMN IF NOT EXISTS "pilotLockedAt" TIMESTAMP(3)
-    `)).then(() => undefined).catch((error) => {> {
+    `)).then(() => undefined).catch((error) => {
       tableReady = null;
       throw error;
     });
