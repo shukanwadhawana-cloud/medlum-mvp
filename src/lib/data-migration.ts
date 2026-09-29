@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/db";\nimport type { Prisma } from "@prisma/client";
 
 export const MIGRATION_SCHEMA_VERSION = 1;
 
@@ -317,7 +317,7 @@ export async function importClinicData(
 
 // Same insert primitive as insertRow, but bound to the transaction client so the
 // whole migration rolls back on any foreign-key, uniqueness, or type error.
-async function insertRowWithClient(client: typeof prisma, table: string, row: Record<string, unknown>) {
+async function insertRowWithClient(client: Prisma.TransactionClient, table: string, row: Record<string, unknown>) {
   const safeRow = { ...row };
   for (const key of ["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey"]) delete safeRow[key];
   const keys = Object.keys(safeRow).filter(k => safeRow[k] !== undefined);
