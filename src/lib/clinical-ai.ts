@@ -50,7 +50,25 @@ const MAX_FIELD = 4000;
 
 function clip(value: unknown, max = MAX_FIELD): string {
   if (value == null) return "";
-  return String(value).trim().slice(0, max);
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value).trim().slice(0, max);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => clip(item, max)).filter(Boolean).join("\n").slice(0, max);
+  }
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    const preferred = [o.text, o.content, o.value, o.summary, o.details]
+      .map((item) => clip(item, max))
+      .find(Boolean);
+    if (preferred) return preferred.slice(0, max);
+    try {
+      return JSON.stringify(value, null, 2).slice(0, max);
+    } catch {
+      return "";
+    }
+  }
+  return "";
 }
 
 function nonEmpty(...parts: string[]): string {
