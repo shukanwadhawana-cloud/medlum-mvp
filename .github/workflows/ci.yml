@@ -33,6 +33,8 @@ jobs:
         run: npm run typecheck
       - name: Verify production security
         run: npm run test:production-security
+      - name: Verify OWASP ASVS 5.0 hardening baseline
+        run: npm run test:asvs-hardening
       - name: Verify CSRF and CSP hardening
         run: npm run test:csrf
       - name: Verify pilot readiness
