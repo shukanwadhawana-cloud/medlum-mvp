@@ -10,20 +10,75 @@ export type ClinicalOcrResult = {
   pageLimitReached?: boolean;
 };
 
+/** Light preprocess: grayscale + modest contrast boost via canvas (no extra deps). */
+async function preprocessForOcr(data: Buffer): Promise<Buffer> {
+  try {
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    const img = await loadImage(data);
+    const maxW = 2000;
+    const scale = img.width > maxW ? maxW / img.width : 1;
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = createCanvas(w, h);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    const image = ctx.getImageData(0, 0, w, h);
+    const px = image.data;
+    for (let i = 0; i < px.length; i += 4) {
+      const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      // mild contrast stretch
+      const v = Math.max(0, Math.min(255, (gray - 20) * 1.25));
+      px[i] = px[i + 1] = px[i + 2] = v;
+    }
+    ctx.putImageData(image, 0, 0);
+    return canvas.toBuffer("image/png");
+  } catch {
+    return data;
+  }
+}
+
 async function ocrImage(data: Buffer): Promise<{ text: string; confidence: number }> {
   const { createWorker } = await import("tesseract.js");
   const workerPath = "./node_modules/tesseract.js/src/worker-script/node/index.js";
+  const prepared = await preprocessForOcr(data);
   const worker = await createWorker("eng", 1, {
     workerPath,
     cachePath: "/tmp/medlum-tessdata",
     cacheMethod: "write",
   });
   try {
-    const result = await worker.recognize(data);
-    return {
-      text: String(result?.data?.text || "").trim(),
-      confidence: typeof result?.data?.confidence === "number" ? result.data.confidence : 0,
-    };
+    // PSM 6 = assume a single uniform block of text (discharge summaries / forms)
+    await worker.setParameters({
+      tessedit_pageseg_mode: "6",
+      preserve_interword_spaces: "1",
+    } as Record<string, string>);
+    let result = await worker.recognize(prepared);
+    let text = String(result?.data?.text || "").trim();
+    let confidence = typeof result?.data?.confidence === "number" ? result.data.confidence : 0;
+
+    // Retry with auto page segmentation if the first pass is weak
+    if (text.length < 12 || confidence < 40) {
+      await worker.setParameters({
+        tessedit_pageseg_mode: "3",
+        preserve_interword_spaces: "1",
+      } as Record<string, string>);
+      result = await worker.recognize(prepared);
+      const alt = String(result?.data?.text || "").trim();
+      const altConf = typeof result?.data?.confidence === "number" ? result.data.confidence : 0;
+      if (alt.length > text.length || altConf > confidence) {
+        text = alt;
+        confidence = altConf;
+      }
+    }
+
+    // Last resort: raw bytes without preprocess
+    if (text.length < 8) {
+      result = await worker.recognize(data);
+      text = String(result?.data?.text || "").trim();
+      confidence = typeof result?.data?.confidence === "number" ? result.data.confidence : 0;
+    }
+
+    return { text, confidence };
   } finally {
     await worker.terminate();
   }
@@ -68,21 +123,30 @@ async function extractPdf(data: Buffer): Promise<ClinicalOcrResult> {
     const confidences: number[] = [];
     for (let pageNumber = 1; pageNumber <= maxPagesForOcr; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1.5 });
-      const factory = new NodeCanvasFactory();
-      const { canvas, context } = factory.create(viewport.width, viewport.height);
-      await page.render({ canvasContext: context as any, viewport, canvasFactory: factory } as any).promise;
-      const pageResult = await ocrImage(canvas.toBuffer("image/png"));
-      if (pageResult.text) ocrParts.push(pageResult.text);
-      if (pageResult.confidence > 0) confidences.push(pageResult.confidence);
-      factory.destroy({ canvas });
+      const viewport = page.getViewport({ scale: 2 });
+      const canvasFactory = new NodeCanvasFactory();
+      const canvasAndContext = canvasFactory.create(viewport.width, viewport.height);
+      await page.render({
+        canvasContext: canvasAndContext.context as unknown as CanvasRenderingContext2D,
+        viewport,
+        canvasFactory,
+      } as never).promise;
+      const png = canvasAndContext.canvas.toBuffer("image/png");
+      const ocr = await ocrImage(png);
+      if (ocr.text) ocrParts.push(ocr.text);
+      confidences.push(ocr.confidence);
+      canvasFactory.destroy(canvasAndContext);
       page.cleanup();
     }
 
-    const combined = [textLayer, ...ocrParts].filter(Boolean).join("\n").trim();
+    const text = ocrParts.join("\n\n").trim();
+    const confidence =
+      confidences.length > 0
+        ? Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length)
+        : 0;
     return {
-      text: combined,
-      confidence: confidences.length ? confidences.reduce((a, b) => a + b, 0) / confidences.length : null,
+      text,
+      confidence,
       method: "pdf-ocr",
       pageLimitReached: document.numPages > maxPagesForOcr,
     };
@@ -91,20 +155,16 @@ async function extractPdf(data: Buffer): Promise<ClinicalOcrResult> {
   }
 }
 
-export async function extractClinicalOcrText(data: Buffer, mimeType: string): Promise<ClinicalOcrResult> {
-  const mime = String(mimeType || "").toLowerCase().trim();
-  if (mime === "application/pdf") return extractPdf(data);
-  if (mime.startsWith("image/") || mime === "image/jpg") {
-    const result = await ocrImage(data);
-    return { ...result, method: "image-ocr" };
+export async function extractClinicalOcrText(bytes: Buffer, mime: string): Promise<ClinicalOcrResult> {
+  if (mime === "application/pdf") {
+    return extractPdf(bytes);
   }
-  if (!mime && data.length > 8) {
-    const sig = data.subarray(0, 4).toString("hex");
-    if (sig.startsWith("25504446")) return extractPdf(data);
-    if (sig.startsWith("ffd8") || sig.startsWith("89504e47") || sig.startsWith("52494646")) {
-      const result = await ocrImage(data);
-      return { ...result, method: "image-ocr" };
+  if (mime.startsWith("image/")) {
+    if (mime === "image/heic" || mime === "image/heif") {
+      throw new Error("Unsupported document type: HEIC/HEIF");
     }
+    const ocr = await ocrImage(bytes);
+    return { text: ocr.text, confidence: ocr.confidence, method: "image-ocr" };
   }
-  throw new Error("Unsupported document type. Upload a PDF or image.");
+  throw new Error("Unsupported document type");
 }
