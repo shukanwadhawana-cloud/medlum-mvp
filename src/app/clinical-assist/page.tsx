@@ -198,7 +198,7 @@ export default function ClinicalAssistPage() {
 
       setScanStatus(isPdf ? "Reading PDF… text PDFs are processed directly; scanned PDFs may require OCR." : "Running OCR on the photo…");
       const best = await runOcr(ocrFile);
-      const text = best.text; setScanText(text); setScanConfidence(best.confidence);
+      const text = best.text; setScanText(text); setScanConfidence(best.confidence); setError("");
       const parsed = parseScan(text);
       const clinicalText = normalizeClinicalText(text);
       setDetectedTerms(clinicalText.detected);
@@ -212,8 +212,10 @@ export default function ClinicalAssistPage() {
             : "OCR completed with low confidence. Retake the photo if possible.";
       setScanStatus(best.partial ? confidenceMessage + " Only the first OCR pages were processed." : confidenceMessage);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Document OCR could not complete on this device.");
+      const msg = e instanceof Error ? e.message : "Document OCR could not complete on this device.";
+      setError(msg);
       setScanStatus("");
+      setScanConfidence(null);
     } finally {
       setScanBusy(false);
     }
@@ -272,12 +274,28 @@ export default function ClinicalAssistPage() {
           <label htmlFor="clinical-document-upload" className="h-11 rounded-lg bg-[#c2183a] text-white text-xs font-semibold flex items-center justify-center cursor-pointer">Upload PDF / file</label>
           <label htmlFor="clinical-document-camera" className="h-11 rounded-lg border border-[#c2183a] text-[#c2183a] text-xs font-semibold flex items-center justify-center cursor-pointer">Take photo</label>
         </div>
-        <p className="text-[10px] text-gray-500 mt-2">Upload accepts PDF, JPG, PNG and WebP. Take photo uses your camera on supported phones/tablets.</p>{scanBusy&&<p className="text-xs text-gray-500 mt-2">{scanStatus}</p>}{scanStatus&&!scanBusy&&<p className="text-xs text-green-700 mt-2">{scanStatus}{scanConfidence!==null?` OCR confidence: ${Math.round(scanConfidence)}%.`:""}</p>}{scanText&&<details className="mt-2" open><summary className="text-xs font-medium">Review extracted OCR text</summary><textarea value={scanText} onChange={e=>setScanText(e.target.value)} className="w-full mt-2 min-h-36 border rounded-lg p-2 text-xs"/><p className="text-[10px] text-gray-400 mt-1">The extracted text is only a drafting aid. Do not treat OCR confidence as clinical correctness.</p></details>}</section>
-      {(patientId || mode === "new") && (
+        <p className="text-[10px] text-gray-500 mt-2">Upload accepts PDF, JPG, PNG and WebP. Take photo uses your camera on supported phones/tablets.</p>
+        {scanBusy && <p className="text-xs text-gray-600 mt-2" role="status">{scanStatus || "Working…"}</p>}
+        {!scanBusy && scanStatus && <p className="text-xs text-green-700 mt-2" role="status">{scanStatus}{scanConfidence !== null ? ` OCR confidence: ${Math.round(scanConfidence)}%.` : ""}</p>}
+        {!scanBusy && error && <p className="text-xs text-red-600 mt-2" role="alert">{error}</p>}
+        {scanText && (
+          <details className="mt-2" open>
+            <summary className="text-xs font-medium">Review extracted OCR text</summary>
+            <textarea value={scanText} onChange={e => setScanText(e.target.value)} className="w-full mt-2 min-h-36 border rounded-lg p-2 text-xs" />
+            <p className="text-[10px] text-gray-400 mt-1">The extracted text is only a drafting aid. Do not treat OCR confidence as clinical correctness. You can edit this text, then use Generate AI draft.</p>
+          </details>
+        )}
+      </section>
+      {(patientId || mode === "new" || scanText || form.clinicalNotes || form.chiefComplaint) && (
         <ClinicalAiDraftPanel
-          patientId={patientId || "new"}
+          patientId={patientId || undefined}
+          patientName={form.name}
+          age={form.age}
+          gender={form.gender}
+          allergies={form.allergies}
+          bp={form.bp}
           chiefComplaint={form.chiefComplaint}
-          clinicalNotes={form.clinicalNotes}
+          clinicalNotes={form.clinicalNotes || scanText}
           diagnosis={form.diagnosis}
           assessment={form.assessment}
           plan={form.plan}
