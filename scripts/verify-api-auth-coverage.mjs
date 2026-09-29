@@ -33,7 +33,7 @@ for (const file of routes) {
   if (SPECIAL_CASES.has(rel)) continue;
   const usesPrisma = /\bprisma\b/.test(source);
   const authenticated = /getSession\s*\(|getPortalSession\s*\(/.test(source);
-  const webhookVerified = /verify.*webhook|webhook.*verify|x-.*signature|signature|secret-token|x-telegram-bot-api-secret-token/i.test(source);
+  const webhookVerified = /verify.*webhook|webhook.*verify|x-.*signature|signature|secret-token|x-telegram-bot-api-secret-token|CRON_SECRET|x-vercel-cron/i.test(source);
   if (usesPrisma && !authenticated && !webhookVerified) {
     failures.push(`${rel}: Prisma-backed route has no authenticated session/webhook verification`);
   }
