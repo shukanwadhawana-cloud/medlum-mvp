@@ -298,7 +298,7 @@ export default function ClinicalAssistPage() {
             <textarea value={form[field]} onChange={e=>setField(field, e.target.value)} className="mt-1 w-full min-h-16 border rounded-lg p-2 text-sm"/></div>
         ))}
         {voiceStatus && <p className="text-xs text-gray-500">{voiceStatus}</p>}
-        {detectedTerms.length > 0 && <p className="text-[10px] text-gray-400">Detected terms: {detectedTerms.map(t=>t.display||t.code||t.term).filter(Boolean).join(", ")}</p>}
+        {detectedTerms.length > 0 && <p className="text-[10px] text-gray-400">Detected terms: {detectedTerms.map(t=>`${t.phrase} → ${t.preferred}`).join(", ")}</p>}
         {message && <p className="text-xs text-green-700">{message}</p>}
         {error && <p className="text-xs text-red-600">{error}</p>}
         <button type="button" disabled={saving} onClick={save} className="w-full h-11 rounded-xl bg-[#c2183a] text-white text-sm font-medium disabled:opacity-50">{saving?"Saving…":"Save clinical draft"}</button>
