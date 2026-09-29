@@ -4,6 +4,8 @@ import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic
 import { canAccessModule } from "@/lib/permissions";
 import { extractClinicalOcrText } from "@/lib/clinical-ocr";
 
+export const maxDuration = 45;
+
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
   "application/pdf",
@@ -74,7 +76,11 @@ export async function POST(req: Request) {
 
   try {
     const bytes = Buffer.from(await file.arrayBuffer());
-    const extracted = await extractClinicalOcrText(bytes, mime);
+    const ocrPromise = extractClinicalOcrText(bytes, mime);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("OCR_TIMEOUT")), 40_000)
+    );
+    const extracted = await Promise.race([ocrPromise, timeoutPromise]);
     if (!extracted.trim()) {
       return fail("OCR completed but no readable text was detected. Try a higher-contrast scan or a text-based PDF.", 422);
     }
@@ -91,6 +97,9 @@ export async function POST(req: Request) {
   } catch (error) {
     const msg = error instanceof Error ? error.message : "error";
     console.error("clinical OCR error", msg);
+    if (msg === "OCR_TIMEOUT") {
+      return fail("OCR is taking too long on this document. Try a clearer photo, a smaller PDF, or a text-based PDF.", 504);
+    }
     if (/Unsupported document type/i.test(msg)) {
       return fail("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image.");
     }
