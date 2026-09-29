@@ -77,7 +77,13 @@ async function extractPdf(data: Buffer): Promise<string> {
 }
 
 export async function extractClinicalOcrText(data: Buffer, mimeType: string): Promise<string> {
-  if (mimeType === "application/pdf") return extractPdf(data);
-  if (mimeType.startsWith("image/")) return ocrImage(data);
+  const mime = String(mimeType || "").toLowerCase().trim();
+  if (mime === "application/pdf") return extractPdf(data);
+  if (mime.startsWith("image/") || mime === "image/jpg") return ocrImage(data);
+  if (!mime && data.length > 8) {
+    const sig = data.subarray(0, 4).toString("hex");
+    if (sig.startsWith("25504446")) return extractPdf(data);
+    if (sig.startsWith("ffd8") || sig.startsWith("89504e47") || sig.startsWith("52494646")) return ocrImage(data);
+  }
   throw new Error("Unsupported document type. Upload a PDF or image.");
 }
