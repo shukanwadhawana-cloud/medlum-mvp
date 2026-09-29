@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashJoinToken } from "@/lib/telemedicine";
+import { createVideoMeetingUrl, hashJoinToken, isJitsiMeetingUrl } from "@/lib/telemedicine";
 
 export async function GET(req: Request) {
   const token = new URL(req.url).searchParams.get("token")?.trim();
@@ -49,6 +49,24 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: "This telemedicine session has expired." }, { status: 410 });
   }
 
+  let meetingUrl = resolvedSession.meetingUrl;
+  let provider = resolvedSession.provider || "mirotalk";
+  if (isJitsiMeetingUrl(meetingUrl) || provider === "jitsi") {
+    const fresh = createVideoMeetingUrl();
+    if (fresh) {
+      meetingUrl = fresh;
+      provider = "mirotalk";
+      try {
+        await prisma.telemedicineSession.update({
+          where: { id: resolvedSession.id },
+          data: { meetingUrl: fresh, provider: "mirotalk" },
+        });
+      } catch {
+        /* non-fatal — still return MiroTalk URL */
+      }
+    }
+  }
+
   return NextResponse.json({
     success: true,
     session: {
@@ -60,8 +78,8 @@ export async function GET(req: Request) {
       scheduledAt: resolvedSession.scheduledAt,
       expiresAt: resolvedSession.expiresAt,
       status: resolvedSession.status,
-      provider: resolvedSession.provider,
-      meetingUrl: resolvedSession.meetingUrl,
+      provider,
+      meetingUrl,
       startedAt: resolvedSession.startedAt,
       endedAt: resolvedSession.endedAt,
       ...(participant ? { participant } : {}),
