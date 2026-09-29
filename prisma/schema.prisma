@@ -1093,12 +1093,12 @@ model DutyAttendanceRequest {
 
 model AuthSession {
   id        String    @id
-  doctorId  String
+  doctorId  String?
   issuedAt  DateTime  @default(now())
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
-  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  doctor    Doctor?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
 
   @@index([doctorId, revokedAt])
   @@index([expiresAt])
