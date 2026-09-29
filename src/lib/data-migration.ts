@@ -148,3 +148,184 @@ export function validateMigrationPackage(pkg: unknown) {
   if (size > 20 * 1024 * 1024) errors.push("Import package exceeds 20 MB");
   return { valid: errors.length === 0, errors, sizeBytes: size };
 }
+
+
+const IMPORT_ORDER = [
+  "Doctor", "ClinicMember", "Patient", "Appointment", "Encounter", "Prescription",
+  "TariffVersion", "TariffItem", "Invoice", "InvoiceItem", "Payment", "LabOrder",
+  "PharmacyItem", "Dispensing", "DiagnosticOrder", "BloodInventory", "BloodDonor",
+  "BloodRequest", "InsuranceProvider", "InsurancePolicy", "InsuranceClaim",
+  "WorkforceRecord", "MedicationAdministration", "LabTemplate", "LabTemplateParameter",
+  "AbdmConsent", "AbdmCareContext", "AbdmEvent", "EmergencyCase", "DutyAttendanceEvent",
+  "DutyAttendanceRequest", "TelemedicineSession", "ClinicalNote", "AuditLog",
+];
+
+const DEFERRED_IMPORT_TABLES = new Set([
+  "MedicalDocument", "PatientPortalAccount", "FacilityTelegramIntegration",
+  "TelegramIdentity", "TelegramLinkChallenge", "TelemedicineParticipant",
+]);
+
+const ID_KEYS = new Set([
+  "id", "clinicId", "doctorId", "patientId", "appointmentId", "encounterId",
+  "prescriptionId", "invoiceId", "labOrderId", "diagnosticOrderId", "inventoryId",
+  "providerId", "policyId", "memberId", "administeringMemberId", "tariffVersionId",
+  "tariffItemId", "templateId", "sessionId", "claimId", "documentId",
+]);
+
+function remapIds(row: Record<string, unknown>, idMap: Map<string, string>) {
+  const out = { ...row };
+  for (const key of Object.keys(out)) {
+    const value = out[key];
+    if (typeof value === "string" && idMap.has(value) && (ID_KEYS.has(key) || key.endsWith("Id"))) {
+      out[key] = idMap.get(value);
+    }
+  }
+  return out;
+}
+
+async function tableHasId(table: string, id: string) {
+  const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT "id" FROM "${table}" WHERE "id" = $1 LIMIT 1`,
+    id,
+  );
+  return rows.length > 0;
+}
+
+async function insertRow(table: string, row: Record<string, unknown>) {
+  const safeRow = { ...row };
+  for (const key of ["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey"]) {
+    delete safeRow[key];
+  }
+  const keys = Object.keys(safeRow).filter(k => safeRow[k] !== undefined);
+  if (!keys.length) return;
+  const cols = keys.map(k => `"${k.replace(/"/g, '""')}"`).join(", ");
+  const selects = keys.map(k => `(jsonb_populate_record(NULL::"${table}", $1::jsonb))."${k.replace(/"/g, '""')}"`).join(", ");
+  await prisma.$queryRawUnsafe(
+    `INSERT INTO "${table}" (${cols}) SELECT ${selects}`,
+    JSON.stringify(safeRow),
+  );
+}
+
+export async function importClinicData(
+  pkg: unknown,
+  targetClinicId: string,
+  ownerEmail: string,
+  options: { execute: boolean },
+) {
+  const validation = validateMigrationPackage(pkg);
+  if (!validation.valid) return { valid: false, executed: false, errors: validation.errors, imported: {}, deferred: [] as string[] };
+
+  const records = (pkg as { records: Record<string, unknown[]> }).records;
+  const sourceClinic = Array.isArray(records.Clinic) ? records.Clinic[0] as Record<string, unknown> | undefined : undefined;
+  const sourceClinicId = typeof sourceClinic?.id === "string" ? sourceClinic.id : "";
+  if (!sourceClinicId) return { valid: false, executed: false, errors: ["Migration package is missing its source Clinic record."], imported: {}, deferred: [] as string[] };
+
+  const targetClinic = await prisma.clinic.findUnique({ where: { id: targetClinicId }, select: { id: true, name: true } });
+  if (!targetClinic) return { valid: false, executed: false, errors: ["Target facility not found."], imported: {}, deferred: [] as string[] };
+
+  const owner = await prisma.doctor.findUnique({ where: { email: ownerEmail }, select: { id: true, email: true } });
+  if (!owner) return { valid: false, executed: false, errors: ["Current Master Owner account could not be resolved."], imported: {}, deferred: [] as string[] };
+
+  const idMap = new Map<string, string>([[sourceClinicId, targetClinicId]]);
+  const errors: string[] = [];
+  const imported: Record<string, number> = {};
+  const deferred = [...DEFERRED_IMPORT_TABLES].filter(t => Array.isArray(records[t]) && records[t].length > 0);
+
+  // Authentication credentials are deliberately not migrated. Staff must already exist
+  // in MedLum or be provisioned through the normal account flow before clinical data import.
+  for (const row of (records.Doctor || []) as Record<string, unknown>[]) {
+    const sourceId = typeof row.id === "string" ? row.id : "";
+    const email = typeof row.email === "string" ? row.email.trim().toLowerCase() : "";
+    if (!sourceId || !email) { errors.push("Every Doctor record needs id and email."); continue; }
+    if (email === ownerEmail.trim().toLowerCase()) {
+      idMap.set(sourceId, owner.id);
+      continue;
+    }
+    const existing = await prisma.doctor.findUnique({ where: { email }, select: { id: true } });
+    if (!existing) errors.push(`Doctor ${email} is not provisioned in MedLum; create the account first, then retry.`);
+    else idMap.set(sourceId, existing.id);
+  }
+
+  if (errors.length) return { valid: false, executed: false, errors, imported: {}, deferred };
+
+  // Preflight all primary keys before the first write. We never overwrite a target row.
+  for (const table of IMPORT_ORDER) {
+    if (table === "Doctor" || table === "ClinicMember") continue;
+    for (const row of (records[table] || []) as Record<string, unknown>[]) {
+      const sourceId = typeof row.id === "string" ? row.id : "";
+      if (!sourceId) { errors.push(`${table} record is missing id.`); continue; }
+      const mappedId = idMap.get(sourceId);
+      if (mappedId && mappedId !== sourceId) continue;
+      if (await tableHasId(table, sourceId)) errors.push(`${table} id ${sourceId} already exists; import refuses to overwrite it.`);
+    }
+  }
+
+  if (errors.length) return { valid: false, executed: false, errors, imported: {}, deferred };
+
+  if (!options.execute) {
+    return {
+      valid: true, executed: false, errors: [], imported: {},
+      deferred,
+      target: { clinicId: targetClinic.id, clinicName: targetClinic.name },
+      message: "Preflight passed. No records were written. Explicit execution is required.",
+    };
+  }
+
+  try {
+    await prisma.$transaction(async tx => {
+      // Existing memberships are reused; new memberships retain their source ID only when unused.
+      for (const row of (records.ClinicMember || []) as Record<string, unknown>[]) {
+        const sourceId = typeof row.id === "string" ? row.id : "";
+        const doctorId = typeof row.doctorId === "string" ? idMap.get(row.doctorId) : undefined;
+        if (!sourceId || !doctorId) throw new Error(`ClinicMember ${sourceId || "unknown"} references an unresolved doctor.`);
+        const existing = await tx.clinicMember.findUnique({ where: { clinicId_doctorId: { clinicId: targetClinicId, doctorId } }, select: { id: true } });
+        if (existing) { idMap.set(sourceId, existing.id); continue; }
+        const mapped = remapIds({ ...row, clinicId: targetClinicId, doctorId }, idMap);
+        await insertRowWithClient(tx, "ClinicMember", mapped);
+        idMap.set(sourceId, sourceId);
+        imported.ClinicMember = (imported.ClinicMember || 0) + 1;
+      }
+
+      for (const table of IMPORT_ORDER) {
+        if (table === "Doctor" || table === "ClinicMember") continue;
+        for (const raw of (records[table] || []) as Record<string, unknown>[]) {
+          const sourceId = typeof raw.id === "string" ? raw.id : "";
+          const mapped = remapIds(raw, idMap);
+          if (Object.prototype.hasOwnProperty.call(mapped, "clinicId")) mapped.clinicId = targetClinicId;
+          if (table === "MedicalDocument") continue;
+          await insertRowWithClient(tx, table, mapped);
+          if (sourceId) idMap.set(sourceId, sourceId);
+          imported[table] = (imported[table] || 0) + 1;
+        }
+      }
+    }, { maxWait: 10000, timeout: 25000 });
+  } catch (error) {
+    return {
+      valid: false, executed: false,
+      errors: [error instanceof Error ? error.message : "Import failed; transaction rolled back."],
+      imported: {}, deferred,
+    };
+  }
+
+  return {
+    valid: true, executed: true, errors: [], imported, deferred,
+    target: { clinicId: targetClinic.id, clinicName: targetClinic.name },
+    ownerPreserved: true,
+    message: "Import committed atomically. Existing Master Owner remained the source of truth.",
+  };
+}
+
+// Same insert primitive as insertRow, but bound to the transaction client so the
+// whole migration rolls back on any foreign-key, uniqueness, or type error.
+async function insertRowWithClient(client: typeof prisma, table: string, row: Record<string, unknown>) {
+  const safeRow = { ...row };
+  for (const key of ["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey"]) delete safeRow[key];
+  const keys = Object.keys(safeRow).filter(k => safeRow[k] !== undefined);
+  if (!keys.length) return;
+  const cols = keys.map(k => `"${k.replace(/"/g, '""')}"`).join(", ");
+  const selects = keys.map(k => `(jsonb_populate_record(NULL::"${table}", $1::jsonb))."${k.replace(/"/g, '""')}"`).join(", ");
+  await client.$queryRawUnsafe(
+    `INSERT INTO "${table}" (${cols}) SELECT ${selects}`,
+    JSON.stringify(safeRow),
+  );
+}
