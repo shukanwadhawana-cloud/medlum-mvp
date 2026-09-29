@@ -1,9 +1,6 @@
 name: Fix IPD Placeholder
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/fix-ipd-placeholder.yml"
 jobs:
   fix:
     runs-on: ubuntu-latest

@@ -1,10 +1,6 @@
 name: Assemble IPD CPRS Page
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/assemble-ipd-cprs.yml"
-      - "scripts/ipd-parts/**"
 jobs:
   assemble:
     runs-on: ubuntu-latest
