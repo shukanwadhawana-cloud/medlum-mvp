@@ -12,6 +12,7 @@ const SPECIAL_CASES = new Set([
   "telegram/webhook/route.ts", // Telegram secret-token verified (x-telegram-bot-api-secret-token)
   "telegram/facility/[clinicId]/route.ts", // facility bot webhook: x-telegram-bot-api-secret-token
   "telemedicine/join/route.ts",
+  "cron/pilot-access/route.ts", // protected by CRON_SECRET bearer authentication
 ]);
 
 async function routeFiles(dir) {
