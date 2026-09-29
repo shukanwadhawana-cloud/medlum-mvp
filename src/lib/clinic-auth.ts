@@ -4,6 +4,8 @@
  */
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
+import { getPilotAccessState } from "@/lib/pilot-access";
+import { isMedlumOwnerEmail } from "@/lib/owner";
 export type ClinicRole =
   | "Owner"
   | "Admin"
@@ -94,11 +96,31 @@ export async function requireActiveClinicMembership(
     });
   }
   if (!membership) return null;
+  const role = normalizeClinicRole(membership.role);
+  // Pilot lock: after grace, block operational access. Facility Owner/Admin and
+  // platform owner retain recovery access so renewal can be performed without
+  // deleting clinical data.
+  if (!allowInactiveClinic) {
+    try {
+      const pilot = await getPilotAccessState(membership.clinicId);
+      if (pilot.status === "locked") {
+        const doctor = await prisma.doctor.findUnique({
+          where: { id: doctorId },
+          select: { email: true },
+        });
+        const isPlatformOwner = isMedlumOwnerEmail(doctor?.email);
+        const canRecover = isPlatformOwner || role === "Owner" || role === "Admin";
+        if (!canRecover) return null;
+      }
+    } catch {
+      // Pilot table/columns may not exist yet — do not block access on infra errors.
+    }
+  }
   return {
     membershipId: membership.id,
     clinicId: membership.clinicId,
     doctorId: membership.doctorId,
-    role: normalizeClinicRole(membership.role),
+    role,
   };
 }
 
