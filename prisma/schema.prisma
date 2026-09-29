@@ -114,6 +114,7 @@ model Doctor {
   diagnosticOrders       DiagnosticOrder[]
   auditLogs              AuditLog[]
   clinicMemberships      ClinicMember[]
+  authSessions            AuthSession[]
   otpChallenges          OtpChallenge[]
   telegramIdentity       TelegramIdentity?
   telegramLinkChallenges TelegramLinkChallenge[]
@@ -625,6 +626,19 @@ model InsuranceClaim {
   @@index([status])
 }
 
+
+model AuthSession {
+  id        String    @id
+  doctorId  String?
+  issuedAt  DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  doctor    Doctor?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  @@index([doctorId, revokedAt])
+  @@index([expiresAt])
+}
 
 model WorkforceRecord {
   id          String       @id @default(cuid())
