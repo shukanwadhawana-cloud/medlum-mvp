@@ -31,6 +31,7 @@
     "test:desktop-packaging": "node scripts/verify-desktop-packaging.mjs",
     "test:multi-device-role-workflow": "node scripts/verify-multi-device-role-workflow.mjs",
     "test:production-security": "node scripts/verify-production-security.mjs",
+    "test:asvs-hardening": "node scripts/verify-asvs-hardening.mjs",
     "test:p0-security": "node scripts/verify-p0-security.mjs",
     "test:p1-authorization": "node scripts/verify-p1-authorization.mjs",
     "test:p1-closure": "node scripts/verify-p1-closure.mjs",
