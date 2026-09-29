@@ -88,6 +88,14 @@ export function middleware(req: NextRequest) {
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
 
+  // Clinical/API responses must not be stored by browsers or intermediary caches.
+  // This complements route-level no-store usage and protects against accidental
+  // caching of authenticated patient/clinical data.
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    response.headers.set("Cache-Control", "no-store, max-age=0");
+    response.headers.set("Pragma", "no-cache");
+  }
+
   if (process.env.NODE_ENV === "production") {
     response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     response.headers.set("Content-Security-Policy", buildCsp());
