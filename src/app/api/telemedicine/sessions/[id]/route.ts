@@ -27,11 +27,24 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
-  const item = await prisma.telemedicineSession.findFirst({
+  let item = await prisma.telemedicineSession.findFirst({
     where: { id, doctorId: session.doctorId },
     select: sessionSelect,
   });
   if (!item) return NextResponse.json({ success: false, error: "Telemedicine session not found." }, { status: 404 });
+
+  // Never serve a Jitsi room — migrate to MiroTalk immediately
+  if (isJitsiMeetingUrl(item.meetingUrl) || item.provider === "jitsi") {
+    const fresh = createVideoMeetingUrl();
+    if (fresh) {
+      item = await prisma.telemedicineSession.update({
+        where: { id },
+        data: { meetingUrl: fresh, provider: "mirotalk" },
+        select: sessionSelect,
+      });
+    }
+  }
+
   return NextResponse.json({ success: true, session: item });
 }
 
@@ -85,7 +98,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       select: sessionSelect,
     });
 
-    // When video consult completes, mark linked Appointment Completed if still open.
     if (nextStatus === "Completed" && existing.appointmentId) {
       const appt = await prisma.appointment.findFirst({
         where: { id: existing.appointmentId, doctorId: session.doctorId },
