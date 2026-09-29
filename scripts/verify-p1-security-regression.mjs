@@ -54,6 +54,43 @@ ok(ocr.includes("ocrDraft"), "OCR writes draft output");
 ok(!ocr.includes("diagnosis"), "OCR route does not finalize diagnosis");
 ok(!ocr.includes("prescription"), "OCR route does not finalize prescription");
 
+// Clinical AI assist hardening
+const aiDraft = read("src/app/api/clinical-ai/draft/route.ts");
+ok(aiDraft.includes("getSession"), "clinical-ai authenticates");
+ok(aiDraft.includes("requireActiveClinicMembership"), "clinical-ai requires membership");
+ok(aiDraft.includes('canAccessModule(role, "clinical_assist")'), "clinical-ai module is clinical_assist-only");
+ok(aiDraft.includes("body.clinicId != null") || aiDraft.includes("body.clinicId"), "clinical-ai rejects client clinicId claims");
+ok(aiDraft.includes("64_000") || aiDraft.includes("64000"), "clinical-ai enforces request size limit");
+ok(!/clinicalNote\.create/.test(aiDraft), "clinical-ai does not create ClinicalNote");
+ok(!/clinicalNote\.(create|update)/.test(aiDraft) && !/status:\s*[\"']Final[\"']/.test(aiDraft) && aiDraft.includes("finalized: false"), "clinical-ai does not finalize/sign notes");
+
+const aiPanel = read("src/components/ClinicalAiDraftPanel.tsx");
+ok(aiPanel.includes("X-MedLum-Requested-With"), "clinical-ai panel sends CSRF client header");
+
+const provider = read("src/components/DoctorProvider.tsx");
+ok(provider.includes("canAccessPath"), "DoctorProvider enforces path module authorization");
+ok(provider.includes('pathname.startsWith("/owner")') && provider.includes("doctor.isOwner"), "platform isOwner retains /owner access");
+
+const perms = read("src/lib/permissions.ts");
+ok(perms.includes("owner_platform: []"), "owner_platform is empty for clinic roles");
+
+// Clinical notes and billing identity authority
+for (const [name, file] of Object.entries({
+  "clinical-notes": "src/app/api/clinical-notes/route.ts",
+  "appointments": "src/app/api/appointments/route.ts",
+  "invoices": "src/app/api/invoices/route.ts",
+})) {
+  try {
+    const src = read(file);
+    ok(src.includes("getSession"), name + " authenticates");
+    ok(src.includes("requireActiveClinicMembership") || src.includes("findAuthorizedPatient"), name + " derives facility scope from membership");
+    ok(!/clinicId:\s*body\./.test(src), name + " rejects client clinicId authority");
+  } catch (e) {
+    ok(false, name + " route readable");
+  }
+}
+
+
 if (fail.length) {
   console.error("\nP1 security regression FAILED:\n" + fail.map(x => " - " + x).join("\n"));
   process.exit(1);
