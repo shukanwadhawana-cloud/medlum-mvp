@@ -74,11 +74,30 @@ async function preprocessImage(file: File, variant: "clean" | "contrast" | "thre
   return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare scan.")), "image/png", 1));
 }
 
+async function runClientOcr(file: File): Promise<ScanResult> {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("eng");
+  try {
+    const result = await worker.recognize(file);
+    const text = String(result?.data?.text || "").trim();
+    if (!text) throw new Error("No readable text was detected on this device. Try a sharper, better-lit photo or a text-based PDF.");
+    return {
+      text,
+      confidence: typeof result?.data?.confidence === "number" ? result.data.confidence : null,
+      label: "device-ocr",
+      partial: false,
+    };
+  } finally {
+    try { await worker.terminate(); } catch { /* ignore */ }
+  }
+}
+
 async function runOcr(file: File): Promise<ScanResult> {
   if (file.size <= 0) throw new Error("The selected document is empty.");
   if (file.size > 8 * 1024 * 1024) throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image.");
+  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 42_000);
+  const timeout = window.setTimeout(() => controller.abort(), 50_000);
   try {
     const body = new FormData();
     body.append("file", file);
@@ -90,17 +109,34 @@ async function runOcr(file: File): Promise<ScanResult> {
       signal: controller.signal,
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload?.success) throw new Error(payload?.error || "Document OCR could not be completed.");
-    const text = String(payload.text || "").trim();
-    if (!text) throw new Error("No readable text was detected. Try a sharper, better-lit photo.");
-    return {
-      text,
-      confidence: typeof payload.confidence === "number" ? payload.confidence : null,
-      label: String(payload.method || "server"),
-      partial: Boolean(payload.pageLimitReached),
-    };
+    if (response.ok && payload?.success) {
+      const text = String(payload.text || "").trim();
+      if (!text) throw new Error("No readable text was detected. Try a sharper, better-lit photo.");
+      return {
+        text,
+        confidence: typeof payload.confidence === "number" ? payload.confidence : null,
+        label: String(payload.method || "server"),
+        partial: Boolean(payload.pageLimitReached),
+      };
+    }
+    // Server OCR failed — for images, fall back to on-device Tesseract (works on iPad/Safari).
+    const code = String(payload?.code || "");
+    if (!isPdf && (code === "OCR_SERVER_UNAVAILABLE" || code === "OCR_FAILED" || !response.ok)) {
+      try {
+        return await runClientOcr(file);
+      } catch (clientErr) {
+        throw new Error(
+          (clientErr instanceof Error ? clientErr.message : "On-device OCR failed.") +
+            " Prefer a text-based PDF when possible."
+        );
+      }
+    }
+    throw new Error(payload?.error || "Document OCR could not be completed.");
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
+      if (!isPdf) {
+        try { return await runClientOcr(file); } catch { /* fall through */ }
+      }
       throw new Error("OCR timed out. Try a clearer photo, a smaller PDF, or a text-based PDF.");
     }
     throw error;
@@ -196,20 +232,21 @@ export default function ClinicalAssistPage() {
         }
       }
 
-      setScanStatus(isPdf ? "Reading PDF… text PDFs are processed directly; scanned PDFs may require OCR." : "Running OCR on the photo…");
+      setScanStatus(isPdf ? "Reading PDF… text PDFs are processed directly; scanned PDFs may require OCR." : "Running OCR…");
       const best = await runOcr(ocrFile);
       const text = best.text; setScanText(text); setScanConfidence(best.confidence); setError("");
       const parsed = parseScan(text);
       const clinicalText = normalizeClinicalText(text);
       setDetectedTerms(clinicalText.detected);
       setForm(f=>({...f, ...(parsed.name ? {name:parsed.name}:{}), ...(parsed.age ? {age:parsed.age}:{}), ...(parsed.gender ? {gender:parsed.gender}:{}), ...(parsed.phone ? {phone:parsed.phone}:{}), ...(parsed.bp ? {bp:parsed.bp}:{}), ...(parsed.diagnosis ? {diagnosis:parsed.diagnosis}:{}), ...(parsed.medicines ? {medicines:parsed.medicines}:{}), ...(parsed.advice ? {advice:parsed.advice}:{}), clinicalNotes:text}));
+      const viaDevice = best.label === "device-ocr" ? " (on-device OCR)" : "";
       const confidenceMessage = best.confidence === null
-        ? "Document text extracted. Review it carefully."
+        ? "Document text extracted. Review it carefully." + viaDevice
         : best.confidence >= 80
-          ? "High-confidence OCR completed. Review the extracted fields."
+          ? "High-confidence OCR completed. Review the extracted fields." + viaDevice
           : best.confidence >= 55
-            ? "OCR completed with moderate confidence. Review the text carefully."
-            : "OCR completed with low confidence. Retake the photo if possible.";
+            ? "OCR completed with moderate confidence. Review the text carefully." + viaDevice
+            : "OCR completed with low confidence. Retake the photo if possible." + viaDevice;
       setScanStatus(best.partial ? confidenceMessage + " Only the first OCR pages were processed." : confidenceMessage);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Document OCR could not complete on this device.";
@@ -268,13 +305,13 @@ export default function ClinicalAssistPage() {
       <section className="bg-white border rounded-xl p-3"><div className="flex gap-2"><button onClick={()=>setMode("followup")} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="followup"?"bg-[#c2183a] text-white":""}`}>Existing patient</button><button onClick={()=>{setMode("new");setPatientId("");}} className={`flex-1 h-9 rounded-lg text-xs font-medium border ${mode==="new"?"bg-[#c2183a] text-white":""}`}>New patient</button></div>
         {mode==="followup" && <><input value={patientSearch} onChange={e=>setPatientSearch(e.target.value)} placeholder="Search patient by name or phone" className="w-full h-10 border rounded-lg px-3 text-sm mt-3"/><div className="mt-2 space-y-1">{filteredPatients.map(p=><button key={p.id} onClick={()=>{setPatientId(p.id);setPatientSearch("");}} className={`w-full text-left px-3 py-2 rounded-lg border text-xs ${patientId===p.id?"border-[#c2183a] bg-red-50":""}`}>{p.name} · {p.age} yrs · {p.phone}</button>)}</div></>}
       </section>
-      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">Document scanner + OCR</h3><p className="text-[11px] text-gray-500 mt-1">Upload a PDF/document or take a clear photo of a discharge summary, prescription, referral or report. Text PDFs are extracted directly; image/scanned documents use server OCR with a bounded runtime.</p><input id="clinical-document-upload" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f);e.currentTarget.value=""}} className="sr-only"/>
+      <section className="bg-white border rounded-xl p-3"><h3 className="font-semibold text-sm">Document scanner + OCR</h3><p className="text-[11px] text-gray-500 mt-1">Upload a PDF/document or take a clear photo. Text PDFs extract directly. Photos use server OCR, then on-device OCR if the server cannot complete.</p><input id="clinical-document-upload" type="file" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f);e.currentTarget.value=""}} className="sr-only"/>
         <input id="clinical-document-camera" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f)scan(f);e.currentTarget.value=""}} className="sr-only"/>
         <div className="grid grid-cols-2 gap-2 mt-3">
           <label htmlFor="clinical-document-upload" className="h-11 rounded-lg bg-[#c2183a] text-white text-xs font-semibold flex items-center justify-center cursor-pointer">Upload PDF / file</label>
           <label htmlFor="clinical-document-camera" className="h-11 rounded-lg border border-[#c2183a] text-[#c2183a] text-xs font-semibold flex items-center justify-center cursor-pointer">Take photo</label>
         </div>
-        <p className="text-[10px] text-gray-500 mt-2">Upload accepts PDF, JPG, PNG and WebP. Take photo uses your camera on supported phones/tablets.</p>
+        <p className="text-[10px] text-gray-500 mt-2">Upload accepts PDF, JPG, PNG and WebP (not HEIC). On iPad, export photos as JPG if needed.</p>
         {scanBusy && <p className="text-xs text-gray-600 mt-2" role="status">{scanStatus || "Working…"}</p>}
         {!scanBusy && scanStatus && <p className="text-xs text-green-700 mt-2" role="status">{scanStatus}{scanConfidence !== null ? ` OCR confidence: ${Math.round(scanConfidence)}%.` : ""}</p>}
         {!scanBusy && error && <p className="text-xs text-red-600 mt-2" role="alert">{error}</p>}
@@ -282,7 +319,7 @@ export default function ClinicalAssistPage() {
           <details className="mt-2" open>
             <summary className="text-xs font-medium">Review extracted OCR text</summary>
             <textarea value={scanText} onChange={e => setScanText(e.target.value)} className="w-full mt-2 min-h-36 border rounded-lg p-2 text-xs" />
-            <p className="text-[10px] text-gray-400 mt-1">The extracted text is only a drafting aid. Do not treat OCR confidence as clinical correctness. You can edit this text, then use Generate AI draft.</p>
+            <p className="text-[10px] text-gray-400 mt-1">Drafting aid only. Edit this text, then use Generate AI draft.</p>
           </details>
         )}
       </section>
