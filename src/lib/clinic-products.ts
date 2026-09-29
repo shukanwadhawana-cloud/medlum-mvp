@@ -58,7 +58,7 @@ export function ensureClinicProductTable() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
-    ).then(() => prisma.$executeRawUnsafe(`
+    `).then(() => prisma.$executeRawUnsafe(`
       ALTER TABLE "MedLumClinicSetup"
         ADD COLUMN IF NOT EXISTS "pilotEndsAt" TIMESTAMP(3),
         ADD COLUMN IF NOT EXISTS "pilotGraceDays" INTEGER NOT NULL DEFAULT 5,
