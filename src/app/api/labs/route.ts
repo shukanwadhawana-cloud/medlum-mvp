@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
   const orders = await prisma.labOrder.findMany({
-    where: patientId ? { patientId, patient: { clinicId } } : { patient: { clinicId } },
+    where: patientId\n      ? { patientId, patient: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] } }\n      : { patient: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] } },
     orderBy: { createdAt: "desc" },
     take: 150,
   });
@@ -118,7 +118,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid update" }, { status: 400 });
     }
     // Tenant isolation: order must belong to a patient in this clinic
-    const existing = await prisma.labOrder.findFirst({ where: { id, patient: { clinicId } } });
+    const existing = await prisma.labOrder.findFirst({\n      where: { id, patient: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] } },\n    });
     if (!existing) return NextResponse.json({ success: false, error: "Lab order not found" }, { status: 404 });
     if (status === "Reviewed") {
       if (existing.status === "Reviewed" || existing.status === "Completed") {
