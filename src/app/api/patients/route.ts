@@ -56,14 +56,35 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+  const view = String(url.searchParams.get("view") || "active").toLowerCase();
   const includeDischarged = url.searchParams.get("includeDischarged") === "1" || url.searchParams.get("includeDischarged") === "true";
   const includeDeleted = url.searchParams.get("includeDeleted") === "1";
   const where: any = { clinicId, ...(includeDeleted ? {} : { deletedAt: null }) };
   if (!q && !includeDischarged) where.NOT = { status: { in: ["DISCHARGED", "ARCHIVED"] } };
   else if (!includeDischarged) where.NOT = { status: "ARCHIVED" };
 
-  let patients = await prisma.patient.findMany({ where, orderBy: { createdAt: "desc" }, take: q ? 100 : 500 });
-  if (q) patients = patients.filter((p) => p.name.toLowerCase().includes(q) || (p.phone || "").toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.uhid || "").toLowerCase().includes(q) || (p.registrationNo || "").toLowerCase().includes(q));
+  // The patient index views must use the source clinical relationships rather than
+  // assuming every emergency/appointment patient is already present in the active census.
+  // This keeps active census filtering intact while allowing linked emergency and
+  // appointment records to be surfaced in their dedicated views.
+  if (view === "appointments") {
+    const appointmentPatients = await prisma.appointment.findMany({
+      where: { clinicId, status: { notIn: ["Cancelled", "No Show"] } },
+      select: { patientId: true },
+      distinct: ["patientId"],
+    });
+    where.id = { in: appointmentPatients.map((x) => x.patientId) };
+  } else if (view === "emergency") {
+    const emergencyPatients = await prisma.emergencyCase.findMany({
+      where: { clinicId, status: { notIn: ["Discharged", "Transferred"] }, patientId: { not: null } },
+      select: { patientId: true },
+      distinct: ["patientId"],
+    });
+    where.id = { in: emergencyPatients.map((x) => x.patientId as string) };
+  }
+
+  let patients = await prisma.patient.findMany({ where, orderBy: { createdAt: "desc" }, take: q ? 500 : 500 });
+  if (q) patients = patients.filter((p) => p.name.toLowerCase().includes(q) || (p.phone || "").toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.uhid || "").toLowerCase().includes(q) || (p.registrationNo || "").toLowerCase().includes(q) || (p.abhaNumber || "").toLowerCase().includes(q));
 
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
   const visible = membership.role === "Owner" ? patients : setup?.subscriptionModel === "OPD" ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD") : setup?.subscriptionModel === "IPD" ? patients.filter((p) => parseCareSetting(p.notes) === "IPD") : patients;
