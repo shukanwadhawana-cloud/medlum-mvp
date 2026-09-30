@@ -74,7 +74,7 @@ export async function GET(req: Request) {
   if (phone) searchAnd.push({ OR: [{ phone: { contains: phone.replace(/\\D/g, ""), mode: "insensitive" } }] });
   if (identifier) searchAnd.push({ OR: [{ id: { contains: identifier, mode: "insensitive" } }, { uhid: { contains: identifier, mode: "insensitive" } }, { registrationNo: { contains: identifier, mode: "insensitive" } }, { abhaNumber: { contains: identifier, mode: "insensitive" } }] });
   if (dateOfBirth) {
-    const normalizedDob = dateOfBirth.replace(/\\//g, "-");
+    const normalizedDob = dateOfBirth.replace(/\//g, "-");
     const dobOr: any[] = [{ notes: { contains: dateOfBirth, mode: "insensitive" } }];
     if (normalizedDob !== dateOfBirth) dobOr.push({ notes: { contains: normalizedDob, mode: "insensitive" } });
     searchAnd.push({ OR: dobOr });
@@ -88,7 +88,7 @@ export async function GET(req: Request) {
   // appointment records to be surfaced in their dedicated views.
   if (view === "appointments") {
     const appointmentPatients = await prisma.appointment.findMany({
-      where: { clinicId, status: { notIn: ["Cancelled", "No Show"] } },
+      where: { doctor: { clinicMemberships: { some: { clinicId, isActive: true } } }, status: { notIn: ["Cancelled", "No Show"] } },
       select: { patientId: true },
       distinct: ["patientId"],
     });
