@@ -71,7 +71,7 @@ export async function GET(req: Request) {
   const phone = (url.searchParams.get("phone") || "").trim();
   const identifier = (url.searchParams.get("identifier") || "").trim();
   if (name) searchAnd.push({ OR: [{ name: { contains: name, mode: "insensitive" } }] });
-  if (phone) searchAnd.push({ OR: [{ phone: { contains: phone.replace(/\\D/g, ""), mode: "insensitive" } }] });
+  if (phone) searchAnd.push({ OR: [{ phone: { contains: phone.replace(/\D/g, ""), mode: "insensitive" } }] });
   if (identifier) searchAnd.push({ OR: [{ id: { contains: identifier, mode: "insensitive" } }, { uhid: { contains: identifier, mode: "insensitive" } }, { registrationNo: { contains: identifier, mode: "insensitive" } }, { abhaNumber: { contains: identifier, mode: "insensitive" } }] });
   if (dateOfBirth) {
     const normalizedDob = dateOfBirth.replace(/\//g, "-");
