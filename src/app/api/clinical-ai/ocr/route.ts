@@ -3,6 +3,8 @@ import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
 import { extractClinicalOcrText } from "@/lib/clinical-ocr";
+import { callPrivateOcrService, isOcrServiceConfigured } from "@/lib/ocr-service-client";
+import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -111,6 +113,42 @@ export async function POST(req: Request) {
     if (mime === "image/webp" && !looksLikeWebp(bytes))
       return fail("The selected WebP is not a valid WebP image.");
 
+    const requestId = randomUUID();
+    const filename = String(file.name || "document");
+
+    // Prefer private self-hosted PaddleOCR (Render/Docker). No third-party OCR SaaS.
+    if (isOcrServiceConfigured()) {
+      const remote = await callPrivateOcrService({
+        bytes,
+        mime,
+        filename,
+        requestId,
+        clinicId: membership.clinicId,
+      });
+      if (remote.status === "UNSUPPORTED") {
+        return fail(remote.errorMessage || "Unsupported document type for OCR.", 415);
+      }
+      if (!remote.text.trim() && remote.status !== "LOW_CONFIDENCE") {
+        return fail(
+          remote.errorMessage ||
+            "Document OCR could not be completed. Try a clearer PDF or image, or retry later."
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        requestId: remote.requestId,
+        status: remote.status,
+        text: remote.text.slice(0, 20_000),
+        truncated: remote.text.length > 20_000,
+        pageCount: remote.pageCount,
+        pages: remote.pages,
+        engine: "paddleocr-private",
+        source: "ocr-service",
+        disclaimer:
+          "OCR output is a drafting aid. Verify the source document and extracted text before saving or acting clinically.",
+      });
+    }
+
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("OCR_TIMEOUT")), 55_000);
     });
@@ -137,7 +175,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("clinical OCR error", msg);
+    console.error("clinical OCR error", msg.slice(0, 200));
     if (msg === "OCR_TIMEOUT") {
       return fail(
         "OCR is taking too long on this document. Try a clearer photo, a smaller PDF, or a text-based PDF.",
@@ -156,7 +194,6 @@ export async function POST(req: Request) {
           success: false,
           error: "Server OCR is unavailable on this deployment. Retrying on your device…",
           code: "OCR_SERVER_UNAVAILABLE",
-          detail: msg.slice(0, 200),
         },
         { status: 503 }
       );
@@ -166,7 +203,6 @@ export async function POST(req: Request) {
         success: false,
         error: "Document OCR could not be completed. Try a clearer PDF or image, or a different file.",
         code: "OCR_FAILED",
-        detail: msg.slice(0, 200),
       },
       { status: 422 }
     );
