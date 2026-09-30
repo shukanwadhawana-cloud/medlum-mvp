@@ -2,19 +2,26 @@
 
 Self-hosted OCR for Clinical Assist. Patient documents must not leave MedLum infrastructure.
 
-## Deploy (Render or equivalent)
+## Deploy on Vercel (preferred)
 
-- Docker image built from this directory
-- Env: `OCR_SERVICE_SECRET` (shared with Next.js `OCR_SERVICE_SECRET`)
-- Resources: **minimum 2 GB RAM, 1 vCPU** for CPU inference; **4 GB recommended** for multi-page PDFs
+- File: `Dockerfile.vercel` (listens on `$PORT`)
+- Project: isolated `medlum-ocr` (do not replace the main Next.js app)
+- Env: `OCR_SERVICE_SECRET` (shared with MedLum `OCR_SERVICE_SECRET`)
 - Health: `GET /health`
-- OCR: `POST /v1/ocr` multipart (`file`, `requestId`, `clinicId`) + `Authorization: Bearer <secret>`
+- OCR: `POST /v1/ocr` multipart + `Authorization: Bearer <secret>`
+- Resources: high memory (PaddleOCR models); allow long `maxDuration` (up to platform limit)
 
-## App env
+## Deploy on Render (alternative)
+
+- Docker: `Dockerfile`
+- Env: `OCR_SERVICE_SECRET`, `OCR_MAX_BYTES`, `OCR_MAX_PAGES`
+- Health: `/health`
+
+## MedLum app env
 
 ```
-OCR_SERVICE_URL=https://<your-ocr-host>
+OCR_SERVICE_URL=https://<ocr-host>
 OCR_SERVICE_SECRET=<shared-secret>
 ```
 
-When `OCR_SERVICE_URL` is set, Clinical Assist uses this service instead of in-process Tesseract on Vercel.
+Clinical Assist uses this service only (no Tesseract fallback). Lab OCR remains independent.
