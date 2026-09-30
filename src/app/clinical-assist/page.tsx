@@ -240,7 +240,20 @@ export default function ClinicalAssistPage() {
         {!scanBusy && scanStatus && <p className="text-xs text-green-700 mt-2" role="status">{scanStatus}{scanConfidence !== null ? ` OCR confidence: ${Math.round(scanConfidence)}%.` : ""}</p>}
         {scanText && (<details className="mt-2" open><summary className="text-xs font-medium">Review extracted OCR text</summary><textarea value={scanText} onChange={e=>setScanText(e.target.value)} className="mt-1 w-full min-h-[120px] border rounded-lg p-2 text-xs" /></details>)}
       </section>
-      <ClinicalAiDraftPanel patientId={patientId||undefined} sourceText={scanText||form.clinicalNotes} onApply={applyAiDraft} />
+      <ClinicalAiDraftPanel
+        patientId={patientId||undefined}
+        patientName={form.name}
+        age={form.age}
+        gender={form.gender}
+        allergies={form.allergies}
+        chiefComplaint={form.chiefComplaint}
+        clinicalNotes={scanText||form.clinicalNotes}
+        diagnosis={form.diagnosis}
+        assessment={form.assessment}
+        plan={form.plan}
+        bp={form.bp}
+        onApply={applyAiDraft}
+      />
       <section className="bg-white border rounded-xl p-3 space-y-2"><h3 className="font-semibold text-sm">Clinical note</h3>
         {(["chiefComplaint","clinicalNotes","diagnosis","assessment","plan","medicines","advice"] as Field[]).map(field=>(
           <div key={field}><div className="flex items-center justify-between"><label className="text-xs font-medium capitalize">{field.replace(/([A-Z])/g," $1")}</label><div className="flex gap-1"><button type="button" onClick={()=>toggleVoice(field)} className="text-[10px] px-2 py-1 border rounded">{voiceField===field?"Stop":"Dictate"}</button><button type="button" onClick={()=>applyTerminology(field)} className="text-[10px] px-2 py-1 border rounded">Normalize</button></div></div><textarea value={form[field]} onChange={e=>setField(field,e.target.value)} className="w-full min-h-[64px] border rounded-lg p-2 text-sm" /></div>
