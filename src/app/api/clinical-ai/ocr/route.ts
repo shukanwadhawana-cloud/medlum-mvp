@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
-import { extractClinicalOcrText } from "@/lib/clinical-ocr";
 import { callPrivateOcrService, isOcrServiceConfigured } from "@/lib/ocr-service-client";
 import { randomUUID } from "crypto";
 
@@ -116,60 +115,55 @@ export async function POST(req: Request) {
     const requestId = randomUUID();
     const filename = String(file.name || "document");
 
-    // Prefer private self-hosted PaddleOCR (Render/Docker). No third-party OCR SaaS.
-    if (isOcrServiceConfigured()) {
-      const remote = await callPrivateOcrService({
-        bytes,
-        mime,
-        filename,
-        requestId,
-        clinicId: membership.clinicId,
-      });
-      if (remote.status === "UNSUPPORTED") {
-        return fail(remote.errorMessage || "Unsupported document type for OCR.", 415);
-      }
-      if (!remote.text.trim() && remote.status !== "LOW_CONFIDENCE") {
-        return fail(
-          remote.errorMessage ||
-            "Document OCR could not be completed. Try a clearer PDF or image, or retry later."
-        );
-      }
-      return NextResponse.json({
-        success: true,
-        requestId: remote.requestId,
-        status: remote.status,
-        text: remote.text.slice(0, 20_000),
-        truncated: remote.text.length > 20_000,
-        pageCount: remote.pageCount,
-        pages: remote.pages,
-        engine: "paddleocr-private",
-        source: "ocr-service",
-        disclaimer:
-          "OCR output is a drafting aid. Verify the source document and extracted text before saving or acting clinically.",
-      });
-    }
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("OCR_TIMEOUT")), 55_000);
-    });
-    const extracted = await Promise.race([extractClinicalOcrText(bytes, mime), timeoutPromise]);
-    if (!extracted.text.trim()) {
-      return fail(
-        "OCR completed but no readable text was detected. Try a higher-contrast scan or a text-based PDF.",
-        422
+    // Production Clinical Assist OCR: private PaddleOCR only. No Tesseract/Vercel fallback.
+    if (!isOcrServiceConfigured()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Document OCR is temporarily unavailable. The private OCR service is not configured.",
+          code: "OCR_SERVICE_UNCONFIGURED",
+        },
+        { status: 503 }
       );
     }
 
+    const remote = await callPrivateOcrService({
+      bytes,
+      mime,
+      filename,
+      requestId,
+      clinicId: membership.clinicId,
+    });
+    if (remote.status === "UNSUPPORTED") {
+      return fail(remote.errorMessage || "Unsupported document type for OCR.", 415);
+    }
+    if (remote.errorCode === "OCR_SERVICE_UNAVAILABLE" || remote.errorCode === "OCR_TIMEOUT") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: remote.errorMessage || "Document OCR is temporarily unavailable. Please retry shortly.",
+          code: remote.errorCode,
+          requestId: remote.requestId,
+        },
+        { status: remote.errorCode === "OCR_TIMEOUT" ? 504 : 503 }
+      );
+    }
+    if (!remote.text.trim() && remote.status !== "LOW_CONFIDENCE") {
+      return fail(
+        remote.errorMessage ||
+          "Document OCR could not be completed. Try a clearer PDF or image, or retry later."
+      );
+    }
     return NextResponse.json({
       success: true,
-      text: extracted.text.slice(0, 20_000),
-      truncated: extracted.text.length > 20_000,
-      source: "server",
-      method: extracted.method,
-      confidence: extracted.confidence,
-      pageLimitReached: Boolean(extracted.pageLimitReached),
-      mime,
-      status: "DRAFT",
+      requestId: remote.requestId,
+      status: remote.status,
+      text: remote.text.slice(0, 20_000),
+      truncated: remote.text.length > 20_000,
+      pageCount: remote.pageCount,
+      pages: remote.pages,
+      engine: "paddleocr-private",
+      source: "ocr-service",
       disclaimer:
         "OCR output is a drafting aid. Verify the source document and extracted text before saving or acting clinically.",
     });
@@ -187,16 +181,6 @@ export async function POST(req: Request) {
     }
     if (/Unsupported document type|HEIC|HEIF/i.test(msg)) {
       return fail("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image (not HEIC).");
-    }
-    if (/Cannot find module|worker|wasm|ENOENT|network|fetch/i.test(msg)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Server OCR is unavailable on this deployment. Retrying on your device…",
-          code: "OCR_SERVER_UNAVAILABLE",
-        },
-        { status: 503 }
-      );
     }
     return NextResponse.json(
       {
