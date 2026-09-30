@@ -70,7 +70,15 @@ export async function GET() {
   ]);
   const dispensingByPrescriptionId = new Map(dispensings.map((d) => [d.prescriptionId, d]));
   const notesMap = new Map<string, unknown[]>();
-  for (const n of clinicalNotes) { const arr = notesMap.get(n.patientId) || []; arr.push(n); notesMap.set(n.patientId, arr); }
+  for (const n of clinicalNotes) {
+    const arr = notesMap.get(n.patientId) || [];
+    arr.push({
+      ...n,
+      authorName:n.author?.name||"Clinician",
+      verifierName:n.verifier?.name||null,
+    });
+    notesMap.set(n.patientId, arr);
+  }
   const vitalsMap = new Map<string, unknown>();
   for (const l of logs) {
     if (l.entity !== "NursingVital") continue;
@@ -185,7 +193,7 @@ export async function POST(req: Request) {
       if (allergyUpdate) await prisma.patient.update({ where: { id: patientId }, data: { allergies: allergyUpdate } });
       await writeAudit({
         doctorId: session.doctorId, action: "create", entity: "ClinicalNote", entityId: patientId,
-        meta: { noteType, title: String(body.title || noteType), content, authorRole: String(body.authorRole || actorRole), status: body.submit ? "Pending Verification" : "Open", clinicId },
+        meta: { noteType, title: String(body.title || noteType), content, authorRole: String(body.authorRole || actorRole), status:submit?"PENDING_VERIFICATION":"DRAFT", clinicId, atIst:istIsoLabel(new Date()) },
       });
       return NextResponse.json({ success: true });
     }
