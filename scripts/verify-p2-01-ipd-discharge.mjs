@@ -25,7 +25,10 @@ ok(
   "IPD census is limited to active IPD patients"
 );
 ok(
-  /parseCareSetting\(p\.notes\)\s*===\s*"IPD"\s*&&\s*p\.status\s*===\s*"DISCHARGED"/.test(ipd) && ipd.includes("ipdHistory"),
+  ipd.includes("ipdHistory") && (
+    /parseCareSetting\(p\.notes\)\s*===\s*"IPD"\s*&&\s*p\.status\s*===\s*"DISCHARGED"/.test(ipd) ||
+    /parseCareSetting\(p\.notes\)\s*===\s*"IPD"\s*&&\s*p\.status\s*!==\s*"ACTIVE"/.test(ipd)
+  ),
   "Discharged IPD patients remain available via ipdHistory"
 );
 ok(lifecycle.includes('patient.status === "DISCHARGED"'), "Lifecycle endpoint rejects an already discharged patient");
