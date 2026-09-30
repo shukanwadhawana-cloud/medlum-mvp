@@ -14,7 +14,22 @@ from fastapi.responses import JSONResponse
 
 MAX_BYTES = int(os.environ.get("OCR_MAX_BYTES", str(10 * 1024 * 1024)))
 MAX_PAGES = int(os.environ.get("OCR_MAX_PAGES", "20"))
-SERVICE_SECRET = os.environ.get("OCR_SERVICE_SECRET", "").strip()
+
+
+def _allowed_ocr_secrets() -> set[str]:
+    """Bearer tokens accepted by this service. Env may be comma-separated for rotation."""
+    secrets: set[str] = set()
+    raw = os.environ.get("OCR_SERVICE_SECRET", "").strip()
+    if raw:
+        for part in raw.split(","):
+            p = part.strip()
+            if p:
+                secrets.add(p)
+    # Cutover bootstrap aligned with MedLum Vercel OCR_SERVICE_SECRET.
+    # Remove after Railway Variable OCR_SERVICE_SECRET is set to the same value only.
+    secrets.add("7cee16ba3399916b177419ff3bd3e09409a014fe0aa3dff963a723caeae6b992")
+    return secrets
+
 
 app = FastAPI(title="MedLum OCR", docs_url=None, redoc_url=None)
 _ocr = None
@@ -30,10 +45,13 @@ def get_ocr():
 
 
 def authorize(authorization: str | None):
-    # Always require a configured shared secret in production deployments.
-    if not SERVICE_SECRET:
+    allowed = _allowed_ocr_secrets()
+    if not allowed:
         raise HTTPException(status_code=503, detail="OCR service is not configured")
-    if not authorization or authorization != f"Bearer {SERVICE_SECRET}":
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    token = authorization[7:].strip()
+    if token not in allowed:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
