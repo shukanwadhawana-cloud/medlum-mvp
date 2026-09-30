@@ -1,14 +1,16 @@
 services:
   - type: web
-    name: medlum-mvp
+    name: medlum-ocr
     runtime: docker
-    plan: free
-    autoDeploy: true
-    healthCheckPath: /api/health
+    dockerfilePath: ./services/ocr/Dockerfile
+    dockerContext: ./services/ocr
+    plan: standard
+    region: singapore
+    healthCheckPath: /health
     envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: SESSION_SECRET
-        sync: false
-      - key: MEDLUM_APP_URL
-        sync: false
+      - key: OCR_SERVICE_SECRET
+        generateValue: true
+      - key: OCR_MAX_BYTES
+        value: "10485760"
+      - key: OCR_MAX_PAGES
+        value: "20"
