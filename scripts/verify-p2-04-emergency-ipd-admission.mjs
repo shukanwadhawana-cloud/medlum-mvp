@@ -32,7 +32,7 @@ assert(page.includes("Admit to IPD"),"P2-04 UI action missing");
 assert(page.includes('window.confirm("Admit this existing patient to IPD?'),"P2-04 admission must require explicit confirmation");
 assert(page.includes('action:"admit-to-ipd"'),"P2-04 UI must call the explicit admission action");
 assert(!page.includes("Coming Soon"),"P2-04 must not add placeholder UI");
-assert(ipd.includes('parseCareSetting(p.notes)==="IPD"&&p.status==="ACTIVE"'),"P2-04 must feed the existing active IPD census");
+assert(/parseCareSetting\(p\.notes\)\s*===\s*"IPD"\s*&&\s*p\.status\s*===\s*"ACTIVE"/.test(ipd),"P2-04 must feed the existing active IPD census");
 assert(p201.includes("P2-01"),"P2-01 regression script must remain present");
 assert(p202.includes("P2-02"),"P2-02 regression script must remain present");
 assert(p203.includes("P2-03"),"P2-03 regression script must remain present");
