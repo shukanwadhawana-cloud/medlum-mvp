@@ -30,8 +30,9 @@ def get_ocr():
 
 
 def authorize(authorization: str | None):
+    # Always require a configured shared secret in production deployments.
     if not SERVICE_SECRET:
-        return
+        raise HTTPException(status_code=503, detail="OCR service is not configured")
     if not authorization or authorization != f"Bearer {SERVICE_SECRET}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
