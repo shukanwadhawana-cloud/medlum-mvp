@@ -69,7 +69,7 @@ export async function GET(req: Request) {
   // appointment records to be surfaced in their dedicated views.
   if (view === "appointments") {
     const appointmentPatients = await prisma.appointment.findMany({
-      where: { clinicId, status: { notIn: ["Cancelled", "No Show"] } },
+      where: { patient: { clinicId }, status: { notIn: ["Cancelled", "No Show"] } },
       select: { patientId: true },
       distinct: ["patientId"],
     });
