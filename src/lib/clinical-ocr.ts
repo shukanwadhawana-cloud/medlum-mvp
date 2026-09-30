@@ -40,8 +40,6 @@ async function preprocessForOcr(data: Buffer): Promise<Buffer> {
 
 async function ocrImage(data: Buffer): Promise<{ text: string; confidence: number }> {
   const { createWorker } = await import("tesseract.js");
-  // Do NOT set workerPath — custom paths break on Vercel serverless.
-  // Lang data caches under /tmp (writable on Vercel).
   const worker = await createWorker("eng", 1, {
     cachePath: "/tmp/medlum-tessdata",
     cacheMethod: "write",
@@ -98,17 +96,23 @@ async function extractPdf(data: Buffer): Promise<ClinicalOcrResult> {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
-      textParts.push(content.items.map((item: { str?: string }) => item.str || "").join(" "));
+      textParts.push(
+        content.items
+          .map((item: unknown) =>
+            typeof item === "object" && item && "str" in item
+              ? String((item as { str?: string }).str || "")
+              : ""
+          )
+          .join(" ")
+      );
       page.cleanup();
     }
 
     const textLayer = textParts.join("\n").replace(/\s+/g, " ").trim();
-    // Prefer embedded text — no OCR needed (reliable on Vercel).
     if (textLayer.length >= 20) {
       return { text: textParts.join("\n").trim(), confidence: null, method: "pdf-text" };
     }
 
-    // Scanned PDF: rasterize first pages and OCR
     const { createCanvas } = await import("@napi-rs/canvas");
     class NodeCanvasFactory {
       create(width: number, height: number) {
@@ -177,7 +181,6 @@ export async function extractClinicalOcrText(data: Buffer, mimeType: string): Pr
     const result = await ocrImage(data);
     return { text: result.text, confidence: result.confidence, method: "image-ocr" };
   }
-  // Sniff if mime missing
   if (!mime && data.length > 8) {
     const sig = data.subarray(0, 4).toString("hex");
     if (sig.startsWith("25504446")) return extractPdf(data);

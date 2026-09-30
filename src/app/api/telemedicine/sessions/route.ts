@@ -67,29 +67,34 @@ export async function POST(req: Request) {
     const body = await req.json();
     const sessionKind = body.sessionKind === "peer" ? "peer" : "patient";
     const peerLabel = typeof body.peerLabel === "string" ? body.peerLabel.trim().slice(0, 120) : null;
-    const patientId = typeof body.patientId === "string" ? body.patientId.trim() : "";
+    const patientIdRaw = typeof body.patientId === "string" ? body.patientId.trim() : "";
     const appointmentId = typeof body.appointmentId === "string" ? body.appointmentId.trim() : null;
     const scheduledAtRaw = body.scheduledAt;
     const expiresAtRaw = body.expiresAt;
 
-    if (sessionKind === "patient" && !patientId) {
+    if (sessionKind === "patient" && !patientIdRaw) {
       return NextResponse.json({ success: false, error: "patientId is required for patient sessions." }, { status: 400 });
     }
 
     const membership = await requireActiveClinicMembership(session.doctorId);
-    const clinicIdForDoctor = membership?.clinicId || null;
+    if (!membership) {
+      return NextResponse.json({ success: false, error: "No active clinic membership." }, { status: 403 });
+    }
+    const clinicIdForDoctor = membership.clinicId || null;
 
     let patientClinicId: string | null = null;
+    let patientName: string | undefined;
     if (sessionKind === "patient") {
-      const patient = await findAuthorizedPatient(session.doctorId, patientId);
+      const patient = await findAuthorizedPatient(membership, patientIdRaw);
       if (!patient) {
         return NextResponse.json({ success: false, error: "Patient not found in selected facility." }, { status: 404 });
       }
-      patientClinicId = (patient as { clinicId?: string | null }).clinicId || clinicIdForDoctor;
+      patientClinicId = patient.clinicId || clinicIdForDoctor;
+      patientName = patient.name;
 
       if (appointmentId) {
         const appt = await prisma.appointment.findFirst({
-          where: { id: appointmentId, doctorId: session.doctorId, patientId },
+          where: { id: appointmentId, doctorId: session.doctorId, patientId: patientIdRaw },
           select: { id: true },
         });
         if (!appt) {
@@ -97,11 +102,10 @@ export async function POST(req: Request) {
         }
       }
 
-      // Reuse an open session for the same patient when still valid
       const existing = await prisma.telemedicineSession.findFirst({
         where: {
           doctorId: session.doctorId,
-          patientId,
+          patientId: patientIdRaw,
           status: { in: ["Scheduled", "Waiting", "Active"] },
           OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         },
@@ -113,7 +117,7 @@ export async function POST(req: Request) {
           {
             success: true,
             session: existing,
-            patientName: (patient as { name?: string }).name,
+            patientName,
             sessionKind: "patient",
             reused: true,
           },
@@ -139,7 +143,7 @@ export async function POST(req: Request) {
     const created = await prisma.telemedicineSession.create({
       data: {
         doctorId: session.doctorId,
-        patientId: sessionKind === "patient" ? patientId : null,
+        patientId: sessionKind === "patient" ? patientIdRaw : null,
         appointmentId: sessionKind === "patient" ? appointmentId : null,
         clinicId: patientClinicId || clinicIdForDoctor,
         sessionKind,
@@ -175,6 +179,7 @@ export async function POST(req: Request) {
         session: created,
         joinToken,
         sessionKind,
+        patientName,
       },
       { status: 201 }
     );
