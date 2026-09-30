@@ -6,7 +6,7 @@ import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientPr
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { normalizeClinicRole } from "@/lib/clinic-auth";
 
-// IPD API: census, registration, lab orders, allergies, clinical notes, vitals.
+// IPD API: census, registration, labs, notes, vitals, room directory, bed transfer.
 // Discharge finalization uses /api/patients/lifecycle (status DISCHARGED).
 
 function metaOf(l: { meta?: string | null }) {
@@ -277,6 +277,34 @@ export async function POST(req: Request) {
         },
       });
       return NextResponse.json({ success: true });
+    }
+
+    if(action==="room"){const roomNumber=String(body.roomNumber||"").trim();if(!roomNumber)return NextResponse.json({success:false,error:"Room number required"},{status:400});const existingRooms=await prisma.auditLog.findMany({where:{doctorId:{in:(await prisma.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}})).map(x=>x.doctorId)},entity:"HospitalRoom"},orderBy:{createdAt:"desc"},take:3000});if(existingRooms.some(l=>{const m=metaOf(l);return String(m.clinicId||"")===String(clinicId||"")&&String(m.roomNumber||"").trim()===roomNumber;}))return NextResponse.json({success:false,error:"Room already exists in this clinic."},{status:409});await writeAudit({doctorId:session.doctorId,action:"create",entity:"HospitalRoom",entityId:crypto.randomUUID(),meta:{roomNumber,roomCategory:String(body.roomCategory||"General Ward"),unitType:String(body.unitType||"Ward"),clinicId}});return NextResponse.json({success:true});}
+
+    if(action==="room-transfer"){
+      const patientId=String(body.patientId||"");
+      const roomNumber=String(body.roomNumber||"").trim();
+      if(!patientId||!roomNumber)return NextResponse.json({success:false,error:"Patient and destination room are required"},{status:400});
+      const result=await prisma.$transaction(async tx=>{
+        const patient=await tx.patient.findFirst({where:clinicId?{id:patientId,clinicId}:{id:patientId,doctorId:session.doctorId}});
+        if(!patient)return {status:404,body:{success:false,error:"Patient not found in this clinic."}};
+        if(patient.status!=="ACTIVE"||parseCareSetting(patient.notes)!=="IPD")return {status:409,body:{success:false,error:"Only an active IPD patient can be assigned or transferred."}};
+        const profile=parsePatientProfile(patient.notes);
+        const currentRoom=String(profile.roomNumber||"").trim();
+        if(currentRoom===roomNumber)return {status:409,body:{success:false,error:"Patient is already assigned to this room."}};
+        const members=await tx.clinicMember.findMany({where:{clinicId:clinicId||undefined,isActive:true},select:{doctorId:true}});
+        const roomLogs=await tx.auditLog.findMany({where:{doctorId:{in:members.map(x=>x.doctorId)},entity:"HospitalRoom"},orderBy:{createdAt:"desc"},take:3000});
+        const roomExists=roomLogs.some(l=>{const m=metaOf(l);return String(m.clinicId||"")===String(clinicId||"")&&String(m.roomNumber||"").trim()===roomNumber;});
+        if(!roomExists)return {status:404,body:{success:false,error:"Destination room is not in the hospital directory."}};
+        const occupied=await tx.patient.findMany({where:{clinicId:clinicId||undefined,status:"ACTIVE",deletedAt:null},select:{id:true,notes:true}});
+        const occupiedByOther=occupied.some(p=>p.id!==patientId&&parseCareSetting(p.notes)==="IPD"&&String(parsePatientProfile(p.notes).roomNumber||"").trim()===roomNumber);
+        if(occupiedByOther)return {status:409,body:{success:false,error:"Destination room is already occupied by another active IPD patient."}};
+        const nextProfile={...profile,roomNumber};
+        await tx.patient.update({where:{id:patientId},data:{notes:encodePatientNotes(cleanPatientNotes(patient.notes),parseCareSetting(patient.notes),nextProfile)}});
+        const audit=await tx.auditLog.create({data:{doctorId:session.doctorId,action:"transfer",entity:"HospitalRoom",entityId:patientId,meta:JSON.stringify({clinicId,patientId,fromRoom:currentRoom||null,toRoom:roomNumber,actorRole})}});
+        return {status:200,body:{success:true,patientId,fromRoom:currentRoom||null,toRoom:roomNumber,auditId:audit.id}};
+      },{isolationLevel:"Serializable"});
+      return NextResponse.json(result.body,{status:result.status});
     }
 
     return NextResponse.json({ success: false, error: "Unknown action" }, { status: 400 });
