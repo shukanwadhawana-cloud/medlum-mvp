@@ -6,8 +6,8 @@ import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientPr
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { normalizeClinicRole } from "@/lib/clinic-auth";
 
-// Temporary bridge: full route restored in subsequent parallel push if truncated.
-// CRITICAL PATHS inlined below for lab-order and allergies.
+// IPD API: census, registration, lab orders, allergies, clinical notes, vitals.
+// Discharge finalization uses /api/patients/lifecycle (status DISCHARGED).
 
 function metaOf(l: { meta?: string | null }) {
   try { return l.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
@@ -17,6 +17,45 @@ async function getPatient(patientId: string, doctorId: string, clinicId: string 
     return prisma.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
   }
   return prisma.patient.findFirst({ where: { id: patientId, doctorId, deletedAt: null } });
+}
+
+function mapIpdPatient(
+  p: {
+    id: string;
+    name: string;
+    age: number;
+    gender: string;
+    phone: string;
+    allergies: string;
+    status: string;
+    notes: string;
+  },
+  vitalsMap: Map<string, unknown>,
+  notesMap: Map<string, unknown[]>,
+  labOrders: { patientId: string }[],
+  diagnosticOrders: { patientId: string }[],
+  prescriptions: { patientId: string }[],
+  encounters: { patientId: string }[]
+) {
+  const profile = parsePatientProfile(p.notes);
+  const latest = vitalsMap.get(p.id) || null;
+  return {
+    id: p.id,
+    name: p.name,
+    age: p.age,
+    gender: p.gender,
+    phone: p.phone,
+    allergies: p.allergies,
+    status: p.status,
+    notes: cleanPatientNotes(p.notes),
+    ...profile,
+    vitals: latest,
+    clinicalNotes: notesMap.get(p.id) || [],
+    labOrders: labOrders.filter((l) => l.patientId === p.id),
+    diagnosticOrders: diagnosticOrders.filter((d) => d.patientId === p.id),
+    prescriptions: prescriptions.filter((r) => r.patientId === p.id),
+    encounters: encounters.filter((e) => e.patientId === p.id),
+  };
 }
 
 export async function GET() {
@@ -29,7 +68,10 @@ export async function GET() {
     ? (await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } })).map((x) => x.doctorId)
     : [session.doctorId];
   const patients = await prisma.patient.findMany({
-    where: clinicId ? { clinicId, doctorId: { in: doctorIds } } : { doctorId: { in: doctorIds } },
+    where: {
+      deletedAt: null,
+      ...(clinicId ? { clinicId, doctorId: { in: doctorIds } } : { doctorId: { in: doctorIds } }),
+    },
     orderBy: { createdAt: "desc" },
   });
   const patientIds = patients.map((p) => p.id);
@@ -41,13 +83,13 @@ export async function GET() {
     prisma.diagnosticOrder.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.clinicalNote.findMany({ where: { patientId: { in: patientIds }, clinicId: clinicId || undefined }, include: { author: { select: { id: true, name: true } }, verifier: { select: { id: true, name: true } } }, orderBy: { createdAt: "desc" } }),
   ]);
-  const notesMap = new Map<string, any[]>();
+  const notesMap = new Map<string, unknown[]>();
   for (const n of clinicalNotes) {
     const arr = notesMap.get(n.patientId) || [];
     arr.push(n);
     notesMap.set(n.patientId, arr);
   }
-  const vitalsMap = new Map<string, any>();
+  const vitalsMap = new Map<string, unknown>();
   for (const l of logs) {
     if (l.entity !== "NursingVital") continue;
     const m = metaOf(l);
@@ -55,28 +97,12 @@ export async function GET() {
     vitalsMap.set(l.entityId, m);
   }
   const result = patients
-    .filter((p) => parseCareSetting(p.notes) === "IPD")
-    .map((p) => {
-      const profile = parsePatientProfile(p.notes);
-      const latest = vitalsMap.get(p.id) || null;
-      return {
-        id: p.id,
-        name: p.name,
-        age: p.age,
-        gender: p.gender,
-        phone: p.phone,
-        allergies: p.allergies,
-        notes: cleanPatientNotes(p.notes),
-        ...profile,
-        vitals: latest,
-        clinicalNotes: notesMap.get(p.id) || [],
-        labOrders: labOrders.filter((l) => l.patientId === p.id),
-        diagnosticOrders: diagnosticOrders.filter((d) => d.patientId === p.id),
-        prescriptions: prescriptions.filter((r) => r.patientId === p.id),
-        encounters: encounters.filter((e) => e.patientId === p.id),
-      };
-    });
-  return NextResponse.json({ patients: result });
+    .filter((p) => parseCareSetting(p.notes) === "IPD" && p.status === "ACTIVE")
+    .map((p) => mapIpdPatient(p, vitalsMap, notesMap, labOrders, diagnosticOrders, prescriptions, encounters));
+  const ipdHistory = patients
+    .filter((p) => parseCareSetting(p.notes) === "IPD" && p.status === "DISCHARGED")
+    .map((p) => mapIpdPatient(p, vitalsMap, notesMap, labOrders, diagnosticOrders, prescriptions, encounters));
+  return NextResponse.json({ patients: result, ipdHistory });
 }
 
 export async function POST(req: Request) {
