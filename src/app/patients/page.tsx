@@ -31,11 +31,11 @@ export default function PatientsPage() {
   const [deepIp, setDeepIp] = useState("");
   const [quickSearch, setQuickSearch] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (searchParams = "") => {
     setLoading(true);
     setError("");
     try {
-      setPatients(await apiGetPatients());
+      setPatients(await apiGetPatients(searchParams));
     } catch (e: any) {
       setError(e?.message || "Could not load patients");
       setPatients([]);
@@ -47,6 +47,18 @@ export default function PatientsPage() {
   useEffect(() => {
     if (!authLoading && doctor) void load();
   }, [authLoading, doctor, load]);
+
+  const runDeepSearch = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set("includeDischarged", "1");
+    const name = deepName.trim();
+    const phone = deepPhone.trim();
+    const ip = deepIp.trim();
+    if (name) params.set("q", name);
+    else if (phone) params.set("q", phone);
+    else if (ip) params.set("q", ip);
+    void load(`?${params.toString()}`);
+  }, [deepName, deepPhone, deepIp, load]);
 
   const activeRows = useMemo(() => {
     const scoped = patients.filter((p) => {
@@ -87,7 +99,9 @@ export default function PatientsPage() {
     });
   }, [patients, view, deepName, deepPhone, deepIp, deepDob]);
 
-  const rows = view === "search" ? deepHits : activeRows;
+  const appointmentRows = useMemo(() => activeRows.filter((p) => Number(p.appointmentsCount || 0) > 0), [activeRows]);
+  const emergencyRows = useMemo(() => activeRows.filter((p) => Number(p.emergencyCaseCount || 0) > 0), [activeRows]);
+  const rows = view === "search" ? deepHits : view === "appointments" ? appointmentRows : view === "emergency" ? emergencyRows : activeRows;
 
   if (authLoading || !doctor)
     return (
@@ -140,7 +154,8 @@ export default function PatientsPage() {
               <input value={deepPhone} onChange={(e) => setDeepPhone(e.target.value)} placeholder="Phone No." className="h-10 rounded-lg border px-3 text-sm" />
               <input value={deepIp} onChange={(e) => setDeepIp(e.target.value)} placeholder="IP / UHID / Registration No." className="h-10 rounded-lg border px-3 text-sm" />
             </div>
-            <p className="text-[11px] text-gray-400">Discharged and historical patients appear here only when matched — not on the active census.</p>
+            <button type="button" onClick={runDeepSearch} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">Search records</button>
+            <p className="text-[11px] text-gray-400">Discharged and historical patients are searched from the server and remain off the active census.</p>
           </div>
         ) : (
           <input
