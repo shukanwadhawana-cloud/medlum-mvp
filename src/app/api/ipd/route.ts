@@ -29,7 +29,7 @@ function mapIpdPatient(
   notesMap: Map<string, unknown[]>,
   labOrders: { patientId: string }[],
   diagnosticOrders: { patientId: string }[],
-  prescriptions: { patientId: string }[],
+  prescriptions: { patientId: string; id: string }[],
   encounters: { patientId: string }[]
 ) {
   const profile = parsePatientProfile(p.notes);
@@ -59,14 +59,16 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
   const patientIds = patients.map((p) => p.id);
-  const [logs, encounters, prescriptions, labOrders, diagnosticOrders, clinicalNotes] = await Promise.all([
+  const [logs, encounters, prescriptions, dispensings, labOrders, diagnosticOrders, clinicalNotes] = await Promise.all([
     prisma.auditLog.findMany({ where: { doctorId: { in: doctorIds }, entity: { in: ["HospitalRoom", "ClinicalNote", "NursingVital"] } }, orderBy: { createdAt: "desc" }, take: 3000 }),
     prisma.encounter.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.prescription.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
+    prisma.dispensing.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.labOrder.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.diagnosticOrder.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.clinicalNote.findMany({ where: { patientId: { in: patientIds }, clinicId: clinicId || undefined }, include: { author: { select: { id: true, name: true } }, verifier: { select: { id: true, name: true } } }, orderBy: { createdAt: "desc" } }),
   ]);
+  const dispensingByPrescriptionId = new Map(dispensings.map((d) => [d.prescriptionId, d]));
   const notesMap = new Map<string, unknown[]>();
   for (const n of clinicalNotes) { const arr = notesMap.get(n.patientId) || []; arr.push(n); notesMap.set(n.patientId, arr); }
   const vitalsMap = new Map<string, unknown>();
@@ -76,8 +78,30 @@ export async function GET() {
     if (!l.entityId || vitalsMap.has(l.entityId)) continue;
     vitalsMap.set(l.entityId, m);
   }
-  const result = patients.filter((p) => parseCareSetting(p.notes) === "IPD" && p.status === "ACTIVE").map((p) => mapIpdPatient(p, vitalsMap, notesMap, labOrders, diagnosticOrders, prescriptions, encounters));
-  const ipdHistory = patients.filter((p) => parseCareSetting(p.notes) === "IPD" && p.status !== "ACTIVE").map((p) => mapIpdPatient(p, vitalsMap, notesMap, labOrders, diagnosticOrders, prescriptions, encounters));
+  const result = patients.filter((p) => parseCareSetting(p.notes) === "IPD" && p.status === "ACTIVE").map((p) => {
+    const mapped = mapIpdPatient(p, vitalsMap, notesMap, labOrders, diagnosticOrders, prescriptions, encounters);
+    return {
+      ...mapped,
+      prescriptions: mapped.prescriptions.map((r: { id: string }) => ({
+        ...r,
+        prescriptionId:r.id,
+        pharmacyStatus:dispensingByPrescriptionId.get(r.id)?.status||"Not sent to pharmacy",
+        dispensingId: dispensingByPrescriptionId.get(r.id)?.id || null,
+      })),
+    };
+  });
+  const ipdHistory = patients.filter((p) => parseCareSetting(p.notes) === "IPD" && p.status !== "ACTIVE").map((p) => {
+    const mapped = mapIpdPatient(p, vitalsMap, notesMap, labOrders, diagnosticOrders, prescriptions, encounters);
+    return {
+      ...mapped,
+      prescriptions: mapped.prescriptions.map((r: { id: string }) => ({
+        ...r,
+        prescriptionId:r.id,
+        pharmacyStatus:dispensingByPrescriptionId.get(r.id)?.status||"Not sent to pharmacy",
+        dispensingId: dispensingByPrescriptionId.get(r.id)?.id || null,
+      })),
+    };
+  });
   return NextResponse.json({ patients: result, ipdHistory });
 }
 
