@@ -6,8 +6,8 @@ import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientPr
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { normalizeClinicRole } from "@/lib/clinic-auth";
 
-function metaOf(l: { meta?: string | null }) {
-  try { return l.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
+function metaOf(l: { meta?: string | null } | null | undefined) {
+  try { return l?.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
 }
 async function getPatient(patientId: string, doctorId: string, clinicId: string | null) {
   if (clinicId) {
@@ -226,7 +226,7 @@ export async function POST(req: Request) {
           await tx.patient.update({where:{id:patientId},data:{updatedAt:new Date()}});
           const clinicDoctorIds=(await tx.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}})).map(m=>m.doctorId);
           const latest=await tx.auditLog.findFirst({where:{entity:"IPDHandover",entityId:patientId,doctorId:{in:clinicDoctorIds}},orderBy:{createdAt:"desc"}});
-          const latestMeta=metaOf(latest);
+          const latestMeta=metaOf(latest||{});
           if(String(latestMeta.receivingDoctorId||"")===receiving.doctorId)return {status:409,body:{success:false,error:"This patient is already handed over to the selected receiving clinician/team."}};
           const now=new Date();
           const audit=await tx.auditLog.create({data:{doctorId:session.doctorId,action:"HANDOVER",entity:"IPDHandover",entityId:patientId,meta:JSON.stringify({clinicId,patientId,receivingMemberId:receiving.id,receivingDoctorId:receiving.doctorId,receivingTeam:receiving.doctor.name,receivingRole,context,atIst:istIsoLabel(now)})}});
