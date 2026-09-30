@@ -12,7 +12,7 @@ function read(rel) {
 
 const helper = read("src/lib/telemedicine.ts");
 const sessions = read("src/app/api/telemedicine/sessions/route.ts");
-const join = read("src/app/api/telemedicine/join/route.ts");
+const joinRoute = read("src/app/api/telemedicine/join/route.ts");
 const workspace = read("src/app/telemedicine/[id]/page.tsx");
 const middleware = read("src/middleware.ts");
 
@@ -22,7 +22,7 @@ const checks = [
   ["Jitsi disabled as production path", !helper.includes('VIDEO_PROVIDERS = ["mirotalk", "jitsi"') && helper.includes("isJitsiMeetingUrl")],
   ["join token hashing", helper.includes("hashJoinToken") && helper.includes("createJoinToken")],
   ["session create uses createVideoMeetingUrl", sessions.includes("createVideoMeetingUrl")],
-  ["join route exposes meetingUrl", join.includes("meetingUrl")],
+  ["join route exposes meetingUrl", joinRoute.includes("meetingUrl")],
   ["workspace can open meeting", workspace.includes("meetingUrl") || workspace.includes("openVideo")],
   ["CSP allows MiroTalk", middleware.includes("medlum-mirotalk-p2p")],
 ];
