@@ -1,4 +1,5 @@
-# MedLum private OCR — PaddleOCR (self-hosted). CPU-first.
+# MedLum private OCR — PaddleOCR on Vercel Fluid compute (CPU).
+# Server must listen on $PORT. Auth: OCR_SERVICE_SECRET Bearer token only.
 FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
