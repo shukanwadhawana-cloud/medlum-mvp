@@ -13,7 +13,7 @@ export async function runClinicalAssistOcr(file: File): Promise<ScanResult> {
     throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image.");
   }
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 50_000);
+  const timeout = window.setTimeout(() => controller.abort(), 90_000);
   try {
     const body = new FormData();
     body.append("file", file);
