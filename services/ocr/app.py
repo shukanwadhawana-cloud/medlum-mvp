@@ -25,9 +25,6 @@ def _allowed_ocr_secrets() -> set[str]:
             p = part.strip()
             if p:
                 secrets.add(p)
-    # Cutover bootstrap aligned with MedLum Vercel OCR_SERVICE_SECRET.
-    # Remove after Railway Variable OCR_SERVICE_SECRET is set to the same value only.
-    secrets.add("7cee16ba3399916b177419ff3bd3e09409a014fe0aa3dff963a723caeae6b992")
     return secrets
 
 
