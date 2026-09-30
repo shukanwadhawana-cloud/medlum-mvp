@@ -65,7 +65,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         orderBy: { orderedAt: "asc" },
       }),
       prisma.clinicalNote.findMany({
-        where: { patientId: id, clinicId: membership.clinicId },
+        where: { patientId: id, clinicId: membership.clinicId, status: { in: ["FINAL", "VERIFIED"] } },
         include: {
           author: { select: { id: true, name: true } },
           verifier: { select: { id: true, name: true } },
@@ -208,19 +208,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       reportedAt: d.reportedAt?.toISOString() || null,
       orderedBy: clinicianLabel(d.doctor),
     })),
-    clinicalNotes: clinicalNotes
-      .filter((n) => n.status === "FINAL" || n.status === "VERIFIED")
-      .map((n) => ({
-        id: n.id,
-        noteType: n.noteType,
-        title: n.title || "",
-        content: n.content,
-        status: n.status,
-        finalizedAt: n.finalizedAt?.toISOString() || null,
-        createdAt: n.createdAt.toISOString(),
-        author: clinicianLabel(n.author),
-        verifier: n.verifier ? clinicianLabel(n.verifier) : null,
-      })),
+    clinicalNotes: clinicalNotes.map((n) => ({
+      id: n.id,
+      noteType: n.noteType,
+      title: n.title || "",
+      content: n.content,
+      status: n.status,
+      finalizedAt: n.finalizedAt?.toISOString() || null,
+      createdAt: n.createdAt.toISOString(),
+      author: clinicianLabel(n.author),
+      verifier: n.verifier ? clinicianLabel(n.verifier) : null,
+    })),
     appointments: appointments.map((a) => {
       const parsed = parseAppointmentType(a.type);
       return {
