@@ -186,6 +186,7 @@ export async function POST(req: Request) {
       const patientId = String(body.patientId || "");
       const content = String(body.content || "");
       const noteType = String(body.noteType || "Progress Note");
+      const submit = Boolean(body.submit);
       if (!patientId || !content.trim()) return NextResponse.json({ success: false, error: "Patient and note content required" }, { status: 400 });
       const patient = await getPatient(patientId, session.doctorId, clinicId);
       if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
