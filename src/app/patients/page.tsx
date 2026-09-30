@@ -45,8 +45,8 @@ export default function PatientsPage() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && doctor) void load();
-  }, [authLoading, doctor, load]);
+    if (!authLoading && doctor && view !== "search") void load(`?view=${encodeURIComponent(view)}`);
+  }, [authLoading, doctor, load, view]);
 
   const runDeepSearch = useCallback(() => {
     const params = new URLSearchParams();
