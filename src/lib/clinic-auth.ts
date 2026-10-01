@@ -191,10 +191,20 @@ export async function findAuthorizedPatient(
   abhaVerifiedAt?: Date | null;
   createdAt: Date;
 } | null> {
+  // Facility-scoped master identity: same clinicId, or legacy null clinicId owned by any
+  // active member of this facility (preserves OPD/IPD/Emergency continuity without cross-tenant leaks).
+  const members = await prisma.clinicMember.findMany({
+    where: { clinicId: ctx.clinicId, isActive: true },
+    select: { doctorId: true },
+  });
+  const doctorIds = Array.from(new Set([ctx.doctorId, ...members.map((m) => m.doctorId)]));
   const patient = await prisma.patient.findFirst({
     where: {
       id: patientId,
-      OR: [{ clinicId: ctx.clinicId }, { doctorId: ctx.doctorId, clinicId: null }],
+      OR: [
+        { clinicId: ctx.clinicId },
+        { clinicId: null, doctorId: { in: doctorIds } },
+      ],
       ...(opts?.includeDeleted ? {} : { deletedAt: null }),
     },
   });
