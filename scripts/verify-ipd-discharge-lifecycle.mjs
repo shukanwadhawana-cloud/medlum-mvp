@@ -30,7 +30,7 @@ assert(page.includes("Billing clearance is separate") || page.includes("billing 
 
 const print = read("src/app/api/ipd/print/route.ts");
 assert(print.includes("not yet finalized"), "print rejects non-final summaries");
-assert(print.includes('status === "FINAL"') || print.includes('n.status === "FINAL"'), "print prefers FINAL ClinicalNote");
+assert(print.includes('status: "FINAL"') || print.includes('status === "FINAL"') || print.includes('n.status === "FINAL"'), "print prefers FINAL ClinicalNote");
 
 const invoices = read("src/app/api/invoices/route.ts");
 assert(invoices.includes("dischargedBillingPending"), "billing API groups discharged pending");
