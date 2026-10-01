@@ -130,7 +130,18 @@ def ocr_pil(image) -> tuple[str, float | None]:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "engine": "paddleocr", "ready": _ocr is not None}
+    return {
+        "ok": True,
+        "engine": "paddleocr",
+        "ready": _ocr is not None,
+        "build": os.environ.get("OCR_BUILD_SHA", "73f2c9d"),
+        "limits": {
+            "maxBytes": MAX_BYTES,
+            "maxPages": MAX_PAGES,
+            "maxImageEdge": MAX_IMAGE_EDGE,
+            "pdfRenderScale": PDF_RENDER_SCALE,
+        },
+    }
 
 
 @app.post("/v1/ocr")
