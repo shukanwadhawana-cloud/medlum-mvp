@@ -28,8 +28,18 @@ def _allowed_ocr_secrets() -> set[str]:
     return secrets
 
 
-app = FastAPI(title="MedLum OCR", docs_url=None, redoc_url=None)
+from contextlib import asynccontextmanager
+
 _ocr = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Preload PaddleOCR before accepting requests. Lazy model initialization caused
+    # the first authenticated request to spend ~60s downloading models.
+    get_ocr()
+    yield
+
+app = FastAPI(title="MedLum OCR", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 def get_ocr():
@@ -117,7 +127,7 @@ def ocr_pil(image) -> tuple[str, float | None]:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "engine": "paddleocr"}
+    return {"ok": True, "engine": "paddleocr", "ready": _ocr is not None}
 
 
 @app.post("/v1/ocr")
