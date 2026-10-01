@@ -59,35 +59,60 @@ export async function GET(req: Request) {
   const view = String(url.searchParams.get("view") || "active").toLowerCase();
   const includeDischarged = url.searchParams.get("includeDischarged") === "1" || url.searchParams.get("includeDischarged") === "true";
   const includeDeleted = url.searchParams.get("includeDeleted") === "1";
+  const dateOfBirth = (url.searchParams.get("dateOfBirth") || "").trim();
   const where: any = { clinicId, ...(includeDeleted ? {} : { deletedAt: null }) };
   if (!q && !includeDischarged) where.NOT = { status: { in: ["DISCHARGED", "ARCHIVED"] } };
   else if (!includeDischarged) where.NOT = { status: "ARCHIVED" };
+
+  const searchAnd: any[] = [];
+  const name = (url.searchParams.get("name") || "").trim();
+  const phone = (url.searchParams.get("phone") || "").trim();
+  const identifier = (url.searchParams.get("identifier") || "").trim();
+  if (name) searchAnd.push({ OR: [{ name: { contains: name, mode: "insensitive" } }] });
+  if (phone) searchAnd.push({ OR: [{ phone: { contains: phone.replace(/\D/g, ""), mode: "insensitive" } }] });
+  if (identifier) searchAnd.push({ OR: [{ id: { contains: identifier, mode: "insensitive" } }, { uhid: { contains: identifier, mode: "insensitive" } }, { registrationNo: { contains: identifier, mode: "insensitive" } }, { abhaNumber: { contains: identifier, mode: "insensitive" } }] });
+  if (dateOfBirth) {
+    const normalizedDob = dateOfBirth.replace(/\//g, "-");
+    const dobOr: any[] = [{ notes: { contains: dateOfBirth, mode: "insensitive" } }];
+    if (normalizedDob !== dateOfBirth) dobOr.push({ notes: { contains: normalizedDob, mode: "insensitive" } });
+    searchAnd.push({ OR: dobOr });
+  }
+  if (q && !searchAnd.length) searchAnd.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q, mode: "insensitive" } }, { id: { contains: q, mode: "insensitive" } }, { uhid: { contains: q, mode: "insensitive" } }, { registrationNo: { contains: q, mode: "insensitive" } }, { abhaNumber: { contains: q, mode: "insensitive" } }, { notes: { contains: q, mode: "insensitive" } }] });
+  if (searchAnd.length) where.AND = searchAnd;
 
   // The patient index views must use the source clinical relationships rather than
   // assuming every emergency/appointment patient is already present in the active census.
   // This keeps active census filtering intact while allowing linked emergency and
   // appointment records to be surfaced in their dedicated views.
+  const emergencyPatients = await prisma.emergencyCase.findMany({
+    where: { clinicId, status: { notIn: ["Discharged", "Transferred"] }, patientId: { not: null } },
+    select: { patientId: true },
+    distinct: ["patientId"],
+  });
+  const emergencyPatientIds = emergencyPatients.map((x) => x.patientId).filter(Boolean) as string[];
+
   if (view === "appointments") {
     const appointmentPatients = await prisma.appointment.findMany({
       where: { patient: { clinicId }, status: { notIn: ["Cancelled", "No Show"] } },
       select: { patientId: true },
       distinct: ["patientId"],
     });
-    where.id = { in: appointmentPatients.map((x) => x.patientId) };
+    where.id = { in: appointmentPatients.map((x) => x.patientId).filter(Boolean) };
   } else if (view === "emergency") {
-    const emergencyPatients = await prisma.emergencyCase.findMany({
-      where: { clinicId, status: { notIn: ["Discharged", "Transferred"] }, patientId: { not: null } },
-      select: { patientId: true },
-      distinct: ["patientId"],
-    });
-    where.id = { in: emergencyPatients.map((x) => x.patientId as string) };
+    where.id = { in: emergencyPatientIds };
   }
 
-  let patients = await prisma.patient.findMany({ where, orderBy: { createdAt: "desc" }, take: q ? 500 : 500 });
-  if (q) patients = patients.filter((p) => p.name.toLowerCase().includes(q) || (p.phone || "").toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.uhid || "").toLowerCase().includes(q) || (p.registrationNo || "").toLowerCase().includes(q) || (p.abhaNumber || "").toLowerCase().includes(q));
+  const patients = await prisma.patient.findMany({ where, orderBy: { createdAt: "desc" }, take: 500 });
 
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
-  const visible = membership.role === "Owner" ? patients : setup?.subscriptionModel === "OPD" ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD") : setup?.subscriptionModel === "IPD" ? patients.filter((p) => parseCareSetting(p.notes) === "IPD") : patients;
+  const relationshipView = view === "appointments" || view === "emergency" || view === "search";
+  const visible = relationshipView || membership.role === "Owner"
+    ? patients
+    : setup?.subscriptionModel === "OPD"
+      ? patients.filter((p) => parseCareSetting(p.notes) !== "IPD" || emergencyPatientIds.includes(p.id))
+      : setup?.subscriptionModel === "IPD"
+        ? patients.filter((p) => parseCareSetting(p.notes) === "IPD" || emergencyPatientIds.includes(p.id))
+        : patients;
   const visibleIds = visible.map((p) => p.id);
   const [encounters, vitalLogs, appointments, emergencyCases] = await Promise.all([
     visibleIds.length ? prisma.encounter.findMany({ where: { patientId: { in: visibleIds } }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
