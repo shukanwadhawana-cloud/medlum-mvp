@@ -12,8 +12,10 @@ from typing import Any
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-MAX_BYTES = int(os.environ.get("OCR_MAX_BYTES", str(10 * 1024 * 1024)))
-MAX_PAGES = int(os.environ.get("OCR_MAX_PAGES", "20"))
+MAX_BYTES = int(os.environ.get("OCR_MAX_BYTES", str(8 * 1024 * 1024)))
+MAX_PAGES = int(os.environ.get("OCR_MAX_PAGES", "12"))
+MAX_IMAGE_EDGE = int(os.environ.get("OCR_MAX_IMAGE_EDGE", "1600"))
+PDF_RENDER_SCALE = float(os.environ.get("OCR_PDF_RENDER_SCALE", "1.5"))
 
 
 def _allowed_ocr_secrets() -> set[str]:
@@ -82,26 +84,27 @@ def sniff_mime(data: bytes, filename: str, declared: str) -> str:
     return declared or "application/octet-stream"
 
 
-def pdf_to_images(data: bytes) -> list[Any]:
-    import pypdfium2 as pdfium
-
-    pdf = pdfium.PdfDocument(data)
-    images = []
-    count = min(len(pdf), MAX_PAGES)
-    for i in range(count):
-        page = pdf[i]
-        bitmap = page.render(scale=2)
-        pil = bitmap.to_pil()
-        images.append(pil.convert("RGB"))
-    return images
+def _downscale(image):
+    """Limit longest edge to reduce PaddleOCR peak memory."""
+    w, h = image.size
+    edge = max(w, h)
+    if edge <= MAX_IMAGE_EDGE:
+        return image
+    scale = MAX_IMAGE_EDGE / float(edge)
+    nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+    return image.resize((nw, nh))
 
 
 def ocr_pil(image) -> tuple[str, float | None]:
+    import gc
     import numpy as np
 
+    image = _downscale(image)
     ocr = get_ocr()
     arr = np.array(image)
     result = ocr.ocr(arr, cls=True)
+    del arr
+    gc.collect()
     lines: list[str] = []
     confs: list[float] = []
     if not result:
@@ -174,26 +177,44 @@ async def ocr_endpoint(
     try:
         pages_out = []
         if mime == "application/pdf":
-            images = pdf_to_images(data)
-            if not images:
-                return {
-                    "requestId": rid,
-                    "status": "FAILED",
-                    "pageCount": 0,
-                    "pages": [],
-                    "text": "",
-                    "errorCode": "PDF_NO_PAGES",
-                    "errorMessage": "PDF has no readable pages.",
-                }
-            for i, img in enumerate(images):
-                text, conf = ocr_pil(img)
-                pages_out.append({"page": i + 1, "text": text, "confidence": conf})
+            import gc
+            import pypdfium2 as pdfium
+
+            pdf = pdfium.PdfDocument(data)
+            try:
+                count = min(len(pdf), MAX_PAGES)
+                if count <= 0:
+                    return {
+                        "requestId": rid,
+                        "status": "FAILED",
+                        "pageCount": 0,
+                        "pages": [],
+                        "text": "",
+                        "errorCode": "PDF_NO_PAGES",
+                        "errorMessage": "PDF has no readable pages.",
+                    }
+                for i in range(count):
+                    page = pdf[i]
+                    bitmap = page.render(scale=PDF_RENDER_SCALE)
+                    pil = bitmap.to_pil().convert("RGB")
+                    text_i, conf = ocr_pil(pil)
+                    pages_out.append({"page": i + 1, "text": text_i, "confidence": conf})
+                    del pil, bitmap, page
+                    gc.collect()
+            finally:
+                try:
+                    pdf.close()
+                except Exception:
+                    pass
         elif mime.startswith("image/"):
+            import gc
             from PIL import Image
 
             img = Image.open(io.BytesIO(data)).convert("RGB")
-            text, conf = ocr_pil(img)
-            pages_out.append({"page": 1, "text": text, "confidence": conf})
+            text_i, conf = ocr_pil(img)
+            pages_out.append({"page": 1, "text": text_i, "confidence": conf})
+            del img
+            gc.collect()
         else:
             return JSONResponse(
                 {
@@ -251,3 +272,21 @@ async def ocr_endpoint(
         "errorCode": error_code,
         "errorMessage": error_message,
     }
+
+
+@app.post("/ocr")
+async def ocr_compat(
+    file: UploadFile = File(...),
+    requestId: str = Form(""),
+    clinicId: str = Form(""),
+    authorization: str | None = Header(default=None),
+    x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
+):
+    """Compatibility alias — canonical endpoint is POST /v1/ocr."""
+    return await ocr_endpoint(
+        file=file,
+        requestId=requestId,
+        clinicId=clinicId,
+        authorization=authorization,
+        x_request_id=x_request_id,
+    )
