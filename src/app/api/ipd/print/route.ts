@@ -47,85 +47,25 @@ export async function GET(req: Request) {
     },
   });
 
-  // Prefer explicit noteId from audit log, else latest discharge-like note
-  let content = "";
-  let noteType = "Discharge Summary";
-  let authoredAt: string | null = null;
-  let authorName = "";
-  let authorStaffCode = "";
-  let authorDesignation = "";
+  const note = await prisma.clinicalNote.findFirst({
+    where: {
+      clinicId: membership.clinicId,
+      patientId,
+      noteType: { in: ["Discharge Note", "Discharge Summary"] },
+      status: "FINAL",
+      ...(noteId ? { id: noteId } : {}),
+    },
+    include: { author: { select: { name: true } } },
+    orderBy: { finalizedAt: "desc" },
+  });
+  if (!note) return NextResponse.json({ error: "Discharge summary is not yet finalized." }, { status: 409 });
 
-  if (noteId) {
-    const log = await prisma.auditLog.findFirst({
-      where: { id: noteId, entity: "ClinicalNote", entityId: patientId },
-    });
-    if (log) {
-      try {
-        const m = JSON.parse(log.meta || "{}");
-        content = String(m.content || "");
-        noteType = String(m.noteType || noteType);
-        authorName = String(m.actorName || "");
-        authorStaffCode = String(m.staffCode || "");
-        authorDesignation = String(m.role || m.authorRole || "");
-      } catch {
-        /* ignore */
-      }
-      authoredAt = log.createdAt.toISOString();
-      if (!authorName && log.doctorId) {
-        const d = await prisma.doctor.findUnique({
-          where: { id: log.doctorId },
-          select: { name: true },
-        });
-        authorName = d?.name || "";
-      }
-    }
-  }
-
-  if (!content) {
-    const logs = await prisma.auditLog.findMany({
-      where: { entity: "ClinicalNote", entityId: patientId },
-      orderBy: { createdAt: "desc" },
-      take: 40,
-    });
-    for (const log of logs) {
-      try {
-        const m = JSON.parse(log.meta || "{}");
-        const t = String(m.noteType || "");
-        if (/discharge/i.test(t) || /summary/i.test(t)) {
-          content = String(m.content || "");
-          noteType = t || noteType;
-          authorName = String(m.actorName || "");
-          authorStaffCode = String(m.staffCode || "");
-          authorDesignation = String(m.role || m.authorRole || "");
-          authoredAt = log.createdAt.toISOString();
-          if (!authorName && log.doctorId) {
-            const d = await prisma.doctor.findUnique({
-              where: { id: log.doctorId },
-              select: { name: true },
-            });
-            authorName = d?.name || "";
-          }
-          break;
-        }
-      } catch {
-        /* continue */
-      }
-    }
-  }
-
-  if (!content) {
-    // Fallback: encounter clinicalNotes tagged as discharge
-    const encounter = await prisma.encounter.findFirst({
-      where: { patientId },
-      orderBy: { createdAt: "desc" },
-    });
-    if (encounter?.clinicalNotes) {
-      content = encounter.clinicalNotes;
-      noteType = "Hospital Summary";
-      authoredAt = encounter.createdAt.toISOString();
-    }
-  }
-
+  const content = note.content;
+  const noteType = note.noteType;
+  const authoredAt = (note.finalizedAt || note.updatedAt || note.createdAt).toISOString();
+  const authorName = note.author?.name || "";
+  const authorStaffCode = "";
+  const authorDesignation = "";
   return NextResponse.json({
     printable: {
       documentType: "DISCHARGE_SUMMARY",
