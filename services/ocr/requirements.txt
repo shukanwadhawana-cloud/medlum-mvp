@@ -1,7 +1,9 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20
-paddlepaddle==2.6.2
+# Railway/PyPI no longer serve paddlepaddle 2.6.2 for this build env (only 3.x listed).
+# Keep paddleocr 2.9.1 so existing PaddleOCR(...)/ocr(..., cls=True) API stays unchanged.
+paddlepaddle==3.0.0
 paddleocr==2.9.1
 pypdfium2==4.30.1
 Pillow==11.1.0
