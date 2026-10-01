@@ -184,6 +184,7 @@ export async function POST(req: Request) {
     }
 
     if (action === "discharge-summary-draft" || action === "discharge-summary-submit" || action === "discharge-complete") {
+      if (!clinicId) return NextResponse.json({ success: false, error: "An active clinic membership is required for discharge summary signing." }, { status: 403 });
       const patientId = String(body.patientId || "").trim();
       const content = String(body.content || "").trim();
       const patient = await getPatient(patientId, session.doctorId, clinicId);
