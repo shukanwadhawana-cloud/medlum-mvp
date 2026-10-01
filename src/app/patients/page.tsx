@@ -54,9 +54,10 @@ export default function PatientsPage() {
     const name = deepName.trim();
     const phone = deepPhone.trim();
     const ip = deepIp.trim();
-    if (name) params.set("q", name);
-    else if (phone) params.set("q", phone);
-    else if (ip) params.set("q", ip);
+    if (name) params.set("name", name);
+    if (phone) params.set("phone", phone);
+    if (ip) params.set("identifier", ip);
+    if (deepDob.trim()) params.set("dateOfBirth", deepDob.trim());
     void load(`?${params.toString()}`);
   }, [deepName, deepPhone, deepIp, load]);
 
@@ -79,28 +80,11 @@ export default function PatientsPage() {
 
   const deepHits = useMemo(() => {
     if (view !== "search") return [];
-    const name = deepName.trim().toLowerCase();
-    const phone = deepPhone.trim().replace(/\D/g, "");
-    const ip = deepIp.trim().toLowerCase();
-    const dob = deepDob.trim();
-    if (!name && !phone && !ip && !dob) return [];
-    return patients.filter((p) => {
-      if (name && !String(p.name || "").toLowerCase().includes(name)) return false;
-      if (phone && !String(p.phone || "").replace(/\D/g, "").includes(phone)) return false;
-      if (ip) {
-        const keys = [p.registrationNo, p.uhid, p.medlumId, p.id].map((x) => String(x || "").toLowerCase());
-        if (!keys.some((k) => k.includes(ip))) return false;
-      }
-      if (dob) {
-        const hay = [p.notes, p.registrationNo, p.dob, p.dateOfBirth].map((x) => String(x || "").toLowerCase()).join(" ");
-        if (!hay.includes(dob.toLowerCase()) && !hay.includes(dob.replace(/\//g, "-"))) return false;
-      }
-      return true;
-    });
-  }, [patients, view, deepName, deepPhone, deepIp, deepDob]);
+    return patients;
+  }, [patients, view]);
 
-  const appointmentRows = useMemo(() => activeRows.filter((p) => Number(p.appointmentsCount || 0) > 0), [activeRows]);
-  const emergencyRows = useMemo(() => activeRows.filter((p) => Number(p.emergencyCaseCount || 0) > 0), [activeRows]);
+  const appointmentRows = useMemo(() => patients.filter((p) => Number(p.appointmentsCount || 0) > 0), [patients]);
+  const emergencyRows = useMemo(() => patients.filter((p) => Number(p.emergencyCaseCount || 0) > 0), [patients]);
   const rows = view === "search" ? deepHits : view === "appointments" ? appointmentRows : view === "emergency" ? emergencyRows : activeRows;
 
   if (authLoading || !doctor)
