@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { normalizeClinicRole } from "@/lib/clinic-auth";
+import { hashClinicalNote } from "@/lib/clinical-signing";
 
 function metaOf(l: { meta?: string | null } | null | undefined) {
   try { return l?.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
@@ -180,6 +181,77 @@ export async function POST(req: Request) {
       });
       await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Patient", entityId: patient.id, meta: { careSetting, ipdRegistration: true, clinicId } });
       return NextResponse.json({ success: true, patient: { id: patient.id } });
+    }
+
+    if (action === "discharge-summary-draft" || action === "discharge-summary-submit" || action === "discharge-complete") {
+      const patientId = String(body.patientId || "").trim();
+      const content = String(body.content || "").trim();
+      const patient = await getPatient(patientId, session.doctorId, clinicId);
+      if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
+      if (parseCareSetting(patient.notes) !== "IPD") return NextResponse.json({ success: false, error: "Patient is not an IPD admission" }, { status: 409 });
+      const now = new Date();
+
+      if (action === "discharge-summary-draft") {
+        if (!content) return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
+        const existing = await prisma.clinicalNote.findFirst({
+          where: { clinicId: clinicId || undefined, patientId, authorDoctorId: session.doctorId, noteType: "Discharge Note", status: "DRAFT" },
+          orderBy: { createdAt: "desc" },
+        });
+        const version = (existing?.version || 0) + 1;
+        const note = existing
+          ? await prisma.clinicalNote.update({
+              where: { id: existing.id },
+              data: { content, title: "Discharge Summary", contentHash: hashClinicalNote(content, version), version, updatedAt: now },
+            })
+          : await prisma.clinicalNote.create({
+              data: {
+                clinicId: clinicId || undefined,
+                patientId,
+                authorDoctorId: session.doctorId,
+                authorRole: actorRole,
+                noteType: "Discharge Note",
+                title: "Discharge Summary",
+                content,
+                status: "DRAFT",
+                version,
+                contentHash: hashClinicalNote(content, version),
+              },
+            });
+        await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_SUMMARY_DRAFT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: note.status } });
+        return NextResponse.json({ success: true, noteId: note.id, status: note.status });
+      }
+
+      const note = await prisma.clinicalNote.findFirst({
+        where: { clinicId: clinicId || undefined, patientId, noteType: "Discharge Note", authorDoctorId: session.doctorId },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!note) return NextResponse.json({ success: false, error: "No saved discharge summary draft exists." }, { status: 409 });
+
+      if (action === "discharge-summary-submit") {
+        const nextContent = content || note.content;
+        if (!nextContent.trim()) return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
+        const version = note.version + 1;
+        const updated = await prisma.clinicalNote.update({
+          where: { id: note.id },
+          data: { content: nextContent, version, contentHash: hashClinicalNote(nextContent, version), status: "PENDING_VERIFICATION", submittedAt: now },
+        });
+        await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_SUMMARY_SUBMIT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: updated.id, status: updated.status } });
+        return NextResponse.json({ success: true, noteId: updated.id, status: updated.status });
+      }
+
+      if (note.status !== "FINAL") {
+        const finalHash = hashClinicalNote(
+          `${note.content}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`,
+          note.version,
+        );
+        await prisma.clinicalNote.update({
+          where: { id: note.id },
+          data: { status: "FINAL", verifierDoctorId: session.doctorId, verifiedAt: now, finalizedAt: now, finalHash },
+        });
+      }
+      const updatedPatient = await prisma.patient.update({ where: { id: patient.id }, data: { status: "DISCHARGED" } });
+      await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_COMPLETE", entity: "Patient", entityId: patient.id, meta: { clinicId, noteId: note.id, status: "DISCHARGED" } });
+      return NextResponse.json({ success: true, noteId: note.id, status: "FINAL", patientStatus: updatedPatient.status });
     }
 
     if (action === "clinical-note") {
