@@ -4,6 +4,7 @@ Never log document content or patient identifiers. Log requestId only.
 """
 from __future__ import annotations
 
+import gc
 import io
 import os
 import uuid
@@ -13,7 +14,9 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 MAX_BYTES = int(os.environ.get("OCR_MAX_BYTES", str(10 * 1024 * 1024)))
-MAX_PAGES = int(os.environ.get("OCR_MAX_PAGES", "20"))
+MAX_PAGES = int(os.environ.get("OCR_MAX_PAGES", "5"))
+MAX_IMAGE_SIDE = int(os.environ.get("OCR_MAX_IMAGE_SIDE", "2000"))
+PDF_RENDER_SCALE = float(os.environ.get("OCR_PDF_RENDER_SCALE", "1.5"))
 
 
 def _allowed_ocr_secrets() -> set[str]:
@@ -28,26 +31,31 @@ def _allowed_ocr_secrets() -> set[str]:
     return secrets
 
 
-from contextlib import asynccontextmanager
-
 _ocr = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Preload PaddleOCR before accepting requests. Lazy model initialization caused
-    # the first authenticated request to spend ~60s downloading models.
-    get_ocr()
-    yield
 
-app = FastAPI(title="MedLum OCR", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="MedLum OCR", docs_url=None, redoc_url=None)
 
 
 def get_ocr():
+    """Load the CPU OCR engine only when the first authenticated OCR request arrives.
+
+    Railway's current 1 GB memory envelope is too tight for eager model loading plus
+    the FastAPI process. Keeping model initialization lazy also keeps health checks
+    stable after a restart.
+    """
     global _ocr
     if _ocr is None:
         from paddleocr import PaddleOCR
 
-        _ocr = PaddleOCR(use_angle_cls=True, lang="en", use_gpu=False, show_log=False)
+        # Angle classification loads an additional model and was pushing the service
+        # to the memory ceiling. The document pipeline already constrains input size.
+        _ocr = PaddleOCR(
+            use_angle_cls=False,
+            lang="en",
+            use_gpu=False,
+            show_log=False,
+        )
     return _ocr
 
 
@@ -79,50 +87,87 @@ def sniff_mime(data: bytes, filename: str, declared: str) -> str:
         return "image/jpeg"
     if name.endswith(".png"):
         return "image/png"
+    if name.endswith(".webp"):
+        return "image/webp"
     return declared or "application/octet-stream"
 
 
-def pdf_to_images(data: bytes) -> list[Any]:
+def _prepare_image(image):
+    """Bound decoded image dimensions before converting to a NumPy array."""
+    image.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
+    return image
+
+
+def _close_resource(resource: Any) -> None:
+    close = getattr(resource, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:
+            pass
+
+
+def ocr_pdf_pages(data: bytes) -> list[dict[str, Any]]:
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(data)
-    images = []
-    count = min(len(pdf), MAX_PAGES)
-    for i in range(count):
-        page = pdf[i]
-        bitmap = page.render(scale=2)
-        pil = bitmap.to_pil()
-        images.append(pil.convert("RGB"))
-    return images
+    pages_out: list[dict[str, Any]] = []
+    try:
+        count = min(len(pdf), MAX_PAGES)
+        for i in range(count):
+            page = pdf[i]
+            bitmap = None
+            image = None
+            try:
+                bitmap = page.render(scale=PDF_RENDER_SCALE)
+                image = bitmap.to_pil().convert("RGB")
+                _prepare_image(image)
+                text, conf = ocr_pil(image)
+                pages_out.append({"page": i + 1, "text": text, "confidence": conf})
+            finally:
+                if image is not None:
+                    image.close()
+                _close_resource(bitmap)
+                _close_resource(page)
+                gc.collect()
+    finally:
+        _close_resource(pdf)
+        gc.collect()
+    return pages_out
 
 
 def ocr_pil(image) -> tuple[str, float | None]:
     import numpy as np
 
     ocr = get_ocr()
-    arr = np.array(image)
-    result = ocr.ocr(arr, cls=True)
-    lines: list[str] = []
-    confs: list[float] = []
-    if not result:
-        return "", None
-    for block in result:
-        if not block:
-            continue
-        for line in block:
-            if not line or len(line) < 2:
+    _prepare_image(image)
+    arr = np.asarray(image)
+    try:
+        result = ocr.ocr(arr, cls=False)
+        lines: list[str] = []
+        confs: list[float] = []
+        if not result:
+            return "", None
+        for block in result:
+            if not block:
                 continue
-            text_part = line[1]
-            if isinstance(text_part, (list, tuple)) and len(text_part) >= 1:
-                lines.append(str(text_part[0]))
-                if len(text_part) >= 2:
-                    try:
-                        confs.append(float(text_part[1]))
-                    except Exception:
-                        pass
-    text = "\n".join(lines).strip()
-    conf = sum(confs) / len(confs) if confs else None
-    return text, conf
+            for line in block:
+                if not line or len(line) < 2:
+                    continue
+                text_part = line[1]
+                if isinstance(text_part, (list, tuple)) and len(text_part) >= 1:
+                    lines.append(str(text_part[0]))
+                    if len(text_part) >= 2:
+                        try:
+                            confs.append(float(text_part[1]))
+                        except Exception:
+                            pass
+        text = "\n".join(lines).strip()
+        conf = sum(confs) / len(confs) if confs else None
+        return text, conf
+    finally:
+        del arr
+        gc.collect()
 
 
 @app.get("/health")
@@ -172,10 +217,9 @@ async def ocr_endpoint(
     mime = sniff_mime(data, filename, file.content_type or "")
 
     try:
-        pages_out = []
         if mime == "application/pdf":
-            images = pdf_to_images(data)
-            if not images:
+            pages_out = ocr_pdf_pages(data)
+            if not pages_out:
                 return {
                     "requestId": rid,
                     "status": "FAILED",
@@ -185,15 +229,18 @@ async def ocr_endpoint(
                     "errorCode": "PDF_NO_PAGES",
                     "errorMessage": "PDF has no readable pages.",
                 }
-            for i, img in enumerate(images):
-                text, conf = ocr_pil(img)
-                pages_out.append({"page": i + 1, "text": text, "confidence": conf})
         elif mime.startswith("image/"):
             from PIL import Image
 
-            img = Image.open(io.BytesIO(data)).convert("RGB")
-            text, conf = ocr_pil(img)
-            pages_out.append({"page": 1, "text": text, "confidence": conf})
+            with Image.open(io.BytesIO(data)) as source:
+                image = source.convert("RGB")
+            try:
+                _prepare_image(image)
+                text, conf = ocr_pil(image)
+                pages_out = [{"page": 1, "text": text, "confidence": conf}]
+            finally:
+                image.close()
+                gc.collect()
         else:
             return JSONResponse(
                 {
@@ -208,6 +255,7 @@ async def ocr_endpoint(
                 status_code=415,
             )
     except Exception:
+        gc.collect()
         return JSONResponse(
             {
                 "requestId": rid,
@@ -220,6 +268,10 @@ async def ocr_endpoint(
             },
             status_code=500,
         )
+    finally:
+        await file.close()
+        del data
+        gc.collect()
 
     combined = "\n\n".join(p["text"] for p in pages_out if p.get("text")).strip()
     confs = [p["confidence"] for p in pages_out if p.get("confidence") is not None]
