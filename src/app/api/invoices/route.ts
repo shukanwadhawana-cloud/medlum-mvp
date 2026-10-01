@@ -42,10 +42,19 @@ export async function GET() {
     include: { items: { orderBy: { createdAt: "asc" } }, payments: { orderBy: { paidAt: "desc" } } },
     orderBy: { createdAt: "desc" },
   });
+  const patientIds = [...new Set(list.map((i) => i.patientId))];
+  const patientRows = patientIds.length ? await prisma.patient.findMany({
+    where: { clinicId: member.clinicId, id: { in: patientIds }, deletedAt: null },
+    select: { id: true, status: true },
+  }) : [];
+  const patientStatus = new Map(patientRows.map((p) => [p.id, p.status]));
   return NextResponse.json({
     invoices: list.map((i) => {
       const total = Number(i.total ?? i.amount);
       const paid = i.payments.reduce((s, p) => s + Number(p.amount), 0);
+      const balance = Math.max(0, total - paid);
+      const discharged = patientStatus.get(i.patientId) === "DISCHARGED";
+      const billingStatus = balance > 0.0001 ? "BILLING_PENDING" : "BILLING_CLEARED";
       return {
         id: i.id,
         doctorId: i.doctorId,
@@ -74,7 +83,10 @@ export async function GET() {
           doctorId: p.doctorId,
         })),
         paid,
-        balance: Math.max(0, total - paid),
+        balance,
+        billingStatus,
+        dischargedBillingPending: discharged && billingStatus === "BILLING_PENDING",
+        dischargedBillingCleared: discharged && billingStatus === "BILLING_CLEARED",
       };
     }),
   });
