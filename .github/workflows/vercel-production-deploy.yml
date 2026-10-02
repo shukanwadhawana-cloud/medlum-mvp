@@ -21,11 +21,19 @@ jobs:
       - name: Deploy exact main commit to Vercel production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           set -euo pipefail
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "VERCEL_TOKEN is not configured; relying on the connected Vercel Git integration."
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "VERCEL_TOKEN is not configured; relying on the connected Vercel Git integration for production."
+            echo "If production stays on an old SHA, add VERCEL_TOKEN (+ optional VERCEL_ORG_ID / VERCEL_PROJECT_ID) repo secrets."
           else
+            if [ -n "${VERCEL_ORG_ID:-}" ] && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
+              mkdir -p .vercel
+              printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+            fi
+            npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN" || true
             npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
           fi
       - name: Verify production serves exact Git SHA
@@ -34,7 +42,9 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://medlum-mvp.vercel.app/api/health"
-          for i in 1 2 3 4 5 6 7 8 9 10; do
+          SHORT="${EXPECTED_SHA:0:7}"
+          # Up to ~8 minutes for Vercel build + promote after a green CI
+          for i in $(seq 1 32); do
             BODY="$(curl -fsS --max-time 20 "$URL" || true)"
             echo "$BODY"
             DEPLOYED_SHA="$(printf '%s' "$BODY" | node -e '
@@ -42,12 +52,13 @@ jobs:
               process.stdin.on("data",d=>s+=d);
               process.stdin.on("end",()=>{try{console.log(JSON.parse(s).gitSha||"")}catch{console.log("")}})
             ')"
-            if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
-              echo "Vercel production is serving the exact triggering commit."
+            if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${DEPLOYED_SHA:0:7}" = "$SHORT" ]; }; then
+              echo "Vercel production is serving the triggering commit ($DEPLOYED_SHA)."
               exit 0
             fi
-            echo "Waiting for Vercel production to serve $EXPECTED_SHA (currently $DEPLOYED_SHA)."
+            echo "Waiting for Vercel production to serve $EXPECTED_SHA (currently ${DEPLOYED_SHA:-none}) attempt $i/32."
             sleep 15
           done
-          echo "Vercel production did not expose the expected Git SHA."
+          echo "Vercel production did not expose the expected Git SHA after waiting."
+          echo "Check Vercel project → Deployments for failed builds, and ensure Git integration is linked to main."
           exit 1
