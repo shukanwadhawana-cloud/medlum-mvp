@@ -137,11 +137,11 @@ export function canViewFullClinicalChart(role: ClinicRole): boolean {
 }
 
 export function canViewBillingDetail(role: ClinicRole): boolean {
-  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Billing";
+  return role === "Owner" || role === "Admin" || role === "Receptionist" || role === "Billing";
 }
 
 export function canViewBillingSummary(role: ClinicRole): boolean {
-  return role === "Owner" || role === "Admin" || role === "Manager" || role === "Consultant" || role === "Doctor" || role === "Billing" || role === "Receptionist";
+  return role === "Owner" || role === "Admin" || role === "Receptionist" || role === "Billing";
 }
 
 export function canManageTariff(role: ClinicRole): boolean {
