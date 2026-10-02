@@ -6,9 +6,10 @@ import Link from "next/link";
 import { formatIst } from "@/lib/time";
 import { letterheadStyle, showMedlumFooter } from "@/lib/print-layout";
 
-const SECTION_ORDER = [
-  "Date and Time of Discharge",
-  "Diagnosis",
+/**
+ * Clinical body order after Diagnosis (Diagnosis is rendered first, always at top).
+ */
+const BODY_SECTIONS = [
   "Presenting Complaints",
   "History of Present Illness",
   "Past Medical History",
@@ -29,15 +30,14 @@ const SECTION_ORDER = [
   "Addendum",
 ] as const;
 
+const ALL_LABELS = ["Date and Time of Discharge", "Diagnosis", ...BODY_SECTIONS] as const;
+
 type SectionMap = Record<string, string>;
 
 function parseSections(raw: string): SectionMap {
   const text = String(raw || "").replace(/\r\n/g, "\n").trim();
   if (!text) return {};
   const map: SectionMap = {};
-  const labels = SECTION_ORDER.map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const labelRe = new RegExp(`^(${labels.join("|")}):(.*)$`, "i");
-  const lines = text.split("\n");
   let current: string | null = null;
   let buf: string[] = [];
   const flush = () => {
@@ -46,37 +46,54 @@ function parseSections(raw: string): SectionMap {
     if (v) map[current] = v;
     buf = [];
   };
-  for (const line of lines) {
-    const m = line.match(labelRe);
-    if (m) {
-      flush();
-      current = SECTION_ORDER.find((s) => s.toLowerCase() === m[1].toLowerCase()) || m[1];
-      buf = [m[2].trim()];
-    } else if (current) {
-      buf.push(line);
+  for (const line of text.split("\n")) {
+    let matched = false;
+    for (const label of ALL_LABELS) {
+      const prefix = label + ":";
+      if (line.startsWith(prefix) || line.toLowerCase().startsWith(prefix.toLowerCase())) {
+        flush();
+        current = label;
+        buf = [line.slice(line.indexOf(":") + 1).trim()];
+        matched = true;
+        break;
+      }
+    }
+    if (!matched && current) buf.push(line);
+    else if (!matched && !current) {
+      if (!map["__body"]) map["__body"] = line;
+      else map["__body"] += "\n" + line;
     }
   }
   flush();
-  if (!Object.keys(map).length && text) map["Diagnosis"] = text;
+  if (!Object.keys(map).filter((k) => k !== "__body").length && text) {
+    map["Diagnosis"] = text;
+    delete map["__body"];
+  }
   return map;
 }
 
-function DemoRow({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
-    <div className="min-w-0">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{label}</span>
-      <p className="text-sm font-medium leading-snug text-[#140a1f]">{value}</p>
+    <div className="min-w-0 border-b border-gray-200 pb-1 last:border-0">
+      <div className="text-[11px] font-extrabold uppercase tracking-wide text-black">{label}</div>
+      <div className="text-[13px] font-medium leading-snug text-[#140a1f]">{value}</div>
     </div>
   );
 }
 
-function ClinicalBox({ title, body }: { title: string; body: string }) {
+function Section({ title, body, emphasize }: { title: string; body: string; emphasize?: boolean }) {
   if (!body?.trim()) return null;
   return (
-    <section className="mt-3 break-inside-avoid">
-      <h3 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#140a1f]">{title}</h3>
-      <div className="rounded border border-gray-300 bg-white px-2.5 py-2 text-sm leading-relaxed whitespace-pre-wrap">
+    <section className={`mt-4 break-inside-avoid ${emphasize ? "border-2 border-black" : "border border-gray-400"}`}>
+      <div
+        className={`px-2.5 py-1.5 text-[12px] font-extrabold uppercase tracking-wide ${
+          emphasize ? "bg-black text-white" : "border-b border-gray-400 bg-gray-100 text-black"
+        }`}
+      >
+        {title}
+      </div>
+      <div className="px-2.5 py-2 text-[13px] font-medium leading-relaxed whitespace-pre-wrap text-[#140a1f]">
         {body}
       </div>
     </section>
@@ -117,7 +134,7 @@ function PrintInner() {
   if (err) {
     return (
       <div className="p-6">
-        <p className="text-red-600">{err}</p>
+        <p className="text-red-600 font-semibold">{err}</p>
         <Link href="/ipd" className="text-sm text-[#c2183a]">
           ← IPD
         </Link>
@@ -139,92 +156,108 @@ function PrintInner() {
   const dischargeWhen =
     sections["Date and Time of Discharge"] ||
     (s.authoredAt ? formatIst(s.authoredAt) : "—");
+  const diagnosis = sections["Diagnosis"] || "";
 
   return (
-    <div className="mx-auto max-w-[210mm] bg-white p-6 text-[#140a1f] print:max-w-none print:p-4">
+    <div className="mx-auto max-w-[210mm] bg-white p-5 text-black print:max-w-none print:p-3">
       <div className="mb-4 flex items-start justify-between gap-3 print:hidden">
-        <Link href="/ipd" className="text-sm text-[#c2183a]">
+        <Link href="/ipd" className="text-sm font-semibold text-[#c2183a]">
           ← IPD
         </Link>
         <button
           type="button"
           onClick={() => window.print()}
-          className="rounded-lg bg-[#c2183a] px-3 py-2 text-sm font-semibold text-white"
+          className="rounded-lg bg-[#c2183a] px-3 py-2 text-sm font-bold text-white"
         >
           Print / Save PDF
         </button>
       </div>
 
-      <div className="w-full print:block" style={letterheadStyle(h)} aria-hidden />
+      <div className="w-full" style={letterheadStyle(h)} aria-hidden />
 
-      <header className="border-b border-gray-300 pb-3 print:hidden">
-        <h1 className="text-lg font-bold tracking-tight">{h.name || "Hospital"}</h1>
-        {h.address && <p className="text-xs text-gray-600">{h.address}</p>}
-        <div className="mt-1 flex flex-wrap gap-x-3 text-[10px] text-gray-500">
+      <header className="border-b-2 border-black pb-2 print:hidden">
+        <h1 className="text-xl font-extrabold tracking-tight">{h.name || "Hospital"}</h1>
+        {h.address && <p className="text-xs font-medium text-gray-700">{h.address}</p>}
+        <div className="mt-1 flex flex-wrap gap-x-3 text-[10px] font-semibold text-gray-600">
           {h.phone && <span>Tel: {h.phone}</span>}
           {h.registrationNo && <span>Reg: {h.registrationNo}</span>}
-          {h.email && <span>{h.email}</span>}
         </div>
       </header>
 
-      <h2 className="mt-3 text-center text-base font-bold uppercase tracking-wide">Discharge Summary</h2>
+      <h2 className="mt-3 text-center text-lg font-extrabold uppercase tracking-wider underline decoration-2">
+        Discharge Summary
+      </h2>
 
-      <section className="mt-4 border border-gray-400">
-        <div className="border-b border-gray-300 bg-gray-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide">
-          Patient Demography Details
+      {/* 1) DIAGNOSIS — always first, bold, prominent */}
+      <section className="mt-4 border-2 border-black break-inside-avoid">
+        <div className="bg-black px-2.5 py-1.5 text-[13px] font-extrabold uppercase tracking-wide text-white">
+          Diagnosis
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-2.5 sm:grid-cols-3">
-          <DemoRow label="Name" value={patient.name} />
-          <DemoRow label="Patient ID / UHID" value={uhid} />
-          <DemoRow
-            label="IP / Encounter"
-            value={profile.ipNo || (patient.id ? String(patient.id).slice(-6).toUpperCase() : undefined)}
-          />
-          <DemoRow label="Age / Gender" value={ageGender || undefined} />
-          <DemoRow label="Mobile No." value={patient.phone} />
-          <DemoRow label="Primary Consultant" value={author.name || profile.consultant} />
-          <DemoRow
-            label="Date of Admission"
-            value={profile.admissionDate ? formatIst(profile.admissionDate) : profile.doa}
-          />
-          <DemoRow label="Ward / Bed" value={profile.ward || profile.wardType} />
-          <DemoRow label="Address" value={profile.address} />
-        </div>
-        <div className="border-t border-gray-300 px-2.5 py-1.5 text-sm">
-          <span className="text-[10px] font-semibold uppercase text-gray-500">Date and Time of Discharge · </span>
-          <span className="font-medium">{dischargeWhen}</span>
+        <div className="px-2.5 py-2.5 text-[14px] font-bold leading-snug whitespace-pre-wrap">
+          {diagnosis || "—"}
         </div>
       </section>
 
-      {SECTION_ORDER.filter((k) => k !== "Date and Time of Discharge").map((key) => (
-        <ClinicalBox key={key} title={key} body={sections[key] || ""} />
+      {/* 2) Patient demography */}
+      <section className="mt-4 border-2 border-black break-inside-avoid">
+        <div className="border-b-2 border-black bg-gray-100 px-2.5 py-1.5 text-[12px] font-extrabold uppercase tracking-wide">
+          Patient Demography Details
+        </div>
+        <div className="grid grid-cols-2 gap-x-5 gap-y-2 p-2.5 sm:grid-cols-3">
+          <Field label="Name" value={patient.name} />
+          <Field label="Patient ID / UHID" value={uhid} />
+          <Field
+            label="IP / Encounter"
+            value={profile.ipNo || (patient.id ? String(patient.id).slice(-6).toUpperCase() : undefined)}
+          />
+          <Field label="Age / Gender" value={ageGender || undefined} />
+          <Field label="Mobile No." value={patient.phone} />
+          <Field label="Primary Consultant" value={author.name || profile.consultant} />
+          <Field
+            label="Date of Admission"
+            value={profile.admissionDate ? formatIst(profile.admissionDate) : profile.doa}
+          />
+          <Field label="Ward / Bed" value={profile.ward || profile.wardType} />
+          <Field label="Address" value={profile.address} />
+        </div>
+        <div className="border-t-2 border-black px-2.5 py-2">
+          <span className="text-[11px] font-extrabold uppercase">Date and Time of Discharge: </span>
+          <span className="text-[13px] font-bold">{dischargeWhen}</span>
+        </div>
+      </section>
+
+      {/* 3) Remaining clinical sections — bold bar headers */}
+      {BODY_SECTIONS.map((key) => (
+        <Section key={key} title={key} body={sections[key] || ""} />
       ))}
 
-      <div className="mt-8 grid grid-cols-2 gap-6 break-inside-avoid text-sm">
+      {sections["__body"] && <Section title="Clinical Notes" body={sections["__body"]} />}
+
+      <div className="mt-10 grid grid-cols-2 gap-8 break-inside-avoid text-sm">
         <div>
-          <p className="text-[10px] uppercase text-gray-500">Patient / Attendant</p>
-          <div className="mt-8 border-b border-gray-400" />
-          <p className="mt-1 text-[10px] text-gray-500">Signature</p>
+          <p className="text-[11px] font-extrabold uppercase">Patient / Attendant</p>
+          <div className="mt-10 border-b-2 border-black" />
+          <p className="mt-1 text-[10px] font-semibold text-gray-600">Signature</p>
         </div>
         <div className="text-right">
-          <p className="font-semibold">{author.name || "Consultant"}</p>
-          <p className="text-xs text-gray-600">
-            {[author.designation, author.staffCode].filter(Boolean).join(" · ") || "Treating Consultant"}
+          <p className="text-[11px] font-extrabold uppercase">Treating Consultant</p>
+          <p className="mt-2 text-[14px] font-extrabold">{author.name || "—"}</p>
+          <p className="text-xs font-semibold text-gray-700">
+            {[author.designation, author.staffCode].filter(Boolean).join(" · ")}
           </p>
           {s.authoredAt && (
-            <p className="mt-1 text-[10px] text-gray-500">Signed: {formatIst(s.authoredAt)}</p>
+            <p className="mt-1 text-[10px] font-semibold text-gray-600">Signed: {formatIst(s.authoredAt)}</p>
           )}
         </div>
       </div>
 
-      <footer className="mt-8 border-t border-gray-200 pt-3 text-[9px] leading-relaxed text-gray-500">
+      <footer className="mt-8 border-t border-gray-300 pt-2 text-[9px] font-medium leading-relaxed text-gray-600">
         <p>
-          This is a computer-generated clinical document. It does not replace verbal counselling. In case of
-          emergency, contact the treating facility.
+          This is a computer-generated clinical document and does not replace verbal counselling. In emergency,
+          contact the treating facility{h.phone ? ` (${h.phone})` : ""}.
         </p>
-        {h.phone && <p className="mt-0.5">Facility contact: {h.phone}</p>}
         {showMedlumFooter(h) && (
-          <p className="mt-2 text-center tracking-wide text-gray-400">Document system: MedLum</p>
+          <p className="mt-1 text-center text-gray-400">Document system: MedLum</p>
         )}
       </footer>
     </div>
@@ -233,7 +266,7 @@ function PrintInner() {
 
 export default function IpdPrintPage() {
   return (
-    <Suspense fallback={<p className="p-6 text-sm">Loading…</p>}>
+    <Suspense fallback={<p className="p-6 text-sm font-semibold">Loading…</p>}>
       <PrintInner />
     </Suspense>
   );
