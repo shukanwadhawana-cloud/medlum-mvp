@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { parsePatientProfile } from "@/lib/patient-metadata";
 import { getSession } from "@/lib/session";
+import { prisma } from "@/lib/db";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 /**
  * Patient-facing IPD discharge / hospital summary print.
- * Clinical content only — no billing fields.
- * Source: the finalized ClinicalNote for the selected patient.
+ * Only FINAL discharge notes are printable. Content is clinician-authored.
  */
 export async function GET(req: Request) {
   const session = await getSession();
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, clinicId: membership.clinicId, deletedAt: null },
-    select: { id: true, name: true, age: true, gender: true, phone: true, uhid: true, registrationNo: true },
+    select: { id: true, name: true, age: true, gender: true, phone: true, uhid: true, registrationNo: true, allergies: true, notes: true },
   });
   if (!patient) return NextResponse.json({ error: "Patient not found" }, { status: 404 });
 
@@ -51,7 +51,28 @@ export async function GET(req: Request) {
       documentType: "DISCHARGE_SUMMARY",
       hospital: clinic,
       summary: {
-        patient: { ...patient, uhid: patient.uhid || patient.registrationNo || null },
+        patient: {
+          id: patient.id,
+          name: patient.name,
+          age: patient.age,
+          gender: patient.gender,
+          phone: patient.phone,
+          allergies: patient.allergies,
+          uhid: patient.uhid || patient.registrationNo || null,
+          registrationNo: patient.registrationNo || null,
+        },
+        admission: (() => {
+          const profile = parsePatientProfile(patient.notes || "") as Record<string, unknown>;
+          return {
+            admissionDate: profile.admissionDate ? String(profile.admissionDate) : null,
+            doa: profile.admissionDate ? String(profile.admissionDate) : null,
+            ward: profile.ward ? String(profile.ward) : profile.wardType ? String(profile.wardType) : null,
+            wardType: profile.wardType ? String(profile.wardType) : null,
+            ipNo: profile.ipNo ? String(profile.ipNo) : profile.ipNumber ? String(profile.ipNumber) : null,
+            address: profile.address ? String(profile.address) : null,
+            consultant: profile.consultant ? String(profile.consultant) : null,
+          };
+        })(),
         noteType: note.noteType,
         content,
         authoredAt: (note.finalizedAt || note.updatedAt || note.createdAt).toISOString(),
