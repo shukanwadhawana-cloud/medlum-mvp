@@ -175,19 +175,21 @@ export async function POST(req: Request) {
           },
         });
       } catch (otpErr) {
-        console.error("login otp issue failed", otpErr instanceof Error ? otpErr.message : "error");
-        const message =
-          otpErr instanceof Error && otpErr.message.includes("not linked")
-            ? "Telegram is not linked to this account. Link Telegram first."
-            : "Unable to send verification code. Contact MedLum support if this continues.";
-        return NextResponse.json(
-          {
-            success: false,
-            error: message,
-            requiresTelegramLink: message.includes("not linked"),
-          },
-          { status: 503 }
-        );
+        const otpMessage = otpErr instanceof Error ? otpErr.message : String(otpErr || "error");
+        console.error("login otp issue failed", otpMessage);
+        // Telegram not linked must not hard-block password login.
+        if (!/not linked/i.test(otpMessage)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Unable to send verification code. Contact MedLum support if this continues.",
+              code: "TELEGRAM_OTP",
+              reason: otpMessage.slice(0, 180),
+            },
+            { status: 503 }
+          );
+        }
+        console.warn("login otp skipped: telegram not linked; continuing with password session");
       }
     }
 
