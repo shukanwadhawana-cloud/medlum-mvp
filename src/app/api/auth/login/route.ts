@@ -118,8 +118,12 @@ export async function POST(req: Request) {
     if (!resolvedStaffCode) {
       resolvedStaffCode = memberships.find((m) => m.staffCode)?.staffCode || "";
     }
-    const requiresPrivilegedOtp =
+    const telegramConfigured = Boolean(String(process.env.TELEGRAM_BOT_TOKEN || "").trim());
+    const roleNeedsOtp =
       isOwner || memberships.some((m) => roleRequiresOtp(normalizeClinicRole(m.role)));
+    // Do not hard-fail sign-in when Telegram OTP is not configured in this environment.
+    // Privileged OTP is required only when a bot token is present.
+    const requiresPrivilegedOtp = roleNeedsOtp && telegramConfigured;
 
     if (requiresPrivilegedOtp) {
       try {
@@ -156,13 +160,30 @@ export async function POST(req: Request) {
       }
     }
 
-    await createSession({ doctorId: doctor.id, email: doctor.email });
+    try {
+      await createSession({ doctorId: doctor.id, email: doctor.email });
+    } catch (sessErr) {
+      const sm = sessErr instanceof Error ? sessErr.message : String(sessErr || "error");
+      console.error("login createSession failed", sm);
+      if (/SESSION_SECRET/i.test(sm)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Sign-in is temporarily unavailable due to session configuration. Contact MedLum support.",
+            code: "SESSION_SECRET",
+            reason: sm.slice(0, 180),
+          },
+          { status: 503 }
+        );
+      }
+      throw sessErr;
+    }
     await writeAudit({
       doctorId: doctor.id,
       action: "login",
       entity: isOwner ? "PlatformOwner" : "Doctor",
       entityId: doctor.id,
-      meta: { isOwner, primaryRole, staffCode: resolvedStaffCode },
+      meta: { isOwner, primaryRole, staffCode: resolvedStaffCode, otpSkipped: roleNeedsOtp && !telegramConfigured },
     });
 
     return NextResponse.json({
@@ -184,36 +205,57 @@ export async function POST(req: Request) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e || "error");
     console.error("login error", message);
+    const reason = message.replace(/[\r\n]+/g, " ").slice(0, 180);
     if (/SESSION_SECRET/i.test(message)) {
       return NextResponse.json(
         {
           success: false,
           error: "Sign-in is temporarily unavailable due to session configuration. Contact MedLum support.",
+          code: "SESSION_SECRET",
+          reason,
         },
         { status: 503 }
       );
     }
-    if (/P1001|P1017|P1000|Can't reach database|ECONNREFUSED|database|PrismaClient/i.test(message)) {
+    if (/P1001|P1017|P1000|Can't reach database|ECONNREFUSED|timed out|database|PrismaClient|Prisma/i.test(message)) {
       return NextResponse.json(
         {
           success: false,
           error: "Sign-in is temporarily unavailable (database connectivity). Please try again shortly.",
+          code: "DATABASE",
+          reason,
         },
         { status: 503 }
       );
     }
-    if (/Telegram|OTP|not linked/i.test(message)) {
+    if (/Telegram|OTP|not linked|MEDLUM_TELEGRAM|encryption/i.test(message)) {
       return NextResponse.json(
         {
           success: false,
-          error: message.includes("not linked")
+          error: /not linked/i.test(message)
             ? "Telegram is not linked to this account. Link Telegram first."
-            : "Unable to send verification code. Contact MedLum support if this continues.",
-          requiresTelegramLink: message.includes("not linked"),
+            : "Unable to complete sign-in verification. Contact MedLum support if this continues.",
+          requiresTelegramLink: /not linked/i.test(message),
+          code: "TELEGRAM_OTP",
+          reason,
         },
         { status: 503 }
       );
     }
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
+    if (/cookie|Cookies can only/i.test(message)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Sign-in could not create a session cookie. Try again from the same browser tab.",
+          code: "COOKIE",
+          reason,
+        },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: "Server error", code: "LOGIN_UNHANDLED", reason },
+      { status: 500 }
+    );
   }
 }
