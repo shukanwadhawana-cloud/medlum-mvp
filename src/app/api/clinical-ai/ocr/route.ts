@@ -8,7 +8,7 @@ import { randomUUID } from "crypto";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
   "application/pdf",
   "image/jpeg",
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 
   const contentLength = Number(req.headers.get("content-length") || 0);
   if (contentLength > MAX_UPLOAD_BYTES + 32_768) {
-    return fail("Document is larger than 8 MB. Choose a smaller PDF or image.", 413);
+    return fail("Document is larger than 50 MB. Choose a smaller PDF or image.", 413);
   }
 
   let form: FormData;
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
   if (!(file instanceof File)) return fail("No document was uploaded.");
   if (file.size <= 0) return fail("The selected document is empty.");
   if (file.size > MAX_UPLOAD_BYTES) {
-    return fail("Document is larger than 8 MB. Choose a smaller PDF or image.", 413);
+    return fail("Document is larger than 50 MB. Choose a smaller PDF or image.", 413);
   }
 
   const mime = resolveMime(file);
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
     const requestId = randomUUID();
     const filename = String(file.name || "document");
 
-    // Production Clinical Assist OCR: private PaddleOCR only. No Tesseract/Vercel fallback.
+    // Prefer private PaddleOCR when configured; client falls back to on-device OCR if this fails.
     if (!isOcrServiceConfigured()) {
       return NextResponse.json(
         {
