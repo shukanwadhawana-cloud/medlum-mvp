@@ -5,10 +5,7 @@ import { useParams } from "next/navigation";
 import { formatIst } from "@/lib/time";
 import { letterheadStyle, showMedlumFooter } from "@/lib/print-layout";
 
-/**
- * Labels that appear in discharge note content (from IPD chart / discharge worksheet).
- * Diagnosis is always rendered first; the rest follow in this order.
- */
+/** Clinical sections after Diagnosis — hospital discharge order. */
 const BODY_SECTIONS = [
   "Presenting Complaints",
   "History of Present Illness",
@@ -31,15 +28,14 @@ const BODY_SECTIONS = [
   "Advice",
   "Special Needs",
   "Follow Up Advice",
-  "Acknowledgement of receipt",
-  "Addendum",
 ] as const;
 
-const ALL_LABELS = [
+const PARSE_LABELS = [
   "Date and Time of Discharge",
   "Diagnosis",
   ...BODY_SECTIONS,
-  "Patient/Attendant acknowledgement recorded.",
+  "Acknowledgement of receipt",
+  "Addendum",
 ] as const;
 
 type SectionMap = Record<string, string>;
@@ -58,23 +54,30 @@ function parseSections(raw: string): SectionMap {
   };
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
-    if (!current && !trimmed.includes(":") && trimmed.length > 0 && !map["__admin"]) {
-      map["__admin"] = trimmed;
+    if (
+      /^(self-?pay|insurance|esic|cash|tpa|administrative)/i.test(trimmed) ||
+      trimmed.startsWith("Self-pay") ||
+      trimmed.startsWith("Insurance")
+    ) {
       continue;
     }
     if (trimmed === "— Pulled sections —" || trimmed === "-- Pulled sections --") {
       flush();
-      current = "Pulled sections";
+      current = null;
       buf = [];
       continue;
     }
+    if (
+      /^(Medication Orders|Laboratory|Radiology|Previous Clinical Notes|Chart Orders|Vitals):/i.test(
+        trimmed
+      )
+    ) {
+      continue;
+    }
     let matched = false;
-    for (const label of ALL_LABELS) {
+    for (const label of PARSE_LABELS) {
       const prefix = label + ":";
-      if (
-        trimmed.startsWith(prefix) ||
-        trimmed.toLowerCase().startsWith(prefix.toLowerCase())
-      ) {
+      if (trimmed.startsWith(prefix) || trimmed.toLowerCase().startsWith(prefix.toLowerCase())) {
         flush();
         current = label;
         buf = [trimmed.slice(trimmed.indexOf(":") + 1).trim()];
@@ -83,54 +86,22 @@ function parseSections(raw: string): SectionMap {
       }
     }
     if (!matched && current) buf.push(line);
-    else if (!matched && trimmed) {
-      if (!map["__extra"]) map["__extra"] = trimmed;
-      else map["__extra"] += "\n" + trimmed;
-    }
   }
   flush();
   return map;
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] font-extrabold uppercase tracking-wide text-black">{label}</div>
-      <div className="text-[13px] font-semibold leading-snug text-black">{value}</div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  body,
-  variant = "default",
-}: {
-  title: string;
-  body: string;
-  variant?: "default" | "diagnosis";
-}) {
-  if (!body?.trim()) return null;
-  const isDx = variant === "diagnosis";
-  return (
-    <section className={`mt-3 break-inside-avoid border-2 ${isDx ? "border-black" : "border-gray-500"}`}>
-      <div
-        className={`px-2.5 py-1.5 text-[12px] font-extrabold uppercase tracking-wide ${
-          isDx ? "bg-black text-white" : "border-b-2 border-gray-500 bg-gray-100 text-black"
-        }`}
-      >
-        {title}
-      </div>
-      <div
-        className={`px-2.5 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-black ${
-          isDx ? "font-bold text-[14px]" : "font-medium"
-        }`}
-      >
-        {body}
-      </div>
-    </section>
-  );
+function formatDischargeWhen(raw: string): string {
+  const s = String(raw || "").trim();
+  if (!s || s === "—") return "—";
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    try {
+      return formatIst(s);
+    } catch {
+      return s.replace("T", " ");
+    }
+  }
+  return s;
 }
 
 export default function IPDDischargePrintPage() {
@@ -155,8 +126,12 @@ export default function IPDDischargePrintPage() {
 
   const sections = useMemo(() => parseSections(data?.summary?.content || ""), [data]);
 
-  if (error) return <main className="p-8 text-sm font-semibold text-red-700">{error}</main>;
-  if (!data) return <main className="p-8 text-sm font-semibold">Loading discharge summary…</main>;
+  if (error) {
+    return <main className="p-8 text-sm font-semibold text-red-700">{error}</main>;
+  }
+  if (!data) {
+    return <main className="p-8 text-sm text-slate-500">Loading discharge summary…</main>;
+  }
 
   const patient = data.summary?.patient || {};
   const hospital = data.hospital || {};
@@ -164,151 +139,172 @@ export default function IPDDischargePrintPage() {
   const author = summary.author || {};
   const admission = summary.admission || {};
 
-  const ageGender = [patient.age != null ? `${patient.age}` : null, patient.gender]
+  const ageGender = [patient.age != null ? `${patient.age} yrs` : null, patient.gender]
     .filter(Boolean)
-    .join(" / ");
+    .join(" · ");
   const uhid = patient.uhid || patient.registrationNo || "—";
-  const dischargeWhen =
+  const dischargeWhen = formatDischargeWhen(
     sections["Date and Time of Discharge"] ||
-    (summary.authoredAt ? formatIst(summary.authoredAt) : "—");
+      (summary.authoredAt ? formatIst(summary.authoredAt) : "—")
+  );
   const diagnosis = sections["Diagnosis"] || "—";
   const address = admission.address || patient.address || null;
+  const doa =
+    admission.admissionDate
+      ? formatIst(admission.admissionDate)
+      : admission.doa || null;
 
-  const bodyKeys = [
-    "Presenting Complaints",
-    "History of Present Illness",
-    "Past Medical History",
-    "Current Medication",
-    "Personal History",
-    "Family History",
-    "Allergies",
-    "Occupational History",
-    "On Examination",
-    "Course In Hospital",
-    "Procedure",
-    "Procedures",
-    "Surgery",
-    "Findings",
-    "Condition on Discharge",
-    "Investigation",
-    "Investigations",
-    "Medications During Stay",
-    "Advice",
-    "Special Needs",
-    "Follow Up Advice",
-    "Pulled sections",
+  const demoItems: { label: string; value?: string | null }[] = [
+    { label: "Patient name", value: patient.name },
+    { label: "Patient ID / UHID", value: uhid },
+    {
+      label: "IP / Encounter",
+      value: admission.ipNo || (patient.id ? String(patient.id).slice(-6).toUpperCase() : null),
+    },
+    { label: "Age / Gender", value: ageGender },
+    { label: "Mobile", value: patient.phone },
+    { label: "Date of admission", value: doa },
+    { label: "Ward / Bed", value: admission.ward || admission.wardType },
+    { label: "Address", value: address },
+    { label: "Primary consultant", value: author.name || admission.consultant },
   ];
 
   return (
-    <main className="min-h-screen bg-white text-black">
-      <div className="print:hidden sticky top-0 z-10 flex items-center justify-between border-b bg-white p-3">
+    <main className="min-h-screen bg-slate-50 text-slate-900 print:bg-white">
+      <div className="print:hidden sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div>
-          <p className="text-sm font-extrabold">Final Discharge Summary</p>
-          <p className="text-[11px] font-semibold text-gray-600">
-            UHID {uhid} · {patient.name || "—"}
+          <p className="text-sm font-semibold tracking-tight">Discharge summary</p>
+          <p className="text-[11px] text-slate-500">
+            {patient.name || "Patient"} · UHID {uhid}
           </p>
         </div>
         <button
           type="button"
           onClick={() => window.print()}
-          className="h-9 rounded-lg bg-[#c2183a] px-4 text-xs font-bold text-white"
+          className="h-9 rounded-full bg-[#c2183a] px-5 text-xs font-semibold text-white shadow-sm hover:bg-[#a01430]"
         >
           Print / Save PDF
         </button>
       </div>
 
-      <article className="mx-auto max-w-[210mm] p-6 print:p-4">
+      <article className="mx-auto max-w-[210mm] bg-white px-6 py-8 shadow-sm print:max-w-none print:px-5 print:py-4 print:shadow-none">
         <div className="w-full" style={letterheadStyle(hospital)} aria-hidden />
 
-        <header className="border-b-2 border-black pb-2">
-          <p className="text-xs font-bold uppercase tracking-wide text-gray-700">
+        <header className="mb-6 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
             {hospital.name || "Hospital"}
           </p>
           {hospital.address && (
-            <p className="text-[11px] font-medium text-gray-600">{hospital.address}</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">{hospital.address}</p>
           )}
-          <h1 className="mt-1 text-center text-xl font-extrabold uppercase tracking-wider underline decoration-2">
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
             Discharge Summary
           </h1>
+          <div className="mx-auto mt-2 h-0.5 w-16 rounded-full bg-[#c2183a]" />
         </header>
 
-        <Section title="Diagnosis" body={diagnosis} variant="diagnosis" />
-
-        <section className="mt-3 border-2 border-black break-inside-avoid">
-          <div className="border-b-2 border-black bg-gray-100 px-2.5 py-1.5 text-[12px] font-extrabold uppercase tracking-wide">
-            Patient Demography Details
+        {/* 1. Date & time of discharge */}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Date and time of discharge
+            </p>
+            <p className="mt-0.5 text-base font-semibold text-slate-900">{dischargeWhen}</p>
           </div>
-          <div className="grid grid-cols-2 gap-x-5 gap-y-2.5 p-2.5 sm:grid-cols-3">
-            <Field label="Name" value={patient.name} />
-            <Field label="Patient ID / UHID" value={uhid} />
-            <Field
-              label="IP / Encounter"
-              value={
-                admission.ipNo ||
-                (patient.id ? String(patient.id).slice(-6).toUpperCase() : undefined)
-              }
-            />
-            <Field label="Age / Gender" value={ageGender || undefined} />
-            <Field label="Mobile No." value={patient.phone} />
-            <Field label="Primary Consultant" value={author.name || admission.consultant} />
-            <Field
-              label="Date of Admission"
-              value={
-                admission.admissionDate
-                  ? formatIst(admission.admissionDate)
-                  : admission.doa || undefined
-              }
-            />
-            <Field label="Ward / Bed" value={admission.ward || admission.wardType} />
-            <Field label="Address" value={address} />
-          </div>
-          {sections["__admin"] && (
-            <div className="border-t border-gray-400 px-2.5 py-1.5 text-[12px] font-semibold">
-              <span className="font-extrabold uppercase">Administrative pathway: </span>
-              {sections["__admin"]}
-            </div>
+          {hospital.phone && (
+            <p className="text-[11px] text-slate-500">Facility · {hospital.phone}</p>
           )}
-          <div className="border-t-2 border-black px-2.5 py-2">
-            <span className="text-[11px] font-extrabold uppercase">Date and Time of Discharge: </span>
-            <span className="text-[13px] font-bold">{dischargeWhen}</span>
+        </div>
+
+        {/* 2. Patient details */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-slate-200">
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+              Patient details
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-3 sm:grid-cols-3">
+            {demoItems.map(
+              (item) =>
+                item.value && (
+                  <div key={item.label} className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                      {item.label}
+                    </p>
+                    <p className="mt-0.5 text-[13px] font-medium leading-snug text-slate-900">
+                      {item.value}
+                    </p>
+                  </div>
+                )
+            )}
           </div>
         </section>
 
-        {bodyKeys.map((key) => (
-          <Section key={key} title={key} body={sections[key] || ""} />
-        ))}
+        {/* 3. Diagnosis */}
+        <section className="mb-5 overflow-hidden rounded-xl border border-slate-800">
+          <div className="bg-slate-900 px-4 py-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-white">
+              Diagnosis
+            </h2>
+          </div>
+          <div className="px-4 py-3 text-[15px] font-semibold leading-snug text-slate-900 whitespace-pre-wrap">
+            {diagnosis}
+          </div>
+        </section>
 
-        {sections["__extra"] && <Section title="Additional Notes" body={sections["__extra"]} />}
+        {/* 4. Clinical body */}
+        <div className="space-y-3">
+          {BODY_SECTIONS.map((key) => {
+            const body = sections[key];
+            if (!body?.trim()) return null;
+            return (
+              <section
+                key={key}
+                className="break-inside-avoid overflow-hidden rounded-lg border border-slate-200"
+              >
+                <div className="border-b border-slate-100 bg-slate-50/80 px-3.5 py-1.5">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                    {key}
+                  </h3>
+                </div>
+                <div className="px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap">
+                  {body}
+                </div>
+              </section>
+            );
+          })}
+        </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-8 break-inside-avoid">
+        <div className="mt-10 grid grid-cols-2 gap-10 break-inside-avoid">
           <div>
-            <p className="text-[11px] font-extrabold uppercase">Patient / Attendant</p>
-            <div className="mt-12 border-b-2 border-black" />
-            <p className="mt-1 text-[10px] font-bold text-gray-600">Signature</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Patient / attendant
+            </p>
+            <div className="mt-14 border-b border-slate-400" />
+            <p className="mt-1 text-[10px] text-slate-400">Signature</p>
           </div>
           <div className="text-right">
-            <p className="text-[11px] font-extrabold uppercase">Treating Consultant</p>
-            <p className="mt-2 text-[14px] font-extrabold">{author.name || "—"}</p>
-            <p className="text-xs font-semibold text-gray-700">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Treating consultant
+            </p>
+            <p className="mt-3 text-[15px] font-semibold text-slate-900">{author.name || "—"}</p>
+            <p className="text-[11px] text-slate-500">
               {[author.designation, author.staffCode].filter(Boolean).join(" · ")}
             </p>
             {summary.authoredAt && (
-              <p className="mt-1 text-[10px] font-bold text-gray-600">
-                Signed: {formatIst(summary.authoredAt)}
+              <p className="mt-1 text-[10px] text-slate-400">
+                Signed {formatIst(summary.authoredAt)}
               </p>
             )}
           </div>
         </div>
 
-        <footer className="mt-8 border-t border-gray-300 pt-2 text-[9px] font-medium text-gray-600">
+        <footer className="mt-8 border-t border-slate-100 pt-3 text-center text-[9px] leading-relaxed text-slate-400">
           <p>
-            This is a computer-generated clinical document and forms part of the permanent patient record. In
-            emergency, contact the treating facility
-            {hospital.phone ? ` (${hospital.phone})` : ""}.
+            Computer-generated clinical record. Does not replace verbal counselling.
+            {hospital.phone ? ` Emergency contact: ${hospital.phone}.` : ""}
           </p>
-          {showMedlumFooter(hospital) && (
-            <p className="mt-1 text-center text-gray-400">Document system: MedLum</p>
-          )}
+          {showMedlumFooter(hospital) && <p className="mt-1">MedLum</p>}
         </footer>
       </article>
     </main>
