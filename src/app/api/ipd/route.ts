@@ -206,7 +206,7 @@ export async function POST(req: Request) {
             })
           : await prisma.clinicalNote.create({
               data: {
-                clinicId: clinicId || undefined,
+                clinicId,
                 patientId,
                 authorDoctorId: session.doctorId,
                 authorRole: actorRole,
