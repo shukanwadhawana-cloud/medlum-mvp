@@ -54,7 +54,11 @@ export async function GET() {
         doctors: clinic._count.members,
         patients: clinic._count.patients,
         invoices: clinic._count.invoices,
-        activeIpd,\n        isActive: clinic.isActive,\n        facilityStatus: clinic.facilityStatus,\n        statusReason: clinic.statusReason,\n        collectedRevenue: Number(collected._sum.amount || 0),
+        activeIpd,
+        isActive: clinic.isActive,
+        facilityStatus: clinic.facilityStatus,
+        statusReason: clinic.statusReason,
+        collectedRevenue: Number(collected._sum.amount || 0),
       };
     }),
   );
