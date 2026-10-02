@@ -6,7 +6,7 @@ export type ScanResult = {
   partial?: boolean;
 };
 
-const MAX_BYTES = 15 * 1024 * 1024;
+const MAX_BYTES = 50 * 1024 * 1024;
 
 function isPdf(file: File): boolean {
   const name = (file.name || "").toLowerCase();
@@ -82,7 +82,7 @@ async function serverOcr(file: File, signal: AbortSignal): Promise<ScanResult> {
 export async function runClinicalAssistOcr(file: File): Promise<ScanResult> {
   if (file.size <= 0) throw new Error("The selected document is empty.");
   if (file.size > MAX_BYTES) {
-    throw new Error("Document is larger than 15 MB. Choose a smaller PDF or image, or compress the photo.");
+    throw new Error("Document is larger than 50 MB. Choose a smaller PDF or image, or compress the photo.");
   }
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 120_000);
