@@ -62,6 +62,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const confirmName = String(body.confirmName || "").trim();
+  const reason = String(body.reason || "").trim();
+
+  if (!reason) return NextResponse.json({ success: false, error: "A deletion reason is required." }, { status: 400 });
 
   const clinic = await prisma.clinic.findUnique({ where: { id }, select: { id: true, name: true, isActive: true, facilityStatus: true } });
   if (!clinic) return NextResponse.json({ success: false, error: "Facility not found." }, { status: 404 });
@@ -115,7 +118,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       action: "FACILITY_DELETED",
       entity: "Clinic",
       entityId: id,
-      meta: JSON.stringify({ clinicId: id, name: clinic.name, previousStatus: clinic.facilityStatus }),
+      meta: JSON.stringify({ clinicId: id, name: clinic.name, previousStatus: clinic.facilityStatus, reason }),
     },
   }).catch(() => undefined);
 
