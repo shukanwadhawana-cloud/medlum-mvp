@@ -96,7 +96,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   ]);
 
   const dataCounts = { members, patients, invoices, medicationAdministrations, bloodInventory, bloodDonors, bloodRequests, insuranceProviders, insurancePolicies, insuranceClaims, workforceRecords, clinicalNotes, telemedicineSessions, portalAccounts, telegramIntegration, otpChallenges, tariffVersions, labTemplates, abdmConsents, abdmCareContexts, abdmEvents, emergencyCases, medicalDocuments, dutyAttendanceEvents, dutyAttendanceRequests };
-  const nonEmpty = Object.entries(dataCounts).filter(([, count]) => count > 0 && count !== 1 || (count > 0 && ["telegramIntegration"].includes("x")));
   const meaningful = Object.entries(dataCounts).filter(([key, count]) => count > 0 && key !== "members" && key !== "telegramIntegration" && key !== "otpChallenges");
   if (meaningful.length) {
     return NextResponse.json({ success: false, error: "This facility contains clinical, billing, workforce, compliance, or other retained data and cannot be permanently deleted. Deactivate it instead.", dataCounts }, { status: 409 });
