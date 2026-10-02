@@ -58,6 +58,7 @@ const MODULE_ROLES: Record<MedLumModule, readonly ClinicRole[]> = {
   clinic: ["Owner", "Admin", "Manager"],
   clinic_setup: ["Owner", "Admin"],
   tariffs: ["Owner", "Admin", "Manager"],
+  // Billing detail restricted: Owner, Admin, Receptionist, Billing only (no Manager/clinical).
   billing: ["Owner", "Admin", "Receptionist", "Billing"],
   reports: ["Owner", "Admin", "Manager"],
   blood_bank: ["Owner", "Admin", "Manager", "Nurse", "Laboratory"],
@@ -131,6 +132,34 @@ export function canDispense(role: string | null | undefined): boolean {
   return r === "Owner" || r === "Admin" || r === "Manager" || r === "Pharmacy";
 }
 
+export function canEnterLabResult(role: string | null | undefined): boolean {
+  const r = normalizeClinicRole(role || "");
+  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Laboratory";
+}
+
+export function canEnterDiagnosticReport(role: string | null | undefined): boolean {
+  const r = normalizeClinicRole(role || "");
+  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Laboratory" || r === "Consultant" || r === "Doctor";
+}
+
+export function canManageMAR(role: string | null | undefined): boolean {
+  const r = normalizeClinicRole(role || "");
+  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Consultant" || r === "Doctor" || r === "RMO" || r === "Nurse";
+}
+
+export function canViewClinicalChart(role: string | null | undefined): boolean {
+  const r = normalizeClinicRole(role || "");
+  return (
+    r === "Owner" ||
+    r === "Admin" ||
+    r === "Manager" ||
+    r === "Consultant" ||
+    r === "Doctor" ||
+    r === "RMO" ||
+    r === "Nurse"
+  );
+}
+
 export function canOrderLabs(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
   return r === "Owner" || r === "Admin" || r === "Manager" || r === "Consultant" || r === "Doctor" || r === "RMO";
@@ -144,16 +173,25 @@ export function canAccessClinicalAssist(role: string | null | undefined): boolea
   return canAccessModule(role, "clinical_assist");
 }
 
-export type NavItem = {
-  href: string;
-  label: string;
-  icon: string;
-  module: MedLumModule;
-};
+/** Default landing path for a facility role (post-login redirect). */
+export function defaultLandingPath(role: string | null | undefined): string {
+  const r = normalizeClinicRole(role || "");
+  if (r === "Pharmacy") return "/pharmacy";
+  if (r === "Laboratory") return "/labs";
+  if (r === "Nurse") return "/nursing";
+  if (r === "Billing") return "/billing";
+  if (r === "Receptionist") return "/opd";
+  if (canAccessModule(r, "opd")) return "/opd";
+  if (canAccessModule(r, "patients")) return "/patients";
+  return "/dashboard";
+}
+
+/** Primary nav items for a role (ordered, mobile-first). */
+export type NavItem = { href: string; label: string; icon: string; module: MedLumModule };
 
 const ALL_PRIMARY: NavItem[] = [
   { href: "/people", label: "People", icon: "people", module: "workforce" },
-  { href: "/opd", label: "OPD", icon: "opd", module: "opd" },
+  { href: "/opd", label: "OPD", icon: "clinic", module: "opd" },
   { href: "/patients", label: "Patients", icon: "patients", module: "patients" },
   { href: "/clinical-assist", label: "AI Assist", icon: "ai", module: "clinical_assist" },
   { href: "/ipd", label: "IPD", icon: "ipd", module: "ipd" },
