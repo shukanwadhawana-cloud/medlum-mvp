@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test:portal-auth": "node scripts/verify-portal-auth.mjs",
     "test:hospital-foundation": "node scripts/verify-hospital-foundation.mjs",
+    "test:facility-lifecycle": "node scripts/verify-facility-lifecycle.mjs",
     "test:tenant-isolation": "node scripts/verify-tenant-isolation.mjs",
     "test:rbac-matrix": "node scripts/verify-rbac-matrix.mjs",
     "test:role-access": "node scripts/verify-role-access.mjs",
