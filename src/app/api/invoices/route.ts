@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { requireActiveClinicMembership, canViewBillingDetail } from "@/lib/clinic-auth";
+
+function denyUnlessBilling(role: string) {
+  if (!canViewBillingDetail(role as any)) {
+    return NextResponse.json({ success: false, error: "Billing access restricted to Owner, Admin, Receptionist, or Billing roles." }, { status: 403 });
+  }
+  return null;
+}
 
 async function clinicForDoctor(doctorId: string) {
   // Prefer selected clinic membership (facility isolation); never trust client clinicId.
@@ -37,6 +44,8 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const member = await clinicForDoctor(session.doctorId);
   if (!member) return NextResponse.json({ invoices: [] });
+  const denied = denyUnlessBilling(member.role);
+  if (denied) return denied;
   const list = await prisma.invoice.findMany({
     where: { clinicId: member.clinicId },
     include: { items: { orderBy: { createdAt: "asc" } }, payments: { orderBy: { paidAt: "desc" } } },
@@ -102,6 +111,8 @@ export async function POST(req: Request) {
     if (!member || !(await sharedPatient(patientId, member.clinicId))) {
       return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
     }
+    const denied = denyUnlessBilling(member.role);
+    if (denied) return denied;
     const patient = await sharedPatient(patientId, member.clinicId);
 
     const activeTariff = await prisma.tariffVersion.findFirst({
@@ -252,6 +263,8 @@ export async function PATCH(req: Request) {
     const action = String(body.action || "");
     const member = await clinicForDoctor(session.doctorId);
     if (!member) return NextResponse.json({ success: false, error: "Clinic not found" }, { status: 403 });
+    const denied = denyUnlessBilling(member.role);
+    if (denied) return denied;
     const existing = await prisma.invoice.findFirst({
       where: { id, clinicId: member.clinicId },
       include: { payments: true },
