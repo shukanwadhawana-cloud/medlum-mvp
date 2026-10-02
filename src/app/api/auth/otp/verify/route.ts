@@ -68,7 +68,17 @@ export async function POST(req: Request) {
       },
     });
   } catch (e) {
-    console.error("otp verify", e instanceof Error ? e.message : "error");
+    const message = e instanceof Error ? e.message : String(e || "error");
+    console.error("otp verify", message);
+    if (/SESSION_SECRET/i.test(message)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Sign-in is temporarily unavailable due to session configuration. Contact MedLum support.",
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ success: false, error: "Unable to verify code." }, { status: 500 });
   }
 }
