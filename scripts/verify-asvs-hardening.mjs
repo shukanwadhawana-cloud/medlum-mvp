@@ -42,14 +42,24 @@ ok(middleware.includes("default-src 'self'"), "CSP default-src is self");
 ok(middleware.includes("object-src 'none'"), "CSP disables plugin/object execution");
 ok(middleware.includes("Strict-Transport-Security"), "production HSTS is configured");
 ok(middleware.includes("X-Content-Type-Options"), "MIME sniffing protection is configured");
-ok(middleware.includes("Cache-Control\", \"no-store, max-age=0"), "API responses are explicitly no-store");
-ok(middleware.includes("Pragma\", \"no-cache"), "API responses include legacy no-cache protection");
+ok(middleware.includes("Cache-Control\\", \\"no-store, max-age=0"), "API responses are explicitly no-store");
+ok(middleware.includes("Pragma\\", \\"no-cache"), "API responses include legacy no-cache protection");
 
 ok(logout.includes("Clear-Site-Data") && logout.includes("Cache-Control"), "logout clears browser cache/storage and is non-cacheable");
 
 ok(clinicAuth.includes("requireActiveClinicMembership"), "facility scope is resolved server-side from membership");
-ok(clinicAuth.includes("OR: [{ clinicId: ctx.clinicId }, { doctorId: ctx.doctorId, clinicId: null }]"), "legacy patient rows remain constrained to the authenticated actor/facility");
-ok(securityRegression.includes("! /clinicId".replace(" ", "")) || securityRegression.includes("! /clinicId:\\s*body\\./"), "P1 regression suite checks client clinicId authority");
+ok(
+  clinicAuth.includes("findAuthorizedPatient") &&
+    clinicAuth.includes("id: patientId") &&
+    clinicAuth.includes("clinicId: ctx.clinicId") &&
+    clinicAuth.includes("doctorId: { in: doctorIds }"),
+  "patient lookup is constrained to the authenticated facility and authorized legacy owner"
+);
+ok(
+  securityRegression.includes("! /clinicId".replace(" ", "")) ||
+    securityRegression.includes("! /clinicId:\\s*body\\./"),
+  "P1 regression suite checks client clinicId authority"
+);
 
 // Important remaining gap: the current self-contained JWT is checked against
 // account state and expiry, but logout does not yet revoke a stolen token server-side.
@@ -59,7 +69,7 @@ warn(
   "server-side revocation of an individual self-contained JWT is still an open hardening item"
 );
 
-console.log(`\nASVS 5.0 hardening verification: ${failures.length ? "FAILED" : "PASSED"}`);
+console.log(`\\nASVS 5.0 hardening verification: ${failures.length ? "FAILED" : "PASSED"}`);
 if (warnings.length) {
   console.log(`Open hardening warnings: ${warnings.length}`);
   for (const warning of warnings) console.log(" -", warning);
