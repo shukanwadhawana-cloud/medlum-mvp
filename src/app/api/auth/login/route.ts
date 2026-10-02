@@ -99,7 +99,14 @@ export async function POST(req: Request) {
     }
 
     const isOwner = isMedlumOwnerEmail(doctor.email);
-    if (!isOwner) await ensurePrimaryClinic(doctor.id, doctor.clinicName);
+    if (!isOwner) {
+      try {
+        await ensurePrimaryClinic(doctor.id, doctor.clinicName);
+      } catch (clinicErr) {
+        console.error("login ensurePrimaryClinic failed", clinicErr instanceof Error ? clinicErr.message : "error");
+        // Non-fatal for sign-in: membership query below still proceeds.
+      }
+    }
 
     const memberships = await prisma.clinicMember.findMany({
       where: { doctorId: doctor.id, isActive: true },
@@ -175,7 +182,38 @@ export async function POST(req: Request) {
       },
     });
   } catch (e) {
-    console.error("login error", e);
+    const message = e instanceof Error ? e.message : String(e || "error");
+    console.error("login error", message);
+    if (/SESSION_SECRET/i.test(message)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Sign-in is temporarily unavailable due to session configuration. Contact MedLum support.",
+        },
+        { status: 503 }
+      );
+    }
+    if (/P1001|P1017|P1000|Can't reach database|ECONNREFUSED|database|PrismaClient/i.test(message)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Sign-in is temporarily unavailable (database connectivity). Please try again shortly.",
+        },
+        { status: 503 }
+      );
+    }
+    if (/Telegram|OTP|not linked/i.test(message)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: message.includes("not linked")
+            ? "Telegram is not linked to this account. Link Telegram first."
+            : "Unable to send verification code. Contact MedLum support if this continues.",
+          requiresTelegramLink: message.includes("not linked"),
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
   }
 }
