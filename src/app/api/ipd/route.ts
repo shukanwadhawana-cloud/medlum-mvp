@@ -12,9 +12,9 @@ function metaOf(l: { meta?: string | null } | null | undefined) {
 }
 async function getPatient(patientId: string, doctorId: string, clinicId: string | null) {
   if (clinicId) {
-    return prisma.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+    return prisma.patient.findFirst({ where: { id: patientId, clinicId } });
   }
-  return prisma.patient.findFirst({ where: { id: patientId, doctorId, deletedAt: null } });
+  return prisma.patient.findFirst({ where: { id: patientId, doctorId } });
 }
 function istIsoLabel(d: Date) {
   try {
