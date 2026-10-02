@@ -17,9 +17,43 @@ import { findDoctorByStaffLoginId, isStaffLoginIdFormat, normalizeStaffLoginId }
  * Primary identifier = MedLum Staff Login ID (ClinicMember.staffCode), e.g. CL01038020.
  * Email remains profile/recovery only. Optional legacy email login for migration safety.
  */
+
+/** Lightweight sign-in readiness check — no secrets returned. */
+export async function GET() {
+  const checks: Record<string, string> = {};
+  const secret = process.env.SESSION_SECRET || "";
+  checks.sessionSecret = !secret
+    ? "missing"
+    : secret.length < 32
+      ? "too_short"
+      : "ok";
+  checks.databaseUrl = process.env.DATABASE_URL ? "set" : "missing";
+  checks.telegramBot = process.env.TELEGRAM_BOT_TOKEN ? "configured" : "not_configured";
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.databaseReachable = "ok";
+  } catch (e) {
+    checks.databaseReachable = "error";
+    checks.databaseError = e instanceof Error ? e.message.slice(0, 120) : "unknown";
+  }
+  const ready =
+    checks.sessionSecret === "ok" &&
+    checks.databaseUrl === "set" &&
+    checks.databaseReachable === "ok";
+  return NextResponse.json({ ready, checks }, { status: ready ? 200 : 503 });
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    let body: Record<string, unknown> = {};
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Invalid login request body", code: "BAD_JSON" },
+        { status: 400 }
+      );
+    }
     const password = String(body.password || "");
     const staffIdRaw = String(body.staffId || body.loginId || body.staffCode || "").trim();
     const emailRaw = String(body.email || "").toLowerCase().trim();
@@ -104,7 +138,6 @@ export async function POST(req: Request) {
         await ensurePrimaryClinic(doctor.id, doctor.clinicName);
       } catch (clinicErr) {
         console.error("login ensurePrimaryClinic failed", clinicErr instanceof Error ? clinicErr.message : "error");
-        // Non-fatal for sign-in: membership query below still proceeds.
       }
     }
 
@@ -121,8 +154,6 @@ export async function POST(req: Request) {
     const telegramConfigured = Boolean(String(process.env.TELEGRAM_BOT_TOKEN || "").trim());
     const roleNeedsOtp =
       isOwner || memberships.some((m) => roleRequiresOtp(normalizeClinicRole(m.role)));
-    // Do not hard-fail sign-in when Telegram OTP is not configured in this environment.
-    // Privileged OTP is required only when a bot token is present.
     const requiresPrivilegedOtp = roleNeedsOtp && telegramConfigured;
 
     if (requiresPrivilegedOtp) {
@@ -254,7 +285,12 @@ export async function POST(req: Request) {
       );
     }
     return NextResponse.json(
-      { success: false, error: "Server error", code: "LOGIN_UNHANDLED", reason },
+      {
+        success: false,
+        error: reason ? `Server error: ${reason}` : "Server error",
+        code: "LOGIN_UNHANDLED",
+        reason,
+      },
       { status: 500 }
     );
   }
