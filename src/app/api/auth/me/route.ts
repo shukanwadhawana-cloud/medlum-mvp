@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { normalizeClinicRole } from "@/lib/workflow";
 import { isMedlumOwnerEmail } from "@/lib/owner";
-import { allocateStaffCode } from "@/lib/staff-id";
 
 export async function GET() {
   try {
@@ -24,20 +23,6 @@ export async function GET() {
 
     const isOwner = isMedlumOwnerEmail(doctor.email);
 
-    for (const m of doctor.clinicMemberships) {
-      if (!m.staffCode) {
-        try {
-          const code = await allocateStaffCode(m.clinicId, m.role);
-          await prisma.clinicMember.update({
-            where: { id: m.id },
-            data: { staffCode: code, designation: m.designation || m.role },
-          });
-          m.staffCode = code;
-        } catch {
-          /* ignore concurrent allocate */
-        }
-      }
-    }
 
     const memberships = doctor.clinicMemberships.map((membership) => ({
       clinicId: membership.clinicId,
