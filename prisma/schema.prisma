@@ -26,6 +26,11 @@ model Clinic {
   ekaOnboardedAt     DateTime?
   isActive           Boolean                @default(true)
   deactivatedAt      DateTime?
+  facilityStatus     String                 @default("ACTIVE")
+  statusReason       String                 @default("")
+  statusNote         String                 @default("")
+  statusUpdatedAt    DateTime?
+  statusUpdatedBy    String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
   members            ClinicMember[]

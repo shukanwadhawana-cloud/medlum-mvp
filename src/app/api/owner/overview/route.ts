@@ -30,9 +30,8 @@ export async function GET() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const [clinics, doctors, patients, appointments, invoices, payments, encounters, monthPayments, pendingInvoices] = await Promise.all([
     prisma.clinic.findMany({
-      where: { isActive: true },
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, createdAt: true, _count: { select: { members: true, patients: true, invoices: true } } },
+      select: { id: true, name: true, createdAt: true, isActive: true, facilityStatus: true, statusReason: true, _count: { select: { members: true, patients: true, invoices: true } } },
     }),
     prisma.doctor.count({ where: { isActive: true } }),
     prisma.patient.findMany({ select: { id: true, doctorId: true, clinicId: true, notes: true } }),
@@ -56,6 +55,9 @@ export async function GET() {
         patients: clinic._count.patients,
         invoices: clinic._count.invoices,
         activeIpd,
+        isActive: clinic.isActive,
+        facilityStatus: clinic.facilityStatus,
+        statusReason: clinic.statusReason,
         collectedRevenue: Number(collected._sum.amount || 0),
       };
     }),
@@ -94,7 +96,7 @@ export async function GET() {
         dataPreserved: true,
       },
       platform: {
-        activeHospitals: clinics.length,
+        activeHospitals: clinics.filter((c) => c.isActive).length,
         activeDoctors: doctors,
         totalPatients,
         opdPatients: totalPatients - ipdPatients,
