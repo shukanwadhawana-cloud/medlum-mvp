@@ -30,8 +30,8 @@ const securityRegression = read("scripts/verify-p1-security-regression.mjs");
 
 // ASVS 5.0 V7/V8-oriented baseline checks for the controls already in MedLum.
 ok(session.includes("httpOnly: true"), "session cookie is HttpOnly");
-ok(session.includes("secure: process.env.NODE_ENV === \"production\""), "session cookie is Secure in production");
-ok(session.includes("sameSite: \"lax\""), "session cookie uses SameSite=Lax");
+ok(session.includes('secure: process.env.NODE_ENV === "production"'), "session cookie is Secure in production");
+ok(session.includes('sameSite: "lax"'), "session cookie uses SameSite=Lax");
 ok(session.includes("setExpirationTime"), "session has an explicit JWT expiration");
 ok(session.includes("doctor.isActive"), "session rechecks server-side account activation");
 
@@ -42,8 +42,8 @@ ok(middleware.includes("default-src 'self'"), "CSP default-src is self");
 ok(middleware.includes("object-src 'none'"), "CSP disables plugin/object execution");
 ok(middleware.includes("Strict-Transport-Security"), "production HSTS is configured");
 ok(middleware.includes("X-Content-Type-Options"), "MIME sniffing protection is configured");
-ok(middleware.includes("Cache-Control\\", \\"no-store, max-age=0"), "API responses are explicitly no-store");
-ok(middleware.includes("Pragma\\", \\"no-cache"), "API responses include legacy no-cache protection");
+ok(middleware.includes('Cache-Control", "no-store, max-age=0'), "API responses are explicitly no-store");
+ok(middleware.includes('Pragma", "no-cache'), "API responses include legacy no-cache protection");
 
 ok(logout.includes("Clear-Site-Data") && logout.includes("Cache-Control"), "logout clears browser cache/storage and is non-cacheable");
 
