@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build --webpack",
-    "vercel-build": "npm run build",
+    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run db:migrate:deploy; fi && npm run build",
     "build:desktop-web": "node scripts/prepare-desktop-web.mjs",
     "start": "next start",
     "lint": "eslint",
