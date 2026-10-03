@@ -16,7 +16,7 @@ function isPdf(file: File): boolean {
 async function clientPdfTextLayer(file: File): Promise<ScanResult | null> {
   try {
     const pdfjs = await import("pdfjs-dist");
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
     const data = new Uint8Array(await file.arrayBuffer());
     const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
     const maxPages = Math.min(doc.numPages, 12);
@@ -63,8 +63,7 @@ async function clientTesseractOcr(file: File): Promise<ScanResult> {
 
 async function clientScannedPdfOcr(file: File): Promise<ScanResult> {
   const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc =
-    `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
   const data = new Uint8Array(await file.arrayBuffer());
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
   const worker = await createLocalTesseractWorker();
