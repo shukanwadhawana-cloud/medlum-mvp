@@ -1,4 +1,4 @@
-/** Clinical Assist OCR — server first, then free on-device pdfjs / Tesseract. */
+/** Clinical Assist OCR — fully on-device pdfjs / Tesseract; no hosted OCR dependency. */
 export type ScanResult = {
   text: string;
   confidence: number | null;
@@ -34,24 +34,6 @@ async function clientPdfTextLayer(file: File): Promise<ScanResult | null> {
     return { text: text.slice(0, 20_000), confidence: null, label: "pdf-text (on-device)", partial: doc.numPages > maxPages };
   } catch {
     return null;
-  }
-}
-
-async function clientTesseractOcr(file: File): Promise<ScanResult> {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng");
-  try {
-    await worker.setParameters({
-      tessedit_pageseg_mode: "6",
-      preserve_interword_spaces: "1",
-    } as Record<string, string>);
-    const result = await worker.recognize(file);
-    const text = String(result?.data?.text || "").trim();
-    const confidence = typeof result?.data?.confidence === "number" ? result.data.confidence : null;
-    if (!text) throw new Error("No readable text was detected. Try a sharper, better-lit photo.");
-    return { text: text.slice(0, 20_000), confidence, label: "tesseract (on-device)" };
-  } finally {
-    try { await worker.terminate(); } catch { /* ignore */ }
   }
 }
 
