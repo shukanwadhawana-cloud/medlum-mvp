@@ -71,7 +71,8 @@
     "test:opd-clinical-record": "node scripts/verify-opd-clinical-record.mjs",
     "test:ipd-clinical-workflow": "node scripts/verify-ipd-clinical-workflow.mjs",
     "test:clinical-ai-draft": "node scripts/verify-clinical-ai-draft.mjs",
-    "test:pilot-access": "node scripts/verify-pilot-access.mjs"
+    "test:pilot-access": "node scripts/verify-pilot-access.mjs",
+    "prebuild": "node scripts/copy-pdf-worker.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
