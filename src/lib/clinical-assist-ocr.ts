@@ -82,7 +82,7 @@ async function clientScannedPdfOcr(file: File): Promise<ScanResult> {
         canvas.height = Math.ceil(viewport.height);
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Could not create a local OCR canvas.");
-        await page.render({ canvasContext: context, viewport }).promise;
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
         const result = await worker.recognize(canvas);
         const text = String(result?.data?.text || "").trim();
         const confidence =
