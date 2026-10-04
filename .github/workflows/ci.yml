@@ -81,6 +81,8 @@ jobs:
         run: npm run test:role-access
       - name: Verify P1 identity and tenant security regressions
         run: npm run test:p1-security-regression
+      - name: Verify patient discovery facility scope
+        run: npm run test:patient-discovery
       - name: Verify P2-01 IPD discharge lifecycle
         run: npm run test:p2-01
       - name: Verify owner full-access entitlement
