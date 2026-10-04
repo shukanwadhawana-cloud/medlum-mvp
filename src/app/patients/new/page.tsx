@@ -13,7 +13,6 @@ export default function NewPatientPage() {
   const [error, setError] = useState("");
   const [created, setCreated] = useState<any>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
-  const [candidates, setCandidates] = useState<any[]>([]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
