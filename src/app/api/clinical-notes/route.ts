@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
 
 const NOTE_TYPES = new Set([
@@ -41,7 +41,7 @@ function publicNote(n: any) {
 
 export async function GET(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
 
@@ -49,10 +49,7 @@ export async function GET(req: Request) {
   const patientId = searchParams.get("patientId");
   if (!patientId) return NextResponse.json({ error: "patientId is required" }, { status: 400 });
 
-  const patient = await prisma.patient.findFirst({
-    where: { id: patientId, clinicId: membership.clinicId, deletedAt: null },
-    select: { id: true },
-  });
+  const patient = await findAuthorizedPatient(membership, patientId);
   if (!patient) return NextResponse.json({ error: "Patient not found" }, { status: 404 });
 
   const notes = await prisma.clinicalNote.findMany({
@@ -68,7 +65,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ success: false, error: "No active clinic membership" }, { status: 403 });
 
@@ -84,10 +81,7 @@ export async function POST(req: Request) {
     if (!patientId || !content) return NextResponse.json({ success: false, error: "Patient and note content are required" }, { status: 400 });
     if (!NOTE_TYPES.has(noteType)) return NextResponse.json({ success: false, error: "Invalid clinical note type" }, { status: 400 });
 
-    const patient = await prisma.patient.findFirst({
-      where: { id: patientId, clinicId: membership.clinicId, deletedAt: null },
-      select: { id: true, name: true },
-    });
+    const patient = await findAuthorizedPatient(membership, patientId);
     if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
 
     if (encounterId) {
@@ -142,7 +136,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ success: false, error: "No active clinic membership" }, { status: 403 });
 
