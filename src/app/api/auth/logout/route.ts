@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { destroySession, getSession } from "@/lib/session";
+import { getSession, revokeSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 
 export async function POST() {
@@ -13,11 +13,14 @@ export async function POST() {
         entityId: session.doctorId,
       });
     }
-    await destroySession();
+    if (session) await revokeSession(session.doctorId);
+    else {
+      const { destroySession } = await import("@/lib/session");
+      await destroySession();
+    }
 
     const response = NextResponse.json({ success: true });
-    // Remove browser-side state after logout. Server-side token revocation for
-    // self-contained JWTs remains a separate hardening item tracked in ASVS.
+    // Remove browser-side state and invalidate the authenticated token server-side.
     response.headers.set("Cache-Control", "no-store, max-age=0");
     response.headers.set("Clear-Site-Data", '"cache", "storage"');
     return response;
