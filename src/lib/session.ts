@@ -13,6 +13,7 @@ function getSecret() {
 export type SessionPayload = {
   doctorId: string;
   email: string;
+  issuedAt: number;
 };
 
 const cookieOptions = {
@@ -24,9 +25,10 @@ const cookieOptions = {
 };
 
 export async function createSession(payload: SessionPayload): Promise<void> {
+  const issuedAt = Math.floor(Date.now() / 1000);
   const token = await new SignJWT({ doctorId: payload.doctorId, email: payload.email })
     .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
+    .setIssuedAt(issuedAt)
     .setExpirationTime(`${MAX_AGE}s`)
     .sign(getSecret());
 
@@ -46,14 +48,21 @@ export async function getSession(): Promise<SessionPayload | null> {
 
     const doctor = await prisma.doctor.findUnique({
       where: { id: doctorId },
-      select: { isActive: true, email: true },
+      select: { isActive: true, email: true, sessionInvalidatedAt: true },
     });
+    const issuedAt = Number(payload.iat || 0);
     if (!doctor || !doctor.isActive || doctor.email !== email) return null;
+    if (doctor.sessionInvalidatedAt && issuedAt <= Math.floor(doctor.sessionInvalidatedAt.getTime() / 1000)) return null;
 
-    return { doctorId, email };
+    return { doctorId, email, issuedAt };
   } catch {
     return null;
   }
+}
+
+export async function revokeSession(doctorId: string): Promise<void> {
+  await prisma.doctor.update({ where: { id: doctorId }, data: { sessionInvalidatedAt: new Date() } });
+  await destroySession();
 }
 
 export async function destroySession(): Promise<void> {
