@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { writeAudit } from "@/lib/audit";
 import {
   canViewBillingDetail,
   canViewBillingSummary,
@@ -11,14 +12,14 @@ import {
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) {
     return NextResponse.json({ error: "No active clinic membership." }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await context.params;
   const patient = await findAuthorizedPatient(membership, id);
   if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -229,16 +230,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   );
 }
 
-export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) {
     return NextResponse.json({ error: "No active clinic membership." }, { status: 403 });
   }
 
-  const { id } = await ctx.params;
+  const { id } = await context.params;
   const patient = await findAuthorizedPatient(membership, id);
   if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -271,8 +272,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     data,
   });
 
+  await writeAudit({
+    doctorId: session.doctorId,
+    clinicId: membership.clinicId,
+    action: "update",
+    entity: "Patient",
+    entityId: id,
+    meta: { fields: Object.keys(data), previous: { name: patient.name, age: patient.age, gender: patient.gender, phone: patient.phone } },
+  });
+
   return NextResponse.json({
-    ok: true,
+    success: true,
     patient: {
       id: updated.id,
       name: updated.name,
