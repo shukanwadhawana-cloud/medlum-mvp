@@ -48,7 +48,7 @@
     "mobile:android": "CAPACITOR_BUILD=false npx cap sync android && npx cap open android",
     "mobile:ios": "CAPACITOR_BUILD=false npx cap sync ios && npx cap open ios",
     "db:generate": "prisma generate",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:deploy": "node scripts/migrate-deploy-with-retry.mjs",
     "db:push": "echo 'db push disabled for production safety; use npm run db:migrate:deploy' && exit 1",
     "postinstall": "prisma generate",
     "test:telegram-otp": "node scripts/verify-telegram-otp.mjs",
@@ -71,7 +71,8 @@
     "test:opd-clinical-record": "node scripts/verify-opd-clinical-record.mjs",
     "test:ipd-clinical-workflow": "node scripts/verify-ipd-clinical-workflow.mjs",
     "test:clinical-ai-draft": "node scripts/verify-clinical-ai-draft.mjs",
-    "test:pilot-access": "node scripts/verify-pilot-access.mjs"
+    "test:pilot-access": "node scripts/verify-pilot-access.mjs",
+    "prebuild": "node scripts/copy-pdf-worker.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",

@@ -58,7 +58,8 @@ const MODULE_ROLES: Record<MedLumModule, readonly ClinicRole[]> = {
   clinic: ["Owner", "Admin", "Manager"],
   clinic_setup: ["Owner", "Admin"],
   tariffs: ["Owner", "Admin", "Manager"],
-  billing: ["Owner", "Admin", "Manager", "Billing", "Receptionist"],
+  // Billing detail restricted: Owner, Admin, Receptionist, Billing only (no Manager/clinical).
+  billing: ["Owner", "Admin", "Receptionist", "Billing"],
   reports: ["Owner", "Admin", "Manager"],
   blood_bank: ["Owner", "Admin", "Manager", "Nurse", "Laboratory"],
   insurance: ["Owner", "Admin", "Manager", "Billing"],
@@ -157,6 +158,19 @@ export function canViewClinicalChart(role: string | null | undefined): boolean {
     r === "RMO" ||
     r === "Nurse"
   );
+}
+
+export function canOrderLabs(role: string | null | undefined): boolean {
+  const r = normalizeClinicRole(role || "");
+  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Consultant" || r === "Doctor" || r === "RMO";
+}
+
+export function canViewBilling(role: string | null | undefined): boolean {
+  return canAccessModule(role, "billing");
+}
+
+export function canAccessClinicalAssist(role: string | null | undefined): boolean {
+  return canAccessModule(role, "clinical_assist");
 }
 
 /** Default landing path for a facility role (post-login redirect). */
