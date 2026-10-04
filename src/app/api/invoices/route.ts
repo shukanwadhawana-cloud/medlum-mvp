@@ -292,7 +292,7 @@ export async function PATCH(req: Request) {
       const balance = total - alreadyPaid;
       if (amount > balance + 0.0001) {
         return NextResponse.json(
-          { success: false, error: `Payment exceeds remaining balance of ₹${balance.toFixed(2)}` },
+          { success: false, error: `Payment exceeds outstanding balance of ₹${balance.toFixed(2)}` },
           { status: 400 }
         );
       }
