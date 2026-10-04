@@ -108,17 +108,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex w-[42%] bg-gradient-to-b from-[#8B1538] to-[#140a1f] flex-col justify-between p-12">
+    <div className="min-h-screen flex bg-[var(--ml-canvas)]">
+      <div className="hidden lg:flex w-[42%] bg-[var(--ml-ink)] flex-col justify-between p-12">
         <div>
           <h1 className="text-4xl font-bold text-white">MedLum</h1>
           <p className="mt-3 text-white/70 text-sm leading-relaxed">Hospital & clinic operations — secure privileged access.</p>
         </div>
         <p className="text-white/40 text-xs">OTP for privileged administrative and clinical staff is delivered on Telegram.</p>
       </div>
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          <h2 className="text-2xl font-bold text-[#140a1f]">Sign in</h2>
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-10">
+        <div className="w-full max-w-md rounded-2xl border border-[var(--ml-border)] bg-white p-7 shadow-[var(--ml-shadow)] sm:p-9">
+          <h2 className="text-2xl font-bold text-[var(--ml-ink)]">Sign in</h2>
           <p className="mt-1 text-sm text-gray-500">Doctor and hospital staff access</p>
           {otpStep ? (
             <form onSubmit={handleOtpSubmit} className="mt-10 space-y-5">
@@ -146,7 +146,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6}
-                className="w-full h-12 rounded-xl bg-[#c2183a] text-white font-semibold disabled:opacity-60"
+                className="w-full h-12 rounded-xl medlum-primary text-white font-semibold disabled:opacity-60"
               >
                 {loading ? "Verifying..." : "Verify & Sign In"}
               </button>
@@ -159,7 +159,7 @@ export default function LoginPage() {
                   setDoctorId("");
                   setError("");
                 }}
-                className="w-full text-sm text-[#c2183a] font-medium"
+                className="w-full text-sm text-[var(--ml-primary)] font-medium"
               >
                 Back to password
               </button>
@@ -250,7 +250,7 @@ export default function LoginPage() {
               </Link>
             </p>
             <p>
-              <Link href="/portal/login" className="text-[#c2183a] font-semibold">
+              <Link href="/portal/login" className="text-[var(--ml-primary)] font-semibold">
                 Patient? Sign in to the Patient Portal →
               </Link>
             </p>

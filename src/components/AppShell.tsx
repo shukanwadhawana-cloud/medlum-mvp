@@ -179,12 +179,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const quickNav = primaryNav.slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-[#f6f4f8] text-[#140a1f]">
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#140a1f] text-white">
+    <div className="min-h-screen bg-[var(--ml-canvas)] text-[var(--ml-ink)]">
+      <header className="medlum-shell-header sticky top-0 z-50">
         <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
           <div className="flex items-center gap-2 py-2.5">
-            <Link href="/dashboard" className="flex shrink-0 items-center gap-1.5 font-semibold">
-              <Icon name="brand" size={18} />
+            <Link href="/dashboard" className="medlum-brand flex shrink-0 items-center gap-1.5 font-semibold">
+              <span className="medlum-brand-icon"><Icon name="brand" size={20} /></span>
               <span className="text-sm">MedLum</span>
             </Link>
             {facilities.length > 1 && (
@@ -194,7 +194,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   value={selectedFacilityId}
                   onChange={(e) => switchFacility(e.target.value)}
                   disabled={switchingFacility}
-                  className="h-8 max-w-[13rem] rounded-md border border-white/15 bg-white/10 px-2 text-xs text-white outline-none disabled:opacity-60"
+                  className="medlum-facility-select h-9 max-w-[13rem] rounded-lg border px-3 text-xs outline-none disabled:opacity-60"
                   title="Switch active facility"
                 >
                   {facilities.map((facility) => (
@@ -209,7 +209,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               {isOwner && (
                 <Link
                   href="/owner"
-                  className="hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/25"
+                  className="medlum-owner hidden sm:inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium hover:bg-slate-100"
                   title="Return to owner dashboard"
                 >
                   <Icon name="owner" size={14} />
@@ -219,7 +219,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => setMoreOpen(true)}
-                className={`hidden md:flex lg:inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium ${
+                className={`medlum-menu hidden md:flex lg:inline-flex min-h-9 min-w-[3.25rem] items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
                   moreActive ? "bg-[#c2183a] text-white" : "bg-white/15 text-white hover:bg-white/25"
                 }`}
                 title="Open menu"
@@ -231,7 +231,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => logout()}
                 title="Logout"
-                className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-red-200 hover:bg-white/10 hover:text-red-100"
+                className="medlum-logout inline-flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium hover:bg-slate-100"
               >
                 <Icon name="logout" size={14} />
                 <span className="hidden sm:inline">Logout</span>
@@ -240,7 +240,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <nav
             aria-label="Primary navigation"
-            className="-mx-1 flex min-w-0 items-center gap-0.5 overflow-x-auto border-t border-white/10 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="medlum-nav -mx-1 flex min-w-0 items-center gap-0.5 overflow-x-auto border-t py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {primaryNav.map((item) => (
               <Link
@@ -260,14 +260,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-3 py-4 pb-20 sm:px-4 sm:py-5 md:pb-6 lg:px-6 lg:py-6">
         {children}
       </main>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom md:hidden">
+      <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-area-bottom md:hidden">
         <nav aria-label="Quick navigation" className="mx-auto grid max-w-lg grid-cols-5">
           {quickNav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               title={item.label}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium ${
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium ${
                 isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"
               }`}
             >
