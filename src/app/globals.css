@@ -1,19 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --primary: #c2183a;
-  --primary-dark: #9e1430;
-  --dark: #140a1f;
-  --bg: #f5f5f7;
-  --text: #1a1a1f;
-  --muted: #6b6b75;
+  --primary: #0f766e;
+  --primary-dark: #115e59;
+  --dark: #102a2e;
+  --bg: #edf3f6;
+  --text: #142126;
+  --muted: #64748b;
+
+  --ml-ink: #142126;
+  --ml-ink-soft: #475a61;
+  --ml-muted: #647b83;
+  --ml-canvas: #edf3f6;
+  --ml-canvas-deep: #e4edf1;
+  --ml-surface: #fbfcfd;
+  --ml-surface-subtle: #f2f6f8;
+  --ml-surface-tint: #e9f5f4;
+  --ml-border: #d2dee3;
+  --ml-primary: #0f766e;
+  --ml-primary-dark: #115e59;
+  --ml-primary-soft: #d9efec;
+  --ml-accent: #2563eb;
+  --ml-danger: #b42318;
+  --ml-warning: #9a6700;
+  --ml-radius: 14px;
+  --ml-shadow: 0 1px 2px rgba(16, 42, 46, .04), 0 8px 24px rgba(16, 42, 46, .06);
 }
 
-html { min-width: 320px; scroll-behavior: smooth; }
+html { min-width: 320px; scroll-behavior: smooth; background: var(--ml-canvas); }
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background:
+    radial-gradient(circle at 82% -12%, rgba(15,118,110,.055), transparent 34rem),
+    var(--ml-canvas);
+  color: var(--ml-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: -0.004em;
   margin: 0;
   min-width: 320px;
   overflow-x: hidden;
@@ -21,6 +42,8 @@ body {
 * { box-sizing: border-box; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button, [role="button"] { touch-action: manipulation; }
+button, a { transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .05s ease; }
+button:active, a:active { transform: translateY(1px); }
 input, select, textarea { max-width: 100%; }
 img, svg, video, canvas { max-width: 100%; }
 iframe { display: block; width: 100%; max-width: 100%; border: 0; }
@@ -31,45 +54,7 @@ iframe { display: block; width: 100%; max-width: 100%; border: 0; }
 .telemedicine-video-frame { width: 100%; height: min(72vh, 720px); min-height: 320px; background: #000; }
 .telemedicine-video-frame iframe { width: 100%; height: 100%; min-height: 320px; }
 
-@media (max-width: 639px) {
-  h1, h2, h3, p, td, th, label, a, button { overflow-wrap: anywhere; }
-  .telemedicine-video-frame { height: min(68vh, 560px); min-height: 280px; }
-}
-@media (min-width: 768px) {
-  .telemedicine-video-frame { height: min(75vh, 800px); min-height: 480px; }
-}
-
-/* MedLum clinical workspace visual layer — UI only */
-:root {
-  --ml-ink: #14213d;
-  --ml-ink-soft: #475569;
-  --ml-muted: #64748b;
-  --ml-canvas: #edf3f7;
-  --ml-canvas-deep: #e7eef4;
-  --ml-surface: #fbfcfd;
-  --ml-surface-subtle: #f3f7fa;
-  --ml-surface-tint: #eef7f7;
-  --ml-border: #d4e0e8;
-  --ml-primary: #0f766e;
-  --ml-primary-dark: #115e59;
-  --ml-primary-soft: #dff4f1;
-  --ml-accent: #2563eb;
-  --ml-danger: #b91c1c;
-  --ml-warning: #a16207;
-  --ml-radius: 14px;
-  --ml-shadow: 0 2px 4px rgba(15, 23, 42, .04), 0 10px 28px rgba(15, 23, 42, .07);
-}
-
-html { background: var(--ml-canvas); }
-body {
-  background:
-    radial-gradient(circle at 85% -10%, rgba(15, 118, 110, .06), transparent 32rem),
-    var(--ml-canvas);
-  color: var(--ml-ink);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  letter-spacing: -0.005em;
-}
-::selection { background: #bfe9e3; color: #134e4a; }
+::selection { background: #b9e4df; color: #134e4a; }
 
 input, select, textarea {
   border-color: var(--ml-border);
@@ -81,11 +66,9 @@ input, select, textarea {
 input::placeholder, textarea::placeholder { color: #94a3b8; }
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #5eead4;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, .12);
+  border-color: #55bfb4;
+  box-shadow: 0 0 0 3px rgba(15,118,110,.11);
 }
-button, a { transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .05s ease; }
-button:active, a:active { transform: translateY(1px); }
 
 main .bg-white.rounded-lg,
 main .bg-white.rounded-xl,
@@ -96,40 +79,60 @@ main .bg-white.rounded-3xl {
   border-color: var(--ml-border);
 }
 main .border { border-color: var(--ml-border); }
-main h1, main h2, main h3 { letter-spacing: -0.02em; color: var(--ml-ink); }
+main h1, main h2, main h3 { color: var(--ml-ink); letter-spacing: -0.02em; }
+main .bg-gray-50 { background-color: var(--ml-surface-subtle) !important; }
+main .hover\\:bg-gray-50:hover { background-color: #e7f0f2 !important; }
+main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 
 .medlum-shell-header {
-  background: rgba(239, 245, 248, .96) !important;
-  color: var(--ml-ink) !important;
-  border-bottom: 1px solid var(--ml-border) !important;
-  box-shadow: 0 1px 12px rgba(15,23,42,.06);
-  backdrop-filter: blur(14px);
+  background: rgba(16,42,46,.98) !important;
+  color: #f7fbfb !important;
+  border-bottom: 1px solid rgba(255,255,255,.10) !important;
+  box-shadow: 0 4px 18px rgba(16,42,46,.16);
+  backdrop-filter: blur(16px);
 }
-.medlum-shell-header .medlum-brand { color: var(--ml-ink) !important; }
-.medlum-shell-header .medlum-brand-icon { color: var(--ml-primary) !important; }
-.medlum-shell-header .medlum-facility-select,
+.medlum-shell-header .medlum-brand { color: #fff !important; }
+.medlum-shell-header .medlum-brand-icon { color: #63c7bd !important; }
+.medlum-shell-header .medlum-facility-select {
+  background: rgba(255,255,255,.08) !important;
+  color: #f4fbfa !important;
+  border-color: rgba(255,255,255,.18) !important;
+}
 .medlum-shell-header .medlum-owner,
 .medlum-shell-header .medlum-menu {
-  background: var(--ml-surface) !important;
-  color: var(--ml-ink) !important;
-  border-color: var(--ml-border) !important;
+  background: rgba(255,255,255,.08) !important;
+  color: #f4fbfa !important;
+  border: 1px solid rgba(255,255,255,.14);
 }
-.medlum-shell-header .medlum-owner,
-.medlum-shell-header .medlum-menu { border: 1px solid var(--ml-border); }
-.medlum-shell-header .medlum-logout { color: #64748b !important; }
-.medlum-shell-header .medlum-nav { border-top-color: var(--ml-border) !important; }
-.medlum-shell-header .medlum-nav a { color: #64748b !important; border-radius: 9px; }
-.medlum-shell-header .medlum-nav a:hover { background: #e7f0f3 !important; color: var(--ml-ink) !important; }
+.medlum-shell-header .medlum-owner:hover,
+.medlum-shell-header .medlum-menu:hover { background: rgba(255,255,255,.14) !important; }
+.medlum-shell-header .medlum-logout { color: #c5d3d5 !important; }
+.medlum-shell-header .medlum-logout:hover { background: rgba(255,255,255,.09) !important; color: #fff !important; }
+.medlum-shell-header .medlum-nav {
+  border-top-color: rgba(255,255,255,.10) !important;
+}
+.medlum-shell-header .medlum-nav a {
+  color: #b9c9cc !important;
+  border-radius: 9px;
+}
+.medlum-shell-header .medlum-nav a:hover {
+  background: rgba(255,255,255,.08) !important;
+  color: #fff !important;
+}
 .medlum-shell-header .medlum-nav a[aria-current="page"],
-.medlum-shell-header .medlum-nav a.bg-\[\#c2183a\] {
-  background: var(--ml-primary-soft) !important;
-  color: var(--ml-primary) !important;
+.medlum-shell-header .medlum-nav a.bg-\\[\\#c2183a\\] {
+  background: var(--ml-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 3px 10px rgba(15,118,110,.25);
 }
+
 .medlum-mobile-nav {
-  background: rgba(243, 248, 250, .98) !important;
+  background: rgba(250,252,253,.98) !important;
   border-color: var(--ml-border) !important;
-  box-shadow: 0 -8px 24px rgba(15,23,42,.08);
+  box-shadow: 0 -8px 24px rgba(16,42,46,.10);
 }
+.medlum-mobile-nav a { color: #71848a; }
+.medlum-mobile-nav a.text-\\[\\#c2183a\\] { color: var(--ml-primary) !important; }
 
 .medlum-page-loading {
   background: var(--ml-canvas) !important;
@@ -142,17 +145,22 @@ main h1, main h2, main h3 { letter-spacing: -0.02em; color: var(--ml-ink); }
 }
 .medlum-primary:hover { background: var(--ml-primary-dark) !important; }
 
-@media (min-width: 768px) { main { padding-top: 28px !important; } }
-@media (max-width: 767px) { main { padding-bottom: 92px !important; } }
+.bg-\\[\\#140a1f\\] { background-color: var(--ml-ink) !important; }
+.bg-\\[\\#c2183a\\] { background-color: var(--ml-primary) !important; }
+.text-\\[\\#140a1f\\] { color: var(--ml-ink) !important; }
+.text-\\[\\#c2183a\\] { color: var(--ml-primary) !important; }
+.border-\\[\\#c2183a\\] { border-color: var(--ml-primary) !important; }
 
-/* Give common neutral workflow regions gentle clinical separation. */
-main .bg-gray-50 { background-color: var(--ml-surface-subtle) !important; }
-main .hover\:bg-gray-50:hover { background-color: #eaf2f5 !important; }
-
-/* Legacy utility color normalization: preserve existing workflows while removing old maroon/dark treatment. */
-.bg-\[\#140a1f\] { background-color: var(--ml-ink) !important; }
-.bg-\[\#c2183a\] { background-color: var(--ml-primary) !important; }
-.text-\[\#140a1f\] { color: var(--ml-ink) !important; }
-.text-\[\#c2183a\] { color: var(--ml-primary) !important; }
-.border-\[\#c2183a\] { border-color: var(--ml-primary) !important; }
-main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
+@media (min-width: 768px) {
+  main { padding-top: 28px !important; }
+}
+@media (max-width: 767px) {
+  main { padding-bottom: 92px !important; }
+}
+@media (max-width: 639px) {
+  h1, h2, h3, p, td, th, label, a, button { overflow-wrap: anywhere; }
+  .telemedicine-video-frame { height: min(68vh, 560px); min-height: 280px; }
+}
+@media (min-width: 768px) {
+  .telemedicine-video-frame { height: min(75vh, 800px); min-height: 480px; }
+}
