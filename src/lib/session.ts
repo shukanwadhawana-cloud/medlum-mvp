@@ -52,7 +52,7 @@ export async function getSession(): Promise<SessionPayload | null> {
     });
     const issuedAt = Number(payload.iat || 0);
     if (!doctor || !doctor.isActive || doctor.email !== email) return null;
-    if (doctor.sessionInvalidatedAt && issuedAt <= Math.floor(doctor.sessionInvalidatedAt.getTime() / 1000)) return null;
+    if (doctor.sessionInvalidatedAt && issuedAt < Math.floor(doctor.sessionInvalidatedAt.getTime() / 1000)) return null;
 
     return { doctorId, email, issuedAt };
   } catch {
