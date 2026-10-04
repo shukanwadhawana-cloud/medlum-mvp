@@ -1,31 +1,40 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { writeAudit } from "@/lib/audit";
 
 const ALLOWED_STATUS = new Set(["Ordered", "Performed", "Reported", "Cancelled"]);
 
 async function getSharedPatient(patientId: string, doctorId: string, clinicId: string | null) {
   if (!clinicId) return null;
-  return prisma.patient.findFirst({
-    where: { id: patientId, deletedAt: null, OR: [{ clinicId }, { clinicId: null, doctorId }] },
-  });
+  const membership = await requireActiveClinicMembership(doctorId);
+  if (!membership || membership.clinicId !== clinicId) return null;
+  return findAuthorizedPatient(membership, patientId);
 }
 
 export async function GET(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
   const patientId = new URL(req.url).searchParams.get("patientId");
   if (patientId && !(await getSharedPatient(patientId, session.doctorId, membership.clinicId))) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
+  const members = await prisma.clinicMember.findMany({
+    where: { clinicId: membership.clinicId, isActive: true },
+    select: { doctorId: true },
+  });
+  const doctorIds = Array.from(new Set([session.doctorId, ...members.map((m) => m.doctorId)]));
+  const patientScope = {
+    OR: [
+      { clinicId: membership.clinicId },
+      { clinicId: null, doctorId: { in: doctorIds } },
+    ],
+  };
   const orders = await prisma.diagnosticOrder.findMany({
-    where: patientId
-      ? { patientId, patient: { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] } }
-      : { patient: { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] } },
+    where: patientId ? { patientId, patient: patientScope } : { patient: patientScope },
     orderBy: { createdAt: "desc" },
     take: 150,
   });
@@ -34,7 +43,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
   const body = await req.json().catch(() => ({}));
@@ -78,7 +87,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
   const body = await req.json().catch(() => ({}));
@@ -87,10 +96,20 @@ export async function PATCH(req: Request) {
   if (status && !ALLOWED_STATUS.has(String(status))) {
     return NextResponse.json({ error: "Invalid diagnostic status" }, { status: 400 });
   }
+  const members = await prisma.clinicMember.findMany({
+    where: { clinicId: membership.clinicId, isActive: true },
+    select: { doctorId: true },
+  });
+  const doctorIds = Array.from(new Set([session.doctorId, ...members.map((m) => m.doctorId)]));
   const existing = await prisma.diagnosticOrder.findFirst({
     where: {
       id: String(id),
-      patient: { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] },
+      patient: {
+        OR: [
+          { clinicId: membership.clinicId },
+          { clinicId: null, doctorId: { in: doctorIds } },
+        ],
+      },
     },
   });
   if (!existing) return NextResponse.json({ error: "Diagnostic order not found" }, { status: 404 });
