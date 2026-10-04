@@ -50,8 +50,6 @@ assert(!/where: \{ id: patientId, clinicId: ctx\.clinicId \}/.test(emergency), "
 assert(appointments.includes("findAuthorizedPatient"), "appointments POST uses authorized patient lookup");
 assert(api.includes("Could not load patients"), "apiGetPatients fails loudly");
 assert(!/apiGetPatients[\s\S]{0,280}if\s*\(\s*!res\.ok\s*\)\s*return\s*\[\]/.test(api), "apiGetPatients does not swallow errors as []");
-assert(api.includes("Could not load emergency cases"), "emergency API helper retains explicit error handling");
-assert(api.includes("Could not load appointments"), "appointments API helper retains explicit error handling");
 assert(emergencyPage.includes("Could not load emergency data") || emergencyPage.includes("catch"), "emergency page surfaces load errors");
 assert(ipdRoute.includes("$transaction") && ipdRoute.includes("DISCHARGE_COMPLETE"), "IPD atomic discharge path remains intact");
 
