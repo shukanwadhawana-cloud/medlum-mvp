@@ -4,14 +4,16 @@ Multi-doctor clinical platform — Phase 12 packaging and cross-device deploymen
 
 ## Production
 
-**Live application:** https://medlum-mvp.onrender.com/
+**Live application:** https://medlum-mvp.vercel.app/
 
-MedLum's production web deployment is hosted on **Render**. The packaged desktop and mobile clients are intended to connect to the same production application/backend rather than a separate Vercel deployment.
+MedLum's production web deployment is hosted on **Vercel**. The packaged desktop and mobile clients should connect to this production application/backend.
+
+> **Note:** An older Render deployment at https://medlum-mvp.onrender.com/ may still respond but is **not** kept in sync with `main` and must not be treated as production.
 
 ## Architecture
 
 ```
-Browser / Mobile / Desktop → Render production app → /api/* (Next.js) → Prisma → PostgreSQL (Neon or any)
+Browser / Mobile / Desktop → Vercel production app → /api/* (Next.js) → Prisma → PostgreSQL (Neon or any)
 ```
 
 - Auth: bcrypt + HTTP-only JWT session cookie
@@ -20,6 +22,7 @@ Browser / Mobile / Desktop → Render production app → /api/* (Next.js) → Pr
 - Video consultation: replaceable provider layer with Jitsi as the current default
 - PWA: responsive phone/tablet/desktop web experience
 - Packaging: Android/iOS mobile clients and Windows/macOS/Linux desktop clients
+- Clinical Assist OCR: on-device (pdfjs + Tesseract); no hosted Railway OCR dependency
 
 ## Setup
 
@@ -38,7 +41,7 @@ npm run dev
 - `SESSION_SECRET` — long random string
 - `VIDEO_PROVIDER` — video provider selection (`jitsi` by default)
 - `VIDEO_BASE_URL` — video provider base URL
-- `MEDLUM_APP_URL` — production application URL used by desktop packaging workflows
+- `MEDLUM_APP_URL` — production application URL used by desktop packaging workflows (use the Vercel production URL)
 
 ## Verify isolation
 
@@ -48,14 +51,13 @@ npm run dev
 
 ## Deployment
 
-Render is the canonical production deployment for this repository. Vercel is not the production target.
+**Vercel is the canonical production deployment** for this repository. CI deploys and verifies production against Vercel on every push to `main`. Confirm the live SHA via `GET /api/health` (`gitSha` must match `main`).
 
-[Open MedLum production on Render](https://medlum-mvp.onrender.com/)
+[Open MedLum production on Vercel](https://medlum-mvp.vercel.app/)
 
 ## Runner diagnostic
 
 This harmless marker is used to verify that GitHub-hosted Actions can execute a public-repository workflow independently of private-repository billing configuration.
-
 
 Record lifecycle: clinical records require explicit confirmation; drafts may be deleted on cancellation, while submitted/final records are cancelled with an auditable retained state.
 
