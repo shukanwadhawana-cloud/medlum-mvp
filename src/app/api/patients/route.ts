@@ -60,6 +60,9 @@ export async function GET(req: Request) {
   const includeDischarged = url.searchParams.get("includeDischarged") === "1" || url.searchParams.get("includeDischarged") === "true";
   const includeDeleted = url.searchParams.get("includeDeleted") === "1";
   const dateOfBirth = (url.searchParams.get("dateOfBirth") || "").trim();
+  const name = (url.searchParams.get("name") || "").trim();
+  const phone = (url.searchParams.get("phone") || "").trim();
+  const identifier = (url.searchParams.get("identifier") || "").trim();
   const facilityMembers = await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } });
   const memberDoctorIds = Array.from(new Set([membership.doctorId, ...facilityMembers.map((m) => m.doctorId)]));
   const facilityScope = { OR: [{ clinicId }, { clinicId: null, doctorId: { in: memberDoctorIds } }] };
@@ -71,9 +74,6 @@ export async function GET(req: Request) {
   else if (!includeDischarged) where.NOT = { status: "ARCHIVED" };
 
   const searchAnd: any[] = [];
-  const name = (url.searchParams.get("name") || "").trim();
-  const phone = (url.searchParams.get("phone") || "").trim();
-  const identifier = (url.searchParams.get("identifier") || "").trim();
   if (name) searchAnd.push({ OR: [{ name: { contains: name, mode: "insensitive" } }] });
   if (phone) searchAnd.push({ OR: [{ phone: { contains: phone.replace(/\D/g, ""), mode: "insensitive" } }] });
   if (identifier) searchAnd.push({ OR: [{ id: { contains: identifier, mode: "insensitive" } }, { uhid: { contains: identifier, mode: "insensitive" } }, { registrationNo: { contains: identifier, mode: "insensitive" } }, { abhaNumber: { contains: identifier, mode: "insensitive" } }] });
@@ -99,7 +99,7 @@ export async function GET(req: Request) {
 
   if (view === "appointments") {
     const appointmentPatients = await prisma.appointment.findMany({
-      where: { patient: { clinicId }, status: { notIn: ["Cancelled", "No Show"] } },
+      where: { patient: { OR: [{ clinicId }, { clinicId: null, doctorId: { in: memberDoctorIds } }] }, status: { notIn: ["Cancelled", "No Show"] } },
       select: { patientId: true },
       distinct: ["patientId"],
     });
@@ -191,10 +191,10 @@ export async function POST(req: Request) {
     if (phoneDigits) duplicateOr.push({ phone: { contains: phoneDigits } }, { phone });
     if (submittedUhid) duplicateOr.push({ uhid: { equals: submittedUhid, mode: "insensitive" } }, { registrationNo: { equals: submittedUhid, mode: "insensitive" } });
     if (duplicateOr.length) {
-      const candidates = await prisma.patient.findMany({ where: { AND: [facilityScope, { deletedAt: null }, { OR: duplicateOr }] }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, phone: true, uhid: true, registrationNo: true, status: true, age: true, gender: true } });
+      const candidates = await prisma.patient.findMany({ where: { AND: [facilityScope, { deletedAt: null }, { OR: duplicateOr }] }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, phone: true, uhid: true, registrationNo: true, status: true, age: true, gender: true, notes: true } });
       const normalizedHits = candidates.filter((c) => { const cDigits = String(c.phone || "").replace(/\D/g, ""); const phoneHit = phoneDigits && (cDigits === phoneDigits || cDigits.endsWith(phoneDigits) || phoneDigits.endsWith(cDigits)); const uhidHit = submittedUhid && (String(c.uhid || "").toLowerCase() === submittedUhid.toLowerCase() || String(c.registrationNo || "").toLowerCase() === submittedUhid.toLowerCase()); return Boolean(phoneHit || uhidHit); });
       const hits = normalizedHits.length ? normalizedHits : candidates;
-      if (hits.length) return NextResponse.json({ success: false, error: "Possible existing patient found", code: "PATIENT_DUPLICATE_POSSIBLE", candidates: hits.map((c) => ({ id: c.id, name: c.name, phone: c.phone, uhid: formatUhid(c.uhid), registrationNo: formatUhid(c.registrationNo), status: c.status || "ACTIVE", age: c.age, gender: c.gender })) }, { status: 409 });
+      if (hits.length) return NextResponse.json({ success: false, error: "Possible existing patient found", code: "PATIENT_DUPLICATE_POSSIBLE", candidates: hits.map((c) => ({ id: c.id, name: c.name, phone: c.phone, uhid: formatUhid(c.uhid), registrationNo: formatUhid(c.registrationNo), status: c.status || "ACTIVE", age: c.age, gender: c.gender, careSetting: parseCareSetting(c.notes) || "OPD" })) }, { status: 409 });
     }
     const profile = body.profile && typeof body.profile === "object" ? { ...body.profile, careSetting } : { careSetting };
     const uhid = submittedUhid || generateUhid(clinicId || "clinic");
