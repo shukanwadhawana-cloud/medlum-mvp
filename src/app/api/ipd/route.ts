@@ -55,8 +55,12 @@ export async function GET() {
   const doctorIds = clinicId
     ? (await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } })).map((x) => x.doctorId)
     : [session.doctorId];
+  // Once a clinical module has resolved the active facility, facility membership
+  // is the patient boundary. Do not additionally require the admitting doctor to
+  // still be an active member: that would make valid IPD admissions disappear
+  // when a doctor leaves the facility or when an Owner is viewing the census.
   const patients = await prisma.patient.findMany({
-    where: { deletedAt: null, ...(clinicId ? { clinicId, doctorId: { in: doctorIds } } : { doctorId: { in: doctorIds } }) },
+    where: { deletedAt: null, ...(clinicId ? { clinicId } : { doctorId: { in: doctorIds } }) },
     orderBy: { createdAt: "desc" },
   });
   const patientIds = patients.map((p) => p.id);
