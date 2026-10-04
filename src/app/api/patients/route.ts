@@ -60,14 +60,20 @@ export async function GET(req: Request) {
   const includeDischarged = url.searchParams.get("includeDischarged") === "1" || url.searchParams.get("includeDischarged") === "true";
   const includeDeleted = url.searchParams.get("includeDeleted") === "1";
   const dateOfBirth = (url.searchParams.get("dateOfBirth") || "").trim();
-  const where: any = { clinicId, ...(includeDeleted ? {} : { deletedAt: null }) };
-  if (!q && !includeDischarged) where.NOT = { status: { in: ["DISCHARGED", "ARCHIVED"] } };
-  else if (!includeDischarged) where.NOT = { status: "ARCHIVED" };
-
-  const searchAnd: any[] = [];
   const name = (url.searchParams.get("name") || "").trim();
   const phone = (url.searchParams.get("phone") || "").trim();
   const identifier = (url.searchParams.get("identifier") || "").trim();
+  const facilityMembers = await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } });
+  const memberDoctorIds = Array.from(new Set([membership.doctorId, ...facilityMembers.map((m) => m.doctorId)]));
+  const facilityScope = { OR: [{ clinicId }, { clinicId: null, doctorId: { in: memberDoctorIds } }] };
+  const hasSearchCriteria = Boolean(q || name || phone || identifier || dateOfBirth || includeDischarged);
+  const isSearchMode = view === "search" || hasSearchCriteria;
+  const where: any = { AND: [facilityScope], ...(includeDeleted ? {} : { deletedAt: null }) };
+  const deepCriteria = Boolean(q || name || phone || identifier || dateOfBirth);
+  if (!includeDischarged && !(isSearchMode && deepCriteria)) where.NOT = { status: { in: ["DISCHARGED", "ARCHIVED"] } };
+  else if (!includeDischarged) where.NOT = { status: "ARCHIVED" };
+
+  const searchAnd: any[] = [];
   if (name) searchAnd.push({ OR: [{ name: { contains: name, mode: "insensitive" } }] });
   if (phone) searchAnd.push({ OR: [{ phone: { contains: phone.replace(/\D/g, ""), mode: "insensitive" } }] });
   if (identifier) searchAnd.push({ OR: [{ id: { contains: identifier, mode: "insensitive" } }, { uhid: { contains: identifier, mode: "insensitive" } }, { registrationNo: { contains: identifier, mode: "insensitive" } }, { abhaNumber: { contains: identifier, mode: "insensitive" } }] });
@@ -78,7 +84,7 @@ export async function GET(req: Request) {
     searchAnd.push({ OR: dobOr });
   }
   if (q && !searchAnd.length) searchAnd.push({ OR: [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q, mode: "insensitive" } }, { id: { contains: q, mode: "insensitive" } }, { uhid: { contains: q, mode: "insensitive" } }, { registrationNo: { contains: q, mode: "insensitive" } }, { abhaNumber: { contains: q, mode: "insensitive" } }, { notes: { contains: q, mode: "insensitive" } }] });
-  if (searchAnd.length) where.AND = searchAnd;
+  if (searchAnd.length) where.AND.push(...searchAnd);
 
   // The patient index views must use the source clinical relationships rather than
   // assuming every emergency/appointment patient is already present in the active census.
@@ -93,7 +99,7 @@ export async function GET(req: Request) {
 
   if (view === "appointments") {
     const appointmentPatients = await prisma.appointment.findMany({
-      where: { patient: { clinicId }, status: { notIn: ["Cancelled", "No Show"] } },
+      where: { patient: { OR: [{ clinicId }, { clinicId: null, doctorId: { in: memberDoctorIds } }] }, status: { notIn: ["Cancelled", "No Show"] } },
       select: { patientId: true },
       distinct: ["patientId"],
     });
@@ -105,7 +111,7 @@ export async function GET(req: Request) {
   const patients = await prisma.patient.findMany({ where, orderBy: { createdAt: "desc" }, take: 500 });
 
   const setup = clinicId ? await getClinicSetup(clinicId) : null;
-  const relationshipView = view === "appointments" || view === "emergency" || view === "search";
+  const relationshipView = view === "appointments" || view === "emergency" || view === "search" || isSearchMode;
   const visible = relationshipView || membership.role === "Owner"
     ? patients
     : setup?.subscriptionModel === "OPD"
@@ -176,8 +182,22 @@ export async function POST(req: Request) {
     const module = await requireClinicalModule(session.doctorId, careSetting);
     if (!module.allowed) return NextResponse.json({ success: false, error: `${careSetting} access is not included in this clinic's subscription.` }, { status: 403 });
     const clinicId = module.clinicId;
+    const facilityMembers = await prisma.clinicMember.findMany({ where: { clinicId: clinicId || membership.clinicId, isActive: true }, select: { doctorId: true } });
+    const memberDoctorIds = Array.from(new Set([session.doctorId, ...facilityMembers.map((m) => m.doctorId)]));
+    const facilityScope = { OR: [{ clinicId: clinicId || membership.clinicId }, { clinicId: null, doctorId: { in: memberDoctorIds } }] };
+    const phoneDigits = phone.replace(/\D/g, "");
+    const submittedUhid = String(body.uhid || "").trim();
+    const duplicateOr: any[] = [];
+    if (phoneDigits) duplicateOr.push({ phone: { contains: phoneDigits } }, { phone });
+    if (submittedUhid) duplicateOr.push({ uhid: { equals: submittedUhid, mode: "insensitive" } }, { registrationNo: { equals: submittedUhid, mode: "insensitive" } });
+    if (duplicateOr.length) {
+      const candidates = await prisma.patient.findMany({ where: { AND: [facilityScope, { deletedAt: null }, { OR: duplicateOr }] }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, phone: true, uhid: true, registrationNo: true, status: true, age: true, gender: true, notes: true } });
+      const normalizedHits = candidates.filter((c) => { const cDigits = String(c.phone || "").replace(/\D/g, ""); const phoneHit = phoneDigits && (cDigits === phoneDigits || cDigits.endsWith(phoneDigits) || phoneDigits.endsWith(cDigits)); const uhidHit = submittedUhid && (String(c.uhid || "").toLowerCase() === submittedUhid.toLowerCase() || String(c.registrationNo || "").toLowerCase() === submittedUhid.toLowerCase()); return Boolean(phoneHit || uhidHit); });
+      const hits = normalizedHits.length ? normalizedHits : candidates;
+      if (hits.length) return NextResponse.json({ success: false, error: "Possible existing patient found", code: "PATIENT_DUPLICATE_POSSIBLE", candidates: hits.map((c) => ({ id: c.id, name: c.name, phone: c.phone, uhid: formatUhid(c.uhid), registrationNo: formatUhid(c.registrationNo), status: c.status || "ACTIVE", age: c.age, gender: c.gender, careSetting: parseCareSetting(c.notes) || "OPD" })) }, { status: 409 });
+    }
     const profile = body.profile && typeof body.profile === "object" ? { ...body.profile, careSetting } : { careSetting };
-    const uhid = String(body.uhid || "").trim() || generateUhid(clinicId || "clinic");
+    const uhid = submittedUhid || generateUhid(clinicId || "clinic");
     const registrationNo = String(body.registrationNo || "").trim() || uhid;
     const patient = await prisma.patient.create({ data: { doctorId: session.doctorId, clinicId, name, age, gender, phone, bp, allergies, notes: encodePatientNotes(notes, careSetting, profile), uhid, registrationNo, status: "ACTIVE" } });
     await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Patient", entityId: patient.id, meta: { name, careSetting, profile, uhid, registrationNo, registeredByRole: membership.role } });

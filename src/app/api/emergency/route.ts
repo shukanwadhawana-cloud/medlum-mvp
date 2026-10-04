@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/session";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 
@@ -11,7 +11,7 @@ async function getContext() {
   if (!session) return null;
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return null;
-  return { session, clinicId: membership.clinicId };
+  return { session, clinicId: membership.clinicId, membership };
 }
 
 const statuses = ["Open", "In Treatment", "Observation", "Admitted", "Discharged", "Transferred"];
@@ -75,9 +75,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const patientId = body.patientId ? String(body.patientId) : null;
     if (patientId) {
-      const patient = await prisma.patient.findFirst({
-        where: { id: patientId, clinicId: ctx.clinicId },
-      });
+      const patient = await findAuthorizedPatient({
+        membershipId: ctx.membership.membershipId,
+        clinicId: ctx.clinicId,
+        doctorId: ctx.session.doctorId,
+        role: ctx.membership.role,
+      }, patientId);
       if (!patient) {
         return NextResponse.json(
           { success: false, error: "Patient not found in this clinic." },

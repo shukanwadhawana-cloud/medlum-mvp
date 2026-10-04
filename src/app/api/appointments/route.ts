@@ -8,7 +8,7 @@ import {
   normalizeClinicRole,
   roleCan,
 } from "@/lib/workflow";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 const APPT_MARKER = "__MEDLUM_CONSULTANT__";
 
@@ -194,14 +194,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid date format (YYYY-MM-DD)." }, { status: 400 });
     }
 
-    const patient = await prisma.patient.findFirst({
-      where: {
-        id: patientId,
-        clinicId: ctx.clinicId,
-        deletedAt: null,
-        status: { notIn: ["ARCHIVED"] },
-      },
-    });
+    const patient = await findAuthorizedPatient({
+      membershipId: ctx.membership.id,
+      clinicId: ctx.clinicId,
+      doctorId: session.doctorId,
+      role: ctx.role,
+    }, patientId);
     if (!patient) {
       return NextResponse.json({ success: false, error: "Patient not found in this facility." }, { status: 404 });
     }

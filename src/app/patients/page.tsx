@@ -50,6 +50,7 @@ export default function PatientsPage() {
 
   const runDeepSearch = useCallback(() => {
     const params = new URLSearchParams();
+    params.set("view", "search");
     params.set("includeDischarged", "1");
     const name = deepName.trim();
     const phone = deepPhone.trim();
@@ -59,7 +60,7 @@ export default function PatientsPage() {
     if (ip) params.set("identifier", ip);
     if (deepDob.trim()) params.set("dateOfBirth", deepDob.trim());
     void load(`?${params.toString()}`);
-  }, [deepName, deepPhone, deepIp, load]);
+  }, [deepName, deepPhone, deepIp, deepDob, load]);
 
   const activeRows = useMemo(() => {
     const scoped = patients.filter((p) => {
