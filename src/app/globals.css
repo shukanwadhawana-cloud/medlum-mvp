@@ -164,3 +164,23 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 @media (min-width: 768px) {
   .telemedicine-video-frame { height: min(75vh, 800px); min-height: 480px; }
 }
+
+/* Figma clinical dashboard interface */
+.medlum-clinical-sidebar {
+  background: #4a0f14;
+  color: #fff;
+  border-right: 1px solid rgba(255,255,255,.08);
+}
+.medlum-clinical-nav-item {
+  color: #d8c3ca;
+  transition: background-color .15s ease, color .15s ease;
+}
+.medlum-clinical-nav-item:hover {
+  background: rgba(255,255,255,.08);
+  color: #fff;
+}
+.medlum-clinical-nav-item.is-active {
+  background: #c2183a;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(194,24,58,.22);
+}
