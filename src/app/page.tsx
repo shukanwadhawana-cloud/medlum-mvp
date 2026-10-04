@@ -16,7 +16,7 @@ export default function Home() {
 
   if (loading || doctor) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--ml-canvas)] text-[var(--ml-ink)] text-sm">
         Loading MedLum...
       </div>
     );
@@ -27,15 +27,15 @@ export default function Home() {
       <div className="w-full max-w-5xl">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold tracking-tight">MedLum</h1>
-          <p className="mt-3 text-lg text-red-200/90">Clinical Intelligence</p>
-          <p className="mt-4 text-white/70 max-w-xl mx-auto">
+          <p className="mt-3 text-lg text-[var(--ml-primary)]">Clinical Intelligence</p>
+          <p className="mt-4 text-[var(--ml-muted)] max-w-xl mx-auto">
             Secure access for clinical teams and a dedicated, separate portal for patients.
           </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <section className="rounded-3xl bg-white p-8 text-gray-900 shadow-2xl">
-            <div className="text-sm font-semibold text-[#c2183a] uppercase tracking-wide">
+          <section className="rounded-2xl border border-[var(--ml-border)] bg-white p-8 text-gray-900 shadow-[var(--ml-shadow)]">
+            <div className="text-sm font-semibold text-[var(--ml-primary)] uppercase tracking-wide">
               Clinical workspace
             </div>
             <h2 className="mt-2 text-2xl font-semibold">Doctors, Staff & Admin</h2>
@@ -44,30 +44,30 @@ export default function Home() {
             </p>
             <Link
               href="/login"
-              className="mt-8 flex h-12 items-center justify-center rounded-xl bg-[#c2183a] text-white font-semibold hover:opacity-90"
+              className="mt-8 flex h-12 items-center justify-center medlum-primary rounded-xl text-white font-semibold"
             >
               Doctor / Staff / Admin Login
             </Link>
           </section>
 
-          <section className="rounded-3xl border border-white/15 bg-white/10 p-8 backdrop-blur">
-            <div className="text-sm font-semibold text-red-200 uppercase tracking-wide">
+          <section className="rounded-2xl border border-[var(--ml-border)] bg-white p-8">
+            <div className="text-sm font-semibold text-[var(--ml-primary)] uppercase tracking-wide">
               Patient access
             </div>
             <h2 className="mt-2 text-2xl font-semibold">Patient Portal</h2>
-            <p className="mt-3 text-white/70">
+            <p className="mt-3 text-[var(--ml-muted)]">
               Access appointments, telemedicine and your patient information through the separate portal.
             </p>
             <Link
               href="/portal/login"
-              className="mt-8 flex h-12 items-center justify-center rounded-xl border border-white/30 bg-white text-[#140a1f] font-semibold hover:bg-white/90"
+              className="mt-8 flex h-12 items-center justify-center rounded-xl border border-[var(--ml-border)] bg-slate-50 text-[var(--ml-ink)] font-semibold hover:bg-slate-100"
             >
               Patient Portal Login
             </Link>
           </section>
         </div>
 
-        <p className="mt-8 text-center text-xs text-white/40">
+        <p className="mt-8 text-center text-xs text-slate-400">
           Patient and clinical authentication remain separate.
         </p>
       </div>
