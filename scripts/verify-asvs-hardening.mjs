@@ -33,6 +33,7 @@ ok(session.includes("httpOnly: true"), "session cookie is HttpOnly");
 ok(session.includes('secure: process.env.NODE_ENV === "production"'), "session cookie is Secure in production");
 ok(session.includes('sameSite: "lax"'), "session cookie uses SameSite=Lax");
 ok(session.includes("setExpirationTime"), "session has an explicit JWT expiration");
+ok(session.includes("sessionInvalidatedAt") && session.includes("revokeSession"), "server-side session invalidation is enforced");
 ok(session.includes("doctor.isActive"), "session rechecks server-side account activation");
 
 ok(middleware.includes("Cross-origin request rejected"), "cross-origin mutation requests are rejected");
@@ -61,13 +62,8 @@ ok(
   "P1 regression suite checks client clinicId authority"
 );
 
-// Important remaining gap: the current self-contained JWT is checked against
-// account state and expiry, but logout does not yet revoke a stolen token server-side.
-// Keep this as an explicit warning rather than silently treating the control as complete.
-warn(
-  session.includes("jwtVerify") && !session.includes("revokedAt") && !session.includes("sessionId"),
-  "server-side revocation of an individual self-contained JWT is still an open hardening item"
-);
+// Session invalidation is now a required control: logout invalidates the token family
+// for that doctor, while inactive accounts remain fail-closed.
 
 console.log(`\\nASVS 5.0 hardening verification: ${failures.length ? "FAILED" : "PASSED"}`);
 if (warnings.length) {
