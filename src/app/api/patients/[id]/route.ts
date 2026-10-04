@@ -19,7 +19,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: "No active clinic membership." }, { status: 403 });
   }
 
-  const { id } = await context.params;
+  const { id } = await ctx.params;
   const patient = await findAuthorizedPatient(membership, id);
   if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
