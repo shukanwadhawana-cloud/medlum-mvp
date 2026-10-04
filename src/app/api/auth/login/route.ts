@@ -194,7 +194,7 @@ export async function POST(req: Request) {
     }
 
     try {
-      await createSession({ doctorId: doctor.id, email: doctor.email });
+      await createSession({ doctorId: doctor.id, email: doctor.email , issuedAt: Math.floor(Date.now() / 1000) });
     } catch (sessErr) {
       const sm = sessErr instanceof Error ? sessErr.message : String(sessErr || "error");
       console.error("login createSession failed", sm);

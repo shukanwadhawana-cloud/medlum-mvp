@@ -105,6 +105,7 @@ model Doctor {
   phone                  String
   isActive               Boolean                 @default(true)
   deactivatedAt          DateTime?
+  sessionInvalidatedAt   DateTime?
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   patients               Patient[]

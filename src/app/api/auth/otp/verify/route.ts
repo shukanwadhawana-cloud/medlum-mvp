@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       orderBy: { createdAt: "asc" },
     });
 
-    await createSession({ doctorId: doctor.id, email: doctor.email });
+    await createSession({ doctorId: doctor.id, email: doctor.email , issuedAt: Math.floor(Date.now() / 1000) });
     await writeAudit({
       doctorId: doctor.id,
       action: "login",

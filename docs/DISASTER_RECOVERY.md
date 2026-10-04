@@ -46,6 +46,7 @@ MedLum uses its application authentication system rather than Neon Auth:
 - Authenticated sessions use an HTTP-only cookie containing the signed session token.
 - Server APIs derive `doctorId` from the authenticated session.
 - Client-supplied doctor ownership is not trusted.
+- Logout invalidates the doctor session family server-side through `sessionInvalidatedAt`; clearing the browser cookie alone is not treated as sufficient token revocation.
 
 The browser session cookie itself is temporary. The Doctor account and its application records are persistent database records. Logging in again retrieves the account's data from Neon.
 
