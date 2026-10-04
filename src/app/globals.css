@@ -9,11 +9,7 @@
   --muted: #6b6b75;
 }
 
-html {
-  min-width: 320px;
-  scroll-behavior: smooth;
-}
-
+html { min-width: 320px; scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -22,139 +18,63 @@ body {
   min-width: 320px;
   overflow-x: hidden;
 }
-
-* {
-  box-sizing: border-box;
-}
-
-button,
-a,
-input,
-select,
-textarea {
-  -webkit-tap-highlight-color: transparent;
-}
-
-button,
-[role="button"] {
-  touch-action: manipulation;
-}
-
-input,
-select,
-textarea {
-  max-width: 100%;
-}
-
-img,
-svg,
-video,
-canvas {
-  max-width: 100%;
-}
-
-iframe {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  border: 0;
-}
-
-/* Keep wide clinical tables usable on phones without forcing the page itself to scroll. */
-.overflow-x-auto {
-  max-width: 100%;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-/* Utility used by the responsive navigation without changing Tailwind configuration. */
-.scrollbar-none {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
-}
-
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Full usable height for Jitsi embed on phones and tablets. */
-.telemedicine-video-frame {
-  width: 100%;
-  height: min(72vh, 720px);
-  min-height: 320px;
-  background: #000;
-}
-
-.telemedicine-video-frame iframe {
-  width: 100%;
-  height: 100%;
-  min-height: 320px;
-}
+* { box-sizing: border-box; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, [role="button"] { touch-action: manipulation; }
+input, select, textarea { max-width: 100%; }
+img, svg, video, canvas { max-width: 100%; }
+iframe { display: block; width: 100%; max-width: 100%; border: 0; }
+.overflow-x-auto { max-width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.telemedicine-video-frame { width: 100%; height: min(72vh, 720px); min-height: 320px; background: #000; }
+.telemedicine-video-frame iframe { width: 100%; height: 100%; min-height: 320px; }
 
 @media (max-width: 639px) {
-  h1,
-  h2,
-  h3,
-  p,
-  td,
-  th,
-  label,
-  a,
-  button {
-    overflow-wrap: anywhere;
-  }
-
-  .telemedicine-video-frame {
-    height: min(68vh, 560px);
-    min-height: 280px;
-  }
+  h1, h2, h3, p, td, th, label, a, button { overflow-wrap: anywhere; }
+  .telemedicine-video-frame { height: min(68vh, 560px); min-height: 280px; }
 }
-
 @media (min-width: 768px) {
-  .telemedicine-video-frame {
-    height: min(75vh, 800px);
-    min-height: 480px;
-  }
+  .telemedicine-video-frame { height: min(75vh, 800px); min-height: 480px; }
 }
 
-
-/* MedLum professional clinical UI system — visual-only layer */
+/* MedLum clinical workspace visual layer — UI only */
 :root {
   --ml-ink: #14213d;
   --ml-ink-soft: #475569;
   --ml-muted: #64748b;
-  --ml-canvas: #f4f7fb;
-  --ml-surface: #ffffff;
-  --ml-surface-subtle: #f8fafc;
-  --ml-border: #e2e8f0;
+  --ml-canvas: #edf3f7;
+  --ml-canvas-deep: #e7eef4;
+  --ml-surface: #fbfcfd;
+  --ml-surface-subtle: #f3f7fa;
+  --ml-surface-tint: #eef7f7;
+  --ml-border: #d4e0e8;
   --ml-primary: #0f766e;
   --ml-primary-dark: #115e59;
-  --ml-primary-soft: #ecfdf5;
+  --ml-primary-soft: #dff4f1;
   --ml-accent: #2563eb;
   --ml-danger: #b91c1c;
   --ml-warning: #a16207;
   --ml-radius: 14px;
-  --ml-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .05);
+  --ml-shadow: 0 2px 4px rgba(15, 23, 42, .04), 0 10px 28px rgba(15, 23, 42, .07);
 }
 
 html { background: var(--ml-canvas); }
 body {
-  background: var(--ml-canvas);
+  background:
+    radial-gradient(circle at 85% -10%, rgba(15, 118, 110, .06), transparent 32rem),
+    var(--ml-canvas);
   color: var(--ml-ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: -0.005em;
 }
-
-::selection { background: #ccfbf1; color: #134e4a; }
+::selection { background: #bfe9e3; color: #134e4a; }
 
 input, select, textarea {
   border-color: var(--ml-border);
   color: var(--ml-ink);
-  background: #fff;
+  background: var(--ml-surface);
   border-radius: 10px;
   transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
 }
@@ -167,51 +87,49 @@ input:focus, select:focus, textarea:focus {
 button, a { transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .05s ease; }
 button:active, a:active { transform: translateY(1px); }
 
+main .bg-white.rounded-lg,
 main .bg-white.rounded-xl,
 main .bg-white.rounded-2xl,
 main .bg-white.rounded-3xl {
+  background: var(--ml-surface);
   box-shadow: var(--ml-shadow);
   border-color: var(--ml-border);
 }
 main .border { border-color: var(--ml-border); }
-
-main h1, main h2, main h3 { letter-spacing: -0.02em; }
-main h1 { color: var(--ml-ink); }
-main h2, main h3 { color: var(--ml-ink); }
+main h1, main h2, main h3 { letter-spacing: -0.02em; color: var(--ml-ink); }
 
 .medlum-shell-header {
-  background: rgba(255,255,255,.94) !important;
+  background: rgba(239, 245, 248, .96) !important;
   color: var(--ml-ink) !important;
   border-bottom: 1px solid var(--ml-border) !important;
-  box-shadow: 0 1px 10px rgba(15,23,42,.04);
+  box-shadow: 0 1px 12px rgba(15,23,42,.06);
   backdrop-filter: blur(14px);
 }
 .medlum-shell-header .medlum-brand { color: var(--ml-ink) !important; }
 .medlum-shell-header .medlum-brand-icon { color: var(--ml-primary) !important; }
-.medlum-shell-header .medlum-facility-select {
-  background: #f8fafc !important;
-  border-color: var(--ml-border) !important;
-  color: var(--ml-ink) !important;
-}
+.medlum-shell-header .medlum-facility-select,
 .medlum-shell-header .medlum-owner,
 .medlum-shell-header .medlum-menu {
-  background: #f8fafc !important;
+  background: var(--ml-surface) !important;
   color: var(--ml-ink) !important;
-  border: 1px solid var(--ml-border);
+  border-color: var(--ml-border) !important;
 }
+.medlum-shell-header .medlum-owner,
+.medlum-shell-header .medlum-menu { border: 1px solid var(--ml-border); }
 .medlum-shell-header .medlum-logout { color: #64748b !important; }
 .medlum-shell-header .medlum-nav { border-top-color: var(--ml-border) !important; }
-.medlum-shell-header .medlum-nav a {
-  color: #64748b !important;
-  border-radius: 9px;
-}
-.medlum-shell-header .medlum-nav a:hover { background: #f1f5f9 !important; color: var(--ml-ink) !important; }
+.medlum-shell-header .medlum-nav a { color: #64748b !important; border-radius: 9px; }
+.medlum-shell-header .medlum-nav a:hover { background: #e7f0f3 !important; color: var(--ml-ink) !important; }
 .medlum-shell-header .medlum-nav a[aria-current="page"],
 .medlum-shell-header .medlum-nav a.bg-\[\#c2183a\] {
   background: var(--ml-primary-soft) !important;
   color: var(--ml-primary) !important;
 }
-.medlum-mobile-nav { border-color: var(--ml-border) !important; box-shadow: 0 -8px 24px rgba(15,23,42,.06); }
+.medlum-mobile-nav {
+  background: rgba(243, 248, 250, .98) !important;
+  border-color: var(--ml-border) !important;
+  box-shadow: 0 -8px 24px rgba(15,23,42,.08);
+}
 
 .medlum-page-loading {
   background: var(--ml-canvas) !important;
@@ -220,30 +138,21 @@ main h2, main h3 { color: var(--ml-ink); }
 .medlum-primary {
   background: var(--ml-primary) !important;
   color: #fff !important;
-  box-shadow: 0 4px 12px rgba(15,118,110,.16);
+  box-shadow: 0 4px 12px rgba(15,118,110,.18);
 }
 .medlum-primary:hover { background: var(--ml-primary-dark) !important; }
 
-@media (min-width: 768px) {
-  main { padding-top: 28px !important; }
-}
-@media (max-width: 767px) {
-  main { padding-bottom: 92px !important; }
-}
+@media (min-width: 768px) { main { padding-top: 28px !important; } }
+@media (max-width: 767px) { main { padding-bottom: 92px !important; } }
 
+/* Give common neutral workflow regions gentle clinical separation. */
+main .bg-gray-50 { background-color: var(--ml-surface-subtle) !important; }
+main .hover\:bg-gray-50:hover { background-color: #eaf2f5 !important; }
 
-/* Legacy utility color normalization: keep existing workflows visually consistent. */
+/* Legacy utility color normalization: preserve existing workflows while removing old maroon/dark treatment. */
 .bg-\[\#140a1f\] { background-color: var(--ml-ink) !important; }
 .bg-\[\#c2183a\] { background-color: var(--ml-primary) !important; }
 .text-\[\#140a1f\] { color: var(--ml-ink) !important; }
 .text-\[\#c2183a\] { color: var(--ml-primary) !important; }
 .border-\[\#c2183a\] { border-color: var(--ml-primary) !important; }
-main .bg-white.rounded-lg,
-main .bg-white.rounded-xl,
-main .bg-white.rounded-2xl,
-main .bg-white.rounded-3xl {
-  border-color: var(--ml-border);
-}
 main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
-main .hover\:bg-gray-50:hover { background-color: #f8fafc !important; }
-main .bg-gray-50 { background-color: #f8fafc !important; }
