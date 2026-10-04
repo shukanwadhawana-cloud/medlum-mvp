@@ -244,17 +244,46 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, noteId: updated.id, status: updated.status });
       }
 
-      if (note.status !== "FINAL") {
-        const finalHash = hashClinicalNote(
-          `${note.content}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`,
-          note.version,
-        );
-        await prisma.clinicalNote.update({
-          where: { id: note.id },
-          data: { status: "FINAL", verifierDoctorId: session.doctorId, verifiedAt: now, finalizedAt: now, finalHash },
-        });
+      if (patient.status === "DISCHARGED") {
+        return NextResponse.json({ success: false, error: "Patient is already discharged" }, { status: 409 });
       }
-      const updatedPatient = await prisma.patient.update({ where: { id: patient.id }, data: { status: "DISCHARGED" } });
+      const nextContent = (content || note.content || "").trim();
+      if (!nextContent) {
+        return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
+      }
+      const finalHash = hashClinicalNote(
+        `${nextContent}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`,
+        note.version,
+      );
+      let updatedPatient;
+      try {
+        updatedPatient = await prisma.$transaction(async (tx) => {
+          const current = await tx.patient.findFirst({ where: { id: patient.id }, select: { status: true } });
+          if (!current || current.status === "DISCHARGED") {
+            const err = new Error("Patient is already discharged");
+            (err as Error & { code?: string }).code = "ALREADY_DISCHARGED";
+            throw err;
+          }
+          await tx.clinicalNote.update({
+            where: { id: note.id },
+            data: {
+              content: nextContent,
+              status: "FINAL",
+              verifierDoctorId: session.doctorId,
+              verifiedAt: now,
+              finalizedAt: now,
+              finalHash,
+            },
+          });
+          return tx.patient.update({ where: { id: patient.id }, data: { status: "DISCHARGED" } });
+        });
+      } catch (e: unknown) {
+        const code = e && typeof e === "object" && "code" in e ? String((e as { code?: string }).code) : "";
+        if (code === "ALREADY_DISCHARGED") {
+          return NextResponse.json({ success: false, error: "Patient is already discharged" }, { status: 409 });
+        }
+        throw e;
+      }
       await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_COMPLETE", entity: "Patient", entityId: patient.id, meta: { clinicId, noteId: note.id, status: "DISCHARGED" } });
       return NextResponse.json({ success: true, noteId: note.id, status: "FINAL", patientStatus: updatedPatient.status });
     }
