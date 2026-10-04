@@ -2,18 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 
-async function getClinicId(doctorId: string) {
-  const membership = await requireActiveClinicMembership(doctorId);
-  return membership?.clinicId || null;
-}
 async function getSharedPatient(patientId: string, doctorId: string) {
-  const clinicId = await getClinicId(doctorId);
-  if (!clinicId) return null;
-  return prisma.patient.findFirst({
-    where: { id: patientId, deletedAt: null, OR: [{ clinicId }, { clinicId: null, doctorId }] },
-  });
+  const membership = await requireActiveClinicMembership(doctorId);
+  if (!membership) return null;
+  return findAuthorizedPatient(membership, patientId);
 }
 
 export async function GET() {
@@ -30,7 +24,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
     const patientId = String(body.patientId || "");
