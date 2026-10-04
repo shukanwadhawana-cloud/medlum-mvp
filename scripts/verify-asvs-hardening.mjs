@@ -27,6 +27,7 @@ const session = read("src/lib/session.ts");
 const logout = read("src/app/api/auth/logout/route.ts");
 const clinicAuth = read("src/lib/clinic-auth.ts");
 const securityRegression = read("scripts/verify-p1-security-regression.mjs");
+const sessionMigration = read("prisma/migrations/20261004190000_session_invalidation/migration.sql");
 
 // ASVS 5.0 V7/V8-oriented baseline checks for the controls already in MedLum.
 ok(session.includes("httpOnly: true"), "session cookie is HttpOnly");
@@ -34,6 +35,7 @@ ok(session.includes('secure: process.env.NODE_ENV === "production"'), "session c
 ok(session.includes('sameSite: "lax"'), "session cookie uses SameSite=Lax");
 ok(session.includes("setExpirationTime"), "session has an explicit JWT expiration");
 ok(session.includes("sessionInvalidatedAt") && session.includes("revokeSession"), "server-side session invalidation is enforced");
+ok(sessionMigration.includes("sessionInvalidatedAt") && sessionMigration.includes("ADD COLUMN IF NOT EXISTS"), "session invalidation migration is additive and non-destructive");
 ok(session.includes("doctor.isActive"), "session rechecks server-side account activation");
 
 ok(middleware.includes("Cross-origin request rejected"), "cross-origin mutation requests are rejected");
