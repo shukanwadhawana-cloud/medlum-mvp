@@ -41,12 +41,6 @@ function PricingInner() {
       setNote("Pilot selected. No payment is required.");
       return;
     }
-    const paymentWindow = window.open("about:blank", "_blank");
-    if (!paymentWindow) {
-      setNoteTone("error");
-      setNote("Allow pop-ups so Razorpay can open in a separate tab.");
-      return;
-    }
     setLoadingPlan(id);
     setNoteTone("info");
     setNote(`Creating Razorpay Test Mode payment link for ${id} (${interval})…`);
@@ -59,20 +53,16 @@ function PricingInner() {
       });
       const data = await response.json().catch(() => ({}));
       if (response.status === 401) {
-        paymentWindow.close();
         setNoteTone("error");
         setNote("Sign in to MedLum first, then select a paid plan.");
         return;
       }
       if (!response.ok || !data.success || !data.paymentLink) {
-        paymentWindow.close();
         throw new Error(data.details || data.error || "Could not create Razorpay payment page.");
       }
-      paymentWindow.location.href = data.paymentLink;
-      setNoteTone("info");
-      setNote(`Razorpay Test Mode opened in a new tab for ${id} (${interval}, ₹${data.amountInr}). This MedLum tab stays open.`);
+      window.location.assign(data.paymentLink);
+      return;
     } catch (error) {
-      try { paymentWindow.close(); } catch { /* ignore */ }
       setNoteTone("error");
       setNote(error instanceof Error ? error.message : "Could not open Razorpay.");
     } finally {
