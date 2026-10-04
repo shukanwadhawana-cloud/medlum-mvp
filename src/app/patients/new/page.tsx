@@ -13,6 +13,7 @@ export default function NewPatientPage() {
   const [error, setError] = useState("");
   const [created, setCreated] = useState<any>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
+  const [candidates, setCandidates] = useState<any[]>([]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +54,8 @@ export default function NewPatientPage() {
         </div>
 
         {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+        {candidates.length > 0 && (<section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3"><p className="font-semibold text-amber-900">Possible existing patients in this facility</p><p className="text-sm text-amber-800">No new record was created. Open an existing patient instead of registering a duplicate. Shared family phones are not auto-merged.</p><div className="space-y-2">{candidates.map((c) => (<div key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-white border p-3"><div className="min-w-0"><p className="font-medium truncate">{c.name}</p><p className="text-xs text-gray-500">{c.uhid || c.registrationNo || c.id} · {c.phone} · {c.status}</p></div><Link href={"/patients/" + c.id} className="shrink-0 rounded-lg border px-3 py-2 text-sm font-medium">Open</Link></div>))}</div></section>)}
 
         {candidates.length > 0 && (<section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3"><p className="font-semibold text-amber-900">Possible existing patients in this facility</p><p className="text-sm text-amber-800">No new record was created. Open an existing patient instead of registering a duplicate. Shared family phones are not auto-merged.</p><div className="space-y-2">{candidates.map((c) => (<div key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-white border p-3"><div className="min-w-0"><p className="font-medium truncate">{c.name}</p><p className="text-xs text-gray-500">{c.uhid || c.registrationNo || c.id} · {c.phone} · {c.status}</p></div><Link href={c.careSetting === "IPD" ? `/ipd/${c.id}` : `/patients/${c.id}`} className="shrink-0 rounded-lg border px-3 py-2 text-sm font-medium">Open</Link></div>))}</div></section>)}
         {created ? (
