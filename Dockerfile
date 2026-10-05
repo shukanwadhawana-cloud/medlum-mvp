@@ -11,8 +11,7 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
 
-# prisma generate (via npm run build) requires DATABASE_URL at build time.
-# Use a non-production placeholder; runtime CMD uses real Render env DATABASE_URL for migrate deploy.
+# prisma generate requires DATABASE_URL at build time (placeholder only).
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
 ENV SESSION_SECRET="build-time-placeholder-not-used-at-runtime"
 
@@ -26,4 +25,5 @@ ENV SESSION_SECRET=
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "for i in 1 2 3 4 5; do npx prisma migrate deploy && exec npm start; echo "Prisma migration attempt $i failed; retrying in 5s..."; sleep 5; done; echo "Prisma migrations failed after 5 attempts"; exit 1"]
+# Valid JSON-form CMD. Shell script avoids nested-quote breakage in the array form.
+CMD ["sh", "-c", "i=1; while [ $i -le 5 ]; do npx prisma migrate deploy && exec npm start; echo Prisma migration attempt $i failed; retrying in 5s...; i=$((i+1)); sleep 5; done; echo Prisma migrations failed after 5 attempts; exit 1"]
