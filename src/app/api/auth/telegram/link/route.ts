@@ -5,6 +5,7 @@ import { createTelegramLinkChallenge, ensureTelegramWebhook, classifyTelegramErr
 import { normalizeClinicRole } from "@/lib/workflow";
 import { isMedlumOwnerEmail } from "@/lib/owner";
 import { writeAudit } from "@/lib/audit";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 
 export const runtime = "nodejs";
 
@@ -86,6 +87,23 @@ export async function DELETE() {
   const auth = await requirePrivilegedSession();
   if ("error" in auth && auth.error) return auth.error;
   const doctor = auth.doctor!;
+
+  // Privileged roles cannot disable their own required second factor.
+  const isOwner = isMedlumOwnerEmail(doctor.email);
+  let needsOtp = isOwner;
+  if (!needsOtp) {
+    const membership = await requireActiveClinicMembership(doctor.id);
+    if (membership && roleRequiresOtp(normalizeClinicRole(membership.role))) needsOtp = true;
+  }
+  if (needsOtp) {
+    return NextResponse.json(
+      {
+        error: "Privileged accounts cannot unlink Telegram. Contact MedLum support for recovery.",
+        code: "TELEGRAM_REQUIRED",
+      },
+      { status: 403 }
+    );
+  }
 
   await prisma.telegramIdentity.deleteMany({ where: { doctorId: doctor.id } });
   await prisma.telegramLinkChallenge.updateMany({
