@@ -30,18 +30,9 @@ def _allowed_ocr_secrets() -> set[str]:
     return secrets
 
 
-from contextlib import asynccontextmanager
-
 _ocr = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Preload PaddleOCR before accepting requests. Lazy model initialization caused
-    # the first authenticated request to spend ~60s downloading models.
-    get_ocr()
-    yield
-
-app = FastAPI(title="MedLum OCR", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="MedLum OCR", docs_url=None, redoc_url=None)
 
 
 def get_ocr():
@@ -49,6 +40,9 @@ def get_ocr():
     if _ocr is None:
         from paddleocr import PaddleOCR
 
+        # Lazy initialization avoids the startup memory spike that repeatedly caused
+        # Railway to OOM-kill the container. Set OCR_PREWARM=true only on a
+        # machine with enough memory for PaddleOCR's model startup peak.
         _ocr = PaddleOCR(use_angle_cls=True, lang="en", use_gpu=False, show_log=False)
     return _ocr
 
@@ -134,6 +128,7 @@ def health():
         "ok": True,
         "engine": "paddleocr",
         "ready": _ocr is not None,
+        "prewarm": os.environ.get("OCR_PREWARM", "false").lower() == "true",
         "build": os.environ.get("OCR_BUILD_SHA", "73f2c9d"),
         "limits": {
             "maxBytes": MAX_BYTES,
