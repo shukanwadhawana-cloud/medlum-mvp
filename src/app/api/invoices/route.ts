@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { requireActiveClinicMembership, canViewBillingDetail } from "@/lib/clinic-auth";
+import { requireActiveClinicMembership, canViewBillingDetail, findAuthorizedPatient } from "@/lib/clinic-auth";
 
 function denyUnlessBilling(role: string) {
   if (!canViewBillingDetail(role as any)) {
@@ -18,8 +18,10 @@ async function clinicForDoctor(doctorId: string) {
   return { clinicId: membership.clinicId, role: membership.role };
 }
 
-async function sharedPatient(patientId: string, clinicId: string) {
-  return prisma.patient.findFirst({ where: { id: patientId, clinicId } });
+async function sharedPatient(patientId: string, doctorId: string) {
+  const membership = await requireActiveClinicMembership(doctorId);
+  if (!membership) return null;
+  return findAuthorizedPatient(membership, patientId);
 }
 
 async function nextInvoiceNumber(clinicId: string): Promise<string> {
@@ -41,7 +43,7 @@ async function nextInvoiceNumber(clinicId: string): Promise<string> {
 
 export async function GET() {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const member = await clinicForDoctor(session.doctorId);
   if (!member) return NextResponse.json({ invoices: [] });
   const denied = denyUnlessBilling(member.role);
@@ -103,17 +105,17 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
     const patientId = String(body.patientId || "");
     const member = await clinicForDoctor(session.doctorId);
-    if (!member || !(await sharedPatient(patientId, member.clinicId))) {
+    if (!member || !(await sharedPatient(patientId, session.doctorId))) {
       return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
     }
     const denied = denyUnlessBilling(member.role);
     if (denied) return denied;
-    const patient = await sharedPatient(patientId, member.clinicId);
+    const patient = await sharedPatient(patientId, session.doctorId);
 
     const activeTariff = await prisma.tariffVersion.findFirst({
       where: { clinicId: member.clinicId, isActive: true },
@@ -256,7 +258,7 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const body = await req.json();
     const id = String(body.id || "");

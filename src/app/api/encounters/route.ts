@@ -2,27 +2,30 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { hashClinicalNote } from "@/lib/clinical-signing";
 
 async function getSharedPatient(patientId: string, doctorId: string) {
   const membership = await requireActiveClinicMembership(doctorId);
   if (!membership) return null;
-  return prisma.patient.findFirst({
-    where: { id: patientId, deletedAt: null, OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId }] },
-  });
+  return findAuthorizedPatient(membership, patientId);
 }
 
 export async function GET(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const patientId = searchParams.get("patientId");
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
   if (patientId && !(await getSharedPatient(patientId, session.doctorId))) return NextResponse.json({ error: "Patient not found" }, { status: 404 });
 
-  const scope = { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }] };
+  const members = await prisma.clinicMember.findMany({
+    where: { clinicId: membership.clinicId, isActive: true },
+    select: { doctorId: true },
+  });
+  const doctorIds = Array.from(new Set([membership.doctorId, ...members.map((m) => m.doctorId)]));
+  const scope = { OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: { in: doctorIds } }] };
   const encounters = await prisma.encounter.findMany({
     where: patientId ? { patientId, patient: scope } : { patient: scope },
     orderBy: { createdAt: "desc" },
@@ -32,7 +35,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   try {
     const membership = await requireActiveClinicMembership(session.doctorId);
     if (!membership) return NextResponse.json({ success: false, error: "No active clinic membership" }, { status: 403 });
