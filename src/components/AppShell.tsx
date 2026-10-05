@@ -109,7 +109,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="medlum-app min-h-screen bg-[var(--ml-canvas)] text-[var(--ml-ink)]">
       <header className="medlum-topbar">
-        <div className="medlum-topbar-inner">
+        <div className="medlum-topbar-inner max-w-7xl">
           <Link href="/dashboard" className="medlum-brand">
             <span className="medlum-brand-mark"><Icon name="brand" size={20}/></span>
             <span><strong>MEDLUM</strong><small>Clinical workspace</small></span>
