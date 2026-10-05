@@ -48,14 +48,18 @@ export async function POST(req: Request) {
     const patient = patientResult.patient;
 
     if (encounterId) {
+      // Encounter has no clinicId field; facility scope is via Patient relation.
+      // patientId was already authorized for this membership (requireAuthorizedPatient).
       const enc = await prisma.encounter.findFirst({
         where: {
           id: encounterId,
           patientId,
-          OR: [
-            { clinicId: auth.ctx.membership.clinicId },
-            { clinicId: null, doctorId: auth.ctx.session.doctorId },
-          ],
+          patient: {
+            OR: [
+              { clinicId: auth.ctx.membership.clinicId },
+              { clinicId: null, doctorId: auth.ctx.session.doctorId },
+            ],
+          },
         },
       });
       if (!enc) {
