@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { requireActiveClinicMembership, findAuthorizedPatient } from "@/lib/clinic-auth";
+import { canEnterLabResult, canOrderLabs } from "@/lib/permissions";
 
 /** Statuses the lab work queue UI and PATCH accept (must stay in sync with labs page). */
 const LAB_STATUSES = new Set([
@@ -27,20 +28,12 @@ async function getClinicId(doctorId: string) {
 }
 
 /**
- * Resolve a patient strictly inside the authenticated member's active clinic.
- * Legacy rows are only accepted when they have no clinicId and are owned by the
- * authenticated doctor. Never use doctorId as an OR bypass for a different clinic.
+ * Resolve a patient via canonical findAuthorizedPatient (facility scope + safe legacy null clinicId).
  */
 async function getSharedPatient(patientId: string, doctorId: string) {
-  const clinicId = await getClinicId(doctorId);
-  if (!clinicId) return null;
-  return prisma.patient.findFirst({
-    where: {
-      id: patientId,
-      deletedAt: null,
-      OR: [{ clinicId }, { clinicId: null, doctorId }],
-    },
-  });
+  const membership = await requireActiveClinicMembership(doctorId);
+  if (!membership) return null;
+  return findAuthorizedPatient(membership, patientId);
 }
 
 export async function GET(req: Request) {
@@ -66,8 +59,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canOrderLabs(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   try {
     const body = await req.json();
+    void body.clinicId;
+    void body.facilityId;
     const patientId = String(body.patientId || "");
     const testName = String(body.testName || "").trim();
     if (!patientId || !testName)
@@ -81,7 +81,6 @@ export async function POST(req: Request) {
       });
       if (!encounter) encounterId = null;
     }
-    // doctorId always from session — never from body
     const order = await prisma.labOrder.create({
       data: {
         doctorId: session.doctorId,
@@ -110,8 +109,12 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const clinicId = await getClinicId(session.doctorId);
-  if (!clinicId) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  const membershipForRole = await requireActiveClinicMembership(session.doctorId);
+  if (!membershipForRole) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canEnterLabResult(membershipForRole.role) && !canOrderLabs(membershipForRole.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
+  const clinicId = membershipForRole.clinicId;
   try {
     const body = await req.json();
     const id = String(body.id || "");
@@ -119,7 +122,6 @@ export async function PATCH(req: Request) {
     if (!id || !LAB_STATUSES.has(status)) {
       return NextResponse.json({ success: false, error: "Invalid update" }, { status: 400 });
     }
-    // Tenant isolation: order must belong to a patient in this clinic
     const existing = await prisma.labOrder.findFirst({
       where: { id, patient: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] } },
     });
