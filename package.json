@@ -56,6 +56,7 @@
     "test:document-intelligence": "node scripts/verify-document-intelligence.mjs",
     "test:duty": "node scripts/verify-duty.mjs",
     "test:patient-discovery": "node scripts/verify-patient-discovery.mjs",
+    "test:facility-data-migration": "node scripts/verify-facility-data-migration-security.mjs",
     "test:p2-01": "node scripts/verify-p2-01-ipd-discharge.mjs",
     "test:p2-02": "node scripts/verify-p2-02-ipd-bed-lifecycle.mjs",
     "test:owner-full-access": "node scripts/verify-owner-full-access.mjs",
