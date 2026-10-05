@@ -29,7 +29,6 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
     logout: (<><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M14 4h5v16h-5" /></>),
     more: (<><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" /></>),
     owner: (<><path d="M12 3l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V7z" /><path d="M9 12h6M12 9v6" /></>),
-    duty: (<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /><path d="M9 16h6" /></>),
     people: (<><circle cx="9" cy="8" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M3 20c0-3.5 2.5-5.5 6-5.5s6 2 6 5.5" /><path d="M15 15c3 .2 5 1.8 5 5" /></>),
   };
   return <svg {...common}>{paths[name] || paths.more}</svg>;
@@ -49,19 +48,7 @@ const isActive = (pathname: string, href: string) =>
   (href === "/clinic" && (pathname === "/clinic" || pathname.startsWith("/clinic?"))) ||
   (href === "/nursing" && pathname.startsWith("/nursing"));
 
-function MoreSidebar({
-  open,
-  onClose,
-  pathname,
-  onLogout,
-  menuItems,
-}: {
-  open: boolean;
-  onClose: () => void;
-  pathname: string;
-  onLogout: () => void;
-  menuItems: Array<{ href: string; label: string; icon: string }>;
-}) {
+function MoreSidebar({ open, onClose, pathname, onLogout, menuItems }: { open: boolean; onClose: () => void; pathname: string; onLogout: () => void; menuItems: Array<{ href: string; label: string; icon: string }> }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted || !open) return null;
@@ -69,49 +56,14 @@ function MoreSidebar({
     <div className="fixed inset-0 z-[60]">
       <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={onClose} />
       <aside className="absolute right-0 top-0 flex h-full w-[min(22rem,92vw)] flex-col bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <p className="text-sm font-semibold text-[#140a1f]">Menu</p>
-          <button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button>
-        </div>
+        <div className="flex items-center justify-between border-b px-4 py-3"><p className="text-sm font-semibold text-[#140a1f]">Menu</p><button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button></div>
         <div className="flex-1 overflow-y-auto p-3">
-          <div className="mb-4">
-            <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Operations & settings</p>
-            {menuItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={`mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm ${
-                  isActive(pathname, item.href) ? "bg-red-50 font-medium text-[#c2183a]" : "text-[#140a1f]"
-                }`}
-              >
-                <Icon name={item.icon} size={16} />
-                <span>{item.label}</span>
-              </Link>
-            ))}
-            <Link href="/help" onClick={onClose} className="mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm text-[#140a1f]">
-              <Icon name="reports" size={16} /><span>Help & FAQs</span>
-            </Link>
-            <Link href="/pricing" onClick={onClose} className="mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm text-[#140a1f]">
-              <Icon name="billing" size={16} /><span>Pricing & plans</span>
-            </Link>
-          </div>
+          <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Operations & settings</p>
+          {menuItems.map((item) => <Link key={item.href} href={item.href} onClick={onClose} className={`mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm ${isActive(pathname, item.href) ? "bg-red-50 font-medium text-[#c2183a]" : "text-[#140a1f]"}`}><Icon name={item.icon} size={16}/><span>{item.label}</span></Link>)}
         </div>
-        <div className="border-t p-3">
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onLogout();
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white"
-          >
-            Logout
-          </button>
-        </div>
+        <div className="border-t p-3"><button type="button" onClick={() => { onClose(); onLogout(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#c2183a] py-3 text-sm font-semibold text-white"><Icon name="logout" size={16}/>Logout</button></div>
       </aside>
-    </div>,
-    document.body
+    </div>, document.body
   );
 }
 
@@ -124,65 +76,67 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [switchingFacility, setSwitchingFacility] = useState(false);
 
   const activeRole = useMemo(() => {
-    if (selectedFacilityId) {
-      const match = facilities.find((f) => f.clinicId === selectedFacilityId);
-      if (match?.role) return match.role;
-    }
+    if (selectedFacilityId) return facilities.find((f) => f.clinicId === selectedFacilityId)?.role || doctor?.primaryRole || "Consultant";
     return doctor?.primaryRole || "Consultant";
   }, [selectedFacilityId, facilities, doctor?.primaryRole]);
-
   const isOwner = Boolean(doctor?.isOwner);
   const primaryNav = useMemo(() => primaryNavForRole(activeRole), [activeRole]);
   const menuItems = useMemo(() => menuNavForRole(activeRole), [activeRole]);
 
   useEffect(() => {
     if (!doctor) return;
-    fetch("/api/clinic/access", { credentials: "include", cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) return null;
-        return res.json();
-      })
-      .then((data) => {
-        if (!data) return;
-        setFacilities(Array.isArray(data.facilities) ? data.facilities : []);
-        setSelectedFacilityId(typeof data.clinicId === "string" ? data.clinicId : "");
-      })
-      .catch(() => {});
+    fetch("/api/clinic/access", { credentials: "include", cache: "no-store" }).then(async (res) => res.ok ? res.json() : null).then((data) => {
+      if (!data) return;
+      setFacilities(Array.isArray(data.facilities) ? data.facilities : []);
+      setSelectedFacilityId(typeof data.clinicId === "string" ? data.clinicId : "");
+    }).catch(() => {});
   }, [doctor]);
 
   const switchFacility = async (clinicId: string) => {
     if (!clinicId || clinicId === selectedFacilityId || switchingFacility) return;
     setSwitchingFacility(true);
     try {
-      const res = await fetch("/api/clinic/access", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
-        body: JSON.stringify({ clinicId }),
-      });
-      if (!res.ok) {
-        setSwitchingFacility(false);
-        return;
-      }
+      const res = await fetch("/api/clinic/access", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" }, body: JSON.stringify({ clinicId }) });
+      if (!res.ok) return;
       setSelectedFacilityId(clinicId);
       window.location.reload();
-    } catch {
-      setSwitchingFacility(false);
-    }
+    } finally { setSwitchingFacility(false); }
   };
 
-  const moreActive =
-    menuItems.some((item) => isActive(pathname, item.href)) ||
-    pathname.startsWith("/more") ||
-    pathname.startsWith("/owner");
-
+  const moreActive = menuItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
   const quickNav = primaryNav.slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-[var(--ml-canvas)] text-[var(--ml-ink)]"><div className="flex min-h-screen">
-      <aside className="medlum-clinical-sidebar sticky top-0 hidden md:flex h-screen w-[230px] shrink-0 overflow-y-auto md:block"><div className="px-5 pt-5"><Link href="/dashboard" className="text-white"><span className="text-[22px] font-bold tracking-tight">MEDLUM</span></Link><p className="mt-0.5 text-xs text-[#b8c2d1]">Clinical workspace</p></div><nav className="mt-7 px-5 pb-5">{primaryNav.map((item)=><Link key={item.href} href={item.href} aria-current={isActive(pathname,item.href)?"page":undefined} className={`medlum-clinical-nav-item mb-1 flex min-h-[38px] items-center gap-2 rounded-[14px] px-3 text-xs font-medium ${isActive(pathname,item.href)?"is-active":""}`}><Icon name={item.icon} size={15}/><span>{item.label}</span></Link>)}<div className="my-4 border-t border-white/10"/>{menuItems.slice(0,5).map((item)=><Link key={item.href} href={item.href} aria-current={isActive(pathname,item.href)?"page":undefined} className={`medlum-clinical-nav-item mb-1 flex min-h-[38px] items-center gap-2 rounded-[14px] px-3 text-xs font-medium ${isActive(pathname,item.href)?"is-active":""}`}><Icon name={item.icon} size={15}/><span>{item.label}</span></Link>)}<button type="button" onClick={()=>setMoreOpen(true)} className="medlum-clinical-nav-item mt-1 flex min-h-[38px] w-full items-center gap-2 rounded-[14px] px-3 text-xs font-medium"><Icon name="more" size={15}/><span>More</span></button></nav></aside>
-      <div className="min-w-0 flex-1"><header className="border-b border-[var(--ml-border)] bg-white/95 backdrop-blur"><div className="mx-auto flex min-h-[66px] max-w-[1360px] items-center gap-3 px-4 sm:px-6 lg:px-8"><div className="min-w-0 flex-1"><p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--ml-muted)]">MedLum Clinical Workspace</p><p className="truncate text-lg font-bold tracking-tight text-[var(--ml-ink)]">{doctor?.name || "Clinical dashboard"}</p></div>{facilities.length>0&&<select value={selectedFacilityId} onChange={(e)=>switchFacility(e.target.value)} disabled={switchingFacility} className="hidden h-9 max-w-[13rem] rounded-lg border border-[var(--ml-border)] bg-white px-3 text-xs text-[var(--ml-ink)] sm:block">{facilities.map(f=><option key={f.clinicId} value={f.clinicId}>{f.name}</option>)}</select>}{isOwner&&<Link href="/owner" className="hidden min-h-9 items-center gap-1.5 rounded-lg border border-[var(--ml-border)] bg-white px-2.5 text-xs font-medium text-[var(--ml-ink)] sm:inline-flex"><Icon name="owner" size={14}/><span>Owner</span></Link>}<button type="button" onClick={()=>setMoreOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--ml-border)] bg-white px-2.5 text-xs font-medium text-[var(--ml-ink)]"><Icon name="more" size={14}/><span className="hidden sm:inline">Menu</span></button><button type="button" onClick={()=>logout()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--ml-border)] bg-white px-2.5 text-xs font-medium text-[var(--ml-ink)]"><Icon name="logout" size={14}/><span className="hidden sm:inline">Logout</span></button></div></header><main className="mx-auto w-full max-w-7xl max-w-[1360px] min-w-0 px-4 py-5 pb-24 sm:px-6 md:py-6 lg:px-8">{children}</main></div></div>
-      <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur safe-area-bottom md:hidden"><nav className="mx-auto grid max-w-lg grid-cols-5">{quickNav.map(item=><Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium ${isActive(pathname,item.href)?"text-[#c2183a]":"text-gray-500"}`}><Icon name={item.icon} size={18}/><span>{item.label}</span></Link>)}<button type="button" onClick={()=>setMoreOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-gray-500"><Icon name="more" size={18}/><span>Menu</span></button></nav></div>
-      <MoreSidebar open={moreOpen} onClose={()=>setMoreOpen(false)} pathname={pathname} onLogout={()=>logout()} menuItems={menuItems}/><MedLumChat /></div>
+    <div className="medlum-app min-h-screen bg-[var(--ml-canvas)] text-[var(--ml-ink)]">
+      <header className="medlum-topbar">
+        <div className="medlum-topbar-inner max-w-7xl">
+          <Link href="/dashboard" className="medlum-brand">
+            <span className="medlum-brand-mark"><Icon name="brand" size={20}/></span>
+            <span><strong>MEDLUM</strong><small>Clinical workspace</small></span>
+          </Link>
+          <div className="medlum-topbar-spacer"/>
+          {facilities.length > 0 && <select value={selectedFacilityId} onChange={(e) => switchFacility(e.target.value)} disabled={switchingFacility} className="medlum-facility-select" aria-label="Select facility">{facilities.map((f) => <option key={f.clinicId} value={f.clinicId}>{f.name}</option>)}</select>}
+          <span className="medlum-user-name">{doctor?.name || "Clinical user"}</span>
+          {isOwner && <Link href="/owner" className="medlum-top-action"><Icon name="owner" size={14}/>Owner</Link>}
+          <button type="button" onClick={() => setMoreOpen(true)} className="medlum-top-action"><Icon name="more" size={14}/>Menu</button>
+          <button type="button" onClick={() => logout()} className="medlum-top-action medlum-logout-action"><Icon name="logout" size={14}/>Logout</button>
+        </div>
+      </header>
+
+      <nav className="medlum-primary-nav hidden md:flex" aria-label="Clinical navigation">
+        <div className="medlum-primary-nav-inner">
+          {primaryNav.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? "page" : undefined} className={`medlum-primary-nav-item ${isActive(pathname, item.href) ? "is-active" : ""}`}><Icon name={item.icon} size={15}/><span>{item.label}</span></Link>)}
+          <button type="button" onClick={() => setMoreOpen(true)} className={`medlum-primary-nav-item ${moreActive ? "is-active-soft" : ""}`}><Icon name="more" size={15}/><span>More</span></button>
+        </div>
+      </nav>
+
+      <main className="medlum-main">{children}</main>
+
+      <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur safe-area-bottom md:hidden">
+        <nav className="mx-auto grid max-w-lg grid-cols-5">{quickNav.map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span>{item.label}</span></Link>)}<button type="button" onClick={() => setMoreOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-gray-500"><Icon name="more" size={18}/><span>Menu</span></button></nav>
+      </div>
+      <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} menuItems={menuItems}/>
+      <MedLumChat />
+    </div>
   );
 }
