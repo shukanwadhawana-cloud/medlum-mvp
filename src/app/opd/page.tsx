@@ -4,97 +4,50 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiGetPatients, apiGetAppointments, apiAddPatient } from "@/lib/api";
+import { apiGetPatients, apiGetAppointments, apiGetEncounters, apiAddPatient } from "@/lib/api";
 
-/** Minimal safe OPD page restore — full clinical workflow remains via patient chart links. */
+type Patient = { id: string; name: string; age: number; gender: string; phone: string; careSetting?: string; registrationNo?: string; uhid?: string };
+
 export default function OpdPage() {
-  const { doctor, loading } = useDoctor();
-  const [patients, setPatients] = useState<any[]>([]);
-  const [appts, setAppts] = useState<any[]>([]);
-  const [err, setErr] = useState("");
-  const [msg, setMsg] = useState("");
-  const [q, setQ] = useState("");
+  const { doctor, loading: authLoading } = useDoctor();
+  const [patients, setPatients] = useState<Patient[]>([]); const [appts, setAppts] = useState<any[]>([]); const [encounters, setEncounters] = useState<any[]>([]);
+  const [search, setSearch] = useState(""); const [listView, setListView] = useState<"active" | "all">("active"); const [loading, setLoading] = useState(true); const [showAdd, setShowAdd] = useState(false); const [saving, setSaving] = useState(false); const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
+  const [form, setForm] = useState({ name: "", age: "", gender: "Male", phone: "" }); const [editId, setEditId] = useState<string | null>(null); const [editForm, setEditForm] = useState({ name: "", age: "", gender: "Male", phone: "" });
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async () => { setLoading(true); try { const [pts, appointments, ens] = await Promise.all([apiGetPatients(), apiGetAppointments(), apiGetEncounters()]); const patientList = Array.isArray(pts) ? pts : (pts as any)?.patients || []; setPatients(patientList.filter((p: Patient) => (p.careSetting || "OPD") !== "IPD")); setAppts(Array.isArray(appointments) ? appointments : (appointments as any)?.appointments || []); setEncounters(Array.isArray(ens) ? ens : (ens as any)?.encounters || []); } catch { setErr("Could not load OPD data"); } finally { setLoading(false); } }, []);
+  useEffect(() => { if (!authLoading && doctor) void reload(); }, [authLoading, doctor, reload]);
+
+  async function saveEdit(e: React.FormEvent) { e.preventDefault(); if (!editId) return; setSaving(true); setErr(""); setMsg(""); try { const r = await fetch(`/api/patients/${editId}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: editForm.name.trim(), age: Number(editForm.age) || 0, gender: editForm.gender, phone: editForm.phone.trim() }) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error((j as any).error || "Could not update patient"); setMsg("Patient details updated."); setEditId(null); await reload(); } catch (e) { setErr(e instanceof Error ? e.message : "Could not update patient"); } finally { setSaving(false); } }
+
+  const todayAppts = useMemo(() => { const today = new Date().toISOString().slice(0, 10); return appts.filter((a) => (String(a.date || "").startsWith(today) || a.date === today) && ["Scheduled", "Waiting"].includes(String(a.status))); }, [appts]);
+  const activePatientIds = useMemo(() => new Set(todayAppts.map((a) => String(a.patientId))), [todayAppts]);
+  const visiblePatients = useMemo(() => {
+    const base = listView === "active" ? patients.filter((p) => activePatientIds.has(String(p.id))) : patients;
+    const q = search.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter((p) => p.name.toLowerCase().includes(q) || p.phone?.includes(q) || p.id.toLowerCase().includes(q) || (p.registrationNo || "").toLowerCase().includes(q) || (p.uhid || "").toLowerCase().includes(q));
+  }, [patients, search, listView, activePatientIds]);
+  void encounters;
+
+  async function registerPatient(e: React.FormEvent) {
+    e.preventDefault(); setSaving(true); setErr(""); setMsg("");
     try {
-      const [pts, appointments] = await Promise.all([apiGetPatients(), apiGetAppointments()]);
-      setPatients(Array.isArray(pts) ? pts : []);
-      setAppts(Array.isArray(appointments) ? appointments : []);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not load OPD data");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!loading && doctor) reload();
-  }, [loading, doctor, reload]);
-
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return patients.slice(0, 50);
-    return patients.filter((p) =>
-      [p.name, p.phone, p.uhid, p.id].some((x) => String(x || "").toLowerCase().includes(needle))
-    ).slice(0, 50);
-  }, [patients, q]);
-
-  if (loading || !doctor) {
-    return <AppShell><p className="text-sm text-gray-500">Loading…</p></AppShell>;
+      const res = await apiAddPatient({ name: form.name.trim(), age: Number(form.age) || 0, gender: form.gender, phone: form.phone.trim(), careSetting: "OPD" } as any);
+      if (!res.success) { setErr(res.error || "Could not register patient"); return; }
+      setMsg(`Registered ${form.name} for OPD`); setShowAdd(false); setForm({ name: "", age: "", gender: "Male", phone: "" }); await reload();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Could not register patient. Please try again."); } finally { setSaving(false); }
   }
 
-  return (
-    <AppShell>
-      <section className="medlum-dashboard-hero mb-4">
-        <div>
-          <p className="medlum-eyebrow">OUTPATIENT</p>
-          <h1>OPD</h1>
-          <p>Register and select patients, open a consultation, order labs, and bill from the patient chart.</p>
-        </div>
-        <Link href="/patients/new" className="medlum-primary inline-flex items-center justify-center" style={{ textDecoration: "none" }}>
-          + Register patient
-        </Link>
-      </section>
-      {msg && <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{msg}</div>}
-      {err && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{err}</div>}
-      <div className="mb-3">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search name, phone, UHID"
-          className="w-full h-11 px-3 rounded-lg border text-sm"
-        />
-      </div>
-      <section className="bg-white rounded-xl border shadow-sm overflow-hidden mb-4">
-        <div className="px-3 py-2 border-b flex justify-between items-center">
-          <h3 className="font-semibold text-sm">Today / recent appointments</h3>
-          <Link href="/appointments" className="text-xs text-[#c2183a] font-medium">Full schedule</Link>
-        </div>
-        <div className="divide-y">
-          {appts.slice(0, 20).map((a) => (
-            <div key={a.id} className="px-3 py-2.5 flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-medium text-sm truncate">{a.patientName || a.patientId}</p>
-                <p className="text-xs text-gray-500">{a.date} {a.time} · {a.type} · {a.status}</p>
-              </div>
-              {a.patientId && (
-                <Link href={`/patients/${a.patientId}`} className="text-xs text-[#c2183a] font-medium shrink-0">Open chart</Link>
-              )}
-            </div>
-          ))}
-          {appts.length === 0 && <div className="p-5 text-center text-sm text-gray-500">No appointments loaded.</div>}
-        </div>
-      </section>
-      <section className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">Patients</h3></div>
-        <div className="divide-y">
-          {filtered.map((p) => (
-            <Link key={p.id} href={`/patients/${p.id}`} className="block px-3 py-2.5 hover:bg-gray-50">
-              <p className="font-medium text-sm">{p.name}</p>
-              <p className="text-xs text-gray-500">{p.age} yrs · {p.gender} · {p.phone}</p>
-            </Link>
-          ))}
-          {filtered.length === 0 && <div className="p-5 text-center text-sm text-gray-500">No patients match.</div>}
-        </div>
-      </section>
-    </AppShell>
-  );
+  if (authLoading) return <AppShell><p className="text-sm text-gray-500">Loading…</p></AppShell>;
+  return <AppShell>
+    <section className="medlum-dashboard-hero mb-4"><div><p className="medlum-eyebrow">OUTPATIENT</p><h1>OPD</h1><p>Register and select patients, open a consultation, order labs, and bill from the patient chart.</p></div></section>
+    {msg && <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{msg}</div>}{err && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{err}</div>}
+    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><div className="rounded-xl border bg-white p-3"><p className="text-[10px] uppercase text-gray-400">OPD patients</p><p className="text-xl font-bold text-[#140a1f]">{patients.length}</p></div><div className="rounded-xl border bg-white p-3"><p className="text-[10px] uppercase text-gray-400">Today's appts</p><p className="text-xl font-bold text-[#140a1f]">{todayAppts.length}</p></div><Link href="/labs" className="rounded-xl border bg-white p-3 active:bg-gray-50"><p className="text-[10px] uppercase text-gray-400">Laboratory</p><p className="text-sm font-semibold text-[#c2183a]">Open labs →</p></Link><Link href="/billing" className="rounded-xl border bg-white p-3 active:bg-gray-50"><p className="text-[10px] uppercase text-gray-400">Billing</p><p className="text-sm font-semibold text-[#c2183a]">Invoices →</p></Link></div>
+    <div className="mb-3 flex flex-wrap gap-2"><button type="button" onClick={() => setShowAdd((v) => !v)} className="h-11 rounded-xl bg-[#c2183a] px-4 text-sm font-semibold text-white">{showAdd ? "Cancel" : "Register OPD patient"}</button><Link href="/appointments" className="flex h-11 items-center rounded-xl border px-4 text-sm font-medium">Appointments</Link><Link href="/clinic/tariffs" className="flex h-11 items-center rounded-xl border px-4 text-sm font-medium">Rate list</Link></div>
+    {showAdd && <form onSubmit={registerPatient} className="mb-4 space-y-2 rounded-2xl border bg-white p-4"><h2 className="font-semibold text-[#140a1f]">New OPD registration</h2><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Patient name *" className="h-11 w-full rounded-xl border px-3 text-sm" /><div className="grid grid-cols-3 gap-2"><input required type="number" min={0} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} placeholder="Age *" className="h-11 rounded-xl border px-3 text-sm" /><select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="h-11 rounded-xl border px-3 text-sm bg-white"><option>Male</option><option>Female</option><option>Other</option></select><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone *" className="h-11 rounded-xl border px-3 text-sm" /></div><p className="text-[11px] text-gray-500">Consultants, doctors, RMO, nurses and front-desk staff can register OPD patients. Your facility must have OPD access enabled.</p><button disabled={saving} className="h-11 w-full rounded-xl bg-[#140a1f] text-sm font-semibold text-white disabled:opacity-50">{saving ? "Saving…" : "Register patient"}</button></form>}
+    <div className="mb-3"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, UHID, MedLum ID…" className="h-11 w-full rounded-xl border bg-white px-3 text-sm" /></div>
+    <section className="mb-4 overflow-hidden rounded-2xl border bg-white"><div className="flex items-center justify-between gap-2 border-b px-4 py-3"><div><p className="font-semibold">OPD patients</p><p className="text-[11px] text-gray-500">{listView === "active" ? "Active today — scheduled or waiting patients" : "Full OPD registry — includes completed and previously paid visits"}</p></div><div className="flex rounded-lg border p-0.5 text-[11px]"><button type="button" onClick={() => setListView("active")} className={`rounded-md px-2.5 py-1.5 ${listView === "active" ? "bg-[#140a1f] text-white" : "text-gray-600"}`}>Active</button><button type="button" onClick={() => setListView("all")} className={`rounded-md px-2.5 py-1.5 ${listView === "all" ? "bg-[#140a1f] text-white" : "text-gray-600"}`}>All</button></div></div>{loading ? <p className="p-6 text-center text-sm text-gray-400">Loading…</p> : visiblePatients.length === 0 ? <p className="p-8 text-center text-sm text-gray-500">{search ? "No matching patient." : listView === "active" ? "No active OPD patients today." : "No OPD patients yet."}</p> : <div className="divide-y">{visiblePatients.map((p, idx) => <div key={p.id} className="flex items-start justify-between gap-3 p-3"><div className="min-w-0"><p className="truncate text-sm font-semibold"><span className="text-gray-400 font-normal mr-2">{idx + 1}.</span>{p.name}</p><p className="mt-0.5 text-xs text-gray-500">{p.age} yrs · {p.gender}{p.phone ? ` · ${p.phone}` : ""}</p><p className="mt-1 text-[10px] text-gray-400">ID {p.id}</p></div><div className="flex shrink-0 flex-col gap-1.5"><Link href={`/patients/${p.id}`} className="flex h-9 items-center justify-center rounded-lg bg-[#c2183a] px-3 text-xs font-semibold text-white">Open OPD visit</Link><button type="button" onClick={() => { setEditId(p.id); setEditForm({ name: p.name, age: String(p.age ?? ""), gender: p.gender || "Male", phone: p.phone || "" }); setErr(""); setMsg(""); }} className="h-8 rounded-lg border px-3 text-[11px] font-medium">Edit</button><Link href="/billing" className="text-center text-[11px] font-medium text-[#c2183a]">Bill</Link></div></div>)}</div>}</section>
+    <p className="pb-6 text-center text-[11px] text-gray-400">IPD admissions stay on the <Link href="/ipd" className="text-[#c2183a]">IPD</Link> screen.</p>
+    {editId && <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3"><form onSubmit={saveEdit} className="bg-white rounded-2xl w-full max-w-md p-4 shadow-xl space-y-2"><h3 className="text-base font-semibold">Edit patient details</h3><p className="text-xs text-gray-500">Correct name, age, gender or phone. Does not create a new patient.</p><input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Full name" className="w-full h-11 rounded-lg border px-3 text-sm" /><div className="grid grid-cols-2 gap-2"><input required value={editForm.age} onChange={(e) => setEditForm({ ...editForm, age: e.target.value })} placeholder="Age" inputMode="numeric" className="h-11 rounded-lg border px-3 text-sm" /><select value={editForm.gender} onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })} className="h-11 rounded-lg border px-3 text-sm bg-white"><option>Male</option><option>Female</option><option>Other</option></select></div><input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Phone" className="w-full h-11 rounded-lg border px-3 text-sm" /><div className="flex gap-2 pt-1"><button type="button" onClick={() => setEditId(null)} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button><button disabled={saving} className="flex-1 h-11 rounded-lg bg-[#c2183a] text-white text-sm font-semibold disabled:opacity-50">{saving ? "Saving…" : "Save"}</button></div></form></div>}
+  </AppShell>;
 }
