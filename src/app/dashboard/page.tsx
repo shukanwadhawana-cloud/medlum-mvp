@@ -5,12 +5,23 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
+import { canAccessModule, type MedLumModule } from "@/lib/permissions";
 import { apiGetPatients, apiGetAppointments, apiGetInvoices, apiGetEncounters, apiGetPrescriptions, apiGetLabOrders, apiGetDiagnostics, apiGetBloodBank, apiAddPatient, apiUpdateAppointmentStatus } from "@/lib/api";
 
 type Patient = { id: string; name: string; age: number; gender: string; phone: string; bp?: string; allergies?: string; notes?: string; careSetting?: "OPD" | "IPD" };
 type Appointment = { id: string; patientId: string; patientName: string; date: string; time: string; type: string; status: string };
 type Access = { subscriptionModel: "OPD" | "IPD" | "BOTH"; facilityType: "HOSPITAL" | "CLINIC" };
 const today = () => new Date().toISOString().slice(0, 10);
+const WORKSPACE_MODULES: Array<{ href: string; label: string; module: MedLumModule; description: string }> = [
+  { href: "/opd", label: "OPD", module: "opd", description: "Appointments & consultations" },
+  { href: "/patients", label: "Patients", module: "patients", description: "Patient index & charts" },
+  { href: "/ipd", label: "IPD", module: "ipd", description: "Inpatient census & care" },
+  { href: "/emergency", label: "Emergency", module: "emergency", description: "Emergency intake & care" },
+  { href: "/pharmacy", label: "Pharmacy", module: "pharmacy", description: "Medication & dispensing" },
+  { href: "/labs", label: "Laboratory", module: "labs", description: "Orders & results" },
+  { href: "/diagnostics", label: "Diagnostics", module: "diagnostics", description: "Studies & reports" },
+  { href: "/billing", label: "Billing", module: "billing", description: "Patient billing" },
+];
 const extract = (notes: string | undefined, label: string) => (String(notes || "").match(new RegExp(`${label}:\\s*([^\\n]+)`, "i"))?.[1] || "").trim();
 
 export default function DashboardPage() {
@@ -29,8 +40,19 @@ export default function DashboardPage() {
   const setStatus = async (id: string, status: string) => { const r = await apiUpdateAppointmentStatus(id, status); if (r.success) await reload(); else setError(r.error || "Could not update appointment"); };
   const handleAddPatient = async (e: React.FormEvent) => { e.preventDefault(); setError(""); setSaving(true); try { const clinicalHeader = [form.primaryDiagnosis.trim() ? `Primary diagnosis: ${form.primaryDiagnosis.trim()}` : "", form.icdCode.trim() ? `ICD-10: ${form.icdCode.trim()}` : ""].filter(Boolean).join("\n"); const notes = [clinicalHeader, form.notes.trim()].filter(Boolean).join("\n"); const result = await apiAddPatient({ name: form.name.trim(), age: parseInt(form.age, 10) || 0, gender: form.gender, phone: form.phone.trim(), bp: form.bp.trim(), allergies: form.allergies.trim(), notes, careSetting: form.careSetting }); if (result.success) { await reload(); setShowAdd(false); setForm({ name: "", age: "", gender: "Male", phone: "", bp: "", allergies: "", primaryDiagnosis: "", icdCode: "", notes: "", careSetting: mode }); setMessage(`${form.careSetting} patient saved`); setTimeout(() => setMessage(""), 2500); } else setError(result.error || "Could not save patient"); } catch { setError("Network error — try again"); } finally { setSaving(false); } };
   if (authLoading || !doctor || !access) return <div className="min-h-screen flex items-center justify-center bg-[#140a1f] text-white text-sm">Loading clinical access...</div>;
+  const workspaceModules = WORKSPACE_MODULES.filter((item) => canAccessModule(doctor.primaryRole, item.module));
   return <AppShell>
-    <div className="flex items-center justify-between mb-4 gap-3"><div><h2 className="text-xl font-bold">{mode} Dashboard</h2><p className="text-xs text-gray-500">{mode === "IPD" ? "Inpatient / hospital view" : "Outpatient / clinic view"} · Welcome, {doctor.name}</p></div><button type="button" onClick={() => { setError(""); setForm((f) => ({ ...f, careSetting: mode })); setShowAdd(true); }} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium shrink-0">+ {mode} Patient</button></div>
+    <section className="medlum-dashboard-hero">
+      <div>
+        <p className="medlum-eyebrow">MEDLUM · CLINICAL WORKSPACE</p>
+        <h1>{mode} Dashboard</h1>
+        <p>{mode === "IPD" ? "Inpatient / hospital view" : "Outpatient / clinic view"} · Welcome, {doctor.name}</p>
+      </div>
+      <button type="button" onClick={() => { setError(""); setForm((f) => ({ ...f, careSetting: mode })); setShowAdd(true); }} className="medlum-primary">+ {mode} Patient</button>
+    </section>
+    <section className="medlum-module-strip" aria-label="Clinical modules">
+      {workspaceModules.map((item) => <Link key={item.href} href={item.href} className="medlum-module-card"><span className="medlum-module-card-label">{item.label}</span><span>{item.description}</span></Link>)}
+    </section>
     <div className="inline-flex p-1 bg-gray-100 rounded-xl mb-4">{canOPD && <button type="button" onClick={() => setMode("OPD")} className={`px-5 py-2 rounded-lg text-sm font-semibold ${mode === "OPD" ? "bg-white shadow-sm text-[#c2183a]" : "text-gray-500"}`}>OPD</button>}{canIPD && <button type="button" onClick={() => setMode("IPD")} className={`px-5 py-2 rounded-lg text-sm font-semibold ${mode === "IPD" ? "bg-white shadow-sm text-[#c2183a]" : "text-gray-500"}`}>IPD</button>}</div>
     {access.subscriptionModel !== "BOTH" && <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">This workspace is subscribed to <strong>{access.subscriptionModel}</strong> only. The other clinical module is intentionally unavailable.</div>}
     {message && <div className="mb-3 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm">{message}</div>}
