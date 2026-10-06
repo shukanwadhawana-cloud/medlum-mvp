@@ -1,78 +1,17 @@
 "use client";
-
-import { useCallback, useEffect, useState } from "react";
+import { useEffect,useMemo,useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
-import { useDoctor } from "@/components/DoctorProvider";
+import { apiCreateEmergencyCase,apiGetEmergencyCases,apiGetPatients,apiUpdateEmergencyCase } from "@/lib/api";
+import EmergencyClinicalOrders from "@/components/emergency/EmergencyClinicalOrders";
+const statuses=["Open","In Treatment","Observation","Admitted","Discharged","Transferred"],triage=["Resuscitation","Emergency","Urgent","Less Urgent","Non-Urgent"],arrivalModes=["Ambulance","Walk-in","Referral"];
+function triageClass(level:string){if(level==="Resuscitation")return "bg-red-600 text-white border-red-700";if(level==="Emergency")return "bg-orange-500 text-white border-orange-600";if(level==="Urgent")return "bg-amber-400 text-[#140a1f] border-amber-500";if(level==="Less Urgent")return "bg-green-500 text-white border-green-600";if(level==="Non-Urgent")return "bg-slate-700 text-white border-slate-800";return "bg-gray-100 text-gray-700 border-gray-200";}
 
-export default function EmergencyPage() {
-  const { doctor, loading } = useDoctor();
-  const [cases, setCases] = useState<any[]>([]);
-  const [err, setErr] = useState("");
-  const [dataLoading, setDataLoading] = useState(true);
-
-  const reload = useCallback(async () => {
-    setDataLoading(true);
-    try {
-      const res = await fetch("/api/emergency", { credentials: "include", cache: "no-store" });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || "Could not load emergency data");
-      setCases(Array.isArray(j.cases) ? j.cases : Array.isArray(j) ? j : []);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not load emergency data");
-    } finally {
-      setDataLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!loading && doctor) reload();
-  }, [loading, doctor, reload]);
-
-  if (loading || !doctor) {
-    return <AppShell><p className="text-sm text-gray-500">Loading…</p></AppShell>;
-  }
-
-  const active = cases.filter((c) => !/closed|discharged|cancelled/i.test(String(c.status || "")));
-
-  return (
-    <AppShell>
-      <section className="medlum-dashboard-hero mb-4">
-        <div>
-          <p className="medlum-eyebrow">EMERGENCY</p>
-          <h1>Emergency & Ambulance</h1>
-          <p>Rapid registration, triage, disposition — reuses authorized patient identity.</p>
-        </div>
-        <Link href="/dashboard" className="medlum-primary inline-flex items-center justify-center" style={{ textDecoration: "none" }}>
-          Dashboard
-        </Link>
-      </section>
-      {err && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-white rounded-xl border p-3"><div className="text-[11px] text-gray-500">Active</div><div className="text-xl font-bold">{dataLoading ? "…" : active.length}</div></div>
-        <div className="bg-white rounded-xl border p-3"><div className="text-[11px] text-gray-500">Total loaded</div><div className="text-xl font-bold">{dataLoading ? "…" : cases.length}</div></div>
-        <div className="bg-white rounded-xl border p-3"><div className="text-[11px] text-gray-500">Patient search</div><Link href="/patients" className="text-sm font-semibold text-[#c2183a]">Open index</Link></div>
-      </div>
-      <section className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <div className="px-3 py-2 border-b"><h3 className="font-semibold text-sm">Active emergency cases</h3></div>
-        {dataLoading ? (
-          <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
-        ) : active.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 text-sm">No active emergency cases.</div>
-        ) : (
-          <div className="divide-y">
-            {active.map((c) => (
-              <div key={c.id} className="px-3 py-3 flex justify-between gap-2">
-                <div>
-                  <p className="font-medium text-sm">{c.patientName || c.patientId || "Case"}</p>
-                  <p className="text-xs text-gray-500">{c.status} · {c.triage || "Triage n/a"}</p>
-                </div>
-                {c.patientId && <Link href={`/patients/${c.patientId}`} className="text-xs text-[#c2183a] font-medium">Chart</Link>}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </AppShell>
-  );
-}
+export default function EmergencyPage(){const[cases,setCases]=useState<any[]>([]),[patients,setPatients]=useState<any[]>([]),[message,setMessage]=useState(""),[tab,setTab]=useState("active"),[ordersCaseId,setOrdersCaseId]=useState<string|null>(null);const[form,setForm]=useState({patientId:"",arrivalMode:"Walk-in",ambulanceProvider:"",ambulanceNumber:"",triageLevel:"Urgent",chiefComplaint:"",bp:"",pulse:"",spo2:"",temp:"",allergies:"",mlcNumber:"",hpi:"",pastHistory:"",surgicalHistory:"",systemicExam:"",workingDiagnosis:"",diagnosis:"",notes:""});
+ async function load(){const[c,p]=await Promise.all([apiGetEmergencyCases(),apiGetPatients()]);setCases(c);setPatients(p)}useEffect(()=>{load()},[]);const active=useMemo(()=>cases.filter(c=>!["Admitted","Discharged","Transferred"].includes(c.status)),[cases]);const critical=useMemo(()=>active.filter(c=>["Resuscitation","Emergency"].includes(c.triageLevel)).length,[active]);
+ async function create(e:React.FormEvent){e.preventDefault();const vitals={BP:form.bp,pulse:form.pulse,SpO2:form.spo2,temperature:form.temp};const r=await apiCreateEmergencyCase({...form,vitals});setMessage(r.success?"Emergency case registered.":r.error||"Could not register case");if(r.success){setForm({...form,patientId:"",ambulanceProvider:"",ambulanceNumber:"",chiefComplaint:"",bp:"",pulse:"",spo2:"",temp:"",allergies:"",mlcNumber:"",hpi:"",pastHistory:"",surgicalHistory:"",systemicExam:"",workingDiagnosis:"",diagnosis:"",notes:""});load()}}
+ async function update(id:string,patch:any){const r=await apiUpdateEmergencyCase({id,...patch});setMessage(r.success?(patch.action==="admit-to-ipd"?"Patient admitted to IPD successfully.":"Emergency case updated."):r.error||"Could not update case");await load()} async function admitToIPD(id:string){if(!window.confirm("Admit this existing patient to IPD? This will activate the same Patient record in the IPD census."))return;const r=await apiUpdateEmergencyCase({id,action:"admit-to-ipd"});setMessage(r.success?"Patient admitted to IPD successfully.":r.error||"Could not admit patient to IPD");await load()}
+ function vitals(v:string){try{return JSON.parse(v||"{}")}catch{return{}}}
+ return <AppShell><section className="medlum-dashboard-hero mb-4"><div><p className="medlum-eyebrow">EMERGENCY</p><h1>Emergency & Ambulance</h1><p>Rapid registration, MLC capture, clinical history, triage and disposition.</p></div><Link href="/dashboard" className="medlum-primary inline-flex items-center justify-center" style={{textDecoration:"none"}}>Dashboard</Link></section>{message&&<div className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{message}</div>}<div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-white rounded-xl border p-3"><div className="text-[11px] text-gray-500">Active</div><div className="text-xl font-bold">{active.length}</div></div><div className="bg-white rounded-xl border p-3"><div className="text-[11px] text-gray-500">Critical / Emergency</div><div className="text-xl font-bold">{critical}</div></div><div className="bg-white rounded-xl border p-3"><div className="text-[11px] text-gray-500">MLC cases</div><div className="text-xl font-bold">{cases.filter(c=>c.clinical?.mlcNumber).length}</div></div></div><div className="flex gap-2 mb-4"><button type="button" onClick={()=>setTab("active")} className={`px-3 py-2 rounded-lg text-xs ${tab==="active"?"bg-[#c2183a] text-white":"bg-white border"}`}>Emergency board</button><button type="button" onClick={()=>setTab("register")} className={`px-3 py-2 rounded-lg text-xs ${tab==="register"?"bg-[#c2183a] text-white":"bg-white border"}`}>Register case</button><button type="button" onClick={()=>setTab("history")} className={`px-3 py-2 rounded-lg text-xs ${tab==="history"?"bg-[#c2183a] text-white":"bg-white border"}`}>History</button></div>
+ {tab==="register"&&<form onSubmit={create} onKeyDown={(e)=>{if(e.key==="Enter"&&(e.target as HTMLElement).tagName!=="BUTTON"){e.preventDefault()}}} className="bg-white rounded-xl border p-4 space-y-2"><h2 className="font-semibold text-sm">New emergency case</h2><select value={form.patientId} onChange={e=>setForm({...form,patientId:e.target.value})} className="w-full h-10 border rounded-lg px-2 text-sm"><option value="">Unregistered / select patient</option>{patients.map(p=><option key={p.id} value={p.id}>{p.name} · {p.phone}</option>)}</select><div className="grid grid-cols-2 gap-2"><select value={form.arrivalMode} onChange={e=>setForm({...form,arrivalMode:e.target.value})} className="h-10 border rounded-lg px-2 text-sm">{arrivalModes.map(x=><option key={x}>{x}</option>)}</select><select value={form.triageLevel} onChange={e=>setForm({...form,triageLevel:e.target.value})} className="h-10 border rounded-lg px-2 text-sm">{triage.map(x=><option key={x}>{x}</option>)}</select></div>{form.arrivalMode==="Ambulance"&&<div className="grid grid-cols-2 gap-2"><input value={form.ambulanceProvider} onChange={e=>setForm({...form,ambulanceProvider:e.target.value})} placeholder="Ambulance provider" className="h-10 border rounded-lg px-3 text-sm"/><input value={form.ambulanceNumber} onChange={e=>setForm({...form,ambulanceNumber:e.target.value})} placeholder="Vehicle / ambulance no." className="h-10 border rounded-lg px-3 text-sm"/></div>}<div className="grid grid-cols-2 gap-2"><input value={form.mlcNumber} onChange={e=>setForm({...form,mlcNumber:e.target.value})} placeholder="MLC number (required for MLC case)" className="h-10 border rounded-lg px-3 text-sm"/><input value={form.workingDiagnosis} onChange={e=>setForm({...form,workingDiagnosis:e.target.value})} placeholder="Initial working diagnosis" className="h-10 border rounded-lg px-3 text-sm"/></div><textarea required value={form.chiefComplaint} onChange={e=>setForm({...form,chiefComplaint:e.target.value})} placeholder="Chief complaint / reason for emergency" className="w-full min-h-16 border rounded-lg p-3 text-sm"/><textarea value={form.hpi} onChange={e=>setForm({...form,hpi:e.target.value})} placeholder="History of present illness — what the patient came with, duration, progression" className="w-full min-h-16 border rounded-lg p-3 text-sm"/><div className="grid grid-cols-2 gap-2"><input value={form.pastHistory} onChange={e=>setForm({...form,pastHistory:e.target.value})} placeholder="Past medical history" className="h-10 border rounded-lg px-3 text-sm"/><input value={form.surgicalHistory} onChange={e=>setForm({...form,surgicalHistory:e.target.value})} placeholder="Past surgical history" className="h-10 border rounded-lg px-3 text-sm"/></div><textarea value={form.systemicExam} onChange={e=>setForm({...form,systemicExam:e.target.value})} placeholder="Systemic examination: CNS · CVS · RS · Per abdomen" className="w-full min-h-16 border rounded-lg p-3 text-sm"/><div className="grid grid-cols-2 gap-2"><input value={form.diagnosis} onChange={e=>setForm({...form,diagnosis:e.target.value})} placeholder="Diagnosis" className="h-10 border rounded-lg px-3 text-sm"/><input value={form.allergies} onChange={e=>setForm({...form,allergies:e.target.value})} placeholder="Allergies" className="h-10 border rounded-lg px-3 text-sm"/></div><div className="grid grid-cols-4 gap-2">{[["bp","BP"],["pulse","Pulse"],["spo2","SpO₂"],["temp","Temp"]].map(([k,l])=><input key={k} value={(form as any)[k]} onChange={e=>setForm({...form,[k]:e.target.value})} placeholder={l} className="h-10 border rounded-lg px-2 text-sm"/>)}</div><textarea value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Initial notes" className="w-full min-h-16 border rounded-lg p-3 text-sm"/><button type="submit" className="h-10 px-4 rounded-lg bg-[#c2183a] text-white text-sm font-medium">Register emergency case</button></form>}
+ {tab!=="register"&&<div className="space-y-3">{(tab==="active"?active:cases).map(c=>{const v=vitals(c.vitals);return <div key={c.id} className="bg-white rounded-xl border p-4"><div className="flex justify-between gap-2"><div><div className="font-semibold text-sm">{c.patient?.name||"Unregistered patient"}</div><div className="text-xs text-gray-500">{c.arrivalMode} · {new Date(c.arrivalTime).toLocaleString()} · {c.doctor?.name||"Consultant"}</div>{c.clinical?.mlcNumber&&<div className="text-xs text-red-700 font-semibold mt-1">MLC No: {c.clinical.mlcNumber}</div>}</div><div className={`text-xs rounded-full px-2 py-1 h-fit ${triageClass(c.triageLevel)}`}>{c.triageLevel==="Resuscitation"?"T1 · Resuscitation":c.triageLevel==="Emergency"?"T2 · Emergency":c.triageLevel==="Urgent"?"T3 · Urgent":c.triageLevel==="Less Urgent"?"T4 · Less Urgent":"T5 · Non-Urgent"}</div></div><div className="mt-2 text-sm"><b>Complaint:</b> {c.chiefComplaint}</div><div className="mt-1 text-xs text-gray-600"><b>Working Dx:</b> {c.clinical?.workingDiagnosis||"—"} · <b>Dx:</b> {c.clinical?.diagnosis||"—"}</div><div className="mt-1 text-xs text-gray-600">Vitals: BP {v.BP||"—"} · Pulse {v.pulse||"—"} · SpO₂ {v.SpO2||"—"} · Temp {v.temperature||"—"}</div>{c.clinical?.hpi&&<div className="mt-1 text-xs text-gray-500">HPI: {c.clinical.hpi}</div>}{c.clinical?.systemicExam&&<div className="mt-1 text-xs text-gray-500">Systemic exam: {c.clinical.systemicExam}</div>}{c.allergies&&<div className="mt-1 text-xs text-red-600">Allergies: {c.allergies}</div>}<div className="mt-3 flex flex-wrap gap-2"><select value={c.status} onChange={e=>update(c.id,{status:e.target.value})} className="h-9 border rounded-lg px-2 text-xs">{statuses.map(s=><option key={s}>{s}</option>)}</select>{c.patientId&&<button type="button" onClick={()=>setOrdersCaseId(ordersCaseId===c.id?null:c.id)} className="h-9 px-3 rounded-lg border text-xs font-medium">{ordersCaseId===c.id?"Hide clinical orders":"Clinical orders"}</button>}{c.patientId&&<Link href={`/patients/${c.patientId}/chart`} className="h-9 px-3 rounded-lg border text-xs font-medium inline-flex items-center">Clinical chart</Link>}{c.patientId&&c.status!=="Admitted"&&<button type="button" onClick={()=>admitToIPD(c.id)} className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">Admit to IPD</button>}<select value={c.triageLevel} onChange={e=>update(c.id,{triageLevel:e.target.value})} className={`h-9 border rounded-lg px-2 text-xs font-semibold ${triageClass(c.triageLevel)}`}>{triage.map(s=><option key={s} value={s}>{s==="Resuscitation"?"T1 · Resuscitation (Red)":s==="Emergency"?"T2 · Emergency (Orange)":s==="Urgent"?"T3 · Urgent (Yellow)":s==="Less Urgent"?"T4 · Less Urgent (Green)":"T5 · Non-Urgent (Black)"}</option>)}</select></div>{ordersCaseId===c.id&&c.patientId&&<EmergencyClinicalOrders caseId={c.id} patient={{id:c.patientId,name:c.patient?.name||"Patient"}}/>}</div>})}{!(tab==="active"?active:cases).length&&<div className="bg-white rounded-xl border p-5 text-sm text-gray-400">No emergency cases yet.</div>}</div>}</AppShell>}
