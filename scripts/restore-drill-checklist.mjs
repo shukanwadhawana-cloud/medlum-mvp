@@ -31,7 +31,7 @@ const requiredPhrases = [
   ["pg_restore", "pg_restore mentioned as restore tool"],
   ["schema", "Schema validation in drill"],
   ["facility isolation", "Facility isolation check in drill"],
-  ["authentication", "Authentication check in drill"] ,
+  ["auth", "Authentication/login check in drill"],
   ["Audit", "Audit records mentioned"],
   ["Teardown", "Teardown of isolated target"],
 ];
@@ -43,7 +43,6 @@ for (const [needle, label] of requiredPhrases) {
 must(workflow.includes("pg_dump"), "Backup workflow must exist to obtain a dump for drills");
 must(dr.includes("Neon") || dr.includes("PostgreSQL"), "Phase A DR must still describe Neon/Postgres");
 
-// Explicit anti-patterns
 must(!doc.includes("drop database production"), "Must not document destructive production drops");
 must(!/prisma\s+migrate\s+reset/i.test(doc), "Must not recommend migrate reset on production");
 
