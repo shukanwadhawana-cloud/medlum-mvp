@@ -117,7 +117,7 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 }
 
 
-/* MedLum visual reference implementation: Figma/Canva clinical workspace */
+/* MedLum visual reference implementation: Canva clinical workspace */
 .medlum-topbar { background: var(--ml-surface); color: var(--ml-ink); border-bottom: 1px solid var(--ml-border); box-shadow: 0 1px 3px rgba(20,10,31,.04); }
 .medlum-topbar-inner { max-width: none; min-height: 72px; padding: 0 32px; margin-left: 260px; }
 .medlum-topbar .medlum-brand { display: none; }
@@ -168,4 +168,28 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
   .medlum-primary { width:100%; }
   .medlum-module-strip { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:14px; }
   .medlum-module-card { padding:11px; }
+}
+
+/* Canva clinical page hierarchy — apply to existing route headers */
+.medlum-main h1,
+.medlum-main h2.text-lg.font-semibold,
+.medlum-main h2.text-xl.font-semibold {
+  letter-spacing: -0.02em;
+  color: var(--ml-ink);
+}
+.medlum-main > .mb-4.flex.items-center.justify-between,
+.medlum-main > .mb-6,
+.medlum-main > div > .flex.items-center.justify-between.mb-4 {
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--ml-border);
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--ml-surface) 0%, var(--ml-surface-tint) 100%);
+  box-shadow: var(--ml-shadow);
+}
+@media (max-width: 767px) {
+  .medlum-main > .mb-4.flex.items-center.justify-between,
+  .medlum-main > .mb-6 {
+    padding: 14px 16px;
+  }
 }
