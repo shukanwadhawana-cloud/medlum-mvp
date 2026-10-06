@@ -51,6 +51,10 @@ jobs:
         run: npm run test:soft-deactivation
       - name: Verify disaster-recovery readiness
         run: npm run test:disaster-recovery-readiness
+      - name: Verify backup/PITR readiness
+        run: npm run test:backup-pitr-readiness
+      - name: Verify restore-drill checklist
+        run: npm run test:restore-drill-checklist
       - name: Verify API authentication coverage
         run: npm run test:api-auth-coverage
       - name: Verify telemedicine foundation
