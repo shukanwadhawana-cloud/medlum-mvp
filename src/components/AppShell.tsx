@@ -75,13 +75,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
   const [switchingFacility, setSwitchingFacility] = useState(false);
 
+  const isOwner = Boolean(doctor?.isOwner);
+  // Platform Owner navigation is independent of the selected facility membership.
   const activeRole = useMemo(() => {
+    if (isOwner) return "Owner";
     if (selectedFacilityId) return facilities.find((f) => f.clinicId === selectedFacilityId)?.role || doctor?.primaryRole || "Consultant";
     return doctor?.primaryRole || "Consultant";
-  }, [selectedFacilityId, facilities, doctor?.primaryRole]);
-  const isOwner = Boolean(doctor?.isOwner);
+  }, [isOwner, selectedFacilityId, facilities, doctor?.primaryRole]);
   const primaryNav = useMemo(() => primaryNavForRole(activeRole), [activeRole]);
   const menuItems = useMemo(() => menuNavForRole(activeRole), [activeRole]);
+  const allMenuItems = useMemo(() => isOwner ? [{ href: "/owner", label: "Owner workspace", icon: "owner" }, ...menuItems] : menuItems, [isOwner, menuItems]);
 
   useEffect(() => {
     if (!doctor) return;
@@ -135,7 +138,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur safe-area-bottom md:hidden">
         <nav className="mx-auto grid max-w-lg grid-cols-5">{quickNav.map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span>{item.label}</span></Link>)}<button type="button" onClick={() => setMoreOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-gray-500"><Icon name="more" size={18}/><span>Menu</span></button></nav>
       </div>
-      <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} menuItems={menuItems}/>
+      <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} menuItems={allMenuItems}/>
       <MedLumChat />
     </div>
   );
