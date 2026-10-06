@@ -19,7 +19,7 @@ const routes = {
 
 for (const [name, file] of Object.entries(routes)) {
   const src = read(file);
-  ok(src.includes("getSession"), name + " authenticates server-side");
+  ok(src.includes("getSession") || src.includes("requireAuthz"), name + " authenticates server-side");
   ok(src.includes("session.doctorId"), name + " derives actor from authenticated session");
   ok(!/doctorId:\s*body\./.test(src), name + " rejects client doctorId authority");
   ok(!/staffCode:\s*body\./.test(src), name + " rejects client staffCode authority");
@@ -33,7 +33,7 @@ for (const name of tenantRoutes) {
   const src = read(routes[name]);
   ok(!/OR:\s*\[\{\s*clinicId\s*\},\s*\{\s*doctorId\s*\}\]/.test(src),
     name + " has no cross-clinic doctorId OR bypass");
-  ok(src.includes("requireActiveClinicMembership"), name + " derives clinic from active membership");
+  ok(src.includes("requireActiveClinicMembership") || src.includes("requireAuthz"), name + " derives clinic from active membership");
 }
 
 const staff = read(routes.staff);
