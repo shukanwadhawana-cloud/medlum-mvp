@@ -19,54 +19,62 @@ export type MedLumModule =
   | "pharmacy"
   | "labs"
   | "diagnostics"
+  | "prescriptions"
   | "nursing"
-  | "blood_bank"
-  | "insurance"
-  | "billing"
-  | "reports"
-  | "duty"
+  | "telemedicine"
   | "workforce"
+  | "duty"
   | "clinic"
   | "clinic_setup"
   | "tariffs"
-  | "prescriptions"
-  | "telemedicine"
+  | "billing"
+  | "reports"
+  | "blood_bank"
+  | "insurance"
   | "clinical_assist"
-  | "owner";
+  | "owner_platform";
 
 /**
  * MODULE_ROLES is the single source of truth for which facility roles may open a module.
  * Platform Owner is handled separately (always allowed) via isMedlumOwnerEmail / doctor.isOwner.
  */
 const MODULE_ROLES: Record<MedLumModule, readonly ClinicRole[]> = {
-  dashboard: ["Owner", "Admin", "Manager", "Consultant", "RMO", "Nurse", "Receptionist", "Billing", "Pharmacist", "LabTechnician"],
-  patients: ["Owner", "Admin", "Manager", "Consultant", "RMO", "Nurse", "Receptionist"],
-  opd: ["Owner", "Admin", "Manager", "Consultant", "RMO", "Nurse", "Receptionist"],
-  ipd: ["Owner", "Admin", "Manager", "Consultant", "RMO", "Nurse"],
-  emergency: ["Owner", "Admin", "Manager", "Consultant", "RMO", "Nurse"],
-  pharmacy: ["Owner", "Admin", "Manager", "Pharmacist"],
-  labs: ["Owner", "Admin", "Manager", "LabTechnician", "Consultant", "RMO"],
-  diagnostics: ["Owner", "Admin", "Manager", "LabTechnician", "Consultant", "RMO"],
-  nursing: ["Owner", "Admin", "Manager", "Nurse", "Consultant", "RMO"],
-  blood_bank: ["Owner", "Admin", "Manager", "LabTechnician", "Nurse", "Consultant"],
-  insurance: ["Owner", "Admin", "Manager", "Billing"],
-  billing: ["Owner", "Admin", "Manager", "Billing", "Receptionist"],
-  reports: ["Owner", "Admin", "Manager"],
-  duty: ["Owner", "Admin", "Manager", "Consultant", "RMO", "Nurse"],
+  dashboard: [
+    "Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO",
+    "Nurse", "Pharmacy", "Laboratory", "Billing", "Receptionist", "Staff",
+  ],
+  patients: [
+    "Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO",
+    "Nurse", "Pharmacy", "Laboratory", "Billing", "Receptionist",
+  ],
+  opd: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Receptionist"],
+  ipd: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Pharmacy", "Laboratory"],
+  emergency: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse"],
+  pharmacy: ["Owner", "Admin", "Manager", "Pharmacy"],
+  labs: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Laboratory"],
+  diagnostics: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Laboratory"],
+  prescriptions: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Pharmacy"],
+  nursing: ["Owner", "Admin", "Manager", "Nurse", "RMO"],
+  telemedicine: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"],
   workforce: ["Owner", "Admin", "Manager"],
+  duty: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Pharmacy", "Laboratory", "Billing", "Receptionist", "Staff"],
   clinic: ["Owner", "Admin", "Manager"],
   clinic_setup: ["Owner", "Admin"],
-  tariffs: ["Owner", "Admin", "Manager", "Billing"],
-  prescriptions: ["Owner", "Admin", "Manager", "Consultant", "RMO", "Pharmacist"],
-  telemedicine: ["Owner", "Admin", "Manager", "Consultant", "RMO"],
-  clinical_assist: ["Owner", "Admin", "Manager", "Consultant", "RMO"],
-  owner: ["Owner"],
+  tariffs: ["Owner", "Admin", "Manager"],
+  // Billing detail restricted: Owner, Admin, Receptionist, Billing only (no Manager/clinical).
+  billing: ["Owner", "Admin", "Receptionist", "Billing"],
+  reports: ["Owner", "Admin", "Manager"],
+  blood_bank: ["Owner", "Admin", "Manager", "Nurse", "Laboratory"],
+  insurance: ["Owner", "Admin", "Manager", "Billing"],
+  clinical_assist: ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"],
+  // Platform MedLum owner only — never granted via facility Admin membership alone.
+  owner_platform: [],
 };
 
 export function canAccessModule(role: string | null | undefined, module: MedLumModule): boolean {
   const normalized = normalizeClinicRole(role || "") as ClinicRole;
   if (normalized === "Owner") return true;
-  return MODULE_ROLES[module].includes(normalized);
+  return (MODULE_ROLES[module] as readonly string[]).includes(normalized);
 }
 
 export function canAccessPath(role: string | null | undefined, pathname: string): boolean {
@@ -83,7 +91,7 @@ export function canAccessPath(role: string | null | undefined, pathname: string)
   if (path.startsWith("/billing")) return canAccessModule(role, "billing");
   if (path.startsWith("/reports")) return canAccessModule(role, "reports");
   if (path.startsWith("/clinical-assist")) return canAccessModule(role, "clinical_assist");
-  if (path.startsWith("/owner")) return canAccessModule(role, "owner");
+  if (path.startsWith("/owner")) return canAccessModule(role, "owner_platform");
   return true;
 }
 
@@ -97,7 +105,7 @@ export function canManageClinic(role: string | null | undefined): boolean {
 
 export function canPrescribe(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return ["Owner", "Admin", "Manager", "Consultant", "RMO"].includes(r);
+  return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"].includes(r);
 }
 
 export function canDispense(role: string | null | undefined): boolean {
@@ -114,17 +122,17 @@ export function canEnterDiagnosticReport(role: string | null | undefined): boole
 
 export function canManageMAR(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return ["Owner", "Admin", "Manager", "Nurse", "Consultant", "RMO"].includes(r);
+  return ["Owner", "Admin", "Manager", "Nurse", "Consultant", "Doctor", "RMO"].includes(r);
 }
 
 export function canViewClinicalChart(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return ["Owner", "Admin", "Manager", "Consultant", "RMO", "Nurse"].includes(r);
+  return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse"].includes(r);
 }
 
 export function canOrderLabs(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return ["Owner", "Admin", "Manager", "Consultant", "RMO"].includes(r);
+  return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"].includes(r);
 }
 
 export function canViewBilling(role: string | null | undefined): boolean {
@@ -138,8 +146,8 @@ export function canAccessClinicalAssist(role: string | null | undefined): boolea
 /** Default landing path for a facility role (post-login redirect). */
 export function defaultLandingPath(role: string | null | undefined): string {
   const r = normalizeClinicRole(role || "");
-  if (r === "Pharmacist" || r === "Pharmacy") return "/pharmacy";
-  if (r === "LabTechnician" || r === "Laboratory") return "/labs";
+  if (r === "Pharmacy") return "/pharmacy";
+  if (r === "Laboratory") return "/labs";
   if (r === "Nurse") return "/nursing";
   if (r === "Billing") return "/billing";
   if (r === "Receptionist") return "/opd";
