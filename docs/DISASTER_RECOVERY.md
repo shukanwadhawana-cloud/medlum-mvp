@@ -105,6 +105,8 @@ Keep the resulting dump in a secure private location. Never paste the database U
 
 If a future automated backup workflow is added, it should use GitHub Secrets, avoid printing secrets, and store backups outside the Git repository.
 
+The repository includes a **Manual Neon Database Backup** GitHub Actions workflow (`.github/workflows/neon-manual-backup.yml`) that runs `pg_dump` using the `DATABASE_URL` secret and stores a custom-format dump as a workflow artifact (7-day retention).
+
 ## Restore strategy
 
 Restoration is potentially destructive and must never be performed casually against production.
@@ -205,6 +207,10 @@ Document storage keys are facility-scoped (`clinics/{clinicId}/patients/...`) an
 - Manual `pg_dump` is an additional operator-controlled safety layer, not a substitute for provider PITR when available.
 - Retention period is an operational decision for the rights holder; this repository does not encode a false retention SLA.
 - Object storage (R2) backups/versioning, if enabled, are separate from database backups.
+
+## Extended backup / PITR / restore drill
+
+Detailed RPO/RTO, isolated restore-drill procedure, backup independence, and monitoring readiness are maintained in **[BACKUP_PITR_RESTORE.md](./BACKUP_PITR_RESTORE.md)**. That document distinguishes implemented repository controls from external Neon/Vercel configuration that must still be verified in the operator console.
 
 ## What remains on the roadmap
 
