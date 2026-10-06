@@ -49,6 +49,8 @@ jobs:
         run: npm run test:data-retention
       - name: Verify soft deactivation protections
         run: npm run test:soft-deactivation
+      - name: Verify disaster-recovery readiness
+        run: npm run test:disaster-recovery-readiness
       - name: Verify API authentication coverage
         run: npm run test:api-auth-coverage
       - name: Verify telemedicine foundation

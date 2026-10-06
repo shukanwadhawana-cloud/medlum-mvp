@@ -60,6 +60,7 @@ If the current Vercel deployment returns 404 or otherwise becomes unusable:
 4. Configure the required production environment variables:
    - `DATABASE_URL=<existing Neon production connection string>`
    - `SESSION_SECRET=<existing production session secret>`
+   - `MEDLUM_OWNER_EMAIL=<platform owner email(s)>`
 5. Use the repository's existing build configuration. The current build is application build only (`prisma generate && next build`).
 6. Deploy.
 7. Verify the application can log in and read the existing records.
@@ -84,9 +85,7 @@ Current intended build behavior:
 prisma generate && next build
 ```
 
-Schema changes must be handled deliberately. Never use `prisma migrate reset`, database reset commands, or destructive SQL against production.
-
-The Phase C.1 production verification documented that the Encounter schema change was additive and that the Neon schema was synchronized without resetting existing data.
+Schema changes must be handled deliberately. Never use database reset commands or destructive SQL against production.
 
 ## Database backup strategy
 
@@ -180,3 +179,35 @@ Vercel = replaceable hosting
 ```
 
 This separation is intentional. A hosting failure should not require rebuilding the application or recreating the production database.
+
+## Object storage and medical documents
+
+Lab/document binaries are stored through `src/lib/storage`:
+
+| Provider | When used | Binary durability |
+|----------|-----------|-------------------|
+| `local` | Development only | Local filesystem (not available on Vercel/serverless) |
+| `r2` | When `STORAGE_PROVIDER=r2` and R2 credentials are set | Durable object storage (recommended for production clinical documents) |
+| `processed` | Default on serverless/production when R2 is not configured | **Not durable** — upload is process-only; `getObject` returns null. OCR draft + human verification remain in PostgreSQL |
+
+**Production recommendation:** configure Cloudflare R2 (or equivalent) via:
+
+- `STORAGE_PROVIDER=r2`
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`
+
+Without R2, medical document **files** are not recoverable from object storage after upload; facility data and clinical rows in Neon remain the durable clinical record of truth for structured data.
+
+Document storage keys are facility-scoped (`clinics/{clinicId}/patients/...`) and must never be guessed across facilities without server-side authorization.
+
+## Backup retention expectations
+
+- Prefer the managed backup features of the production Postgres provider (e.g. Neon point-in-time recovery) where enabled.
+- Manual `pg_dump` is an additional operator-controlled safety layer, not a substitute for provider PITR when available.
+- Retention period is an operational decision for the rights holder; this repository does not encode a false retention SLA.
+- Object storage (R2) backups/versioning, if enabled, are separate from database backups.
+
+## What remains on the roadmap
+
+- Automated scheduled database backups with verified restore drills
+- Production enforcement that durable object storage is configured when document upload is enabled
+- Periodic restore exercises against a non-production clone

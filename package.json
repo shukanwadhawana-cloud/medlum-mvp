@@ -24,6 +24,7 @@
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
     "test:data-retention": "node scripts/verify-data-retention-protection.mjs",
     "test:soft-deactivation": "node scripts/verify-soft-deactivation.mjs",
+    "test:disaster-recovery-readiness": "node scripts/verify-disaster-recovery-readiness.mjs",
     "test:api-auth-coverage": "node scripts/verify-api-auth-coverage.mjs",
     "test:telemedicine": "node scripts/verify-telemedicine-foundation.mjs",
     "test:video-consultation": "node scripts/verify-video-consultation.mjs",
