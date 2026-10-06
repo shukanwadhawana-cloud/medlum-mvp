@@ -107,7 +107,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const moreActive = menuItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
-  const quickNav = primaryNav.slice(0, 4);
 
   return (
     <div className="medlum-app min-h-screen bg-[var(--ml-canvas)] text-[var(--ml-ink)]">
@@ -136,7 +135,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="medlum-main">{children}</main>
 
       <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur safe-area-bottom md:hidden">
-        <nav className="mx-auto grid max-w-lg grid-cols-5">{quickNav.map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a]" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span>{item.label}</span></Link>)}<button type="button" onClick={() => setMoreOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium text-gray-500"><Icon name="more" size={18}/><span>Menu</span></button></nav>
+        <nav className="mx-auto flex max-w-full overflow-x-auto px-2 gap-1 scrollbar-none">
+          {primaryNav.map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-w-[72px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a] bg-red-50" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span className="truncate max-w-[68px]">{item.label}</span></Link>)}
+          <button type="button" onClick={() => setMoreOpen(true)} className="flex min-w-[72px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium text-gray-500"><Icon name="more" size={18}/><span>Menu</span></button>
+        </nav>
       </div>
       <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} menuItems={allMenuItems}/>
       <MedLumChat />
