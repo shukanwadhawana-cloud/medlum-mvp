@@ -144,3 +144,28 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
   .medlum-primary-nav { display:none; }
   .medlum-main { margin-left:0; padding: 18px 14px 96px; }
 }
+
+
+/* Clinical workspace dashboard surface */
+.medlum-dashboard-hero {
+  display:flex; align-items:flex-end; justify-content:space-between; gap:20px;
+  padding:24px 26px; margin-bottom:18px; border:1px solid var(--ml-border);
+  border-radius:18px; background:linear-gradient(135deg,var(--ml-surface) 0%,var(--ml-surface-tint) 100%);
+  box-shadow:var(--ml-shadow);
+}
+.medlum-dashboard-hero h1 { margin:4px 0 6px; font-size:clamp(24px,3vw,32px); font-weight:750; }
+.medlum-dashboard-hero p:last-child { margin:0; color:var(--ml-muted); font-size:13px; }
+.medlum-eyebrow { margin:0; color:var(--ml-primary); font-size:10px; font-weight:800; letter-spacing:.12em; }
+.medlum-primary { min-height:42px; padding:0 16px; border:0; border-radius:10px; white-space:nowrap; font-weight:700; }
+.medlum-module-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:18px; }
+.medlum-module-card { min-width:0; padding:13px 14px; border:1px solid var(--ml-border); border-radius:13px; background:var(--ml-surface); color:var(--ml-ink); text-decoration:none; box-shadow:0 1px 2px rgba(20,10,31,.03); }
+.medlum-module-card:hover { border-color:#e5a6b4; background:var(--ml-surface-tint); transform:translateY(-1px); }
+.medlum-module-card-label { display:block; margin-bottom:3px; color:var(--ml-primary); font-size:13px; font-weight:750; }
+.medlum-module-card span:last-child { display:block; color:var(--ml-muted); font-size:11px; line-height:1.35; }
+@media (max-width:767px) {
+  .medlum-dashboard-hero { align-items:flex-start; flex-direction:column; padding:18px; margin-bottom:14px; }
+  .medlum-dashboard-hero h1 { font-size:24px; }
+  .medlum-primary { width:100%; }
+  .medlum-module-strip { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:14px; }
+  .medlum-module-card { padding:11px; }
+}
