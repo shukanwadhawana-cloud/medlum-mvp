@@ -129,6 +129,14 @@ export default function MorePage() {
 
   return (
     <AppShell>
+      <section className="medlum-canva-panel mb-4 overflow-hidden">
+        <div className="medlum-canva-section-head"><div><div className="medlum-canva-section-title">MedLum Workspace</div><div className="medlum-canva-section-meta">Clinical tools in one consistent workspace</div></div><span className="medlum-canva-pill">Canva UI</span></div>
+        <div className="grid sm:grid-cols-3 gap-2 p-3">
+          <Link href="/patients" className="rounded-xl border p-3 hover:bg-[var(--ml-surface-tint)]"><div className="text-sm font-semibold">Clinical</div><div className="text-xs text-gray-500 mt-1">Patients, charts and care workflows</div></Link>
+          <Link href="/reports" className="rounded-xl border p-3 hover:bg-[var(--ml-surface-tint)]"><div className="text-sm font-semibold">Documents</div><div className="text-xs text-gray-500 mt-1">Reports and clinical documentation</div></Link>
+          <Link href="/clinical-assist" className="rounded-xl border p-3 hover:bg-[var(--ml-surface-tint)]"><div className="text-sm font-semibold">AI Workspace</div><div className="text-xs text-gray-500 mt-1">Clinical assistance with review-before-save</div></Link>
+        </div>
+      </section>
       <div className="mb-4">
         <Link href="/dashboard" className="text-xs text-[#c2183a]">
           ← Dashboard
