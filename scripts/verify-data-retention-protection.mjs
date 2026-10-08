@@ -19,9 +19,10 @@ const ALLOWED_CASCADE_MODELS = new Set([
   "LabTemplate",
   "LabTemplateParameter",
   "TariffItem", // child of TariffVersion; version itself is Restrict on Clinic
-  // Telegram link state is ephemeral account-binding, not durable clinical PHI
+  // Telegram account/link state is ephemeral operational configuration, not durable clinical PHI
   "TelegramIdentity",
   "TelegramLinkChallenge",
+  "FacilityTelegramIntegration",
   // ABDM integration state is clinic-scoped; migration uses CASCADE (non-PHI operational records)
   "AbdmConsent",
   "AbdmCareContext",
@@ -83,4 +84,4 @@ console.log("MedLum data-retention protection verification passed");
 console.log("- Doctor deletion is restricted while dependent records exist");
 console.log("- Clinic deletion is restricted while dependent records exist");
 console.log("- Historical clinical/operational records cannot be cascade-deleted by parent removal");
-console.log("- Ephemeral models (OtpChallenge, lab/tariff config children) may cascade");
+console.log("- Ephemeral models (OtpChallenge, Telegram integration/link state, lab/tariff config children) may cascade");
