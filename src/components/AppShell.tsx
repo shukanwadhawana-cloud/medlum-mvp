@@ -29,6 +29,7 @@ const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
     logout: (<><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M14 4h5v16h-5" /></>),
     more: (<><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" /></>),
     owner: (<><path d="M12 3l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V7z" /><path d="M9 12h6M12 9v6" /></>),
+    duty: (<><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></>),
     people: (<><circle cx="9" cy="8" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M3 20c0-3.5 2.5-5.5 6-5.5s6 2 6 5.5" /><path d="M15 15c3 .2 5 1.8 5 5" /></>),
   };
   return <svg {...common}>{paths[name] || paths.more}</svg>;
@@ -48,29 +49,9 @@ const isActive = (pathname: string, href: string) =>
   (href === "/clinic" && (pathname === "/clinic" || pathname.startsWith("/clinic?"))) ||
   (href === "/nursing" && pathname.startsWith("/nursing"));
 
-function MoreSidebar({ open, onClose, pathname, onLogout, menuItems }: { open: boolean; onClose: () => void; pathname: string; onLogout: () => void; menuItems: Array<{ href: string; label: string; icon: string }> }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted || !open) return null;
-  return createPortal(
-    <div className="fixed inset-0 z-[60]">
-      <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close menu" onClick={onClose} />
-      <aside className="absolute right-0 top-0 flex h-full w-[min(22rem,92vw)] flex-col bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3"><p className="text-sm font-semibold text-[#140a1f]">Menu</p><button type="button" onClick={onClose} className="text-sm text-gray-500">Close</button></div>
-        <div className="flex-1 overflow-y-auto p-3">
-          <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Operations & settings</p>
-          {menuItems.map((item) => <Link key={item.href} href={item.href} onClick={onClose} className={`mb-0.5 flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm ${isActive(pathname, item.href) ? "bg-red-50 font-medium text-[#c2183a]" : "text-[#140a1f]"}`}><Icon name={item.icon} size={16}/><span>{item.label}</span></Link>)}
-        </div>
-        <div className="border-t p-3"><button type="button" onClick={() => { onClose(); onLogout(); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#c2183a] py-3 text-sm font-semibold text-white"><Icon name="logout" size={16}/>Logout</button></div>
-      </aside>
-    </div>, document.body
-  );
-}
-
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const { doctor, logout } = useDoctor();
-  const [moreOpen, setMoreOpen] = useState(false);
   const [facilities, setFacilities] = useState<Array<{ clinicId: string; name: string; role: string }>>([]);
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
   const [switchingFacility, setSwitchingFacility] = useState(false);
@@ -83,8 +64,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return doctor?.primaryRole || "Consultant";
   }, [isOwner, selectedFacilityId, facilities, doctor?.primaryRole]);
   const primaryNav = useMemo(() => primaryNavForRole(activeRole), [activeRole]);
-  const menuItems = useMemo(() => menuNavForRole(activeRole), [activeRole]);
-  const allMenuItems = useMemo(() => isOwner ? [{ href: "/owner", label: "Owner workspace", icon: "owner" }, ...menuItems] : menuItems, [isOwner, menuItems]);
+  const sidebarItems = useMemo(() => {
+    const items = menuNavForRole(activeRole);
+    const ownerItems = isOwner ? [{ href: "/owner", label: "Owner workspace", icon: "owner" }] : [];
+    const aiAssist = items.filter((item) => item.href === "/clinical-assist");
+    const duty = items.filter((item) => item.href === "/duty");
+    const rest = items.filter((item) => item.href !== "/clinical-assist" && item.href !== "/duty");
+    return [...ownerItems, ...rest, ...aiAssist, ...duty];
+  }, [isOwner, activeRole]);
 
   useEffect(() => {
     if (!doctor) return;
@@ -119,15 +106,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="medlum-topbar-spacer"/>
           {facilities.length > 0 && <select value={selectedFacilityId} onChange={(e) => switchFacility(e.target.value)} disabled={switchingFacility} className="medlum-facility-select" aria-label="Select facility">{facilities.map((f) => <option key={f.clinicId} value={f.clinicId}>{f.name}</option>)}</select>}
           <span className="medlum-user-name">{doctor?.name || "Clinical user"}</span>
-          {isOwner && <Link href="/owner" className="medlum-top-action"><Icon name="owner" size={14}/>Owner</Link>}
-          <button type="button" onClick={() => setMoreOpen(true)} className="medlum-top-action"><Icon name="more" size={14}/>Menu</button>
           <button type="button" onClick={() => logout()} className="medlum-top-action medlum-logout-action"><Icon name="logout" size={14}/>Logout</button>
         </div>
       </header>
 
       <nav className="medlum-primary-nav hidden md:flex" aria-label="Clinical navigation">
         <div className="medlum-primary-nav-inner"><Link href="/dashboard" className="medlum-sidebar-brand"><span className="medlum-brand-mark"><Icon name="brand" size={20}/></span><span><strong>MEDLUM</strong><small>Clinical workspace</small></span></Link>
-          {allMenuItems.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? "page" : undefined} className={`medlum-primary-nav-item ${isActive(pathname, item.href) ? "is-active" : ""}`}><Icon name={item.icon} size={15}/><span>{item.label}</span></Link>)}
+          {sidebarItems.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? "page" : undefined} className={`medlum-primary-nav-item ${isActive(pathname, item.href) ? "is-active" : ""}`}><Icon name={item.icon} size={15}/><span>{item.label}</span></Link>)}
         </div>
       </nav>
 
@@ -136,10 +121,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur safe-area-bottom md:hidden">
         <nav className="mx-auto flex max-w-full overflow-x-auto px-2 gap-1 scrollbar-none">
           {primaryNav.map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-w-[72px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a] bg-red-50" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span className="truncate max-w-[68px]">{item.label}</span></Link>)}
-          <button type="button" onClick={() => setMoreOpen(true)} className="flex min-w-[72px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 px-2 text-[11px] font-medium text-gray-500"><Icon name="more" size={18}/><span>Menu</span></button>
         </nav>
       </div>
-      <MoreSidebar open={moreOpen} onClose={() => setMoreOpen(false)} pathname={pathname} onLogout={() => logout()} menuItems={allMenuItems}/>
       <MedLumChat />
     </div>
   );
