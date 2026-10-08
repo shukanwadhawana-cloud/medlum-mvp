@@ -73,11 +73,11 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 .medlum-brand-mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.16); }
 .medlum-brand strong { display: block; font-size: 18px; letter-spacing: -.03em; line-height: 1.05; }
 .medlum-brand small { display: block; margin-top: 2px; font-size: 10px; color: #e9cdd2; letter-spacing: .04em; }
-.medlum-topbar-spacer { flex: 1 1 auto; min-width: 8px; }
-.medlum-facility-select { height: 36px; max-width: 220px; min-width: 120px; border-radius: 9px; padding: 0 10px; background: rgba(255,255,255,.09) !important; border: 1px solid rgba(255,255,255,.18) !important; color: #fff !important; font-size: 12px; }
+.medlum-topbar-spacer { flex: 1 1 0%; min-width: 12px; }
+.medlum-facility-select { height: 34px; max-width: 180px; min-width: 108px; flex: 0 1 180px; border-radius: 9px; padding: 0 10px; background: rgba(255,255,255,.09) !important; border: 1px solid rgba(255,255,255,.18) !important; color: #fff !important; font-size: 12px; }
 .medlum-facility-select option { color: #140a1f; background: #fff; }
-.medlum-user-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f4e8eb; font-size: 12px; }
-.medlum-top-action { min-height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 9px; color: #fff; text-decoration: none; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); font-size: 12px; font-weight: 600; }
+.medlum-user-name { flex: 0 1 150px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f4e8eb; font-size: 12px; }
+.medlum-top-action { min-height: 34px; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 9px; color: #fff; text-decoration: none; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); font-size: 12px; font-weight: 600; }
 .medlum-top-action:hover { background: rgba(255,255,255,.15); }
 .medlum-logout-action { background: transparent; border-color: rgba(255,255,255,.10); color: #f1dfe3; }
 .medlum-primary-nav { background: #fff; border-bottom: 1px solid var(--ml-border); box-shadow: 0 2px 8px rgba(20,10,31,.035); }
@@ -113,32 +113,43 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 }
 @media (min-width: 1200px) {
   .medlum-primary-nav-inner { gap: 5px; }
-  .medlum-primary-nav-item { padding-inline: 12px; }
+  .medlum-primary-nav-item { padding-inline: 11px; }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  .medlum-topbar-inner { padding-inline: 14px; gap: 6px; }
+  .medlum-user-name { flex-basis: 120px; max-width: 120px; font-size: 11px; }
+  .medlum-facility-select { max-width: 150px; min-width: 96px; flex-basis: 150px; font-size: 11px; }
+  .medlum-top-action { padding-inline: 8px; font-size: 11px; }
+  .medlum-primary-nav { width: 264px; }
+  .medlum-topbar-inner { margin-left: 264px; }
+  .medlum-main { margin-left: 264px; }
+  .medlum-primary-nav-inner { padding-inline: 13px; }
+  .medlum-primary-nav-item { font-size: 11px; }
 }
 
 
 /* MedLum visual reference implementation: Canva clinical workspace */
 .medlum-topbar { background: var(--ml-surface); color: var(--ml-ink); border-bottom: 1px solid var(--ml-border); box-shadow: 0 1px 3px rgba(20,10,31,.04); }
-.medlum-topbar-inner { max-width: none; min-height: 72px; padding: 0 32px; margin-left: 260px; }
+.medlum-topbar-inner { max-width: none; min-height: 68px; padding: 0 24px; margin-left: 280px; gap: 8px; min-width: 0; }
 .medlum-topbar .medlum-brand { display: none; }
 .medlum-topbar .medlum-user-name { color: var(--ml-muted); }
 .medlum-top-action { color: var(--ml-ink); background: var(--ml-surface-subtle); border-color: var(--ml-border); }
 .medlum-top-action:hover { background: var(--ml-primary-soft); color: var(--ml-primary); }
 .medlum-facility-select { color: var(--ml-ink) !important; background: var(--ml-surface-subtle) !important; border-color: var(--ml-border) !important; }
-.medlum-primary-nav { display: block; position: fixed; z-index: 50; inset: 0 auto 0 0; width: 260px; height: 100vh; background: var(--ml-surface); border-right: 1px solid var(--ml-border); border-bottom: 0; box-shadow: 8px 0 24px rgba(20,10,31,.035); }
-.medlum-primary-nav-inner { height: 100%; max-width: none; min-height: 0; padding: 28px 20px 20px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+.medlum-primary-nav { display: block; position: fixed; z-index: 50; inset: 0 auto 0 0; width: 280px; height: 100vh; background: var(--ml-surface); border-right: 1px solid var(--ml-border); border-bottom: 0; box-shadow: 8px 0 24px rgba(20,10,31,.035); }
+.medlum-primary-nav-inner { height: 100%; max-width: none; min-height: 0; padding: 24px 16px 20px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 5px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; }
 .medlum-sidebar-brand { display: flex; align-items: center; gap: 10px; color: var(--ml-ink); text-decoration: none; padding: 0 12px 28px; margin-bottom: 8px; border-bottom: 1px solid var(--ml-border); }
 .medlum-sidebar-brand .medlum-brand-mark { color: var(--ml-primary); background: var(--ml-primary-soft); border-color: transparent; }
 .medlum-sidebar-brand strong { display:block; font-size: 18px; letter-spacing: -.03em; line-height:1.05; }
 .medlum-sidebar-brand small { display:block; margin-top:3px; font-size:10px; color:var(--ml-muted); letter-spacing:.04em; }
-.medlum-primary-nav-item { min-height: 44px; justify-content: flex-start; padding: 9px 13px; border-radius: 10px; color: #65575d; font-size: 13px; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.medlum-primary-nav-item { min-height: 40px; flex: 0 0 auto; justify-content: flex-start; padding: 8px 11px; border-radius: 10px; color: #65575d; font-size: 12px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .medlum-primary-nav-item:hover { color: var(--ml-primary); background: var(--ml-surface-tint); }
 .medlum-primary-nav-item.is-active { color: var(--ml-primary); background: var(--ml-primary-soft); box-shadow: none; }
 .medlum-primary-nav-item.is-active-soft { color: var(--ml-primary); background: var(--ml-surface-tint); }
-.medlum-main { max-width: none; margin-left: 260px; padding: 32px 32px 48px; }
+.medlum-main { max-width: none; margin-left: 280px; padding: 28px 28px 48px; }
 .medlum-main > * { max-width: 1180px; margin-left: auto; margin-right: auto; }
 @media (max-width: 767px) {
-  .medlum-topbar-inner { margin-left: 0; min-height: 64px; padding: 0 16px; }
+  .medlum-topbar-inner { margin-left: 0; min-height: 64px; padding: 0 12px; }
   .medlum-topbar .medlum-brand { display: inline-flex; color: var(--ml-ink); }
   .medlum-topbar .medlum-brand strong { color: var(--ml-ink); }
   .medlum-primary-nav { display:none; }
