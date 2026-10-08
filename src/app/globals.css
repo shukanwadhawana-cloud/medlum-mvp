@@ -126,12 +126,12 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 .medlum-top-action:hover { background: var(--ml-primary-soft); color: var(--ml-primary); }
 .medlum-facility-select { color: var(--ml-ink) !important; background: var(--ml-surface-subtle) !important; border-color: var(--ml-border) !important; }
 .medlum-primary-nav { display: block; position: fixed; z-index: 50; inset: 0 auto 0 0; width: 260px; height: 100vh; background: var(--ml-surface); border-right: 1px solid var(--ml-border); border-bottom: 0; box-shadow: 8px 0 24px rgba(20,10,31,.035); }
-.medlum-primary-nav-inner { height: 100%; max-width: none; padding: 28px 20px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; }
+.medlum-primary-nav-inner { height: 100%; max-width: none; min-height: 0; padding: 28px 20px 20px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
 .medlum-sidebar-brand { display: flex; align-items: center; gap: 10px; color: var(--ml-ink); text-decoration: none; padding: 0 12px 28px; margin-bottom: 8px; border-bottom: 1px solid var(--ml-border); }
 .medlum-sidebar-brand .medlum-brand-mark { color: var(--ml-primary); background: var(--ml-primary-soft); border-color: transparent; }
 .medlum-sidebar-brand strong { display:block; font-size: 18px; letter-spacing: -.03em; line-height:1.05; }
 .medlum-sidebar-brand small { display:block; margin-top:3px; font-size:10px; color:var(--ml-muted); letter-spacing:.04em; }
-.medlum-primary-nav-item { min-height: 44px; justify-content: flex-start; padding: 0 13px; border-radius: 10px; color: #65575d; font-size: 13px; }
+.medlum-primary-nav-item { min-height: 44px; justify-content: flex-start; padding: 9px 13px; border-radius: 10px; color: #65575d; font-size: 13px; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .medlum-primary-nav-item:hover { color: var(--ml-primary); background: var(--ml-surface-tint); }
 .medlum-primary-nav-item.is-active { color: var(--ml-primary); background: var(--ml-primary-soft); box-shadow: none; }
 .medlum-primary-nav-item.is-active-soft { color: var(--ml-primary); background: var(--ml-surface-tint); }
