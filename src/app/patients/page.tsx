@@ -106,9 +106,6 @@ export default function PatientsPage() {
             <h2 className="text-lg font-semibold">Patient Search</h2>
             <p className="text-xs text-gray-500">Active census · deep lookup keeps discharged patients off the main list</p>
           </div>
-          <Link href="/patients/new" className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium inline-flex items-center">
-            + Register patient
-          </Link>
         </div>
 
         <div className="flex flex-wrap gap-3 text-xs bg-white border rounded-xl px-3 py-2">
