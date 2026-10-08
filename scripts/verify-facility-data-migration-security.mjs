@@ -83,6 +83,22 @@ must(clinicAuth.includes("requireActiveClinicMembership"), "clinic-auth requireA
 must(clinicAuth.includes("findAuthorizedPatient"), "clinic-auth findAuthorizedPatient must remain");
 must(permissions.includes("billing") && permissions.includes("Owner"), "permissions MODULE_ROLES must remain intact");
 
+// Owner UI + architecture gates (hospital migration center)
+const ownerUi = read("src/app/owner/facility-data/page.tsx");
+const arch = read("docs/HOSPITAL_DATA_MIGRATION_ARCHITECTURE.md");
+const ownerHome = read("src/app/owner/page.tsx");
+
+must(ownerUi.includes("/api/facility-data/export"), "owner UI must call facility-data export");
+must(ownerUi.includes("/api/facility-data/import/preview"), "owner UI must call import preview");
+must(ownerUi.includes("/api/facility-data/import/commit"), "owner UI must call import commit");
+must(ownerUi.includes("CONFIRM"), "owner UI must require explicit CONFIRM before commit");
+must(!ownerUi.includes("\\n"), "owner facility-data page must not contain escaped-newline corruption");
+must(ownerHome.includes("/owner/facility-data"), "owner home must link to facility-data migration center");
+must(arch.includes("membership.clinicId") || arch.includes("membership"), "architecture doc must stress membership-scoped destination");
+must(arch.includes("R2") || arch.includes("object storage"), "architecture doc must address object storage plane");
+must(arch.includes("chunk") || arch.includes("manifest"), "architecture doc must require chunk/manifest path for large hospitals");
+must(!arch.includes("\\n"), "architecture doc must not contain escaped-newline corruption");
+
 if (failures.length) {
   console.error("Facility data migration security verification FAILED");
   for (const f of failures) console.error("- " + f);
@@ -96,3 +112,4 @@ console.log("- Preview is non-mutating; commit is transactional");
 console.log("- Duplicates matched by UHID/registration/phone+name; no silent overwrite");
 console.log("- Client clinicId/facilityId ignored");
 console.log("- Audit events recorded without secret/PHI dumps");
+console.log("- Owner UI + architecture docs present and free of escaped-newline corruption");
