@@ -55,10 +55,13 @@ export default function PharmacyPage() {
   return (
     <AppShell>
     <main className="mx-auto max-w-6xl p-0">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Pharmacy</h1>
-        <p className="mt-1 text-sm text-slate-500">Prescription fulfillment and clinic medicine inventory.</p>
-      </div>
+      <section className="medlum-dashboard-hero mb-6">
+        <div>
+          <p className="medlum-eyebrow">PHARMACY</p>
+          <h1>Pharmacy</h1>
+          <p>Prescription fulfillment and clinic medicine inventory.</p>
+        </div>
+      </section>
 
       {message && <div className="mb-4 rounded-xl border border-slate-200 bg-white p-3 text-sm">{message}</div>}
 

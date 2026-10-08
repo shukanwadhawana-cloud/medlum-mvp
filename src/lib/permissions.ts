@@ -34,7 +34,10 @@ export type MedLumModule =
   | "clinical_assist"
   | "owner_platform";
 
-/** Roles that may access each module (facility ClinicMember.role). */
+/**
+ * MODULE_ROLES is the single source of truth for which facility roles may open a module.
+ * Platform Owner is handled separately (always allowed) via isMedlumOwnerEmail / doctor.isOwner.
+ */
 const MODULE_ROLES: Record<MedLumModule, readonly ClinicRole[]> = {
   dashboard: [
     "Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO",
@@ -68,101 +71,68 @@ const MODULE_ROLES: Record<MedLumModule, readonly ClinicRole[]> = {
   owner_platform: [],
 };
 
-/** Path prefix → module mapping for navigation filtering. */
-export const PATH_MODULE: Record<string, MedLumModule> = {
-  "/dashboard": "dashboard",
-  "/patients": "patients",
-  "/opd": "opd",
-  "/appointments": "opd",
-  "/ipd": "ipd",
-  "/ipd-summaries": "ipd",
-  "/emergency": "emergency",
-  "/pharmacy": "pharmacy",
-  "/labs": "labs",
-  "/diagnostics": "diagnostics",
-  "/prescriptions": "prescriptions",
-  "/nursing": "nursing",
-  "/telemedicine": "telemedicine",
-  "/workforce": "workforce",
-  "/people": "workforce",
-  "/duty": "duty",
-  "/clinic": "clinic",
-  "/clinic/setup": "clinic_setup",
-  "/clinic/tariffs": "tariffs",
-  "/billing": "billing",
-  "/reports": "reports",
-  "/blood-bank": "blood_bank",
-  "/insurance": "insurance",
-  "/clinical-assist": "clinical_assist",
-  "/owner": "owner_platform",
-};
-
 export function canAccessModule(role: string | null | undefined, module: MedLumModule): boolean {
-  const normalized = normalizeClinicRole(role || "");
-  return MODULE_ROLES[module].includes(normalized);
+  const normalized = normalizeClinicRole(role || "") as ClinicRole;
+  if (normalized === "Owner") return true;
+  return (MODULE_ROLES[module] as readonly string[]).includes(normalized);
 }
 
 export function canAccessPath(role: string | null | undefined, pathname: string): boolean {
   const path = pathname.split("?")[0] || "/";
-  if (PATH_MODULE[path]) return canAccessModule(role, PATH_MODULE[path]);
-  const match = Object.keys(PATH_MODULE)
-    .filter((p) => p !== "/" && path.startsWith(p + "/"))
-    .sort((a, b) => b.length - a.length)[0];
-  if (match) return canAccessModule(role, PATH_MODULE[match]);
+  if (path === "/" || path === "/dashboard" || path.startsWith("/dashboard/")) return canAccessModule(role, "dashboard");
+  if (path.startsWith("/patients")) return canAccessModule(role, "patients");
+  if (path.startsWith("/opd")) return canAccessModule(role, "opd");
+  if (path.startsWith("/ipd")) return canAccessModule(role, "ipd");
+  if (path.startsWith("/emergency")) return canAccessModule(role, "emergency");
+  if (path.startsWith("/pharmacy")) return canAccessModule(role, "pharmacy");
+  if (path.startsWith("/labs")) return canAccessModule(role, "labs");
+  if (path.startsWith("/diagnostics")) return canAccessModule(role, "diagnostics");
+  if (path.startsWith("/nursing")) return canAccessModule(role, "nursing");
+  if (path.startsWith("/billing")) return canAccessModule(role, "billing");
+  if (path.startsWith("/reports")) return canAccessModule(role, "reports");
+  if (path.startsWith("/clinical-assist")) return canAccessModule(role, "clinical_assist");
+  if (path.startsWith("/owner")) return canAccessModule(role, "owner_platform");
   return true;
 }
 
 export function canManageStaff(role: string | null | undefined): boolean {
-  const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin" || r === "Manager";
+  return canAccessModule(role, "workforce");
 }
 
 export function canManageClinic(role: string | null | undefined): boolean {
-  const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin";
+  return canAccessModule(role, "clinic");
 }
 
 export function canPrescribe(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Consultant" || r === "Doctor" || r === "RMO";
+  return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"].includes(r);
 }
 
 export function canDispense(role: string | null | undefined): boolean {
-  const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Pharmacy";
+  return canAccessModule(role, "pharmacy");
 }
 
 export function canEnterLabResult(role: string | null | undefined): boolean {
-  const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Laboratory";
+  return canAccessModule(role, "labs");
 }
 
 export function canEnterDiagnosticReport(role: string | null | undefined): boolean {
-  const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Laboratory" || r === "Consultant" || r === "Doctor";
+  return canAccessModule(role, "diagnostics");
 }
 
 export function canManageMAR(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Consultant" || r === "Doctor" || r === "RMO" || r === "Nurse";
+  return ["Owner", "Admin", "Manager", "Nurse", "Consultant", "Doctor", "RMO"].includes(r);
 }
 
 export function canViewClinicalChart(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return (
-    r === "Owner" ||
-    r === "Admin" ||
-    r === "Manager" ||
-    r === "Consultant" ||
-    r === "Doctor" ||
-    r === "RMO" ||
-    r === "Nurse"
-  );
+  return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse"].includes(r);
 }
 
 export function canOrderLabs(role: string | null | undefined): boolean {
   const r = normalizeClinicRole(role || "");
-  return r === "Owner" || r === "Admin" || r === "Manager" || r === "Consultant" || r === "Doctor" || r === "RMO";
+  return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"].includes(r);
 }
 
 export function canViewBilling(role: string | null | undefined): boolean {
@@ -190,6 +160,7 @@ export function defaultLandingPath(role: string | null | undefined): string {
 export type NavItem = { href: string; label: string; icon: string; module: MedLumModule };
 
 const ALL_PRIMARY: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: "clinic", module: "dashboard" },
   { href: "/people", label: "People", icon: "people", module: "workforce" },
   { href: "/opd", label: "OPD", icon: "clinic", module: "opd" },
   { href: "/patients", label: "Patients", icon: "patients", module: "patients" },

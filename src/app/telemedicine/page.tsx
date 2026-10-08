@@ -136,16 +136,16 @@ export default function TelemedicinePage() {
 
   return (
     <AppShell>
-      <div className="mb-4">
-        <Link href="/dashboard" className="text-xs text-[#c2183a]">
-          ← Dashboard
+      <section className="medlum-dashboard-hero mb-4">
+        <div>
+          <p className="medlum-eyebrow">TELEMEDICINE</p>
+          <h1>Telemedicine</h1>
+          <p>Patient visits or consultant-to-consultant peer calls. Host opens the room; the other person uses the join link.</p>
+        </div>
+        <Link href="/dashboard" className="medlum-primary inline-flex items-center justify-center" style={{ textDecoration: "none" }}>
+          Dashboard
         </Link>
-        <h1 className="mt-1 text-xl font-bold">Telemedicine</h1>
-        <p className="text-sm text-gray-500">
-          Patient visits or consultant-to-consultant peer calls (e.g. iPhone ↔ iPad). Host opens the room; the other
-          person uses the join link.
-        </p>
-      </div>
+      </section>
 
       {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {warning && (

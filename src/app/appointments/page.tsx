@@ -185,12 +185,11 @@ export default function AppointmentsPage() {
   return (
     <AppShell>
       <div>
-        <div className="flex items-center justify-between mb-4 gap-2">
+        <section className="medlum-dashboard-hero mb-4">
           <div>
-            <h2 className="text-lg font-semibold">Appointments</h2>
-            <p className="text-xs text-gray-500">
-              OPD schedule and IPD consultant-care appointments
-            </p>
+            <p className="medlum-eyebrow">SCHEDULE</p>
+            <h1>Appointments</h1>
+            <p>OPD schedule and IPD consultant-care appointments</p>
           </div>
           <button
             onClick={() => {
@@ -198,11 +197,11 @@ export default function AppointmentsPage() {
               setShowAdd(true);
             }}
             disabled={!patients.length}
-            className="h-9 px-3 rounded-lg bg-[#c2183a] text-white text-sm font-medium disabled:opacity-40"
+            className="medlum-primary disabled:opacity-40"
           >
             + Book
           </button>
-        </div>
+        </section>
 
         {!patients.length && !dataLoading && (
           <div className="mb-3 bg-amber-50 text-amber-800 text-xs px-3 py-2 rounded-lg">
@@ -436,7 +435,7 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-2 gap-2">
                 <input
                   value={form.consultantName}
-                  onChange={(e) => setForm({ ...form, consultantSpecialty: e.target.value })}
+                  onChange={(e) => setForm({ ...form, consultantName: e.target.value })}
                   placeholder="Consultant name"
                   className="w-full h-11 px-3 rounded-lg border text-sm"
                 />

@@ -95,7 +95,12 @@ export default function PatientsPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">\n        <section className="medlum-dashboard-hero medlum-index-hero">\n          <div><p className="medlum-eyebrow">MEDLUM · PATIENT INDEX</p><h1>Patient Index</h1><p>Active clinical census, appointments, emergency cases and deep historical lookup.</p></div>\n          <Link href="/patients/new" className="medlum-primary inline-flex items-center justify-center">+ Register patient</Link>\n        </section>\n        <div className="p-0 space-y-3">
+      <div className="space-y-4">
+        <section className="medlum-dashboard-hero medlum-index-hero">
+          <div><p className="medlum-eyebrow">MEDLUM · PATIENT INDEX</p><h1>Patient Index</h1><p>Active clinical census, appointments, emergency cases and deep historical lookup.</p></div>
+          <Link href="/patients/new" className="medlum-primary inline-flex items-center justify-center">+ Register patient</Link>
+        </section>
+        <div className="p-0 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold">Patient Search</h2>
@@ -215,6 +220,7 @@ export default function PatientsPage() {
             <div className="px-3 py-2 border-t text-[10px] text-gray-400">Showing {rows.length} of {rows.length} entries</div>
           )}
         </div>
+      </div>
       </div>
     </AppShell>
   );

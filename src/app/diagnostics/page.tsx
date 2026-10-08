@@ -167,10 +167,11 @@ export default function DiagnosticsPage() {
 
   return (
     <AppShell>
-      <div className="mb-4 flex items-center justify-between gap-2">
+      <section className="medlum-dashboard-hero mb-4">
         <div>
-          <h2 className="text-lg font-semibold">Diagnostics</h2>
-          <p className="text-xs text-gray-500">Imaging & studies · Ordered → Performed → Reported</p>
+          <p className="medlum-eyebrow">DIAGNOSTICS</p>
+          <h1>Diagnostics</h1>
+          <p>Imaging & studies · Ordered → Performed → Reported</p>
         </div>
         <button
           type="button"
@@ -179,11 +180,11 @@ export default function DiagnosticsPage() {
             setShowAdd(true);
           }}
           disabled={!patients.length}
-          className="h-9 rounded-lg bg-[#c2183a] px-3 text-sm font-medium text-white disabled:opacity-40"
+          className="medlum-primary disabled:opacity-40"
         >
           + Order study
         </button>
-      </div>
+      </section>
 
       {error && !showAdd && !reportOrder && (
         <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>

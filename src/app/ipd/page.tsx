@@ -88,15 +88,16 @@ export default function IPDCensusPage() {
   return (
     <AppShell>
       <div className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-3">
+        <section className="medlum-dashboard-hero">
           <div>
-            <h2 className="text-lg font-semibold">IPD Census</h2>
-            <p className="text-xs text-gray-500">Horizontal ward board · LOS · specialty filters</p>
+            <p className="medlum-eyebrow">INPATIENT</p>
+            <h1>IPD Census</h1>
+            <p>Horizontal ward board · LOS · specialty filters</p>
           </div>
-          <Link href="/patients" className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">
+          <Link href="/patients" className="medlum-primary inline-flex items-center justify-center" style={{ textDecoration: "none" }}>
             Deep patient search
           </Link>
-        </div>
+        </section>
 
         <div className="flex flex-wrap gap-2 items-center bg-white border rounded-xl px-3 py-2 text-xs">
           <label className="text-gray-500">Ward:</label>
