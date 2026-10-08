@@ -166,6 +166,7 @@ const ALL_PRIMARY: NavItem[] = [
   { href: "/reports", label: "Documents", icon: "reports", module: "reports" },
   { href: "/billing", label: "Billing", icon: "billing", module: "billing" },
   { href: "/clinical-assist", label: "AI Workspace", icon: "ai", module: "clinical_assist" },
+  { href: "/telemedicine", label: "Video", icon: "video", module: "telemedicine" },
 ];
 
 const ALL_MENU: NavItem[] = [
