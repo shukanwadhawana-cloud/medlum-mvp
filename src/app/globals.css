@@ -193,3 +193,40 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
     padding: 14px 16px;
   }
 }
+
+
+/* MedLum Canva master UI — production presentation layer */
+.medlum-canva-page{width:100%;max-width:1180px;margin:0 auto}
+.medlum-canva-eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ml-primary)}
+.medlum-canva-title{font-size:clamp(25px,3vw,34px);line-height:1.08;font-weight:800;letter-spacing:-.035em;color:var(--ml-ink)}
+.medlum-canva-subtitle{margin-top:7px;font-size:13px;line-height:1.55;color:var(--ml-muted)}
+.medlum-canva-panel{border:1px solid var(--ml-border);border-radius:18px;background:var(--ml-surface);box-shadow:var(--ml-shadow)}
+.medlum-canva-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.medlum-canva-stat{padding:17px 18px;border:1px solid var(--ml-border);border-radius:16px;background:var(--ml-surface);box-shadow:0 1px 2px rgba(20,10,31,.03)}
+.medlum-canva-stat-label{font-size:11px;font-weight:650;color:var(--ml-muted)}
+.medlum-canva-stat-value{margin-top:5px;font-size:26px;line-height:1;font-weight:800;letter-spacing:-.035em;color:var(--ml-ink)}
+.medlum-canva-stat-note{margin-top:7px;font-size:10px;color:var(--ml-muted)}
+.medlum-canva-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--ml-border)}
+.medlum-canva-section-title{font-size:13px;font-weight:750;color:var(--ml-ink)}
+.medlum-canva-section-meta{font-size:10px;color:var(--ml-muted)}
+.medlum-canva-list-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid #eee7ea}
+.medlum-canva-list-row:last-child{border-bottom:0}
+.medlum-canva-list-main{min-width:0}
+.medlum-canva-list-name{font-size:12px;font-weight:650;color:var(--ml-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.medlum-canva-list-detail{margin-top:2px;font-size:10px;color:var(--ml-muted)}
+.medlum-canva-pill{display:inline-flex;align-items:center;min-height:23px;padding:0 8px;border-radius:999px;font-size:10px;font-weight:700;background:var(--ml-primary-soft);color:var(--ml-primary)}
+.medlum-canva-pill.high{background:#fde8e8;color:#b42318}
+.medlum-canva-two-col{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:14px}
+.medlum-canva-auth{min-height:100vh;display:grid;grid-template-columns:minmax(360px,.9fr) minmax(440px,1.1fr);background:var(--ml-canvas)}
+.medlum-canva-auth-brand{display:flex;flex-direction:column;justify-content:space-between;padding:52px;background:linear-gradient(150deg,#140a1f 0%,#3b101b 100%);color:#fff}
+.medlum-canva-auth-brand h1{font-size:42px;letter-spacing:-.045em}
+.medlum-canva-auth-brand p{max-width:360px;color:rgba(255,255,255,.68);font-size:13px;line-height:1.65}
+.medlum-canva-auth-card{width:min(430px,100%);margin:auto;padding:36px 30px;border:1px solid var(--ml-border);border-radius:22px;background:#fff;box-shadow:0 16px 40px rgba(20,10,31,.08)}
+.medlum-canva-auth-card h2{font-size:27px;letter-spacing:-.035em}
+@media(max-width:900px){.medlum-canva-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.medlum-canva-two-col{grid-template-columns:1fr}}
+@media(max-width:767px){
+  .medlum-canva-stat-grid{gap:8px}.medlum-canva-stat{padding:13px}.medlum-canva-stat-value{font-size:22px}
+  .medlum-canva-list-row{padding:11px 13px}
+  .medlum-canva-auth{display:block;min-height:100svh}.medlum-canva-auth-brand{min-height:210px;padding:28px 22px}.medlum-canva-auth-brand h1{font-size:32px}
+  .medlum-canva-auth-card{width:calc(100% - 28px);margin:-36px auto 24px;position:relative;padding:25px 20px}
+}
