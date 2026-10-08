@@ -161,19 +161,11 @@ export type NavItem = { href: string; label: string; icon: string; module: MedLu
 
 const ALL_PRIMARY: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "clinic", module: "dashboard" },
-  { href: "/people", label: "People", icon: "people", module: "workforce" },
-  { href: "/opd", label: "OPD", icon: "clinic", module: "opd" },
-  { href: "/patients", label: "Patients", icon: "patients", module: "patients" },
-  { href: "/clinical-assist", label: "AI Assist", icon: "ai", module: "clinical_assist" },
-  { href: "/ipd", label: "IPD", icon: "ipd", module: "ipd" },
-  { href: "/emergency", label: "Emergency", icon: "emergency", module: "emergency" },
-  { href: "/nursing", label: "Nursing", icon: "patients", module: "nursing" },
-  { href: "/labs", label: "Labs", icon: "labs", module: "labs" },
-  { href: "/diagnostics", label: "Diagnostics", icon: "diagnostics", module: "diagnostics" },
-  { href: "/pharmacy", label: "Pharmacy", icon: "pharmacy", module: "pharmacy" },
-  { href: "/prescriptions", label: "Prescriptions", icon: "rx", module: "prescriptions" },
-  { href: "/telemedicine", label: "Video", icon: "video", module: "telemedicine" },
+  { href: "/appointments", label: "Appointments", icon: "calendar", module: "opd" },
+  { href: "/patients", label: "Clinical", icon: "patients", module: "patients" },
+  { href: "/reports", label: "Documents", icon: "reports", module: "reports" },
   { href: "/billing", label: "Billing", icon: "billing", module: "billing" },
+  { href: "/clinical-assist", label: "AI Workspace", icon: "ai", module: "clinical_assist" },
 ];
 
 const ALL_MENU: NavItem[] = [
