@@ -95,7 +95,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     } finally { setSwitchingFacility(false); }
   };
 
-  const moreActive = menuItems.some((item) => isActive(pathname, item.href)) || pathname.startsWith("/more") || pathname.startsWith("/owner");
 
   return (
     <div className="medlum-app min-h-screen bg-[var(--ml-canvas)] text-[var(--ml-ink)]">
