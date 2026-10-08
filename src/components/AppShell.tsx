@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useDoctor } from "./DoctorProvider";
 import { menuNavForRole, primaryNavForRole } from "@/lib/permissions";
 import MedLumChat from "./MedLumChat";
@@ -70,7 +69,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const aiAssist = items.filter((item) => item.href === "/clinical-assist");
     const duty = items.filter((item) => item.href === "/duty");
     const rest = items.filter((item) => item.href !== "/clinical-assist" && item.href !== "/duty");
-    return [...ownerItems, ...rest, ...aiAssist, ...duty];
+    const patientsIndex = rest.findIndex((item) => item.href === "/patients");
+    const beforeAi = patientsIndex >= 0 ? rest.slice(0, patientsIndex + 1) : rest;
+    const afterAi = patientsIndex >= 0 ? rest.slice(patientsIndex + 1) : [];
+    return [...ownerItems, ...beforeAi, ...aiAssist, ...afterAi, ...duty];
   }, [isOwner, activeRole]);
 
   useEffect(() => {
