@@ -39,7 +39,7 @@ assert.match(workflowApi, /status === "APPROVED"/);
 assert.match(dietAi, /isClinicalAiConfigured\(\)/);
 assert.match(dietAi, /missingInputs/);
 assert.match(dietAi, /DRAFT only/);
-assert.match(dietAi, /CKD restrictions must be individualized|individualized only/);
+assert.match(dietAi, /Do not apply blanket protein|individualize only/);
 assert.match(workflowUi, /Generate AI diet-chart draft/);
 assert.match(workflowUi, /Review and approve/);
 assert.match(shell, /href: "\/physiotherapy"/);
