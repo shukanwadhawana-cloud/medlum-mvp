@@ -91,7 +91,7 @@ export async function GET(req: Request) {
   // This keeps active census filtering intact while allowing linked emergency and
   // appointment records to be surfaced in their dedicated views.
   const emergencyPatients = await prisma.emergencyCase.findMany({
-    where: { clinicId, status: { notIn: ["Discharged", "Transferred"] }, patientId: { not: null } },
+    where: { clinicId, status: { notIn: ["Admitted", "Discharged", "Transferred"] }, patientId: { not: null } },
     select: { patientId: true },
     distinct: ["patientId"],
   });
@@ -124,7 +124,7 @@ export async function GET(req: Request) {
     visibleIds.length ? prisma.encounter.findMany({ where: { patientId: { in: visibleIds } }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
     visibleIds.length ? prisma.auditLog.findMany({ where: { entity: "NursingVital", entityId: { in: visibleIds } }, orderBy: { createdAt: "desc" }, take: Math.min(visibleIds.length * 5, 2500) }) : Promise.resolve([]),
     visibleIds.length ? prisma.appointment.findMany({ where: { patientId: { in: visibleIds }, status: { notIn: ["Cancelled", "No Show"] } }, select: { id: true, patientId: true, date: true, time: true, status: true }, orderBy: [{ date: "asc" }, { time: "asc" }] }) : Promise.resolve([]),
-    visibleIds.length ? prisma.$queryRaw<any[]>(Prisma.sql`SELECT "patientId","status","arrivalTime" FROM "EmergencyCase" WHERE "clinicId"=${clinicId} AND "patientId" IN (${Prisma.join(visibleIds)}) ORDER BY "arrivalTime" DESC`) : Promise.resolve([]),
+    visibleIds.length ? prisma.$queryRaw<any[]>(Prisma.sql`SELECT "patientId","status","arrivalTime" FROM "EmergencyCase" WHERE "clinicId"=${clinicId} AND "status" NOT IN ('Admitted','Discharged','Transferred') AND "patientId" IN (${Prisma.join(visibleIds)}) ORDER BY "arrivalTime" DESC`) : Promise.resolve([]),
   ]);
   const appointmentMeta = new Map<string, { count: number; next: any | null }>();
   for (const a of appointments) {
