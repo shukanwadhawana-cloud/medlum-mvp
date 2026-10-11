@@ -115,7 +115,25 @@ export async function GET() {
       })),
     };
   });
-  return NextResponse.json({ patients: result, ipdHistory });
+  const roomDirectory = new Map<string, { id: string; roomNumber: string; roomCategory: string; unitType: string }>();
+  for (const log of logs) {
+    if (log.entity !== "HospitalRoom") continue;
+    const meta = metaOf(log);
+    if (String(meta.clinicId || "") !== String(clinicId || "")) continue;
+    const roomNumber = String(meta.roomNumber || "").trim();
+    if (!roomNumber || roomDirectory.has(roomNumber)) continue;
+    roomDirectory.set(roomNumber, {
+      id: String(log.entityId || roomNumber),
+      roomNumber,
+      roomCategory: String(meta.roomCategory || "General Ward"),
+      unitType: String(meta.unitType || "Ward"),
+    });
+  }
+  const rooms = Array.from(roomDirectory.values()).map((room) => {
+    const occupant = result.find((patient: any) => String(patient.roomNumber || "").trim() === room.roomNumber);
+    return { ...room, occupied: Boolean(occupant), occupiedByPatientId: occupant?.id || null };
+  }).sort((a, b) => a.unitType.localeCompare(b.unitType) || a.roomCategory.localeCompare(b.roomCategory) || a.roomNumber.localeCompare(b.roomNumber));
+  return NextResponse.json({ patients: result, ipdHistory, rooms }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
