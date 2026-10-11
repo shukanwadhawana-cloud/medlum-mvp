@@ -22,3 +22,8 @@ const middleware = fs.readFileSync("src/middleware.ts", "utf8");
 assert(middleware.includes("https://cdn.jsdelivr.net"), "CSP must allow the Tesseract.js worker/core CDN");
 assert(middleware.includes("https://tessdata.projectnaptha.com"), "CSP must allow Tesseract language-data downloads");
 assert(page.includes("Check browser console for the underlying OCR engine error."), "non-Error OCR failures must expose a useful diagnostic message");
+
+assert(ocr.includes("Loading OCR engine and English language data"), "OCR must expose initialization progress");
+assert(ocr.includes("60_000"), "OCR worker initialization must have a timeout");
+assert(ocr.includes("90_000"), "OCR recognition must have a timeout");
+assert(page.includes("(status) => setScanStatus(status)"), "UI must display live OCR engine progress");
