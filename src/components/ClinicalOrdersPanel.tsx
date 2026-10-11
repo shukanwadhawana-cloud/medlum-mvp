@@ -4,28 +4,39 @@ import { useState } from "react";
 import Link from "next/link";
 import { apiCreateLabOrder, apiCreateDiagnosticOrder } from "@/lib/api";
 import { formatIst } from "@/lib/time";
+import { DIAGNOSTIC_CATALOG } from "@/lib/diagnostic-catalog";
 
-const LAB_PRESETS = [
-  "CBC",
-  "LFT",
-  "KFT",
-  "Lipid Profile",
-  "HbA1c",
-  "TSH",
-  "Urine Routine",
-  "Blood Sugar",
-  "CRP",
-  "PT/INR",
-];
-
-const DX_PRESETS = [
-  { studyName: "Chest X-ray", modality: "X-Ray", bodyPart: "Chest" },
-  { studyName: "Ultrasound Abdomen", modality: "Ultrasound", bodyPart: "Abdomen" },
-  { studyName: "CT Head", modality: "CT", bodyPart: "Head" },
-  { studyName: "MRI Brain", modality: "MRI", bodyPart: "Brain" },
-  { studyName: "2D Echo", modality: "Echo", bodyPart: "Heart" },
-  { studyName: "ECG", modality: "ECG", bodyPart: "Heart" },
-];
+const LAB_CATALOG = DIAGNOSTIC_CATALOG.filter((item) => item.modality === "Laboratory");
+const IMAGING_CATALOG = DIAGNOSTIC_CATALOG.filter((item) => item.modality !== "Laboratory");
+const labLabel = (name: string) => name
+  .replace(/^Complete Blood Count \(CBC\) with Differential$/, "CBC")
+  .replace(/^Liver Function Test \(LFT\)$/, "LFT")
+  .replace(/^Renal Function Test \(RFT \/ KFT\)$/, "KFT")
+  .replace(/^Urine Routine & Microscopy$/, "Urine Routine")
+  .replace(/^Fasting Blood Sugar$/, "Blood Sugar (Fasting)");
+const bodyPartFromStudy = (name: string) => {
+  const value = name.toLowerCase();
+  const bodyParts: Array<[string[], string]> = [
+    [["chest", "lung", "pulmonary"], "Chest"],
+    [["abdomen", "abdominal", "kub", "renal", "kidney"], "Abdomen"],
+    [["brain", "head", "skull", "sinus"], "Head"],
+    [["heart", "cardiac", "coronary"], "Heart"],
+    [["cervical spine", "c-spine", "thoracic spine", "t-spine", "lumbar spine", "l-spine", "whole spine", "spine"], "Spine"],
+    [["pelvis", "hip"], "Pelvis"],
+    [["breast", "mammography", "mammogram"], "Breast"],
+    [["knee"], "Knee"],
+    [["shoulder"], "Shoulder"],
+    [["neck", "thyroid"], "Neck"],
+    [["prostate"], "Prostate"],
+    [["uterus", "uterine", "ovary", "ovarian"], "Pelvis"],
+    [["vascular", "doppler", "arterial", "venous"], "Vascular"],
+  ];
+  for (const [terms, label] of bodyParts) {
+    if (terms.some((term) => value.includes(term))) return label;
+  }
+  const match = name.match(/(?:of|,|\/)\s+([A-Za-z][A-Za-z -]+)/);
+  return match?.[1]?.trim() || "";
+};
 
 const LAB_ACTIVE = new Set([
   "Ordered",
@@ -54,10 +65,12 @@ export function ClinicalOrdersPanel({
 }) {
   const showLab = focus === "all" || focus === "lab";
   const showDx = focus === "all" || focus === "radiology";
-  const [labTest, setLabTest] = useState(LAB_PRESETS[0]);
+  const [labTest, setLabTest] = useState("cbc");
+  const [labSearch, setLabSearch] = useState("");
   const [labCustom, setLabCustom] = useState("");
   const [labNotes, setLabNotes] = useState("");
-  const [dxPreset, setDxPreset] = useState(0);
+  const [dxPreset, setDxPreset] = useState("cxr-pa");
+  const [dxSearch, setDxSearch] = useState("");
   const [dxCustom, setDxCustom] = useState("");
   const [dxIndication, setDxIndication] = useState("");
   const [saving, setSaving] = useState(false);
@@ -71,7 +84,8 @@ export function ClinicalOrdersPanel({
     e.preventDefault();
     setErr("");
     setMsg("");
-    const testName = labTest === "OTHER" ? labCustom.trim() : labTest;
+    const selectedLab = LAB_CATALOG.find((item) => item.id === labTest);
+    const testName = labTest === "OTHER" ? labCustom.trim() : selectedLab?.name || "";
     if (!testName) {
       setErr("Enter a lab test name.");
       return;
@@ -81,7 +95,7 @@ export function ClinicalOrdersPanel({
       const res = await apiCreateLabOrder({
         patientId,
         testName,
-        category: "Laboratory",
+        category: selectedLab?.category || "Laboratory",
         notes: labNotes.trim(),
       });
       if (res.error || res.success === false) {
@@ -103,8 +117,8 @@ export function ClinicalOrdersPanel({
     e.preventDefault();
     setErr("");
     setMsg("");
-    const preset = DX_PRESETS[dxPreset];
-    const studyName = dxCustom.trim() || preset?.studyName;
+    const preset = IMAGING_CATALOG.find((item) => item.id === dxPreset);
+    const studyName = dxCustom.trim() || preset?.name;
     if (!studyName) {
       setErr("Enter a study name.");
       return;
@@ -115,7 +129,7 @@ export function ClinicalOrdersPanel({
         patientId,
         studyName,
         modality: preset?.modality || "Other",
-        bodyPart: preset?.bodyPart || "",
+        bodyPart: preset ? bodyPartFromStudy(preset.name) : "",
         indication: dxIndication.trim(),
         notes: dxIndication.trim(),
       });
@@ -155,16 +169,25 @@ export function ClinicalOrdersPanel({
             </h3>
           </div>
           <form onSubmit={orderLab} className="space-y-2 p-3">
+            <input
+              value={labSearch}
+              onChange={(e) => setLabSearch(e.target.value)}
+              placeholder="Search laboratory tests (CBC, LFT, electrolytes, cultures…)"
+              aria-label="Search laboratory tests"
+              className="h-10 w-full rounded-lg border px-2 text-sm"
+            />
             <select
               value={labTest}
               onChange={(e) => setLabTest(e.target.value)}
+              aria-label="Select laboratory test"
               className="h-10 w-full rounded-lg border px-2 text-sm"
             >
-              {LAB_PRESETS.map((t) => (
-                <option key={t}>{t}</option>
+              {LAB_CATALOG.filter((item) => !labSearch || (item.name + " " + item.category).toLowerCase().includes(labSearch.toLowerCase())).map((item) => (
+                <option key={item.id} value={item.id}>{labLabel(item.name)} · {item.category}</option>
               ))}
-              <option value="OTHER">Other / custom</option>
+              <option value="OTHER">Other / custom test</option>
             </select>
+            <p className="text-[11px] text-gray-500">{LAB_CATALOG.length} catalogue tests available. Search by test name or category.</p>
             {labTest === "OTHER" && (
               <input
                 value={labCustom}
@@ -202,17 +225,24 @@ export function ClinicalOrdersPanel({
             </h3>
           </div>
           <form onSubmit={orderDx} className="space-y-2 p-3">
+            <input
+              value={dxSearch}
+              onChange={(e) => setDxSearch(e.target.value)}
+              placeholder="Search X-ray, USG, CT, MRI, ECG, echo, procedures…"
+              aria-label="Search imaging and diagnostic studies"
+              className="h-10 w-full rounded-lg border px-2 text-sm"
+            />
             <select
               value={dxPreset}
-              onChange={(e) => setDxPreset(Number(e.target.value))}
+              onChange={(e) => setDxPreset(e.target.value)}
+              aria-label="Select imaging or diagnostic study"
               className="h-10 w-full rounded-lg border px-2 text-sm"
             >
-              {DX_PRESETS.map((d, i) => (
-                <option key={d.studyName} value={i}>
-                  {d.studyName} ({d.modality})
-                </option>
+              {IMAGING_CATALOG.filter((item) => !dxSearch || (item.name + " " + item.category + " " + item.modality).toLowerCase().includes(dxSearch.toLowerCase())).map((item) => (
+                <option key={item.id} value={item.id}>{item.name} · {item.modality}</option>
               ))}
             </select>
+            <p className="text-[11px] text-gray-500">{IMAGING_CATALOG.length} imaging and diagnostic studies available.</p>
             <input
               value={dxCustom}
               onChange={(e) => setDxCustom(e.target.value)}

@@ -236,6 +236,12 @@ export async function previewFacilityImport(
     if (phone) byPhoneName.set(`${phone}|${e.name.trim().toLowerCase()}|${e.age}`, e.id);
   }
 
+  // Track identities accepted from this same package as well as existing patients.
+  // Without this, two identical rows in one upload could both be marked "create".
+  const incomingUhid = new Set<string>();
+  const incomingReg = new Set<string>();
+  const incomingPhoneName = new Set<string>();
+
   for (let i = 0; i < patientsRaw.length; i++) {
     const incoming = patientsRaw[i] as Partial<FacilityExportPatient>;
     const err = isValidPatientPayload(incoming);
@@ -251,12 +257,11 @@ export async function previewFacilityImport(
     const nameKey = String(incoming.name || "").trim().toLowerCase();
     const age = Number(incoming.age);
 
+    const phoneNameKey = phone ? `${phone}|${nameKey}|${age}` : "";
     let matchedId: string | undefined;
     if (uhid && byUhid.has(uhid)) matchedId = byUhid.get(uhid);
     else if (reg && byReg.has(reg)) matchedId = byReg.get(reg);
-    else if (phone && byPhoneName.has(`${phone}|${nameKey}|${age}`)) {
-      matchedId = byPhoneName.get(`${phone}|${nameKey}|${age}`);
-    }
+    else if (phoneNameKey && byPhoneName.has(phoneNameKey)) matchedId = byPhoneName.get(phoneNameKey);
 
     if (matchedId) {
       duplicateMatches++;
@@ -270,11 +275,30 @@ export async function previewFacilityImport(
       continue;
     }
 
+    const duplicateInPackage =
+      Boolean(uhid && incomingUhid.has(uhid)) ||
+      Boolean(reg && incomingReg.has(reg)) ||
+      Boolean(phoneNameKey && incomingPhoneName.has(phoneNameKey));
+    if (duplicateInPackage) {
+      conflicts++;
+      rows.push({
+        index: i,
+        decision: "conflict",
+        reason: "Duplicate patient identity appears more than once in this import package; resolve the duplicate before commit",
+        incoming,
+      });
+      continue;
+    }
+
+    if (uhid) incomingUhid.add(uhid);
+    if (reg) incomingReg.add(reg);
+    if (phoneNameKey) incomingPhoneName.add(phoneNameKey);
+
     wouldCreate++;
     rows.push({
       index: i,
       decision: "create",
-      reason: "No facility match; will create new patient record",
+      reason: "No facility match or duplicate in this package; will create new patient record",
       incoming,
     });
   }
@@ -304,14 +328,14 @@ export async function commitFacilityImport(
   let rejected = 0;
   let conflicts = 0;
 
-  if (preview.summary.invalid > 0) {
+  if (preview.summary.invalid > 0 || preview.summary.conflicts > 0) {
     return {
       success: false,
       created: 0,
       skippedDuplicates: 0,
       rejected: preview.summary.invalid,
       conflicts: preview.summary.conflicts,
-      errors: ["Import rejected: fix invalid records before commit. Use preview endpoint first."],
+      errors: [preview.summary.conflicts > 0 ? "Import rejected: resolve duplicate/conflicting identities before commit. Use preview endpoint first." : "Import rejected: fix invalid records before commit. Use preview endpoint first."],
       createdPatientIds: [],
     };
   }
