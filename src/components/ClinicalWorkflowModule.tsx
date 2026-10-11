@@ -60,6 +60,9 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
   const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [editingRecordId, setEditingRecordId] = useState("");
+  const [aiDraftGenerated, setAiDraftGenerated] = useState(false);
+  const [aiDraftSource, setAiDraftSource] = useState("");
   const isDietitian = module === "Dietitian";
   const fields = isDietitian ? DIET_FIELDS : PHYSIO_FIELDS;
   const selectedPatient = useMemo(() => patients.find((p) => p.id === patientId), [patients, patientId]);
@@ -107,12 +110,21 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
         body: JSON.stringify({
           module, recordType: isDietitian ? "DIET_ASSESSMENT" : "PHYSIOTHERAPY_SESSION",
           title: isDietitian ? `Dietitian assessment — ${selectedPatient?.name || "patient"}` : `Physiotherapy session — ${selectedPatient?.name || "patient"}`,
-          data: { ...values, patientId, recordKind: isDietitian ? "DIET_CHART" : "PHYSIOTHERAPY_RECORD", dietPreference: values.dietPreference },
+          data: {
+            ...values, patientId,
+            recordKind: isDietitian ? (aiDraftGenerated ? "AI_DIET_CHART_DRAFT" : "DIET_CHART") : "PHYSIOTHERAPY_RECORD",
+            dietPreference: values.dietPreference,
+            version: editingRecordId ? Number(records.find((record) => record.id === editingRecordId)?.data?.version || 1) + 1 : 1,
+            ...(editingRecordId ? { supersedesRecordId: editingRecordId } : {}),
+            ...(aiDraftGenerated ? { aiSource: aiDraftSource, aiDraftStatus: "DRAFT" } : {}),
+          },
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) throw new Error(data.error || "Could not save record.");
-      setMessage("Saved as DRAFT. Review and approve through the authorized workflow.");
+      setMessage(editingRecordId ? "New draft version saved. The previous version is retained in history." : "Saved as DRAFT. Review and approve through the authorized workflow.");
+      setEditingRecordId(""); setAiDraftGenerated(false); setAiDraftSource("");
+      setValues(initialValues);
       await loadRecords();
     } catch (e: any) { setError(e.message || "Could not save record."); }
     finally { setSaving(false); }
@@ -130,6 +142,7 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) throw new Error([data.error, ...(data.missingInputs || [])].filter(Boolean).join(" — ") || "Could not generate a nutrition draft.");
       setValues((previous) => ({ ...previous, mealChart: data.draft.mealChart || "", monitoring: data.draft.monitoring || "", patientInstructions: data.draft.patientInstructions || "", guidanceSources: data.draft.guidanceSources || "", nutritionScreening: previous.nutritionScreening || data.draft.assessment || "" }));
+      setAiDraftGenerated(true); setAiDraftSource(String(data.draft.source || "unknown"));
       setMessage("AI draft generated. It is not an order; verify all nutrient estimates and sources before saving or approval.");
     } catch (e: any) { setError(e.message || "Nutrition AI failed; use the manual chart."); }
     finally { setAiBusy(false); }
@@ -168,7 +181,8 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
         <form onSubmit={save} className="rounded-xl border bg-white p-3 space-y-3">
           <div><h2 className="font-semibold text-sm">{isDietitian ? "Nutrition assessment / diet-chart draft" : "Physiotherapy assessment / session"}</h2><p className="text-[11px] text-gray-500 mt-1">All changes are saved as drafts and audit logged. Do not enter unverified data.</p></div>
           {fields.map(([key, label, kind]) => <label key={key} className="block text-xs font-medium text-gray-600">{label}
-            {kind === "area" ? <textarea value={values[key] || ""} onChange={(e) => update(key, e.target.value)} rows={key === "mealChart" || key === "assessment" ? 5 : 3} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm font-normal" placeholder={key === "mealChart" ? "Meal/time | food and portion | nutrient estimate only when supported | substitutions | rationale | cautions | sources/version/date" : ""} />
+            {key === "dietPreference" ? <select value={values[key] || ""} onChange={(e) => update(key, e.target.value)} className="mt-1 w-full h-9 rounded-lg border px-2 text-sm font-normal"><option value="">Select explicit patient preference</option>{["Vegetarian", "Vegan", "Ovo-vegetarian", "Non-vegetarian", "Kosher", "Halal", "Jain", "Other / patient-defined"].map((option) => <option key={option} value={option}>{option}</option>)}</select>
+            : kind === "area" ? <textarea value={values[key] || ""} onChange={(e) => update(key, e.target.value)} rows={key === "mealChart" || key === "assessment" ? 5 : 3} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm font-normal" placeholder={key === "mealChart" ? "Meal/time | food and portion | nutrient estimate only when supported | substitutions | rationale | cautions | sources/version/date" : ""} />
             : <input type={kind === "date" ? "date" : "text"} value={values[key] || ""} onChange={(e) => update(key, e.target.value)} className="mt-1 w-full h-9 rounded-lg border px-2 text-sm font-normal" /> }
           </label>)}
           {isDietitian && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">AI output is a DRAFT only. CKD restrictions must be individualized; complex CKD, protein-losing enteropathy, hypothyroidism and conflicting comorbidities require dietitian/clinician review. Do not approve unverified sources or estimated nutrient values.</div>}
@@ -182,7 +196,10 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
           {records.length === 0 ? <p className="text-xs text-gray-400">No {module.toLowerCase()} records for this patient yet.</p> : records.map((record) => <article key={record.id} className="rounded-lg border p-3 space-y-2">
             <div className="flex items-start justify-between gap-2"><div><h3 className="text-sm font-semibold">{record.title}</h3><p className="text-[10px] text-gray-500">{new Date(record.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p></div><span className="rounded-full border px-2 py-1 text-[10px]">{record.status}</span></div>
             {fields.filter(([key]) => String(record.data?.[key] || "").trim()).map(([key, label]) => <p key={key} className="text-xs whitespace-pre-wrap"><b>{label}:</b> {record.data[key]}</p>)}
-            {record.status !== "APPROVED" && <button type="button" onClick={() => approve(record)} className="h-8 rounded-lg border px-3 text-xs font-semibold">Review and approve</button>}
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => { setEditingRecordId(record.id); setValues({ ...initialValues, ...Object.fromEntries(fields.map(([key]) => [key, String(record.data?.[key] ?? "")])) }); setAiDraftGenerated(record.data?.recordKind === "AI_DIET_CHART_DRAFT"); setAiDraftSource(String(record.data?.aiSource || "")); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="h-8 rounded-lg border px-3 text-xs font-semibold">Edit / new version</button>
+              {record.status !== "APPROVED" && <button type="button" onClick={() => approve(record)} className="h-8 rounded-lg border px-3 text-xs font-semibold">Review and approve</button>}
+            </div>
           </article>)}
         </section>
       </div>}
