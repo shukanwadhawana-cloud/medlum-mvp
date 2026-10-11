@@ -315,7 +315,7 @@ export default function PatientClinicalChartPage() {
                 finally { setAllergySaving(false); }
               }}>
                 <label className="block text-xs font-medium text-gray-700">Allergy status</label>
-                <select value={allergyStatus} onChange={(event) => setAllergyStatus(event.target.value as "UNKNOWN" | "NKDA" | "KNOWN")} className="w-full h-9 rounded-lg border px-2 text-xs">
+                <select value={allergyStatus} onChange={(event) => { const next = event.target.value as "UNKNOWN" | "NKDA" | "KNOWN"; setAllergyStatus(next); if (next === "KNOWN" && ["unknown / not assessed", "no known allergies", "none", "not assessed", "unknown"].includes(allergyDraft.trim().toLowerCase())) setAllergyDraft(""); }} className="w-full h-9 rounded-lg border px-2 text-xs">
                   <option value="UNKNOWN">Unknown / not assessed</option>
                   <option value="NKDA">No known allergies (NKDA)</option>
                   <option value="KNOWN">Known allergy / allergy list</option>
