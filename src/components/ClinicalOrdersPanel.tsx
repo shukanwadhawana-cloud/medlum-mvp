@@ -15,6 +15,25 @@ const labLabel = (name: string) => name
   .replace(/^Urine Routine & Microscopy$/, "Urine Routine")
   .replace(/^Fasting Blood Sugar$/, "Blood Sugar (Fasting)");
 const bodyPartFromStudy = (name: string) => {
+  const value = name.toLowerCase();
+  const bodyParts: Array<[string[], string]> = [
+    [["chest", "lung", "pulmonary"], "Chest"],
+    [["abdomen", "abdominal", "kub", "renal", "kidney"], "Abdomen"],
+    [["brain", "head", "skull", "sinus"], "Head"],
+    [["heart", "cardiac", "coronary"], "Heart"],
+    [["cervical spine", "c-spine", "thoracic spine", "t-spine", "lumbar spine", "l-spine", "whole spine", "spine"], "Spine"],
+    [["pelvis", "hip"], "Pelvis"],
+    [["breast", "mammography", "mammogram"], "Breast"],
+    [["knee"], "Knee"],
+    [["shoulder"], "Shoulder"],
+    [["neck", "thyroid"], "Neck"],
+    [["prostate"], "Prostate"],
+    [["uterus", "uterine", "ovary", "ovarian"], "Pelvis"],
+    [["vascular", "doppler", "arterial", "venous"], "Vascular"],
+  ];
+  for (const [terms, label] of bodyParts) {
+    if (terms.some((term) => value.includes(term))) return label;
+  }
   const match = name.match(/(?:of|,|\/)\s+([A-Za-z][A-Za-z -]+)/);
   return match?.[1]?.trim() || "";
 };
