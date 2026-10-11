@@ -10,9 +10,9 @@ import { EXPANDED_LAB_CATALOG, EXPANDED_RADIOLOGY_CATALOG } from "@/lib/diagnost
 import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";
 import MedOrderPanel from "@/components/ipd/MedOrderPanel";
 
-const WARDS=["General Ward","Twin Sharing","Single Sharing","Deluxe Ward","Super Deluxe"];
+const WARDS=["General","Twin Sharing","Deluxe","Super Deluxe","VIP"];
 const istDateTimeLocal=()=>new Date().toLocaleString("sv-SE",{timeZone:"Asia/Kolkata",hour12:false}).slice(0,16);
-const ICUS=["ICU","MICU","SICU","Transplant ICU","PICU","NICU"];
+const ICUS=["ICU"];
 const NOTE_TYPES=["Transfer Summary","Discharge Summary","Pharmacy Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note","Case Summary"];
 // Preserve the IPD pilot document/indent contract without exposing these as Discharge Summary subnavigation.
 const IPD_PILOT_DOCUMENT_TYPES=["Procedure Note","Medication Indent","Investigation Indent"];
@@ -98,7 +98,7 @@ export default function IPDPatientWorkspace(){
  const params=useParams<{id:string}>(); const pathname=usePathname(); const patientId=String(params?.id||""); const clinicalMode=pathname.endsWith("/clinical");
  const{doctor,loading:authLoading}=useDoctor();
  const[patients,setPatients]=useState<any[]>([]),[history,setHistory]=useState<any[]>([]),[rooms,setRooms]=useState<any[]>([]),[selected,setSelected]=useState<any>(null),[form,setForm]=useState(empty);
- const[showRegister,setShowRegister]=useState(false),[showRoom,setShowRoom]=useState(false),[showHandover,setShowHandover]=useState(false),[room,setRoom]=useState({roomNumber:"",roomCategory:"General Ward",unitType:"Ward"});
+ const[showRegister,setShowRegister]=useState(false),[showRoom,setShowRoom]=useState(false),[showHandover,setShowHandover]=useState(false),[room,setRoom]=useState({roomNumber:"",roomCategory:"General",unitType:"Ward"});
  const[note,setNote]=useState({noteType:"Consultant Note",content:""}),[investigation,setInvestigation]=useState({testName:"CBC",custom:"",notes:""}),[handover,setHandover]=useState({receivingMemberId:"",context:""}),[handoverOptions,setHandoverOptions]=useState<any[]>([]);
  const[contact,setContact]=useState({name:"",relationship:"",phone:"",alternatePhone:""}); const[vitals,setVitals]=useState({bp:"",pulse:"",rr:"",spo2:"",temperature:""});
  const[structured,setStructured]=useState({dateTime:istDateTimeLocal(),diagnosis:"",hpi:"",allergy:"",examTime:"",cns:"",cvs:"",rs:"",perAbdomen:"",assessment:"",workingDiagnosis:"",treatmentGiven:"",course:"",procedures:"",investigations:"",dischargeTreatment:"",followUpDate:"",followUpConsultant:""});
@@ -153,7 +153,7 @@ export default function IPDPatientWorkspace(){
  const orderLabs=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!selectedLabs.length)return;if(!(await run({action:"lab-order",patientId:selected.id,tests:selectedLabs,notes:investigation.notes},`Lab order placed`)))return;setSelectedLabs([])};
  const orderRad=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;const tests=selectedDiagnostics.length?selectedDiagnostics:[diagnosticType];await run({action:"diagnostic-order",patientId:selected.id,tests,notes:investigation.notes},`Imaging order placed`);setSelectedDiagnostics([])};
  const register=async(e:React.FormEvent)=>{e.preventDefault();if(!(await run({action:"register",...form},`${form.careSetting} patient registered`)))return;setShowRegister(false);setForm(empty)};
- const addRoom=async(e:React.FormEvent)=>{e.preventDefault();if(!(await run({action:"add-room",...room},`Room ${room.roomNumber} added`)))return;setShowRoom(false);setRoom({roomNumber:"",roomCategory:"General Ward",unitType:"Ward"})};
+ const addRoom=async(e:React.FormEvent)=>{e.preventDefault();if(!(await run({action:"add-room",...room},`Room ${room.roomNumber} added`)))return;setShowRoom(false);setRoom({roomNumber:"",roomCategory:"General",unitType:"Ward"})};
  const transferPatient=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!transferRoom)return;setSaving(true);try{const r=await post({action:"room-transfer",patientId:selected.id,roomNumber:transferRoom});setMsg(r.success?`Patient transferred to room / bed ${transferRoom}.`:"Transfer completed.");setShowTransfer(false);setTransferRoom("");await load()}catch(e:any){setError(e.message||"Could not transfer patient")}finally{setSaving(false)}};
  const doHandover=async(e:React.FormEvent)=>{e.preventDefault();if(!selected||!handover.receivingMemberId)return;if(!window.confirm("Transfer clinical responsibility for this IPD patient to the selected receiving clinician/team?"))return;setSaving(true);try{const r=await post({action:"handover",patientId:selected.id,receivingMemberId:handover.receivingMemberId,context:handover.context.trim()});setMsg(r.success?"Clinical responsibility handed over.":"Handover completed.");setShowHandover(false);setHandover({receivingMemberId:"",context:""});await load()}catch(e:any){setError(e.message||"Could not complete handover")}finally{setSaving(false)}};
 
@@ -517,7 +517,10 @@ export default function IPDPatientWorkspace(){
 
   {showRoom&&<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"><form onSubmit={addRoom} className="bg-white rounded-xl max-w-sm w-full p-4 space-y-2"><h3 className="font-semibold">Add room</h3>
    <input required value={room.roomNumber} onChange={e=>setRoom({...room,roomNumber:e.target.value})} placeholder="Room number" className="w-full h-9 px-2 rounded-lg border text-xs"/>
-   <select value={room.roomCategory} onChange={e=>setRoom({...room,roomCategory:e.target.value})} className="w-full h-9 px-2 rounded-lg border text-xs">{[...WARDS,...ICUS].map(w=><option key={w}>{w}</option>)}</select>
+   <label className="block text-[11px] text-gray-600">Destination</label>
+   <select value={room.unitType} onChange={e=>setRoom({...room,unitType:e.target.value,roomCategory:e.target.value==="ICU"?"ICU":"General"})} className="w-full h-9 px-2 rounded-lg border text-xs"><option value="Ward">Ward</option><option value="ICU">ICU</option></select>
+   <label className="block text-[11px] text-gray-600">Accommodation category</label>
+   <select value={room.roomCategory} onChange={e=>setRoom({...room,roomCategory:e.target.value})} className="w-full h-9 px-2 rounded-lg border text-xs">{(room.unitType==="ICU"?ICUS:WARDS).map(w=><option key={w} value={w}>{w}</option>)}</select>
    <div className="flex gap-2 justify-end"><button type="button" onClick={()=>setShowRoom(false)} className="h-9 px-3 rounded-lg border text-xs">Cancel</button><button disabled={saving} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs">Add</button></div>
   </form></div>}
 

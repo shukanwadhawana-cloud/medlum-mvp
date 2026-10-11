@@ -17,6 +17,18 @@ async function getPatient(patientId: string, doctorId: string, clinicId: string 
   }
   return prisma.patient.findFirst({ where: { id: patientId, doctorId } });
 }
+function normalizeRoomCategory(value: unknown, unitType: unknown = "Ward") {
+  const unit = String(unitType || "Ward").trim();
+  if (unit === "ICU") return "ICU";
+  const raw = String(value || "General").trim().toLowerCase();
+  if (raw === "general ward" || raw === "general") return "General";
+  if (raw === "deluxe ward" || raw === "deluxe") return "Deluxe";
+  if (raw === "super deluxe ward" || raw === "super deluxe") return "Super Deluxe";
+  if (raw === "twin sharing") return "Twin Sharing";
+  if (raw === "vip") return "VIP";
+  return String(value || "General").trim();
+}
+
 function istIsoLabel(d: Date) {
   try {
     return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
@@ -130,7 +142,7 @@ export async function GET() {
     roomDirectory.set(roomNumber, {
       id: String(log.entityId || roomNumber),
       roomNumber,
-      roomCategory: String(meta.roomCategory || "General Ward"),
+      roomCategory: normalizeRoomCategory(meta.roomCategory, meta.unitType),
       unitType: String(meta.unitType || "Ward"),
     });
   }
@@ -344,7 +356,54 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    if(action==="room"){const roomNumber=String(body.roomNumber||"").trim();if(!roomNumber)return NextResponse.json({success:false,error:"Room number required"},{status:400});const existingRooms=await prisma.auditLog.findMany({where:{doctorId:{in:(await prisma.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}})).map(x=>x.doctorId)},entity:"HospitalRoom"},orderBy:{createdAt:"desc"},take:3000});if(existingRooms.some(l=>{const m=metaOf(l);return String(m.clinicId||"")===String(clinicId||"")&&String(m.roomNumber||"").trim()===roomNumber;}))return NextResponse.json({success:false,error:"Room already exists in this clinic."},{status:409});await writeAudit({doctorId:session.doctorId,action:"create",entity:"HospitalRoom",entityId:crypto.randomUUID(),meta:{roomNumber,roomCategory:String(body.roomCategory||"General Ward"),unitType:String(body.unitType||"Ward"),clinicId}});return NextResponse.json({success:true});}
+    if (action === "admit") {
+      const patientId = String(body.patientId || "").trim();
+      const unitType = String(body.unitType || body.wardType || "Ward").trim();
+      const roomCategory = normalizeRoomCategory(body.roomCategory || body.wardType || "General", unitType);
+      const roomNumber = String(body.roomNumber || "").trim();
+      if (!patientId) return NextResponse.json({ success: false, error: "Patient is required for admission." }, { status: 400 });
+      if (!["Ward", "ICU"].includes(unitType)) return NextResponse.json({ success: false, error: "Choose Ward or ICU as the destination." }, { status: 400 });
+      const allowedCategories = unitType === "ICU" ? ["ICU"] : ["General", "Twin Sharing", "Deluxe", "Super Deluxe", "VIP"];
+      if (!allowedCategories.includes(roomCategory)) return NextResponse.json({ success: false, error: "Accommodation category does not match the selected destination." }, { status: 400 });
+
+      const outcome = await prisma.$transaction(async (tx) => {
+        const patient = await tx.patient.findFirst({ where: clinicId ? { id: patientId, clinicId, deletedAt: null } : { id: patientId, doctorId: session.doctorId, deletedAt: null } });
+        if (!patient) return { status: 404, body: { success: false, error: "Patient was not found in this clinic." } };
+        if (patient.status !== "ACTIVE" || parseCareSetting(patient.notes) === "IPD") return { status: 409, body: { success: false, error: "Only an active OPD patient can be admitted. Refresh the patient record and try again." } };
+        const profile = parsePatientProfile(patient.notes);
+        if (roomNumber) {
+          const members = await tx.clinicMember.findMany({ where: { clinicId: clinicId || undefined, isActive: true }, select: { doctorId: true } });
+          const roomLogs = await tx.auditLog.findMany({ where: { doctorId: { in: members.map((x) => x.doctorId) }, entity: "HospitalRoom" }, orderBy: { createdAt: "desc" }, take: 3000 });
+          const directoryRoom = roomLogs.map((log) => ({ log, meta: metaOf(log) })).find(({ meta }) =>
+            String(meta.clinicId || "") === String(clinicId || "") &&
+            String(meta.roomNumber || "").trim() === roomNumber &&
+            String(meta.unitType || "Ward") === unitType &&
+            normalizeRoomCategory(meta.roomCategory, meta.unitType) === roomCategory
+          );
+          if (!directoryRoom) return { status: 404, body: { success: false, error: "Selected bed does not match an available room in this clinic's hospital directory." } };
+          const activePatients = await tx.patient.findMany({ where: { ...(clinicId ? { clinicId } : { doctorId: session.doctorId }), status: "ACTIVE", deletedAt: null }, select: { id: true, notes: true } });
+          const occupied = activePatients.some((p) => p.id !== patientId && parseCareSetting(p.notes) === "IPD" && String(parsePatientProfile(p.notes).roomNumber || "").trim() === roomNumber);
+          if (occupied) return { status: 409, body: { success: false, error: "This bed has already been assigned to another active IPD patient. Refresh the bed list." } };
+        }
+        const nextProfile = {
+          ...profile,
+          wardType: roomCategory,
+          unitType,
+          roomNumber,
+          admissionDate: body.admissionDate ? String(body.admissionDate) : new Date().toISOString(),
+          consultantName: String(body.consultantName || profile.consultantName || ""),
+          admissionReason: String(body.admissionReason || "").slice(0, 1000),
+        };
+        await tx.patient.update({ where: { id: patientId }, data: { notes: encodePatientNotes(cleanPatientNotes(patient.notes), "IPD", nextProfile) } });
+        return { status: 200, body: { success: true, patientId, careSetting: "IPD", wardType: roomCategory, unitType, roomNumber: roomNumber || null } };
+      }, { isolationLevel: "Serializable" });
+      if (outcome.body.success) {
+        await writeAudit({ doctorId: session.doctorId, action: "admit", entity: "Patient", entityId: patientId, meta: { clinicId, unitType, roomCategory, roomNumber: roomNumber || null, admissionReason: String(body.admissionReason || "").slice(0, 1000) } });
+      }
+      return NextResponse.json(outcome.body, { status: outcome.status });
+    }
+
+    if(action==="room"){const roomNumber=String(body.roomNumber||"").trim();if(!roomNumber)return NextResponse.json({success:false,error:"Room number required"},{status:400});const existingRooms=await prisma.auditLog.findMany({where:{doctorId:{in:(await prisma.clinicMember.findMany({where:{clinicId,isActive:true},select:{doctorId:true}})).map(x=>x.doctorId)},entity:"HospitalRoom"},orderBy:{createdAt:"desc"},take:3000});if(existingRooms.some(l=>{const m=metaOf(l);return String(m.clinicId||"")===String(clinicId||"")&&String(m.roomNumber||"").trim()===roomNumber;}))return NextResponse.json({success:false,error:"Room already exists in this clinic."},{status:409});await writeAudit({doctorId:session.doctorId,action:"create",entity:"HospitalRoom",entityId:crypto.randomUUID(),meta:{roomNumber,roomCategory:normalizeRoomCategory(body.roomCategory,body.unitType),unitType:String(body.unitType||"Ward"),clinicId}});return NextResponse.json({success:true});}
 
     if(action==="room-transfer"){
       const patientId=String(body.patientId||"");
