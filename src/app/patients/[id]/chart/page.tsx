@@ -223,6 +223,8 @@ export default function PatientClinicalChartPage() {
               <button type="button" onClick={() => setTab("orders")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Order labs / imaging</button>
               <button type="button" onClick={() => setTab("rx")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Prescribe</button>
               <button type="button" onClick={() => setTab("notes")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Add note</button>
+              <Link href={`/physiotherapy?patientId=${encodeURIComponent(String(id))}`} className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Physiotherapy for this patient</Link>
+              <Link href={`/dietitian?patientId=${encodeURIComponent(String(id))}`} className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Dietitian / nutrition for this patient</Link>
               <Link href="/labs" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Labs queue</Link>
               <Link href="/prescriptions" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Prescriptions</Link>
               {careSetting === "IPD" && (
