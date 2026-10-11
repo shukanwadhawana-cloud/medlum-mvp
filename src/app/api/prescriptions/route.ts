@@ -21,7 +21,12 @@ export async function GET() {
     );
   }
   const list = await prisma.prescription.findMany({
-    where: { patient: { clinicId: auth.ctx.membership.clinicId } },
+    where: { patient: { OR: [{ clinicId: auth.ctx.membership.clinicId }, { clinicId: null, doctorId: auth.ctx.session.doctorId }] } },
+    include: {
+      doctor: { select: { name: true } },
+      dispensings: { select: { status: true, dispensedAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      medicationAdministrations: { select: { status: true, actualAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
+    },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json({ prescriptions: list });
@@ -88,5 +93,47 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("create rx", e instanceof Error ? e.message : "error");
     return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  const auth = await requireAuthz();
+  if (!auth.ok) return auth.response;
+  const perm = requirePermission(auth.ctx, "prescribe");
+  if (!perm.ok) return perm.response;
+  try {
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    discardClientFacilitySelectors(body);
+    const id = String(body.id || "").trim();
+    const patientId = String(body.patientId || "").trim();
+    const reason = String(body.reason || "").trim().slice(0, 500);
+    if (body.action !== "discontinue" || !id || !patientId || !reason) {
+      return NextResponse.json({ success: false, error: "Order, patient, discontinue action and reason are required." }, { status: 400 });
+    }
+    const patientResult = await requireAuthorizedPatient(auth.ctx, patientId);
+    if (!patientResult.ok) return patientResult.response;
+    const existing = await prisma.prescription.findFirst({
+      where: { id, patientId, patient: { OR: [{ clinicId: auth.ctx.membership.clinicId }, { clinicId: null, doctorId: auth.ctx.session.doctorId }] } },
+    });
+    if (!existing) return NextResponse.json({ success: false, error: "Medication order not found for this patient in this clinic." }, { status: 404 });
+    if (existing.status === "CANCELLED" || existing.status === "DISCONTINUED") {
+      return NextResponse.json({ success: false, error: "This medication order is already discontinued." }, { status: 409 });
+    }
+    const updated = await prisma.prescription.update({
+      where: { id: existing.id },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: auth.ctx.session.doctorId, cancellationReason: reason },
+    });
+    await writeAudit({
+      doctorId: auth.ctx.session.doctorId,
+      clinicId: auth.ctx.membership.clinicId,
+      action: "discontinue",
+      entity: "Prescription",
+      entityId: existing.id,
+      meta: { patientId, reason, previousStatus: existing.status, status: updated.status },
+    });
+    return NextResponse.json({ success: true, prescription: updated });
+  } catch (e) {
+    console.error("discontinue prescription", e instanceof Error ? e.message : "error");
+    return NextResponse.json({ success: false, error: "Could not discontinue medication order." }, { status: 500 });
   }
 }

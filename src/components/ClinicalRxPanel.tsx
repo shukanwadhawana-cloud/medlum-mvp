@@ -8,10 +8,12 @@ import { formatIst } from "@/lib/time";
 export function ClinicalRxPanel({
   patientId,
   prescriptions,
+  allergies,
   onSaved,
 }: {
   patientId: string;
   prescriptions: any[];
+  allergies?: string;
   onSaved: () => Promise<void> | void;
 }) {
   const [medicines, setMedicines] = useState("");
@@ -61,6 +63,7 @@ export function ClinicalRxPanel({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">
             Write prescription
           </h3>
+          <p className={`mt-1 text-[11px] ${allergies && !["no known allergies", "nkda", "none"].includes(allergies.trim().toLowerCase()) ? "font-semibold text-red-700" : "text-amber-700"}`}>Allergy status before ordering: {allergies || "Unknown / not assessed"}</p>
         </div>
         <form onSubmit={save} className="space-y-2.5 p-3">
           {err && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{err}</div>}
@@ -113,10 +116,11 @@ export function ClinicalRxPanel({
             sorted.map((r: any) => (
               <article key={r.id} className="rounded-lg border p-3 text-xs">
                 <div className="mb-1 flex justify-between gap-2">
-                  <span className="font-semibold">Prescription</span>
+                  <span className="font-semibold">Medication order · {r.status || "CONFIRMED"}</span>
                   <span className="text-gray-500">{formatIst(r.createdAt)}</span>
                 </div>
                 <p className="whitespace-pre-wrap text-sm">{r.medicines}</p>
+                {(r.status === "CANCELLED" || r.status === "DISCONTINUED") && <p className="mt-1 text-red-700"><b>Discontinued:</b> {r.cancellationReason || "Reason recorded in audit"}{r.cancelledAt ? ` · ${formatIst(r.cancelledAt)}` : ""}</p>}
                 {r.advice && (
                   <p className="mt-1 whitespace-pre-wrap text-gray-600">
                     <b>Advice:</b> {r.advice}

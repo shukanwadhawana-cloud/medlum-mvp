@@ -63,6 +63,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return doctor?.primaryRole || "Consultant";
   }, [isOwner, selectedFacilityId, facilities, doctor?.primaryRole]);
   const primaryNav = useMemo(() => primaryNavForRole(activeRole), [activeRole]);
+  const mobileWorkflowItems = useMemo(() => ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Dietitian", "Dietician", "Nutritionist", "Physiotherapist"].includes(activeRole)
+    ? [{ href: "/physiotherapy", label: "Physiotherapy", icon: "people" }, { href: "/dietitian", label: "Dietitian", icon: "labs" }]
+    : [], [activeRole]);
   const sidebarItems = useMemo(() => {
     const items = menuNavForRole(activeRole);
     const ownerItems = isOwner ? [{ href: "/owner", label: "Owner workspace", icon: "owner" }] : [];
@@ -72,7 +75,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const patientsIndex = rest.findIndex((item) => item.href === "/patients");
     const beforeAi = patientsIndex >= 0 ? rest.slice(0, patientsIndex + 1) : rest;
     const afterAi = patientsIndex >= 0 ? rest.slice(patientsIndex + 1) : [];
-    return [...ownerItems, ...beforeAi, ...aiAssist, ...afterAi, ...duty];
+    const clinicalWorkflowItems = ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Dietitian", "Dietician", "Nutritionist", "Physiotherapist"].includes(activeRole)
+      ? [{ href: "/physiotherapy", label: "Physiotherapy", icon: "people" }, { href: "/dietitian", label: "Dietitian / Nutrition", icon: "labs" }]
+      : [];
+    return [...ownerItems, ...beforeAi, ...aiAssist, ...afterAi, ...duty, ...clinicalWorkflowItems];
   }, [isOwner, activeRole]);
 
   useEffect(() => {
@@ -121,7 +127,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur safe-area-bottom md:hidden">
         <nav className="mx-auto flex max-w-full overflow-x-auto px-2 gap-1 scrollbar-none">
-          {primaryNav.map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-w-[72px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a] bg-red-50" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span className="truncate max-w-[68px]">{item.label}</span></Link>)}
+          {[...primaryNav, ...mobileWorkflowItems].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-w-[72px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a] bg-red-50" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span className="truncate max-w-[68px]">{item.label}</span></Link>)}
         </nav>
       </div>
       <MedLumChat />

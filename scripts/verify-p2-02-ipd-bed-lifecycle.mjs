@@ -11,7 +11,7 @@ for(const x of [
   'Room already exists in this clinic.'
 ]) assert(route.includes(x),`P2-02 route regression missing: ${x}`);
 
-for(const x of ['Transfer bed','Transfer IPD patient','Confirm transfer','action:"room-transfer"','rooms.filter((r:any)=>!r.occupied||r.roomNumber===selected.roomNumber)','setShowTransfer(false)'])
+for(const x of ['Transfer bed','Transfer IPD patient','Confirm transfer','action:"room-transfer"','rooms.filter((r:any)=>!r.occupied&&r.roomNumber!==selected.roomNumber)','setShowTransfer(false)'])
   assert(page.includes(x),`P2-02 UI regression missing: ${x}`);
 
 assert(!route.includes('prisma.patient.delete'),"P2-02 must not delete patient records");

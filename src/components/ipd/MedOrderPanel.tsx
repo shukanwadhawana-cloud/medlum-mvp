@@ -14,7 +14,7 @@ import {
 import { apiAddPrescription, apiGetPrescriptions } from "@/lib/api";
 
 type Props = {
-  patient: { id: string; name: string };
+  patient: { id: string; name: string; allergies?: string };
   onOrdered?: () => void;
   /** Optional context retained in the existing prescription advice field. */
   contextNote?: string;
@@ -26,8 +26,13 @@ type RxRow = {
   advice: string;
   createdAt: string;
   status?: string;
+  cancelledAt?: string | null;
+  cancellationReason?: string;
   patientId?: string;
   patientName?: string;
+  doctor?: { name?: string };
+  dispensings?: Array<{ status: string; dispensedAt?: string | null }>;
+  medicationAdministrations?: Array<{ status: string; actualAt?: string | null }>;
 };
 
 const QUICK_FAVORITES: MedOrderLine[] = [
@@ -51,7 +56,7 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
     const all = (await apiGetPrescriptions()) as RxRow[];
     setList(
       all
-        .filter((r) => r.patientId === patient.id || r.patientName === patient.name)
+        .filter((r) => r.patientId === patient.id)
         .slice(0, 30)
     );
   }, [patient.id, patient.name]);
@@ -119,35 +124,22 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
 
   async function discontinue() {
     if (!disc) return;
-    if (!disc.reason) {
-      setError("Select a reason for discontinue");
-      return;
-    }
-    setBusy(true);
-    setError("");
+    if (!disc.reason) { setError("Select a reason for discontinue"); return; }
+    setBusy(true); setError(""); setMsg("");
     try {
-      const r = await fetch("/api/clinical-notes", {
-        method: "POST",
-        credentials: "include",
+      const response = await fetch("/api/prescriptions", {
+        method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
-        body: JSON.stringify({
-          patientId: patient.id,
-          noteType: "Progress Note",
-          title: "Medication order discontinued",
-          content: `DISCONTINUE ORDER ${disc.id}\nReason: ${disc.reason}\nSigned electronic discontinue per MedLum clinical workflow.`,
-          submit: false,
-        }),
+        body: JSON.stringify({ action: "discontinue", id: disc.id, patientId: patient.id, reason: disc.reason }),
       });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok || body.success === false) throw new Error(body.error || "Could not record discontinue");
-      setMsg(`Discontinue recorded: ${disc.reason}`);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.success) throw new Error(body.error || "Could not discontinue order");
+      setMsg("Medication order discontinued. The order status and reason were saved with the signed-in clinician audit.");
       setDisc(null);
       await load();
-    } catch (err: any) {
-      setError(err.message || "Discontinue failed");
-    } finally {
-      setBusy(false);
-    }
+      onOrdered?.();
+    } catch (err: any) { setError(err.message || "Discontinue failed"); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -157,6 +149,9 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
           <h4 className="font-semibold text-sm">Order Medicines</h4>
           <p className="text-[10px] text-gray-500">
             {patient.name} · dose · route · schedule · PRN · duration · priority · comment
+          </p>
+          <p className={`mt-1 text-[11px] ${patient.allergies && !["no known allergies", "nkda", "none"].includes(patient.allergies.trim().toLowerCase()) ? "font-semibold text-red-700" : "text-amber-700"}`}>
+            Allergy status before ordering: {patient.allergies || "Unknown / not assessed"}
           </p>
         </div>
         <div className="flex flex-wrap gap-1">
@@ -317,14 +312,17 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
                 <div className="min-w-0">
                   <p className="whitespace-pre-wrap text-[11px]">{rx.medicines}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{rx.createdAt ? new Date(rx.createdAt).toLocaleString("en-IN") : ""}</p>
+                  <p className={`text-[10px] mt-0.5 ${rx.status === "CANCELLED" || rx.status === "DISCONTINUED" ? "text-red-700" : "text-gray-500"}`}>Order status: {rx.status || "CONFIRMED"} · dispensing / administration tracked separately</p>
+                  {(rx.status === "CANCELLED" || rx.status === "DISCONTINUED") && <p className="text-[10px] mt-0.5 text-red-700">Stopped {rx.cancelledAt ? new Date(rx.cancelledAt).toLocaleString("en-IN") : ""} · {rx.cancellationReason || "Reason recorded in audit"}</p>}
+                  <p className="text-[10px] mt-0.5 text-gray-500">Prescriber: {rx.doctor?.name || "Recorded clinician"} · Pharmacy: {rx.dispensings?.[0]?.status || "Not sent to pharmacy"} · MAR: {rx.medicationAdministrations?.[0]?.status || "No administration event"}</p>
                 </div>
-                <button
+                {rx.status !== "CANCELLED" && rx.status !== "DISCONTINUED" && <button
                   type="button"
                   onClick={() => setDisc({ id: rx.id, reason: "Duplicate Order" })}
                   className="shrink-0 h-7 px-2 rounded border text-[10px] text-red-700"
                 >
                   Discontinue
-                </button>
+                </button>}
               </li>
             ))}
           </ul>

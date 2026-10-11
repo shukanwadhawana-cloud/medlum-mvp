@@ -220,6 +220,7 @@ async function callOpenAi(ctx: ClinicalAiContext): Promise<ClinicalAiDraftSectio
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(15000),
     body: JSON.stringify({
       model,
       temperature: 0.2,
@@ -268,6 +269,7 @@ async function callGemini(ctx: ClinicalAiContext): Promise<ClinicalAiDraftSectio
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     },
   );

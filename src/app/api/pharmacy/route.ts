@@ -82,6 +82,7 @@ export async function POST(req: Request) {
         const result = await prisma.$transaction(async (tx) => {
           const prescription = await tx.prescription.findFirst({ where: { id: prescriptionId, patient: { clinicId: membership.clinicId } } });
           if (!prescription) return { status: 404, body: { success: false, error: "Prescription not found in this clinic" } };
+          if (prescription.status === "CANCELLED" || prescription.status === "DISCONTINUED") return { status: 409, body: { success: false, error: "A discontinued prescription cannot be sent to pharmacy." } };
           const existing = await tx.dispensing.findFirst({ where: { prescriptionId, patient: { clinicId: membership.clinicId } } });
           if (existing) return { status: 409, body: { success: false, error: "A dispensing record already exists for this prescription" } };
           const dispensing = await tx.dispensing.create({ data: { doctorId: session.doctorId, patientId: prescription.patientId, prescriptionId, patientName: prescription.patientName, medicines: prescription.medicines, status: "Pending" } });
@@ -124,6 +125,8 @@ export async function PATCH(req: Request) {
           if (existing.status === "Dispensed") return { status: 409, body: { success: false, error: "This dispensing outcome is already recorded as Dispensed" } };
           if (existing.status === "Cancelled" && status === "Dispensed") return { status: 409, body: { success: false, error: "A cancelled dispensing record cannot be dispensed" } };
           if (status === "Dispensed") {
+            const prescription = await tx.prescription.findFirst({ where: { id: existing.prescriptionId, patient: { clinicId: membership.clinicId } }, select: { status: true } });
+            if (!prescription || prescription.status === "CANCELLED" || prescription.status === "DISCONTINUED") return { status: 409, body: { success: false, error: "A discontinued or unavailable prescription cannot be dispensed." } };
             const names = medicineNamesFromText(existing.medicines);
             const memberIds = (await tx.clinicMember.findMany({ where: { clinicId: membership.clinicId, isActive: true }, select: { doctorId: true } })).map((m) => m.doctorId);
             const stockItems = await tx.pharmacyItem.findMany({ where: { doctorId: { in: memberIds.length ? memberIds : [session.doctorId] } } });

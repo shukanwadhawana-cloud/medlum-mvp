@@ -18,7 +18,11 @@ export type ClinicRole =
   | "Laboratory"
   | "Billing"
   | "Receptionist"
-  | "Staff";
+  | "Staff"
+  | "Physiotherapist"
+  | "Dietitian"
+  | "Dietician"
+  | "Nutritionist";
 
 export type ClinicMembershipContext = {
   membershipId: string;
@@ -30,6 +34,7 @@ export type ClinicMembershipContext = {
 const CLINICAL_ROLES: ClinicRole[] = [
   "Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO",
   "Nurse", "Pharmacy", "Laboratory", "Billing", "Receptionist", "Staff",
+  "Physiotherapist", "Dietitian", "Dietician", "Nutritionist",
 ];
 
 const ROLE_ALIASES: Record<string, ClinicRole> = {
@@ -37,6 +42,7 @@ const ROLE_ALIASES: Record<string, ClinicRole> = {
   Doctor: "Doctor", RMO: "RMO", Nurse: "Nurse", Pharmacy: "Pharmacy",
   Laboratory: "Laboratory", Billing: "Billing", Receptionist: "Receptionist", Staff: "Staff",
 "Lab Tech": "Laboratory", Lab: "Laboratory", Pharmacist: "Pharmacy", Sister: "Nurse",
+  Physiotherapist: "Physiotherapist", "Physio": "Physiotherapist", Dietitian: "Dietitian", Dietician: "Dietician", Nutritionist: "Nutritionist",
 };
 
 export function normalizeClinicRole(role: string): ClinicRole {
