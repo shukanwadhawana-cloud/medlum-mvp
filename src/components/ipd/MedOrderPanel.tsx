@@ -51,7 +51,7 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
     const all = (await apiGetPrescriptions()) as RxRow[];
     setList(
       all
-        .filter((r) => r.patientId === patient.id || r.patientName === patient.name)
+        .filter((r) => r.patientId === patient.id)
         .slice(0, 30)
     );
   }, [patient.id, patient.name]);
