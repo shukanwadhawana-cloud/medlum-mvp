@@ -169,7 +169,7 @@ export default function ClinicalAssistPage() {
       }
 
       setScanStatus(isPdf ? "Reading PDF locally…" : "Running OCR on this device…");
-      const best = await runClinicalAssistOcr(ocrFile);
+      const best = await runClinicalAssistOcr(ocrFile, (status) => setScanStatus(status));
       const text = best.text.trim();
       if (text.length < 20) {
         throw new Error("Very little readable text was found. No OCR result was accepted; try a clearer image or a higher-quality scan.");
