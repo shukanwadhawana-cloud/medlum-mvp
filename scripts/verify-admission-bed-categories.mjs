@@ -37,7 +37,7 @@ assert(ocr.includes("clientTesseractOcr"), "Image OCR path must remain");
 
 console.log("Admission/bed category and Clinical Assist OCR regression checks: PASS");
 
-const ipdPage = fs.readFileSync("src/app/ipd/[id]/page.tsx", "utf8");
+
 assert(ipdPage.includes('"Discharge Summary":[]'), "Summary types must not be duplicated in the persistent left navigation");
 assert(ipdPage.includes('aria-label="Summary type"'), "IPD summary type must be selectable from the dropdown");
 assert(ipdPage.includes('aria-label="Summary department"'), "IPD summary must expose its department selector");
