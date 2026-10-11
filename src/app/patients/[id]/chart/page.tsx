@@ -320,7 +320,7 @@ export default function PatientClinicalChartPage() {
                   <option value="NKDA">No known allergies (NKDA)</option>
                   <option value="KNOWN">Known allergy / allergy list</option>
                 </select>
-                {allergyStatus === "KNOWN" && <textarea value={allergyDraft} onChange={(event) => setAllergyDraft(event.target.value)} required rows={3} placeholder="Substance; reaction; severity; status; onset / notes" className="w-full rounded-lg border px-2 py-2 text-xs" />}
+                {allergyStatus === "KNOWN" && <textarea value={allergyDraft} onChange={(event) => setAllergyDraft(event.target.value)} required rows={3} placeholder="Substance; reaction; severity; status; onset; notes; verification/source" className="w-full rounded-lg border px-2 py-2 text-xs" />}
                 {allergyStatus !== "KNOWN" && <p className="text-[11px] text-gray-600">{allergyStatus === "NKDA" ? "This explicitly records no known allergies." : "This does not mean the patient has no allergies."}</p>}
                 <button type="submit" disabled={allergySaving} className="h-8 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-semibold">{allergySaving ? "Saving…" : "Save allergy status"}</button>
                 {allergyMessage && <p role="status" className="text-[11px] text-gray-600">{allergyMessage}</p>}
