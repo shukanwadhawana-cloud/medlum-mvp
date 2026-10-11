@@ -12,7 +12,7 @@
  * Application authorization logic is not modified by this suite.
  */
 import { createRequire } from "module";
-import { join, dirname } from "path";
+import { join } from "path";
 import { execSync } from "child_process";
 import { readFileSync, existsSync, readdirSync } from "fs";
 
