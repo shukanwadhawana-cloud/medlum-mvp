@@ -143,6 +143,19 @@ if (existsSync(encountersRoute)) {
   );
 }
 
+const emergencySource = readFileSync(join(root, "src/app/api/emergency/route.ts"), "utf8");
+ok(
+  emergencySource.includes('canAccessModule(ctx.membership.role, "emergency")') &&
+    (emergencySource.match(/canAccessModule\(ctx\.membership\.role, "emergency"\)/g) || []).length >= 3,
+  "emergency GET/POST/PATCH enforce emergency module role access"
+);
+const ipdSource = readFileSync(join(root, "src/app/api/ipd/route.ts"), "utf8");
+ok(
+  ipdSource.includes("requireActiveClinicMembership") &&
+    (ipdSource.match(/canAccessModule\(membership\.role, "ipd"\)/g) || []).length >= 2,
+  "IPD GET/POST require matching active clinic membership and IPD role access"
+);
+
 const bloodBankSource = readFileSync(join(root, "src/app/api/blood-bank/route.ts"), "utf8");
 ok(
   bloodBankSource.includes("requireActiveClinicMembership") &&
