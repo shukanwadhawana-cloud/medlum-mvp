@@ -169,7 +169,7 @@ export default function PatientsPage() {
               <div className="px-3 py-8 text-center text-gray-400 text-sm">Loading emergency cases…</div>
             ) : emergencyCases.filter((c) => !["Admitted", "Discharged", "Transferred"].includes(String(c.status))).length === 0 ? (
               <div className="px-3 py-8 text-center text-gray-500 text-sm">No active emergency cases. Cases admitted to IPD are available from the IPD census; discharged or transferred cases remain in Emergency History.</div>
-            ) : emergencyCases.filter((c) => !["Admitted", "Discharged", "Transferred"].includes(String(c.status))).map((c, i) => (
+            ) : emergencyCases.filter((c) => !["Admitted", "Discharged", "Transferred"].includes(String(c.status))).map((c) => (
               <div key={c.id} className="p-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-semibold text-sm">{c.patient?.name || c.patientName || "Unregistered emergency patient"}</div>
