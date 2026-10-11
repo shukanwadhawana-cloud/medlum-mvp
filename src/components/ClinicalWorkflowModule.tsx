@@ -151,7 +151,7 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
     <div className="p-4 space-y-4 max-w-6xl mx-auto">
       <header className="medlum-dashboard-hero">
         <div><p className="medlum-eyebrow">CLINICAL WORKFLOW</p><h1>{isDietitian ? "Dietitian & Nutrition" : "Physiotherapy"}</h1><p>{isDietitian ? "Assessment, editable diet charts, monitoring and professional approval." : "Referral, functional assessment, goals, interventions and progress notes."}</p></div>
-        <span className="text-xs rounded-full border px-3 py-1 bg-white">Draft → Review → Approval</span>
+        <div className="flex items-center gap-2"><span className="text-xs rounded-full border px-3 py-1 bg-white">Draft → Review → Approval</span><button type="button" onClick={() => window.print()} className="h-9 rounded-lg border bg-white px-3 text-xs font-semibold">Print / Save PDF</button></div>
       </header>
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {message && <div role="status" className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">{message}</div>}
@@ -180,11 +180,12 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
           <div><h2 className="font-semibold text-sm">Patient workflow history</h2><p className="text-[11px] text-gray-500 mt-1">Only this patient's records in the selected clinic are shown.</p></div>
           {records.length === 0 ? <p className="text-xs text-gray-400">No {module.toLowerCase()} records for this patient yet.</p> : records.map((record) => <article key={record.id} className="rounded-lg border p-3 space-y-2">
             <div className="flex items-start justify-between gap-2"><div><h3 className="text-sm font-semibold">{record.title}</h3><p className="text-[10px] text-gray-500">{new Date(record.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p></div><span className="rounded-full border px-2 py-1 text-[10px]">{record.status}</span></div>
-            {fields.filter(([key]) => String(record.data?.[key] || "").trim()).slice(0, 6).map(([key, label]) => <p key={key} className="text-xs whitespace-pre-wrap"><b>{label}:</b> {record.data[key]}</p>)}
+            {fields.filter(([key]) => String(record.data?.[key] || "").trim()).map(([key, label]) => <p key={key} className="text-xs whitespace-pre-wrap"><b>{label}:</b> {record.data[key]}</p>)}
             {record.status !== "APPROVED" && <button type="button" onClick={() => approve(record)} className="h-8 rounded-lg border px-3 text-xs font-semibold">Review and approve</button>}
           </article>)}
         </section>
       </div>}
     </div>
+    <style jsx global>{`@media print { .medlum-topbar, .medlum-primary-nav, .medlum-mobile-nav, button, select, input, textarea, form { display: none !important; } body * { color: #000 !important; box-shadow: none !important; } article { break-inside: avoid; } }`}</style>
   </AppShell>;
 }
