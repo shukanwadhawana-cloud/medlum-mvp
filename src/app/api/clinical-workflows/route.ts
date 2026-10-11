@@ -102,12 +102,12 @@ export async function PATCH(req: Request) {
   let data: Prisma.InputJsonValue = existing.data as Prisma.InputJsonValue;
   if (body.data !== undefined) {
     try {
-      const supplied = safeData(body.data) as Record<string, unknown>;
+      const supplied = safeData(body.data) as unknown as Record<string, unknown>;
       if (recordPatientId(supplied) && recordPatientId(supplied) !== patientId) return NextResponse.json({ success: false, error: "A workflow record cannot be reassigned to another patient." }, { status: 400 });
       data = safeData({ ...(supplied as Record<string, unknown>), patientId, ...(status === "APPROVED" ? { approvedBy: c.session.doctorId, approvedAt: new Date().toISOString() } : {}) });
     } catch (e) { return NextResponse.json({ success: false, error: e instanceof Error ? e.message : "Invalid record data." }, { status: 400 }); }
   } else if (status === "APPROVED") {
-    data = safeData({ ...((existing.data as Record<string, unknown>) || {}), approvedBy: c.session.doctorId, approvedAt: new Date().toISOString() });
+    data = safeData({ ...((existing.data as unknown as Record<string, unknown>) || {}), approvedBy: c.session.doctorId, approvedAt: new Date().toISOString() });
   }
   const row = await prisma.workforceRecord.update({
     where: { id },
