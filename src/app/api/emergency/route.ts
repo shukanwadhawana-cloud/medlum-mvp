@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/session";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { requireClinicalModule } from "@/lib/clinic-products";
+import { canAccessModule } from "@/lib/permissions";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 
 async function getContext() {
@@ -55,6 +56,9 @@ async function listCases(clinicId: string) {
 export async function GET() {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canAccessModule(ctx.membership.role, "emergency")) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   const rows = await listCases(ctx.clinicId);
   const cases = rows.map((c) => {
     const clinical = clinicalNotes(c.notes);
@@ -71,6 +75,9 @@ export async function GET() {
 export async function POST(req: Request) {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canAccessModule(ctx.membership.role, "emergency")) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const patientId = body.patientId ? String(body.patientId) : null;
@@ -129,6 +136,9 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!canAccessModule(ctx.membership.role, "emergency")) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const id = String(body.id || "");
