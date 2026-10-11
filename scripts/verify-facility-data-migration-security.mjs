@@ -42,6 +42,8 @@ must(lib.includes("mutated: false") || previewRoute.includes("mutated: false"), 
 must(lib.includes("void body.clinicId") || lib.includes("destinationClinicId"), "Import must ignore client destination facility ids");
 must(lib.includes("MAX_IMPORT_BATCH"), "Import must bound batch size");
 must(lib.includes("duplicate_match"), "Import must detect facility-local duplicates");
+must(lib.includes("incomingUhid") && lib.includes("incomingReg") && lib.includes("incomingPhoneName"), "Import must detect duplicates within a single uploaded package");
+must(lib.includes("preview.summary.conflicts > 0"), "Commit must reject unresolved import conflicts");
 must(lib.includes("will not overwrite") || lib.includes("will not overwrite existing"), "Duplicates must not overwrite clinical records");
 must(lib.includes('FACILITY_MIGRATION_ROLES') && lib.includes('"Owner"') && lib.includes('"Admin"'), "Only Owner/Admin may migrate");
 must(lib.includes("membership.clinicId"), "All import writes must use membership.clinicId");
