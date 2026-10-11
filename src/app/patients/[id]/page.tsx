@@ -33,7 +33,7 @@ export default function PatientDetailPage() {
   const [showAdmission, setShowAdmission] = useState(false);
   const [admissionSaving, setAdmissionSaving] = useState(false);
   const [admissionError, setAdmissionError] = useState("");
-  const [admission, setAdmission] = useState({ wardType: "Ward", roomNumber: "", consultantName: "", admissionReason: "" });
+  const [admission, setAdmission] = useState({ wardType: "Ward", roomCategory: "General", roomNumber: "", consultantName: "", admissionReason: "" });
   const [rooms, setRooms] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [followSaving, setFollowSaving] = useState(false);
@@ -210,7 +210,7 @@ export default function PatientDetailPage() {
 
   const openAdmission = async () => {
     setAdmissionError("");
-    setAdmission({ wardType: "Ward", roomNumber: "", consultantName: "", admissionReason: "" });
+    setAdmission({ wardType: "Ward", roomCategory: "General", roomNumber: "", consultantName: "", admissionReason: "" });
     setShowAdmission(true);
     try {
       const res = await fetch("/api/ipd", { credentials: "include", cache: "no-store" });
@@ -234,7 +234,8 @@ export default function PatientDetailPage() {
         body: JSON.stringify({
           action: "admit",
           patientId: id,
-          wardType: admission.wardType,
+          wardType: admission.roomCategory,
+          roomCategory: admission.roomCategory,
           unitType: admission.wardType,
           roomNumber: admission.roomNumber,
           consultantName: admission.consultantName,
@@ -548,10 +549,16 @@ export default function PatientDetailPage() {
                 </select>
               </div>
               <div>
+                <label className="text-xs text-gray-500">Accommodation category</label>
+                <select value={admission.roomCategory} onChange={(e) => setAdmission({ ...admission, roomCategory: e.target.value, roomNumber: "" })} className="w-full h-10 px-3 rounded-lg border text-sm bg-white">
+                  {(admission.wardType === "ICU" ? ["ICU"] : ["General", "Twin Sharing", "Deluxe", "Super Deluxe", "VIP"]).map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-xs text-gray-500">Bed / Room <span className="text-gray-400">(optional if not yet assigned)</span></label>
                 <select value={admission.roomNumber} onChange={(e) => setAdmission({ ...admission, roomNumber: e.target.value })} className="w-full h-10 px-3 rounded-lg border text-sm bg-white">
                   <option value="">Assign later</option>
-                  {rooms.filter((r:any) => !r.occupied).map((r:any) => <option key={r.id || r.roomNumber} value={r.roomNumber}>{r.roomNumber}{r.roomCategory ? ` · ${r.roomCategory}` : ""}{r.unitType ? ` · ${r.unitType}` : ""}</option>)}
+                  {rooms.filter((r:any) => !r.occupied && String(r.unitType || "Ward") === admission.wardType && String(r.roomCategory || "General") === admission.roomCategory).map((r:any) => <option key={r.id || r.roomNumber} value={r.roomNumber}>{r.roomNumber}{r.roomCategory ? ` · ${r.roomCategory}` : ""}{r.unitType ? ` · ${r.unitType}` : ""}</option>)}
                 </select>
                 {!rooms.length && <p className="mt-1 text-[11px] text-gray-400">No hospital rooms are configured yet. You can admit now and assign a room later from IPD.</p>}
               </div>
