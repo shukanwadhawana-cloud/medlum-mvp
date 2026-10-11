@@ -244,7 +244,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
-  const data: { name?: string; age?: number; gender?: string; phone?: string } = {};
+  const data: { name?: string; age?: number; gender?: string; phone?: string; allergies?: string } = {};
 
   if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim().slice(0, 200);
   if (body.age !== undefined && body.age !== null && body.age !== "") {
@@ -262,6 +262,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     data.gender = g;
   }
   if (typeof body.phone === "string") data.phone = body.phone.trim().slice(0, 40);
+  if (typeof body.allergies === "string") data.allergies = body.allergies.trim().slice(0, 4000);
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "No valid demographic fields to update." }, { status: 400 });
@@ -278,7 +279,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     action: "update",
     entity: "Patient",
     entityId: id,
-    meta: { fields: Object.keys(data), previous: { name: patient.name, age: patient.age, gender: patient.gender, phone: patient.phone } },
+    meta: { fields: Object.keys(data), previous: { name: patient.name, age: patient.age, gender: patient.gender, phone: patient.phone, allergies: patient.allergies }, allergiesUpdated: Object.prototype.hasOwnProperty.call(data, "allergies") },
   });
 
   return NextResponse.json({
@@ -289,6 +290,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
       age: updated.age,
       gender: updated.gender,
       phone: updated.phone,
+      allergies: updated.allergies,
       uhid: updated.uhid,
       registrationNo: updated.registrationNo,
     },
