@@ -69,7 +69,7 @@ function buildCsp(): string {
     "connect-src 'self' https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://api.razorpay.com https://lumberjack.razorpay.com https://api.eka.care https://meet.jit.si wss://meet.jit.si https://medlum-mirotalk-p2p.onrender.com wss://medlum-mirotalk-p2p.onrender.com",
     "frame-src 'self' https://meet.jit.si https://*.jit.si https://medlum-mirotalk-p2p.onrender.com https://api.razorpay.com https://checkout.razorpay.com",
     "media-src 'self' blob:",
-    "worker-src 'self' blob:",
+    "worker-src 'self' blob: https://cdn.jsdelivr.net",
   ].join("; ");
 }
 
