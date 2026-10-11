@@ -1,24 +1,58 @@
 name: MedLum Vercel Production Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: ["MedLum CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Require green CI for the exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            if [ "$CI_CONCLUSION" != "success" ]; then
+              echo "Refusing production deployment because MedLum CI did not pass."
+              exit 1
+            fi
+          else
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$EXPECTED_SHA&per_page=20" \
+              | node -e '
+                let s = "";
+                process.stdin.on("data", d => s += d);
+                process.stdin.on("end", () => {
+                  const data = JSON.parse(s);
+                  const ok = (data.workflow_runs || []).some(r => r.head_sha === process.env.EXPECTED_SHA && r.status === "completed" && r.conclusion === "success");
+                  if (!ok) {
+                    console.error("No successful MedLum CI run found for exact SHA " + process.env.EXPECTED_SHA);
+                    process.exit(1);
+                  }
+                  console.log("Green MedLum CI confirmed for " + process.env.EXPECTED_SHA);
+                });
+              '
+          fi
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Deploy exact main commit to Vercel production
+      - name: Deploy exact green commit to Vercel production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -31,14 +65,14 @@ jobs:
           else
             if [ -n "${VERCEL_ORG_ID:-}" ] && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
               mkdir -p .vercel
-              printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+              printf '{"orgId":"%s","projectId":"%s"}\\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
             fi
             npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN" || true
             npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
           fi
       - name: Verify production serves exact Git SHA
         env:
-          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           URL="https://medlum-mvp.vercel.app/api/health"
