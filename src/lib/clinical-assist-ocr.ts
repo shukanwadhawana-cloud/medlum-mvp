@@ -49,6 +49,12 @@ async function createLocalTesseractWorker(onProgress?: OcrProgress) {
   onProgress?.("Loading OCR engine and English language data…");
   const { createWorker } = await import("tesseract.js");
   const workerPromise = createWorker("eng", 1, {
+    // Serve executable OCR assets from this app origin rather than relying on
+    // a third-party worker/core CDN at runtime (especially on mobile networks).
+    workerPath: "/tesseract/worker.min.js",
+    corePath: "/tesseract/core",
+    langPath: "https://tessdata.projectnaptha.com/4.0.0",
+    workerBlobURL: true,
     logger: (event: { status?: string; progress?: number }) => {
       if (event.status === "loading tesseract core") onProgress?.("Loading OCR engine…");
       else if (event.status === "loading language traineddata") onProgress?.("Loading English OCR data…");
