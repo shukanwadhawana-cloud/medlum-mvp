@@ -143,6 +143,17 @@ if (existsSync(encountersRoute)) {
   );
 }
 
+const encountersSource = readFileSync(join(root, "src/app/api/encounters/route.ts"), "utf8");
+ok(
+  encountersSource.includes("canViewClinicalChart(membership.role)"),
+  "encounter GET/POST enforce the server-side clinical-chart permission"
+);
+const encounterPermissionChecks = encountersSource.match(/canViewClinicalChart\(membership\.role\)/g) || [];
+ok(
+  encounterPermissionChecks.length >= 2,
+  "encounter GET and POST both deny roles without clinical-chart access"
+);
+
 const apiRoot = join(root, "src", "app", "api");
 const specialUnauth = new Set([
   "auth/login/route.ts",
