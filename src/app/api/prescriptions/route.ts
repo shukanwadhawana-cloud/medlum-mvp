@@ -21,7 +21,12 @@ export async function GET() {
     );
   }
   const list = await prisma.prescription.findMany({
-    where: { patient: { clinicId: auth.ctx.membership.clinicId } },
+    where: { patient: { OR: [{ clinicId: auth.ctx.membership.clinicId }, { clinicId: null, doctorId: auth.ctx.session.doctorId }] } },
+    include: {
+      doctor: { select: { name: true } },
+      dispensings: { select: { status: true, dispensedAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      medicationAdministrations: { select: { status: true, actualAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
+    },
     orderBy: { createdAt: "desc" },
   });
   return NextResponse.json({ prescriptions: list });
@@ -108,7 +113,7 @@ export async function PATCH(req: Request) {
     const patientResult = await requireAuthorizedPatient(auth.ctx, patientId);
     if (!patientResult.ok) return patientResult.response;
     const existing = await prisma.prescription.findFirst({
-      where: { id, patientId, patient: { clinicId: auth.ctx.membership.clinicId } },
+      where: { id, patientId, patient: { OR: [{ clinicId: auth.ctx.membership.clinicId }, { clinicId: null, doctorId: auth.ctx.session.doctorId }] } },
     });
     if (!existing) return NextResponse.json({ success: false, error: "Medication order not found for this patient in this clinic." }, { status: 404 });
     if (existing.status === "CANCELLED" || existing.status === "DISCONTINUED") {
