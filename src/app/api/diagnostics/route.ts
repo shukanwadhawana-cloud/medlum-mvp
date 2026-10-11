@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { writeAudit } from "@/lib/audit";
+import { canEnterDiagnosticReport, canOrderLabs } from "@/lib/permissions";
 
 const ALLOWED_STATUS = new Set(["Ordered", "Performed", "Reported", "Cancelled"]);
 
@@ -18,6 +19,9 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canEnterDiagnosticReport(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   const patientId = new URL(req.url).searchParams.get("patientId");
   if (patientId && !(await getSharedPatient(patientId, session.doctorId, membership.clinicId))) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
@@ -46,6 +50,9 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canOrderLabs(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   const body = await req.json().catch(() => ({}));
   const { patientId, studyName, modality, bodyPart, indication, notes, encounterId } = body;
   if (!patientId || !studyName) {
@@ -90,6 +97,9 @@ export async function PATCH(req: Request) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canEnterDiagnosticReport(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   const body = await req.json().catch(() => ({}));
   const { id, status, findings, impression, notes } = body;
   if (!id) return NextResponse.json({ error: "Diagnostic order id is required" }, { status: 400 });
