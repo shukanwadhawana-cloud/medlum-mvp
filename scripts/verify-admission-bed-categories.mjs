@@ -18,7 +18,7 @@ for (const category of ["General", "Twin Sharing", "Deluxe", "Super Deluxe", "VI
   assert(ipdPage.includes(category), `IPD room directory UI missing category: ${category}`);
 }
 assert(admissionPage.includes('value={admission.roomCategory}'), "Accommodation selection must be interactive");
-assert(admissionPage.includes('r.roomCategory || "General") === admission.roomCategory'), "Bed list must filter by accommodation category");
+assert(admissionPage.includes('String(r.roomCategory || "General") === admission.roomCategory'), "Bed list must filter by accommodation category");
 assert(ipdPage.includes('value={room.unitType}'), "Room creation must expose Ward/ICU destination");
 assert(ipdPage.includes('value={room.roomCategory}'), "Room creation must expose accommodation category");
 assert(!ipdApi.includes('return NextResponse.json({ success: false, error: "Unknown action"') || ipdApi.includes('if (action === "admit")'), "Unknown action fallback must remain only after supported actions");
