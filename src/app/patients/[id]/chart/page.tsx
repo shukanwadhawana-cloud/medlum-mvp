@@ -465,6 +465,7 @@ export default function PatientClinicalChartPage() {
             <ClinicalRxPanel
               patientId={String(id)}
               prescriptions={prescriptions}
+              allergies={p.allergies}
               onSaved={async () => { await load(); }}
             />
             {careSetting === "IPD" ? (
