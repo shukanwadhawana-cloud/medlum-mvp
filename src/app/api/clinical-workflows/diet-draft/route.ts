@@ -38,6 +38,7 @@ export async function POST(req: Request) {
   const fluidRestriction = clip(body.fluidRestriction, 300);
   const oralEnteralIntake = clip(body.oralEnteralIntake, 300);
   const goals = clip(body.goals, 500);
+  const nutritionScreening = clip(body.nutritionScreening, 500);
   const allergies = clip(patient.allergies || body.allergies, 500);
   const lowerConditions = (diagnosis + " " + comorbidities).toLowerCase();
   const isCkd = /\bckd\b|chronic kidney|renal failure|dialysis/.test(lowerConditions);
