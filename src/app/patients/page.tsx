@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiGetPatients } from "@/lib/api";
+import { apiGetEmergencyCases, apiGetPatients } from "@/lib/api";
 
 type ViewMode = "active" | "appointments" | "emergency" | "search";
 
@@ -20,6 +20,7 @@ function losDays(admissionDate?: string | null) {
 export default function PatientsPage() {
   const { doctor, loading: authLoading } = useDoctor();
   const [patients, setPatients] = useState<any[]>([]);
+  const [emergencyCases, setEmergencyCases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [view, setView] = useState<ViewMode>("active");
@@ -45,7 +46,10 @@ export default function PatientsPage() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && doctor && view !== "search") void load(`?view=${encodeURIComponent(view)}`);
+    if (!authLoading && doctor && view !== "search") {
+      void load(`?view=${encodeURIComponent(view)}`);
+      if (view === "emergency") void apiGetEmergencyCases().then((cases) => setEmergencyCases(cases));
+    }
   }, [authLoading, doctor, load, view]);
 
   const runDeepSearch = useCallback(() => {
@@ -155,7 +159,32 @@ export default function PatientsPage() {
 
         {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
-        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto -mx-1 px-1">
+        {view === "emergency" ? (
+          <div className="bg-white rounded-xl shadow-sm border divide-y">
+            <div className="px-3 py-3">
+              <h3 className="font-semibold text-sm">Active emergency cases</h3>
+              <p className="text-xs text-gray-500">Cases are shown directly from the clinic-scoped emergency board, including cases not yet linked to a registered patient.</p>
+            </div>
+            {loading ? (
+              <div className="px-3 py-8 text-center text-gray-400 text-sm">Loading emergency cases…</div>
+            ) : emergencyCases.filter((c) => !["Admitted", "Discharged", "Transferred"].includes(String(c.status))).length === 0 ? (
+              <div className="px-3 py-8 text-center text-gray-500 text-sm">No active emergency cases. Cases admitted to IPD are available from the IPD census; discharged or transferred cases remain in Emergency History.</div>
+            ) : emergencyCases.filter((c) => !["Admitted", "Discharged", "Transferred"].includes(String(c.status))).map((c) => (
+              <div key={c.id} className="p-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm">{c.patient?.name || c.patientName || "Unregistered emergency patient"}</div>
+                  <div className="text-xs text-gray-600 mt-1">{c.chiefComplaint || "Chief complaint not recorded"}</div>
+                  <div className="text-[11px] text-gray-500 mt-1">Triage: {c.triageLevel || "Not triaged"} · Status: {c.status || "Open"} · Arrival: {c.arrivalTime ? new Date(c.arrivalTime).toLocaleString("en-IN") : "—"}</div>
+                </div>
+                <div className="flex gap-2 items-center">
+                  {c.patientId ? <Link href={"/patients/" + c.patientId + "/chart"} className="text-[#c2183a] text-xs font-medium hover:underline">Open clinical chart</Link> : <span className="text-xs text-amber-700">Patient registration/link required</span>}
+                  <Link href="/emergency" className="rounded-lg border px-3 py-2 text-xs font-medium">Open emergency board</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border overflow-x-auto -mx-1 px-1">
           <p className="sm:hidden px-2 pt-2 text-[10px] text-gray-400">Swipe sideways to see all columns</p>
           <table className="min-w-[920px] w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-[#f6f4f8] text-[10px] uppercase tracking-wide text-gray-500 border-b">
@@ -217,6 +246,7 @@ export default function PatientsPage() {
             <div className="px-3 py-2 border-t text-[10px] text-gray-400">Showing {rows.length} of {rows.length} entries</div>
           )}
         </div>
+        )}
       </div>
       </div>
     </AppShell>
