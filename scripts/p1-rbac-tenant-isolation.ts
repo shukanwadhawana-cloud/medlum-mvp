@@ -143,6 +143,19 @@ if (existsSync(encountersRoute)) {
   );
 }
 
+const clinicalNotesSource = readFileSync(join(root, "src/app/api/clinical-notes/route.ts"), "utf8");
+ok(
+  (clinicalNotesSource.match(/canViewClinicalChart\(membership\.role\)/g) || []).length >= 3,
+  "clinical note GET/POST/PATCH enforce clinical-chart permission"
+);
+const diagnosticsSource = readFileSync(join(root, "src/app/api/diagnostics/route.ts"), "utf8");
+const diagnosticsGet = diagnosticsSource.slice(diagnosticsSource.indexOf("export async function GET"), diagnosticsSource.indexOf("export async function POST"));
+const diagnosticsPost = diagnosticsSource.slice(diagnosticsSource.indexOf("export async function POST"), diagnosticsSource.indexOf("export async function PATCH"));
+const diagnosticsPatch = diagnosticsSource.slice(diagnosticsSource.indexOf("export async function PATCH"));
+ok(diagnosticsGet.includes("canEnterDiagnosticReport(membership.role)"), "diagnostic GET enforces diagnostic role access");
+ok(diagnosticsPost.includes("canOrderLabs(membership.role)"), "diagnostic POST enforces clinical ordering permission");
+ok(diagnosticsPatch.includes("canEnterDiagnosticReport(membership.role)"), "diagnostic PATCH enforces reporting permission");
+
 const labsGetSource = labs.slice(labs.indexOf("export async function GET"), labs.indexOf("export async function POST"));
 ok(
   labsGetSource.includes("canEnterLabResult(membership.role)") &&
