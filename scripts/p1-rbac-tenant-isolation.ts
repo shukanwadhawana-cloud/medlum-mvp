@@ -143,6 +143,13 @@ if (existsSync(encountersRoute)) {
   );
 }
 
+const labsGetSource = labs.slice(labs.indexOf("export async function GET"), labs.indexOf("export async function POST"));
+ok(
+  labsGetSource.includes("canEnterLabResult(membership.role)") &&
+    labsGetSource.includes("canOrderLabs(membership.role)"),
+  "lab GET enforces lab/ordering permissions before returning patient results"
+);
+
 const encountersSource = readFileSync(join(root, "src/app/api/encounters/route.ts"), "utf8");
 ok(
   encountersSource.includes("canViewClinicalChart(membership.role)"),
