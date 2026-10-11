@@ -8,10 +8,12 @@ import { formatIst } from "@/lib/time";
 export function ClinicalRxPanel({
   patientId,
   prescriptions,
+  allergies,
   onSaved,
 }: {
   patientId: string;
   prescriptions: any[];
+  allergies?: string;
   onSaved: () => Promise<void> | void;
 }) {
   const [medicines, setMedicines] = useState("");
@@ -61,6 +63,7 @@ export function ClinicalRxPanel({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">
             Write prescription
           </h3>
+          <p className={`mt-1 text-[11px] ${allergies && !["no known allergies", "nkda", "none"].includes(allergies.trim().toLowerCase()) ? "font-semibold text-red-700" : "text-amber-700"}`}>Allergy status before ordering: {allergies || "Unknown / not assessed"}</p>
         </div>
         <form onSubmit={save} className="space-y-2.5 p-3">
           {err && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{err}</div>}
