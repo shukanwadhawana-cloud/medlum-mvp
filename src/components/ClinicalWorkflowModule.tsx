@@ -39,11 +39,12 @@ const DIET_FIELDS = [
   ["mealChart", "Meal chart (time, foods, portions, substitutions, nutrient estimates, rationale and sources)", "area"],
   ["monitoring", "Monitoring and review plan", "area"],
   ["patientInstructions", "Patient-friendly instructions", "area"],
+  ["guidanceSources", "Guidance sources / version / date (verify before approval)", "area"],
 ] as const;
 
 const initialValues: Record<string, string> = {
   referralReason: "", assessment: "", functionalStatus: "", goals: "", precautions: "", plan: "", exercises: "", sessionNotes: "", progress: "", reviewDate: "", therapist: "",
-  diagnosis: "", nutritionScreening: "", weightKg: "", heightCm: "", dietPreference: "", culturalPreferences: "", ckdStage: "", dialysisStatus: "", labs: "", medications: "", fluidRestriction: "", oralEnteralIntake: "", mealChart: "", monitoring: "", patientInstructions: "",
+  diagnosis: "", nutritionScreening: "", weightKg: "", heightCm: "", dietPreference: "", culturalPreferences: "", ckdStage: "", dialysisStatus: "", labs: "", medications: "", fluidRestriction: "", oralEnteralIntake: "", mealChart: "", monitoring: "", patientInstructions: "", guidanceSources: "",
 };
 
 export default function ClinicalWorkflowModule({ module }: { module: WorkflowModule }) {
@@ -128,7 +129,7 @@ export default function ClinicalWorkflowModule({ module }: { module: WorkflowMod
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) throw new Error([data.error, ...(data.missingInputs || [])].filter(Boolean).join(" — ") || "Could not generate a nutrition draft.");
-      setValues((previous) => ({ ...previous, mealChart: data.draft.mealChart || "", monitoring: data.draft.monitoring || "", patientInstructions: data.draft.patientInstructions || "", nutritionScreening: previous.nutritionScreening || data.draft.assessment || "" }));
+      setValues((previous) => ({ ...previous, mealChart: data.draft.mealChart || "", monitoring: data.draft.monitoring || "", patientInstructions: data.draft.patientInstructions || "", guidanceSources: data.draft.guidanceSources || "", nutritionScreening: previous.nutritionScreening || data.draft.assessment || "" }));
       setMessage("AI draft generated. It is not an order; verify all nutrient estimates and sources before saving or approval.");
     } catch (e: any) { setError(e.message || "Nutrition AI failed; use the manual chart."); }
     finally { setAiBusy(false); }
