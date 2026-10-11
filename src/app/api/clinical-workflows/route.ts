@@ -8,6 +8,11 @@ import { findAuthorizedPatient, normalizeClinicRole, requireActiveClinicMembersh
 const MODULES = new Set(["Physiotherapy", "Dietitian"]);
 const CLINICAL_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Physiotherapist", "Dietitian", "Dietician", "Nutritionist"]);
 const APPROVER_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "Dietitian", "Dietician", "Nutritionist"]);
+const PHYSIOTHERAPY_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Physiotherapist"]);
+const DIETITIAN_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Dietitian", "Dietician", "Nutritionist"]);
+function canAccessWorkflow(module: string, role: string) {
+  return module === "Physiotherapy" ? PHYSIOTHERAPY_ROLES.has(role) : module === "Dietitian" ? DIETITIAN_ROLES.has(role) : false;
+}
 
 async function context() {
   const session = await getSession();
@@ -39,6 +44,7 @@ export async function GET(req: Request) {
   const module = url.searchParams.get("module") || "";
   const patientId = url.searchParams.get("patientId") || "";
   if (!MODULES.has(module)) return NextResponse.json({ success: false, error: "Unknown clinical workflow module." }, { status: 400 });
+  if (!canAccessWorkflow(module, c.role)) return NextResponse.json({ success: false, error: "Your role cannot access this clinical workflow module." }, { status: 403 });
   if (patientId && !(await findAuthorizedPatient(c.membership, patientId))) return NextResponse.json({ success: false, error: "Patient not found in this clinic." }, { status: 404 });
   const rows = await prisma.workforceRecord.findMany({
     where: { clinicId: c.membership.clinicId, module },
@@ -60,6 +66,7 @@ export async function POST(req: Request) {
   if (!MODULES.has(module) || !recordType || !title || !patientId) {
     return NextResponse.json({ success: false, error: "Module, record type, title and patient are required." }, { status: 400 });
   }
+  if (!canAccessWorkflow(module, c.role)) return NextResponse.json({ success: false, error: "Your role cannot create records in this clinical workflow module." }, { status: 403 });
   const patient = await findAuthorizedPatient(c.membership, patientId);
   if (!patient) return NextResponse.json({ success: false, error: "Patient not found in this clinic." }, { status: 404 });
   let data: Prisma.InputJsonValue;
@@ -91,6 +98,7 @@ export async function PATCH(req: Request) {
   if (!id) return NextResponse.json({ success: false, error: "Record ID is required." }, { status: 400 });
   const existing = await prisma.workforceRecord.findFirst({ where: { id, clinicId: c.membership.clinicId } });
   if (!existing || !MODULES.has(existing.module)) return NextResponse.json({ success: false, error: "Clinical workflow record not found." }, { status: 404 });
+  if (!canAccessWorkflow(existing.module, c.role)) return NextResponse.json({ success: false, error: "Your role cannot update this clinical workflow module." }, { status: 403 });
   const patientId = recordPatientId(existing.data);
   if (!patientId || !(await findAuthorizedPatient(c.membership, patientId))) return NextResponse.json({ success: false, error: "Patient is not accessible in this clinic." }, { status: 404 });
   const status = typeof body.status === "string" ? body.status.trim() : existing.status;
