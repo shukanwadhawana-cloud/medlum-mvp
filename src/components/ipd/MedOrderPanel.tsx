@@ -119,35 +119,22 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
 
   async function discontinue() {
     if (!disc) return;
-    if (!disc.reason) {
-      setError("Select a reason for discontinue");
-      return;
-    }
-    setBusy(true);
-    setError("");
+    if (!disc.reason) { setError("Select a reason for discontinue"); return; }
+    setBusy(true); setError(""); setMsg("");
     try {
-      const r = await fetch("/api/clinical-notes", {
-        method: "POST",
-        credentials: "include",
+      const response = await fetch("/api/prescriptions", {
+        method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
-        body: JSON.stringify({
-          patientId: patient.id,
-          noteType: "Progress Note",
-          title: "Medication order discontinued",
-          content: `DISCONTINUE ORDER ${disc.id}\nReason: ${disc.reason}\nSigned electronic discontinue per MedLum clinical workflow.`,
-          submit: false,
-        }),
+        body: JSON.stringify({ action: "discontinue", id: disc.id, patientId: patient.id, reason: disc.reason }),
       });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok || body.success === false) throw new Error(body.error || "Could not record discontinue");
-      setMsg(`Discontinue recorded: ${disc.reason}`);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.success) throw new Error(body.error || "Could not discontinue order");
+      setMsg("Medication order discontinued. The order status and reason were saved with the signed-in clinician audit.");
       setDisc(null);
       await load();
-    } catch (err: any) {
-      setError(err.message || "Discontinue failed");
-    } finally {
-      setBusy(false);
-    }
+      onOrdered?.();
+    } catch (err: any) { setError(err.message || "Discontinue failed"); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -317,14 +304,15 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
                 <div className="min-w-0">
                   <p className="whitespace-pre-wrap text-[11px]">{rx.medicines}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{rx.createdAt ? new Date(rx.createdAt).toLocaleString("en-IN") : ""}</p>
+                  <p className={`text-[10px] mt-0.5 ${rx.status === "CANCELLED" || rx.status === "DISCONTINUED" ? "text-red-700" : "text-gray-500"}`}>Order status: {rx.status || "CONFIRMED"} · dispensing / administration tracked separately</p>
                 </div>
-                <button
+                {rx.status !== "CANCELLED" && rx.status !== "DISCONTINUED" && <button
                   type="button"
                   onClick={() => setDisc({ id: rx.id, reason: "Duplicate Order" })}
                   className="shrink-0 h-7 px-2 rounded border text-[10px] text-red-700"
                 >
                   Discontinue
-                </button>
+                </button>}
               </li>
             ))}
           </ul>
