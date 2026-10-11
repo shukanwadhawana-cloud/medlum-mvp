@@ -7,7 +7,7 @@ import { findAuthorizedPatient, normalizeClinicRole, requireActiveClinicMembersh
 
 const MODULES = new Set(["Physiotherapy", "Dietitian"]);
 const CLINICAL_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Physiotherapist", "Dietitian", "Dietician", "Nutritionist"]);
-const APPROVER_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "Dietitian", "Dietician", "Nutritionist"]);
+const APPROVER_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "Physiotherapist", "Dietitian", "Dietician", "Nutritionist"]);
 const PHYSIOTHERAPY_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Physiotherapist"]);
 const DIETITIAN_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Dietitian", "Dietician", "Nutritionist"]);
 function canAccessWorkflow(module: string, role: string) {
