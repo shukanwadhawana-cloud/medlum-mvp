@@ -387,6 +387,7 @@ export async function POST(req: Request) {
         }
         const nextProfile = {
           ...profile,
+          careSetting: "IPD",
           wardType: roomCategory,
           unitType,
           roomNumber,
