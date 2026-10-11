@@ -28,6 +28,9 @@ type RxRow = {
   status?: string;
   patientId?: string;
   patientName?: string;
+  doctor?: { name?: string };
+  dispensings?: Array<{ status: string; dispensedAt?: string | null }>;
+  medicationAdministrations?: Array<{ status: string; actualAt?: string | null }>;
 };
 
 const QUICK_FAVORITES: MedOrderLine[] = [
@@ -305,6 +308,7 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
                   <p className="whitespace-pre-wrap text-[11px]">{rx.medicines}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">{rx.createdAt ? new Date(rx.createdAt).toLocaleString("en-IN") : ""}</p>
                   <p className={`text-[10px] mt-0.5 ${rx.status === "CANCELLED" || rx.status === "DISCONTINUED" ? "text-red-700" : "text-gray-500"}`}>Order status: {rx.status || "CONFIRMED"} · dispensing / administration tracked separately</p>
+                  <p className="text-[10px] mt-0.5 text-gray-500">Prescriber: {rx.doctor?.name || "Recorded clinician"} · Pharmacy: {rx.dispensings?.[0]?.status || "Not sent to pharmacy"} · MAR: {rx.medicationAdministrations?.[0]?.status || "No administration event"}</p>
                 </div>
                 {rx.status !== "CANCELLED" && rx.status !== "DISCONTINUED" && <button
                   type="button"
