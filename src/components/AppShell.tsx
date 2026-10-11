@@ -72,7 +72,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const patientsIndex = rest.findIndex((item) => item.href === "/patients");
     const beforeAi = patientsIndex >= 0 ? rest.slice(0, patientsIndex + 1) : rest;
     const afterAi = patientsIndex >= 0 ? rest.slice(patientsIndex + 1) : [];
-    return [...ownerItems, ...beforeAi, ...aiAssist, ...afterAi, ...duty];
+    const clinicalWorkflowItems = ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Dietitian", "Dietician", "Nutritionist", "Physiotherapist"].includes(activeRole)
+      ? [{ href: "/physiotherapy", label: "Physiotherapy", icon: "people" }, { href: "/dietitian", label: "Dietitian / Nutrition", icon: "labs" }]
+      : [];
+    return [...ownerItems, ...beforeAi, ...aiAssist, ...afterAi, ...duty, ...clinicalWorkflowItems];
   }, [isOwner, activeRole]);
 
   useEffect(() => {
