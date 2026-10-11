@@ -247,6 +247,9 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   if (!patient) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
+  if (typeof body.allergies === "string" && !canViewFullClinicalChart(membership.role)) {
+    return NextResponse.json({ error: "Clinical permission is required to update allergy status." }, { status: 403 });
+  }
   const data: { name?: string; age?: number; gender?: string; phone?: string; allergies?: string } = {};
 
   if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim().slice(0, 200);
