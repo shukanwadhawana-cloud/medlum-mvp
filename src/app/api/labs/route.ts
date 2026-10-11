@@ -39,8 +39,15 @@ async function getSharedPatient(patientId: string, doctorId: string) {
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const clinicId = await getClinicId(session.doctorId);
-  if (!clinicId) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canEnterLabResult(membership.role) && !canOrderLabs(membership.role)) {
+    return NextResponse.json(
+      { success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" },
+      { status: 403 }
+    );
+  }
+  const clinicId = membership.clinicId;
   const { searchParams } = new URL(req.url);
   const patientId = searchParams.get("patientId");
   if (patientId && !(await getSharedPatient(patientId, session.doctorId))) {
