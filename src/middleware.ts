@@ -1,65 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-/**
- * CSRF: require same-origin for state-changing API requests.
- * Browser requests without Origin/Referer are still allowed for non-browser clients
- * that present valid session cookies only when they are not cross-site navigations.
- */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/** Signature-authenticated or intentionally public mutations — not cookie CSRF targets. */
+const CSRF_EXEMPT_PREFIXES = [
+  "/api/payments/razorpay/webhook",
+  "/api/interoperability/eka/webhooks",
+  "/api/interoperability/eka/hiu/data-on-push",
+  "/api/telegram/webhook",
+  "/api/public/",
+];
+
+export const MEDLUM_CLIENT_HEADER = "x-medlum-requested-with";
+export const MEDLUM_CLIENT_HEADER_VALUE = "MedLum";
+
+function getExpectedOrigin(req: NextRequest) {
+  const forwardedHost = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+  const host = forwardedHost || req.headers.get("host") || "";
+  if (!host) return null;
+  return `${forwardedProto}://${host}`;
+}
+
+function isCsrfExempt(pathname: string) {
+  return CSRF_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
+}
+
 function assertCsrf(req: NextRequest): NextResponse | null {
-  const method = req.method.toUpperCase();
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  if (SAFE_METHODS.has(req.method)) return null;
   if (!req.nextUrl.pathname.startsWith("/api/")) return null;
-
-  // Public webhook / cron paths that authenticate via shared secrets instead of cookies.
-  const path = req.nextUrl.pathname;
-  if (
-    path.startsWith("/api/telegram/webhook") ||
-    path.startsWith("/api/interoperability/eka/webhooks") ||
-    path.startsWith("/api/cron")
-  ) {
-    return null;
-  }
+  if (isCsrfExempt(req.nextUrl.pathname)) return null;
 
   const origin = req.headers.get("origin");
-  const referer = req.headers.get("referer");
-  const host = req.headers.get("host") || req.nextUrl.host;
-  const allowed = new Set<
-    string
-  >([
-    `https://${host}`,
-    `http://${host}`,
-    process.env.NEXT_PUBLIC_APP_URL || "",
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
-  ].filter(Boolean));
+  const expectedOrigin = getExpectedOrigin(req);
 
   if (origin) {
-    if (![...allowed].some((a) => origin === a || origin.startsWith(a + "/"))) {
-      // Also allow exact Vercel preview hosts when present in Origin.
-      try {
-        const o = new URL(origin);
-        if (o.host !== host && !o.host.endsWith(".vercel.app")) {
-          return NextResponse.json({ success: false, error: "CSRF validation failed" }, { status: 403 });
-        }
-        if (o.host !== host && o.host.endsWith(".vercel.app") && !host.endsWith(".vercel.app")) {
-          // Cross-deployment mutation blocked.
-          return NextResponse.json({ success: false, error: "CSRF validation failed" }, { status: 403 });
-        }
-      } catch {
-        return NextResponse.json({ success: false, error: "CSRF validation failed" }, { status: 403 });
-      }
+    if (origin !== req.nextUrl.origin && origin !== expectedOrigin) {
+      return NextResponse.json(
+        { success: false, error: "Cross-origin request rejected" },
+        { status: 403 }
+      );
     }
     return null;
   }
 
-  if (referer) {
-    try {
-      const r = new URL(referer);
-      if (r.host !== host && !r.host.endsWith(".vercel.app")) {
-        return NextResponse.json({ success: false, error: "CSRF validation failed" }, { status: 403 });
-      }
-    } catch {
-      return NextResponse.json({ success: false, error: "CSRF validation failed" }, { status: 403 });
-    }
+  const clientHeader = req.headers.get(MEDLUM_CLIENT_HEADER);
+  if (clientHeader !== MEDLUM_CLIENT_HEADER_VALUE) {
+    return NextResponse.json(
+      { success: false, error: "CSRF validation failed" },
+      { status: 403 }
+    );
   }
   return null;
 }
