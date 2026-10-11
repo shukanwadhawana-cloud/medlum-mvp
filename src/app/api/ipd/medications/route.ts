@@ -114,6 +114,7 @@ export async function POST(req: Request) {
       select: { id: true, patientId: true, medicines: true, encounterId: true },
     });
     if (!prescription) return NextResponse.json({ success: false, error: "Medication order not found for this IPD patient." }, { status: 404 });
+    if (prescription.status === "CANCELLED" || prescription.status === "DISCONTINUED") return NextResponse.json({ success: false, error: "A discontinued medication order cannot be scheduled for administration." }, { status: 409 });
     if (!prescription.medicines.includes(medicationText)) return NextResponse.json({ success: false, error: "Selected medication text is not present in the medication order." }, { status: 409 });
 
     try {
