@@ -57,16 +57,31 @@ function assertDisposableTestDatabase(rawUrl: string): URL {
       `P1 RBAC isolation: host must be 127.0.0.1 or localhost (got ${host})`
     );
   }
+  // Port must be explicit PostgreSQL default used by the CI service (5432).
+  const effectivePort = parsed.port ? parsed.port : "5432";
+  if (effectivePort !== "5432") {
+    throw new Error(
+      `P1 RBAC isolation: port must be 5432 (got ${effectivePort})`
+    );
+  }
   const dbName = decodeURIComponent(parsed.pathname.replace(/^\//, "").split("/")[0] || "");
   if (dbName !== "p1test") {
     throw new Error(
       `P1 RBAC isolation: database name must be exactly "p1test" (got "${dbName}")`
     );
   }
-  if (parsed.username && parsed.username !== "p1") {
+  // Username is required and must equal the CI disposable identity "p1".
+  if (!parsed.username) {
+    throw new Error('P1 RBAC isolation: database username is required and must be "p1"');
+  }
+  if (parsed.username !== "p1") {
     throw new Error(
       `P1 RBAC isolation: expected database user "p1" (got "${parsed.username}")`
     );
+  }
+  // Exact disposable identity: loopback + p1 + p1test + 5432
+  if (!(host === "127.0.0.1" || host === "localhost") || dbName !== "p1test" || effectivePort !== "5432" || parsed.username !== "p1") {
+    throw new Error("P1 RBAC isolation: disposable database identity mismatch");
   }
   return parsed;
 }
