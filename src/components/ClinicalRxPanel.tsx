@@ -113,10 +113,11 @@ export function ClinicalRxPanel({
             sorted.map((r: any) => (
               <article key={r.id} className="rounded-lg border p-3 text-xs">
                 <div className="mb-1 flex justify-between gap-2">
-                  <span className="font-semibold">Prescription</span>
+                  <span className="font-semibold">Medication order · {r.status || "CONFIRMED"}</span>
                   <span className="text-gray-500">{formatIst(r.createdAt)}</span>
                 </div>
                 <p className="whitespace-pre-wrap text-sm">{r.medicines}</p>
+                {(r.status === "CANCELLED" || r.status === "DISCONTINUED") && <p className="mt-1 text-red-700"><b>Discontinued:</b> {r.cancellationReason || "Reason recorded in audit"}{r.cancelledAt ? ` · ${formatIst(r.cancelledAt)}` : ""}</p>}
                 {r.advice && (
                   <p className="mt-1 whitespace-pre-wrap text-gray-600">
                     <b>Advice:</b> {r.advice}
