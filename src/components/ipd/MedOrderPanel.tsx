@@ -14,7 +14,7 @@ import {
 import { apiAddPrescription, apiGetPrescriptions } from "@/lib/api";
 
 type Props = {
-  patient: { id: string; name: string };
+  patient: { id: string; name: string; allergies?: string };
   onOrdered?: () => void;
   /** Optional context retained in the existing prescription advice field. */
   contextNote?: string;
@@ -147,6 +147,9 @@ export default function MedOrderPanel({ patient, onOrdered, contextNote }: Props
           <h4 className="font-semibold text-sm">Order Medicines</h4>
           <p className="text-[10px] text-gray-500">
             {patient.name} · dose · route · schedule · PRN · duration · priority · comment
+          </p>
+          <p className={`mt-1 text-[11px] ${patient.allergies && !["no known allergies", "nkda", "none"].includes(patient.allergies.trim().toLowerCase()) ? "font-semibold text-red-700" : "text-amber-700"}`}>
+            Allergy status before ordering: {patient.allergies || "Unknown / not assessed"}
           </p>
         </div>
         <div className="flex flex-wrap gap-1">
