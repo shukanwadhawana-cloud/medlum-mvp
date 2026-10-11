@@ -48,17 +48,20 @@ async function clientPdfTextLayer(file: File): Promise<ScanResult | null> {
 async function createLocalTesseractWorker(onProgress?: OcrProgress) {
   onProgress?.("Loading OCR engine and English language data…");
   const { createWorker } = await import("tesseract.js");
+  // Same-origin worker + core (copied in prebuild). workerBlobURL must be false:
+  // blob workers break Emscripten locateFile for sibling .wasm files, which leaves
+  // Core() hanging after "loading tesseract core" (observed on production origin).
+  // Cross-origin Worker() is blocked by the browser; same-origin Worker is allowed.
   const workerPromise = createWorker("eng", 1, {
-    // Serve executable OCR assets from this app origin rather than relying on
-    // a third-party worker/core CDN at runtime (especially on mobile networks).
     workerPath: "/tesseract/worker.min.js",
     corePath: "/tesseract/core",
-    langPath: "https://tessdata.projectnaptha.com/4.0.0",
-    workerBlobURL: true,
+    workerBlobURL: false,
+    cacheMethod: "none",
     logger: (event: { status?: string; progress?: number }) => {
       if (event.status === "loading tesseract core") onProgress?.("Loading OCR engine…");
       else if (event.status === "loading language traineddata") onProgress?.("Loading English OCR data…");
       else if (event.status === "initializing tesseract") onProgress?.("Initializing OCR engine…");
+      else if (event.status === "initializing api") onProgress?.("Preparing OCR language model…");
       else if (event.status === "recognizing text") {
         const percent = typeof event.progress === "number" ? Math.round(event.progress * 100) : null;
         onProgress?.(percent === null ? "Recognizing text…" : "Recognizing text… " + percent + "%");
