@@ -7,13 +7,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: medlum-production-deploy
+  cancel-in-progress: true
+
 permissions:
   contents: read
   actions: read
 
 jobs:
   deploy:
-    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
     runs-on: ubuntu-latest
     steps:
       - name: Require green CI for the exact commit
@@ -22,8 +26,14 @@ jobs:
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           EVENT_NAME: ${{ github.event_name }}
           CI_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
+          GH_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
+          MAIN_SHA="$(gh api "repos/$GH_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$MAIN_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Refusing stale deployment: main is $MAIN_SHA but this run targets $EXPECTED_SHA."
+            exit 1
+          fi
           if [ "$EVENT_NAME" = "workflow_run" ]; then
             if [ "$CI_CONCLUSION" != "success" ]; then
               echo "Refusing production deployment because MedLum CI did not pass."
@@ -65,7 +75,7 @@ jobs:
           else
             if [ -n "${VERCEL_ORG_ID:-}" ] && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
               mkdir -p .vercel
-              printf '{"orgId":"%s","projectId":"%s"}\\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+              printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
             fi
             npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN" || true
             npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
