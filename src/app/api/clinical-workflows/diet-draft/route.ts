@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     await writeAudit({ doctorId: session.doctorId, clinicId: membership.clinicId, action: "DIET_CHART_AI_DRAFT_GENERATED", entity: "ClinicalWorkflow", entityId: patient.id, meta: { patientId: patient.id, source: draft.source, highRisk: isCkd || isPle } });
     return NextResponse.json({
       success: true,
-      draft: { history: draft.history, assessment: draft.assessment, mealChart: draft.plan, monitoring: draft.followUp, patientInstructions: draft.patientInstructions, source: draft.source, disclaimer: "AI-generated DRAFT only. Dietitian/clinician must verify every portion, nutrient estimate, clinical restriction and cited source before approval.", status: "DRAFT", approved: false },
+      draft: { history: draft.history, assessment: draft.assessment, mealChart: draft.plan, monitoring: draft.followUp, patientInstructions: draft.patientInstructions, guidanceSources: "ADA Standards of Care in Diabetes — 2026 edition (diabetes context; verify current publication details before approval). KDIGO CKD Guideline — 2024 edition (CKD context; individualize by stage, dialysis status, nutrition status and labs). Hypothyroidism-specific and protein-losing-enteropathy guidance: verify a current condition-specific source before making therapeutic claims.", source: draft.source, disclaimer: "AI-generated DRAFT only. Dietitian/clinician must verify every portion, nutrient estimate, clinical restriction and cited source before approval.", status: "DRAFT", approved: false },
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("diet chart draft failed", error instanceof Error ? error.message : "error");
