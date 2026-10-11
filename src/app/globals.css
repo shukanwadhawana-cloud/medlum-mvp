@@ -343,3 +343,13 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
   .medlum-canva-auth{display:block;min-height:100svh}.medlum-canva-auth-brand{min-height:210px;padding:28px 22px}.medlum-canva-auth-brand h1{font-size:32px}
   .medlum-canva-auth-card{width:calc(100% - 28px);margin:-36px auto 24px;position:relative;padding:25px 20px}
 }
+
+/* Keep clinical navigation scrollable without the intrusive dark scrollbar. */
+.medlum-primary-nav,
+.medlum-primary-nav-inner { scrollbar-width: none; -ms-overflow-style: none; }
+.medlum-primary-nav::-webkit-scrollbar,
+.medlum-primary-nav-inner::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.medlum-primary-nav-inner { overscroll-behavior: contain; }
+.medlum-index-hero a.medlum-primary { background: #fff; color: #8f1730; border: 1px solid #e7c3cc; box-shadow: none; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+.medlum-index-hero a.medlum-primary:hover,
+.medlum-index-hero a.medlum-primary:focus-visible { background: #c2183a; color: #fff; border-color: #c2183a; }
