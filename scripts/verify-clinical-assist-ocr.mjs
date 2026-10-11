@@ -20,6 +20,7 @@ console.log("Clinical Assist OCR regression checks: PASS");
 
 const middleware = fs.readFileSync("src/middleware.ts", "utf8");
 assert(middleware.includes("https://cdn.jsdelivr.net"), "CSP must allow jsDelivr for optional language-data CDN");
+assert(middleware.includes("wasm-unsafe-eval"), "CSP must allow WebAssembly for Tesseract core");
 assert(middleware.includes("worker-src") && middleware.includes("'self'"), "CSP must allow same-origin workers");
 assert(middleware.includes("blob:"), "CSP must allow blob workers for libraries that still need them");
 assert(page.includes("Check browser console for the underlying OCR engine error."), "non-Error OCR failures must expose a useful diagnostic message");
