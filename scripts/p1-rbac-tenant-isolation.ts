@@ -143,6 +143,13 @@ if (existsSync(encountersRoute)) {
   );
 }
 
+const bloodBankSource = readFileSync(join(root, "src/app/api/blood-bank/route.ts"), "utf8");
+ok(
+  bloodBankSource.includes("requireActiveClinicMembership") &&
+    (bloodBankSource.match(/hasBloodBankAccess\(ctx\)/g) || []).length >= 3,
+  "blood-bank GET/POST/PATCH require active clinic membership and blood-bank role access"
+);
+
 const clinicalNotesSource = readFileSync(join(root, "src/app/api/clinical-notes/route.ts"), "utf8");
 ok(
   (clinicalNotesSource.match(/canViewClinicalChart\(membership\.role\)/g) || []).length >= 3,
