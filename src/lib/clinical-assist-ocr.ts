@@ -49,6 +49,16 @@ async function createLocalTesseractWorker(onProgress?: OcrProgress) {
   onProgress?.("Loading OCR engine and English language data…");
   const { createWorker } = await import("tesseract.js");
   const workerPromise = createWorker("eng", 1, {
+    // Same-origin worker + WASM core (copied in prebuild). CSP must include
+    // 'wasm-unsafe-eval' so the Emscripten module can compile WebAssembly.
+    workerPath: "/tesseract/worker.min.js",
+    corePath: "/tesseract/core",
+    // LSTM OEM expects the quantized best_int data (library default when langPath omitted).
+    // Explicit path keeps CSP connect-src targets intentional.
+    langPath: "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int",
+    // Direct Worker (no blob importScripts) is more reliable on mobile Safari
+    // when the script is same-origin.
+    workerBlobURL: false,
     logger: (event: { status?: string; progress?: number }) => {
       if (event.status === "loading tesseract core") onProgress?.("Loading OCR engine…");
       else if (event.status === "loading language traineddata") onProgress?.("Loading English OCR data…");
@@ -92,64 +102,60 @@ async function clientScannedPdfOcr(file: File, onProgress?: OcrProgress): Promis
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   const data = new Uint8Array(await file.arrayBuffer());
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
+  const maxPages = Math.min(doc.numPages, 3);
   const worker = await createLocalTesseractWorker(onProgress);
+  const parts: string[] = [];
+  let confidenceSum = 0;
+  let confidenceN = 0;
   try {
-    const pages = Math.min(doc.numPages, 5);
-    const parts: string[] = [];
-    const confidences: number[] = [];
-    for (let i = 1; i <= pages; i++) {
+    for (let i = 1; i <= maxPages; i++) {
+      onProgress?.("OCR on PDF page " + i + " of " + maxPages + "…");
       const page = await doc.getPage(i);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) throw new Error("Could not create a local OCR canvas.");
+      await page.render({ canvasContext: context, viewport }).promise;
       try {
-        const source = page.getViewport({ scale: 1 });
-        const scale = Math.min(2, 1800 / Math.max(source.width, 1));
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("Could not create a local OCR canvas.");
-        await page.render({ canvas, canvasContext: context, viewport }).promise;
-        onProgress?.("Recognizing PDF page " + i + " of " + pages + "…");
         const result = await withTimeout(worker.recognize(canvas), 90_000, "OCR timed out on PDF page " + i + ". Try a smaller or clearer PDF.");
         const text = String(result?.data?.text || "").trim();
-        const confidence =
-          typeof result?.data?.confidence === "number" ? result.data.confidence : null;
-        if (text) parts.push(`[Page ${i}]\n${text}`);
-        if (confidence != null) confidences.push(confidence);
-        canvas.width = 1;
-        canvas.height = 1;
+        if (text) parts.push(text);
+        if (typeof result?.data?.confidence === "number") {
+          confidenceSum += result.data.confidence;
+          confidenceN += 1;
+        }
       } finally {
-        page.cleanup();
+        canvas.width = 0;
+        canvas.height = 0;
       }
     }
-    const text = parts.join("\n\n").trim();
-    if (!text) throw new Error("No readable text was detected. Try a sharper scan or image.");
-    const confidence =
-      confidences.length ? Math.round(confidences.reduce((a,b) => a+b, 0) / confidences.length) : null;
+    const text = parts.join("\n").trim();
+    if (!text) throw new Error("No readable text was detected in the scanned PDF.");
     return {
       text: text.slice(0, 20_000),
-      confidence,
+      confidence: confidenceN ? confidenceSum / confidenceN : null,
       label: "tesseract (on-device PDF OCR)",
-      partial: doc.numPages > pages,
+      partial: doc.numPages > maxPages,
     };
   } finally {
     try { await worker.terminate(); } catch { /* ignore */ }
-    await doc.destroy();
   }
 }
 
-export async function runClinicalAssistOcr(file: File, onProgress?: OcrProgress): Promise<ScanResult> {
-  if (file.size <= 0) throw new Error("The selected document is empty.");
+export async function runClinicalAssistOcr(
+  file: File,
+  onProgress?: OcrProgress
+): Promise<ScanResult> {
   if (file.size > MAX_BYTES) {
-    throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image, or compress the photo.");
+    throw new Error("File is larger than 8 MB. Use a smaller image or PDF.");
   }
-
   // OCR is deliberately local-first and local-only: no Railway/PaddleOCR call.
   if (isPdf(file)) {
-    const pdfText = await clientPdfTextLayer(file);
-    if (pdfText) return pdfText;
+    const textLayer = await clientPdfTextLayer(file);
+    if (textLayer) return textLayer;
     return clientScannedPdfOcr(file, onProgress);
   }
-
   return clientTesseractOcr(file, onProgress);
 }
