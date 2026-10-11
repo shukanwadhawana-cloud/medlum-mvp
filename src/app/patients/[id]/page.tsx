@@ -543,7 +543,7 @@ export default function PatientDetailPage() {
               <p className="text-xs text-gray-500">Move this active OPD patient into inpatient care without creating a new patient record. The existing OPD consultations and clinical history remain attached.</p>
               <div>
                 <label className="text-xs text-gray-500">Destination</label>
-                <select value={admission.wardType} onChange={(e) => setAdmission({ ...admission, wardType: e.target.value, roomNumber: "" })} className="w-full h-10 px-3 rounded-lg border text-sm bg-white">
+                <select value={admission.wardType} onChange={(e) => setAdmission({ ...admission, wardType: e.target.value, roomCategory: e.target.value === "ICU" ? "ICU" : (admission.roomCategory === "ICU" ? "General" : admission.roomCategory), roomNumber: "" })} className="w-full h-10 px-3 rounded-lg border text-sm bg-white">
                   <option value="Ward">Ward</option>
                   <option value="ICU">ICU</option>
                 </select>
