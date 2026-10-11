@@ -86,13 +86,22 @@ export default function PatientClinicalChartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<TabId>("overview");
+  const [allergyDraft, setAllergyDraft] = useState("");
+  const [allergyStatus, setAllergyStatus] = useState<"UNKNOWN" | "NKDA" | "KNOWN">("UNKNOWN");
+  const [allergySaving, setAllergySaving] = useState(false);
+  const [allergyMessage, setAllergyMessage] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError("");
     try {
-      setData(await apiGetPatientDetail(id));
+      const next = await apiGetPatientDetail(id);
+      setData(next);
+      const existingAllergies = String(next?.patient?.allergies || "");
+      setAllergyDraft(existingAllergies);
+      const normalizedAllergies = existingAllergies.trim().toLowerCase();
+      setAllergyStatus(["no known allergies", "nkda", "none"].includes(normalizedAllergies) ? "NKDA" : existingAllergies.trim() ? (["unknown", "not assessed", "not recorded", "unknown / not assessed"].includes(normalizedAllergies) ? "UNKNOWN" : "KNOWN") : "UNKNOWN");
     } catch (e: any) {
       setData(null);
       setError(e?.message || "Could not load clinical chart");
@@ -290,8 +299,31 @@ export default function PatientClinicalChartPage() {
               )}
             </Section>
             <Section title="Allergies / notes">
-              <p className="text-sm">{p.allergies || "Not recorded"}</p>
-              {freeNotes ? <p className="text-xs text-gray-600 mt-2 whitespace-pre-wrap">{freeNotes}</p> : null}
+              <form className="space-y-2" onSubmit={async (event) => {
+                event.preventDefault();
+                setAllergySaving(true); setAllergyMessage("");
+                const value = allergyStatus === "NKDA" ? "No known allergies" : allergyStatus === "UNKNOWN" ? "Unknown / not assessed" : allergyDraft.trim();
+                if (allergyStatus === "KNOWN" && !value) { setAllergyMessage("Enter at least one allergy or select unknown/not assessed."); setAllergySaving(false); return; }
+                try {
+                  const response = await fetch(`/api/patients/${encodeURIComponent(String(id))}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ allergies: value }) });
+                  const result = await response.json().catch(() => ({}));
+                  if (!response.ok || !result.success) throw new Error(result.error || "Could not save allergies");
+                  setAllergyDraft(value); setAllergyMessage("Allergy status saved and audit recorded."); await load();
+                } catch (e: any) { setAllergyMessage(e?.message || "Could not save allergies"); }
+                finally { setAllergySaving(false); }
+              }}>
+                <label className="block text-xs font-medium text-gray-700">Allergy status</label>
+                <select value={allergyStatus} onChange={(event) => setAllergyStatus(event.target.value as "UNKNOWN" | "NKDA" | "KNOWN")} className="w-full h-9 rounded-lg border px-2 text-xs">
+                  <option value="UNKNOWN">Unknown / not assessed</option>
+                  <option value="NKDA">No known allergies (NKDA)</option>
+                  <option value="KNOWN">Known allergy / allergy list</option>
+                </select>
+                {allergyStatus === "KNOWN" && <textarea value={allergyDraft} onChange={(event) => setAllergyDraft(event.target.value)} required rows={3} placeholder="Substance; reaction; severity; status; onset / notes" className="w-full rounded-lg border px-2 py-2 text-xs" />}
+                {allergyStatus !== "KNOWN" && <p className="text-[11px] text-gray-600">{allergyStatus === "NKDA" ? "This explicitly records no known allergies." : "This does not mean the patient has no allergies."}</p>}
+                <button type="submit" disabled={allergySaving} className="h-8 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-semibold">{allergySaving ? "Saving…" : "Save allergy status"}</button>
+                {allergyMessage && <p role="status" className="text-[11px] text-gray-600">{allergyMessage}</p>}
+              </form>
+              {freeNotes ? <p className="text-xs text-gray-600 mt-3 whitespace-pre-wrap">{freeNotes}</p> : null}
             </Section>
             <Section title="Active lab orders" action={<Link href="/labs" className="text-[11px] text-[#c2183a] font-medium">Open queue</Link>}>
               {activeLabs.length === 0 ? <Empty text="No active lab orders." /> : (
