@@ -6,7 +6,7 @@ export type ScanResult = {
   partial?: boolean;
 };
 
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = 8 * 1024 * 1024;
 
 function isPdf(file: File): boolean {
   const name = (file.name || "").toLowerCase();
@@ -114,7 +114,7 @@ async function clientScannedPdfOcr(file: File): Promise<ScanResult> {
 export async function runClinicalAssistOcr(file: File): Promise<ScanResult> {
   if (file.size <= 0) throw new Error("The selected document is empty.");
   if (file.size > MAX_BYTES) {
-    throw new Error("Document is larger than 50 MB. Choose a smaller PDF or image, or compress the photo.");
+    throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image, or compress the photo.");
   }
 
   // OCR is deliberately local-first and local-only: no Railway/PaddleOCR call.
