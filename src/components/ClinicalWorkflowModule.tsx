@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
 
@@ -49,10 +48,10 @@ const initialValues: Record<string, string> = {
 
 export default function ClinicalWorkflowModule({ module }: { module: WorkflowModule }) {
   const { doctor, loading: authLoading } = useDoctor();
-  const searchParams = useSearchParams();
-  const requestedPatientId = searchParams.get("patientId") || "";
+  const [requestedPatientId, setRequestedPatientId] = useState("");
+  useEffect(() => { setRequestedPatientId(new URLSearchParams(window.location.search).get("patientId") || ""); }, []);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [patientId, setPatientId] = useState(requestedPatientId);
+  const [patientId, setPatientId] = useState("");
   const [records, setRecords] = useState<RecordRow[]>([]);
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   const [loading, setLoading] = useState(true);
