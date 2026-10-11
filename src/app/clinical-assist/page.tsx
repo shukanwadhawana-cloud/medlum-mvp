@@ -191,7 +191,7 @@ export default function ClinicalAssistPage() {
             : `${sourceMessage} OCR confidence is low; retake or rescan the document if possible.`;
       setScanStatus(best.partial ? confidenceMessage + " Only the supported first pages were processed." : confidenceMessage);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Document OCR could not complete.";
+      const msg = e instanceof Error ? e.message : typeof e === "string" ? e : e && typeof e === "object" && "message" in e && typeof e.message === "string" ? e.message : "Document OCR could not complete. Check browser console for the underlying OCR engine error.";
       setError(msg);
       setScanStatus("");
       setScanConfidence(null);
