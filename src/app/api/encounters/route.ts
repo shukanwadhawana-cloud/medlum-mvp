@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { hashClinicalNote } from "@/lib/clinical-signing";
+import { canViewClinicalChart } from "@/lib/permissions";
 
 async function getSharedPatient(patientId: string, doctorId: string) {
   const membership = await requireActiveClinicMembership(doctorId);
@@ -18,6 +19,9 @@ export async function GET(req: Request) {
   const patientId = searchParams.get("patientId");
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canViewClinicalChart(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   if (patientId && !(await getSharedPatient(patientId, session.doctorId))) return NextResponse.json({ error: "Patient not found" }, { status: 404 });
 
   const members = await prisma.clinicMember.findMany({
@@ -39,6 +43,9 @@ export async function POST(req: Request) {
   try {
     const membership = await requireActiveClinicMembership(session.doctorId);
     if (!membership) return NextResponse.json({ success: false, error: "No active clinic membership" }, { status: 403 });
+    if (!canViewClinicalChart(membership.role)) {
+      return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+    }
     const body = await req.json();
     const patientId = String(body.patientId || "");
     if (!patientId) return NextResponse.json({ success: false, error: "Patient required" }, { status: 400 });
