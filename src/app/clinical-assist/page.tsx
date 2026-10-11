@@ -122,7 +122,15 @@ export default function ClinicalAssistPage() {
   }
 
   async function scan(file: File) {
-    setScanBusy(true); setScanStatus("Preparing document…"); setScanConfidence(null); setError("");
+    // Clear prior output immediately: a failed/new upload must never leave stale
+    // text looking like the result of the newly selected document.
+    setScanText("");
+    setScanConfidence(null);
+    setDetectedTerms([]);
+    setScanBusy(true);
+    setScanStatus("Preparing document…");
+    setError("");
+    setMessage("");
     try {
       const lowerName = file.name.toLowerCase();
       const isPdf = file.type === "application/pdf" || lowerName.endsWith(".pdf");
@@ -163,19 +171,26 @@ export default function ClinicalAssistPage() {
 
       setScanStatus(isPdf ? "Reading PDF locally…" : "Running OCR on this device…");
       const best = await runClinicalAssistOcr(ocrFile);
-      const text = best.text; setScanText(text); setScanConfidence(best.confidence); setError("");
+      const text = best.text.trim();
+      if (text.length < 20) {
+        throw new Error("Very little readable text was found. No OCR result was accepted; try a clearer image or a higher-quality scan.");
+      }
+      setScanText(text);
+      setScanConfidence(best.confidence);
+      setError("");
       const parsed = parseScan(text);
       const clinicalText = normalizeClinicalText(text);
       setDetectedTerms(clinicalText.detected);
       setForm(f=>({...f, ...(parsed.name ? {name:parsed.name}:{}), ...(parsed.age ? {age:parsed.age}:{}), ...(parsed.gender ? {gender:parsed.gender}:{}), ...(parsed.phone ? {phone:parsed.phone}:{}), ...(parsed.bp ? {bp:parsed.bp}:{}), ...(parsed.diagnosis ? {diagnosis:parsed.diagnosis}:{}), ...(parsed.medicines ? {medicines:parsed.medicines}:{}), ...(parsed.advice ? {advice:parsed.advice}:{}), clinicalNotes:text}));
+      const sourceMessage = `Source: ${best.label}. ${text.length.toLocaleString()} characters extracted.`;
       const confidenceMessage = best.confidence === null
-        ? "Document text extracted. Review it carefully."
+        ? `${sourceMessage} Review the extracted text against the original document before clinical use.`
         : best.confidence >= 80
-          ? "High-confidence OCR completed. Review the extracted fields."
+          ? `${sourceMessage} OCR confidence is high; verify the extracted fields against the original.`
           : best.confidence >= 55
-            ? "OCR completed with moderate confidence. Review the text carefully."
-            : "OCR completed with low confidence. Retake the photo if possible.";
-      setScanStatus(best.partial ? confidenceMessage + " Only the first OCR pages were processed." : confidenceMessage);
+            ? `${sourceMessage} OCR confidence is moderate; carefully verify the text against the original.`
+            : `${sourceMessage} OCR confidence is low; retake or rescan the document if possible.`;
+      setScanStatus(best.partial ? confidenceMessage + " Only the supported first pages were processed." : confidenceMessage);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Document OCR could not complete.";
       setError(msg);
