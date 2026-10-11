@@ -13,12 +13,11 @@
  */
 import { createRequire } from "module";
 import { join, dirname } from "path";
-import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { readFileSync, existsSync, readdirSync } from "fs";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const require = createRequire(import.meta.url);
+const root = join(__dirname, "..");
+const require = createRequire(__filename);
 
 const fails: string[] = [];
 function ok(cond: unknown, msg: string) {
@@ -205,7 +204,7 @@ try {
   process.exit(1);
 }
 
-const { findAuthorizedPatient } = await import("../src/lib/clinic-auth.ts");
+import { findAuthorizedPatient } from "../src/lib/clinic-auth";
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
@@ -496,11 +495,17 @@ async function runDbTests() {
   }
 }
 
-await runDbTests();
-
-if (fails.length) {
-  console.error(`P1 RBAC tenant isolation FAILED (${fails.length})`);
-  fails.forEach((f) => console.error("-", f));
-  process.exit(1);
-}
-console.log("P1 RBAC tenant isolation PASSED");
+runDbTests()
+  .then(() => {
+    if (fails.length) {
+      console.error(`P1 RBAC tenant isolation FAILED (${fails.length})`);
+      fails.forEach((f) => console.error("-", f));
+      process.exitCode = 1;
+      return;
+    }
+    console.log("P1 RBAC tenant isolation PASSED");
+  })
+  .catch((e) => {
+    console.error("P1 RBAC tenant isolation crashed", e);
+    process.exitCode = 1;
+  });
