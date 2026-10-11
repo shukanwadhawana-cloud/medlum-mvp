@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
+import { canViewClinicalChart } from "@/lib/permissions";
 
 const NOTE_TYPES = new Set([
   "Progress Note",
@@ -44,6 +45,9 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canViewClinicalChart(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const patientId = searchParams.get("patientId");
@@ -68,6 +72,9 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ success: false, error: "No active clinic membership" }, { status: 403 });
+  if (!canViewClinicalChart(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
 
   try {
     const body = await req.json();
@@ -139,6 +146,9 @@ export async function PATCH(req: Request) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ success: false, error: "No active clinic membership" }, { status: 403 });
+  if (!canViewClinicalChart(membership.role)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
 
   try {
     const body = await req.json();

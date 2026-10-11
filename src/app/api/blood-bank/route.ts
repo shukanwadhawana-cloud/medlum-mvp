@@ -1,18 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { canAccessModule } from "@/lib/permissions";
 
 async function getContext() {
   const session = await getSession();
   if (!session) return null;
-  const membership = await prisma.clinicMember.findFirst({ where: { doctorId: session.doctorId }, orderBy: { createdAt: "asc" } });
+  const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return null;
-  return { session, clinicId: membership.clinicId };
+  return { session, clinicId: membership.clinicId, membership };
+}
+
+function hasBloodBankAccess(ctx: NonNullable<Awaited<ReturnType<typeof getContext>>>) {
+  return canAccessModule(ctx.membership.role, "blood_bank");
 }
 
 export async function GET() {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasBloodBankAccess(ctx)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   const [inventory, donors, requests] = await Promise.all([
     prisma.bloodInventory.findMany({ where: { clinicId: ctx.clinicId }, orderBy: [{ bloodGroup: "asc" }, { component: "asc" }, { expiryDate: "asc" }] }),
     prisma.bloodDonor.findMany({ where: { clinicId: ctx.clinicId }, orderBy: { createdAt: "desc" }, take: 100 }),
@@ -24,6 +33,9 @@ export async function GET() {
 export async function POST(req: Request) {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasBloodBankAccess(ctx)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const action = String(body.action || "");
@@ -63,6 +75,9 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const ctx = await getContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasBloodBankAccess(ctx)) {
+    return NextResponse.json({ success: false, error: "Insufficient role permissions for this operation.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const action = String(body.action || "");
