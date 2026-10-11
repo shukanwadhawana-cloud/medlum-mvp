@@ -111,7 +111,7 @@ export async function POST(req: Request) {
 
     const prescription = await prisma.prescription.findFirst({
       where: { id: prescriptionId, patientId, patient: { clinicId: access.clinicId } },
-      select: { id: true, patientId: true, medicines: true, encounterId: true },
+      select: { id: true, patientId: true, medicines: true, encounterId: true, status: true },
     });
     if (!prescription) return NextResponse.json({ success: false, error: "Medication order not found for this IPD patient." }, { status: 404 });
     if (prescription.status === "CANCELLED" || prescription.status === "DISCONTINUED") return NextResponse.json({ success: false, error: "A discontinued medication order cannot be scheduled for administration." }, { status: 409 });
