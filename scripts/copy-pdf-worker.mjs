@@ -21,7 +21,7 @@ copyFileSync(tesseractWorker, tesseractTarget);
 const coreSource = resolve("node_modules/tesseract.js-core");
 const coreTarget = resolve("public/tesseract/core");
 mkdirSync(coreTarget, { recursive: true });
-const coreFiles = readdirSync(coreSource).filter((name) => /\\.(?:js|wasm)$/.test(name));
+const coreFiles = readdirSync(coreSource).filter((name) => name.endsWith(".js") || name.endsWith(".wasm"));
 if (!coreFiles.some((name) => name.endsWith(".wasm.js")) || !coreFiles.some((name) => name.endsWith(".wasm"))) {
   throw new Error("Tesseract WASM core JS/WASM assets were not found in " + coreSource);
 }
