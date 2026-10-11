@@ -29,7 +29,7 @@ const LEFT_NAV:Record<MainTab,string[]>={
   "Dashboard":["Vitals","Problems","Final Diagnosis","Chief-Complaints","Allergies","OPD/IPD Details"],
   "Orders":["Order Medicines","Laboratory","Radiology","Procedure"],
   "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
-  "Discharge Summary":["Transfer Summary","Discharge Summary","Pharmacy Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note","Case Summary"],
+  "Discharge Summary":[],
   "MAR":["Medication Administration Record"],
 };
 
@@ -418,11 +418,11 @@ export default function IPDPatientWorkspace(){
     )}
 
     {/* COVER SHEET NOTES */}
-    {mainTab==="Discharge Summary"&&["Transfer Summary","Discharge Summary","Pharmacy Summary","Death Summary","DAMA Summary","LAMA Summary","Fitness Note","Case Summary"].includes(leftNav)&&(
+    {mainTab==="Discharge Summary"&&(
      <form onSubmit={saveDischargeStructured} className="space-y-3 max-w-3xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
-       <div><h3 className="font-semibold text-sm">{coverNoteType}</h3><p className="text-[10px] text-gray-500">Prepare the selected hospital summary from the patient's complete chart. Discharge finalization is available only for Discharge Summary.</p></div>
-       <div className="flex flex-wrap gap-2"><button type="button" onClick={()=>setCoverNoteType(leftNav)} className="h-9 px-3 rounded-lg bg-slate-50 border text-xs font-medium">{leftNav}</button><select value={coverNoteType} onChange={e=>setCoverNoteType(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{NOTE_TYPES.map(t=><option key={t}>{t}</option>)}</select>{coverNoteType==="Discharge Summary"&&selected.status==="DISCHARGED"&&<Link href={`/ipd-summaries/${selected.id}/print`} target="_blank" className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">Print / Save PDF</Link>}</div>
+       <div><h3 className="font-semibold text-sm">{department} · {coverNoteType}</h3><p className="text-[10px] text-gray-500">Preparing {coverNoteType.toLowerCase()} for {department}. Discharge finalization is available only for Discharge Summary.</p></div>
+       <div className="flex flex-wrap gap-2"><label className="flex items-center gap-2 text-[10px] text-gray-600">Department<select aria-label="Summary department" value={department} onChange={e=>setDepartment(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{DEPARTMENTS.map(d=><option key={d}>{d}</option>)}</select></label><label className="flex items-center gap-2 text-[10px] text-gray-600">Summary type<select aria-label="Summary type" value={coverNoteType} onChange={e=>setCoverNoteType(e.target.value)} className="h-9 px-2 rounded-lg border text-xs">{NOTE_TYPES.map(t=><option key={t}>{t}</option>)}</select></label>{coverNoteType==="Discharge Summary"&&selected.status==="DISCHARGED"&&<Link href={`/ipd-summaries/${selected.id}/print`} target="_blank" className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">Print / Save PDF</Link>}</div>
       </div>
       {coverNoteType==="Discharge Summary"&&<div className="border rounded-lg p-3 bg-white space-y-3">
        <div><p className="text-[11px] font-semibold">Administrative / Payer pathway</p><p className="text-[10px] text-gray-500">Choose the parallel clearance route; it does not replace the clinical discharge record.</p></div>

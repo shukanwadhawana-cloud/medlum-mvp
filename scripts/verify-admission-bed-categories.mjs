@@ -10,6 +10,9 @@ const ocr = fs.readFileSync("src/lib/clinical-assist-ocr.ts", "utf8");
 assert(admissionPage.includes('action: "admit"'), "OPD admission must call the admit action");
 assert(ipdApi.includes('if (action === "admit")'), "IPD API must implement OPD admission");
 assert(ipdApi.includes('notes: encodePatientNotes(cleanPatientNotes(patient.notes), "IPD", nextProfile)'), "Admission must preserve the existing patient record and OPD history");
+assert(ipdApi.includes('careSetting: "IPD"'), "Admission profile must not retain stale OPD care setting");
+const patientApi = fs.readFileSync("src/app/api/patients/route.ts", "utf8");
+assert(patientApi.includes("...profile,\n    // The authoritative care-setting marker must win over stale legacy profile JSON.\n    careSetting: parseCareSetting(p.notes)"), "Patient serialization must prefer the authoritative care-setting marker over stale profile JSON");
 assert(ipdApi.includes("Destination room is not in the hospital directory."), "Admission must validate room directory membership");
 assert(ipdApi.includes("This bed has already been assigned to another active IPD patient."), "Admission must reject occupied beds");
 assert(ipdApi.includes('isolationLevel: "Serializable"'), "Admission must use serializable transaction isolation");
@@ -33,3 +36,9 @@ assert(ocr.includes("clientScannedPdfOcr"), "Scanned PDF OCR fallback must remai
 assert(ocr.includes("clientTesseractOcr"), "Image OCR path must remain");
 
 console.log("Admission/bed category and Clinical Assist OCR regression checks: PASS");
+
+
+assert(ipdPage.includes('"Discharge Summary":[]'), "Summary types must not be duplicated in the persistent left navigation");
+assert(ipdPage.includes('aria-label="Summary type"'), "IPD summary type must be selectable from the dropdown");
+assert(ipdPage.includes('aria-label="Summary department"'), "IPD summary must expose its department selector");
+assert(ipdPage.includes('{department} · {coverNoteType}'), "IPD summary must visibly identify the selected department and summary type");

@@ -100,7 +100,7 @@ function extractValueFromSegment(segment: string): string | null {
 
   // Otherwise take the first standalone numeric token, but do not treat a
   // reference interval such as 13-17 as the measured result.
-  const numeric = /[<>]?\\d+(?:[.,]\\d+)?/g;
+  const numeric = /[<>]?\d+(?:[.,]\d+)?/g;
   for (const match of segment.matchAll(numeric)) {
     const start = match.index ?? 0;
     const value = match[0];
@@ -112,7 +112,7 @@ function extractValueFromSegment(segment: string): string | null {
   return null;
 }
 
-function extractCandidates(text: string): Record<string, string> {
+export function extractCandidates(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = normalizeOcrLines(text);
 

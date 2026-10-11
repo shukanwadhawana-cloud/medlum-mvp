@@ -28,14 +28,15 @@ function serialize(p: any, latestVitals: any = null) {
     bp: p.bp,
     allergies: p.allergies,
     notes: cleanPatientNotes(p.notes),
-    careSetting: profile.careSetting || parseCareSetting(p.notes),
     status: p.status || "ACTIVE",
     uhid: formatUhid(p.uhid),
     registrationNo: formatUhid(p.registrationNo),
     medlumId: `MLD-${String(p.id || "").slice(-8).toUpperCase()}`,
-    admissionDate: profile.admissionDate || (profile.careSetting === "IPD" ? p.createdAt.toISOString() : null),
+    admissionDate: profile.admissionDate || (parseCareSetting(p.notes) === "IPD" ? p.createdAt.toISOString() : null),
     deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
     ...profile,
+    // The authoritative care-setting marker must win over stale legacy profile JSON.
+    careSetting: parseCareSetting(p.notes),
     latestVitals,
     createdAt: p.createdAt.toISOString(),
   };
