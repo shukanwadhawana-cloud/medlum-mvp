@@ -62,7 +62,9 @@ function buildCsp(): string {
     "object-src 'none'",
     "frame-ancestors 'self'",
     "form-action 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://checkout.razorpay.com https://api.razorpay.com",
+    // wasm-unsafe-eval is required for Tesseract.js-core WebAssembly under CSP.
+    // Without it, Core() hangs after the core script loads (browser OCR timeout).
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://checkout.razorpay.com https://api.razorpay.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",

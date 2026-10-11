@@ -31,6 +31,7 @@ assert(middleware.includes("default-src 'self'"), "CSP default-src self");
 assert(!middleware.includes("default-src *"), "CSP must not use default-src *");
 assert(middleware.includes("frame-src"), "CSP frame-src for Jitsi");
 assert(middleware.includes("object-src 'none'"), "CSP object-src none");
+assert(middleware.includes("wasm-unsafe-eval"), "CSP allows Tesseract WebAssembly");
 
 const clientPagesRequired = ["src/app/portal/login/page.tsx"];
 for (const page of clientPagesRequired) {
@@ -59,3 +60,4 @@ console.log("- Origin-absent requires X-MedLum-Requested-With");
 console.log("- Webhooks + public booking exempt");
 console.log("- Client mutations send MedLum header");
 console.log("- Production CSP includes Jitsi + Razorpay, default-src self");
+console.log("- CSP allows wasm-unsafe-eval for on-device Tesseract");
