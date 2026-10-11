@@ -220,9 +220,9 @@ export default function PatientClinicalChartPage() {
             </div>
             <div className="space-y-1">
               <Link href={`/patients/${id}`} className="flex min-h-9 items-center rounded-lg bg-[#c2183a] px-2.5 text-xs font-semibold text-white">New consult</Link>
-              <button type="button" onClick={() => setTab("orders")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Order labs / imaging</button>
-              <button type="button" onClick={() => setTab("rx")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Prescribe</button>
-              <button type="button" onClick={() => setTab("notes")} className="flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-medium">Add note</button>
+              <button type="button" onClick={() => setTab("orders")} aria-pressed={tab === "orders"} className={`flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-semibold transition ${tab === "orders" ? "border-[#c2183a] bg-[#c2183a] text-white" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>Order labs / imaging</button>
+              <button type="button" onClick={() => setTab("rx")} aria-pressed={tab === "rx"} className={`flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-semibold transition ${tab === "rx" ? "border-[#c2183a] bg-[#c2183a] text-white" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>Prescribe</button>
+              <button type="button" onClick={() => setTab("notes")} aria-pressed={tab === "notes"} className={`flex min-h-9 w-full items-center rounded-lg border px-2.5 text-left text-xs font-semibold transition ${tab === "notes" ? "border-[#c2183a] bg-[#c2183a] text-white" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>Add note</button>
               <Link href={`/physiotherapy?patientId=${encodeURIComponent(String(id))}`} className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Physiotherapy for this patient</Link>
               <Link href={`/dietitian?patientId=${encodeURIComponent(String(id))}`} className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Dietitian / nutrition for this patient</Link>
               <Link href="/labs" className="flex min-h-9 items-center rounded-lg border px-2.5 text-xs font-medium">Labs queue</Link>
