@@ -51,6 +51,8 @@ export async function POST(req: Request) {
   if (isCkd && !ckdStage) missing.push("CKD stage");
   if (isCkd && !dialysisStatus) missing.push("dialysis status");
   if ((isCkd || isPle) && !labs) missing.push("recent relevant labs (including potassium/phosphate where applicable)");
+  if ((isCkd || isPle) && !clip(body.nutritionScreening, 500)) missing.push("nutrition screening / nutritional status");
+  if (/hypothyroid/.test(lowerConditions) && !/tsh|free t4|ft4/i.test(labs)) missing.push("relevant thyroid labs (TSH / free T4) or explicit clinician note that they are unavailable");
   if (missing.length) return NextResponse.json({ success: false, error: "Complete these critical inputs before generating a high-risk nutrition draft.", missingInputs: missing }, { status: 422 });
 
   const context = [
