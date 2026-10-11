@@ -154,8 +154,7 @@ export async function POST(req: Request) {
   }
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "");
-    const membership = await prisma.clinicMember.findFirst({ where: { doctorId: session.doctorId, clinicId: clinicId || undefined, isActive: true }, select: { role: true } });
-    const actorRole = membership?.role || "Consultant";
+    const actorRole = membership.role;
 
     if (action === "lab-order") {
       const patientId = String(body.patientId || "");
