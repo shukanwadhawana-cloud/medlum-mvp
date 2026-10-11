@@ -285,7 +285,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     action: "update",
     entity: "Patient",
     entityId: id,
-    meta: { fields: Object.keys(data), previous: { name: patient.name, age: patient.age, gender: patient.gender, phone: patient.phone, allergies: patient.allergies }, allergiesUpdated: Object.prototype.hasOwnProperty.call(data, "allergies") },
+    meta: { fields: Object.keys(data), previous: { name: patient.name, age: patient.age, gender: patient.gender, phone: patient.phone }, allergiesUpdated: Object.prototype.hasOwnProperty.call(data, "allergies"), previousAllergyRecorded: Boolean(String(patient.allergies || "").trim()) },
   });
 
   return NextResponse.json({
