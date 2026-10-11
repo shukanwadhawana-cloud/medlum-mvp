@@ -4,7 +4,8 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 import { requireClinicalModule } from "@/lib/clinic-products";
-import { normalizeClinicRole } from "@/lib/clinic-auth";
+import { normalizeClinicRole, requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { canAccessModule } from "@/lib/permissions";
 import { hashClinicalNote } from "@/lib/clinical-signing";
 
 function metaOf(l: { meta?: string | null } | null | undefined) {
@@ -52,6 +53,10 @@ export async function GET() {
   const access = await requireClinicalModule(session.doctorId,"IPD");
   if (!access.allowed) return NextResponse.json({ error: "IPD access is not included in this clinic's subscription." }, { status: 403 });
   const clinicId = access.clinicId;
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership || membership.clinicId !== clinicId || !canAccessModule(membership.role, "ipd")) {
+    return NextResponse.json({ success: false, error: "IPD module access is not authorized for this role or clinic.", code: "RBAC_DENIED" }, { status: 403 });
+  }
   const doctorIds = clinicId
     ? (await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } })).map((x) => x.doctorId)
     : [session.doctorId];
@@ -143,6 +148,10 @@ export async function POST(req: Request) {
     const access = await requireClinicalModule(session.doctorId,"IPD");
     if (!access.allowed) return NextResponse.json({ success: false, error: "IPD access is not included in this clinic's subscription." }, { status: 403 });
     const clinicId = access.clinicId;
+  const membership = await requireActiveClinicMembership(session.doctorId);
+  if (!membership || membership.clinicId !== clinicId || !canAccessModule(membership.role, "ipd")) {
+    return NextResponse.json({ success: false, error: "IPD module access is not authorized for this role or clinic.", code: "RBAC_DENIED" }, { status: 403 });
+  }
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "");
     const membership = await prisma.clinicMember.findFirst({ where: { doctorId: session.doctorId, clinicId: clinicId || undefined, isActive: true }, select: { role: true } });
