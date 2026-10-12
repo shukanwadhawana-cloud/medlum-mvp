@@ -29,7 +29,10 @@ mustContain("src/app/api/imaging-studies/route.ts", [
   "const status = \"PENDING\";",
   "uid.length > 64",
   "Never accept an Orthanc object ID from the browser",
+  'study.status !== "AVAILABLE" || !study.orthancId',
+  'code: "STUDY_NOT_READY"',
 ]);
+mustContain("src/components/ImagingStudiesPanel.tsx", ['s.status !== "AVAILABLE"', "Awaiting PACS verification"]);
 mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
   "CREATE TABLE IF NOT EXISTS \"ImagingStudy\"",
   "studyInstanceUid",
