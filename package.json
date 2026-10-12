@@ -81,7 +81,8 @@
     "prebuild": "node scripts/copy-pdf-worker.mjs",
     "test:clinical-assist-ocr": "node scripts/verify-clinical-assist-ocr.mjs",
     "test:admission-bed-categories": "node scripts/verify-admission-bed-categories.mjs",
-    "test:lab-ocr-behavior": "npx --yes tsx scripts/verify-lab-ocr-behavior.ts"
+    "test:lab-ocr-behavior": "npx --yes tsx scripts/verify-lab-ocr-behavior.ts",
+    "test:pacs-contracts": "node scripts/verify-pacs-imaging-contracts.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
