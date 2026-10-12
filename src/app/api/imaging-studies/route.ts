@@ -151,13 +151,16 @@ export async function POST(req: Request) {
   }
 
   const status =
-    body.status && INGEST_STATUS.has(String(body.status)) ? String(body.status) : "AVAILABLE";
+    body.status && INGEST_STATUS.has(String(body.status)) ? String(body.status) : "PENDING";
   const id = newId();
   const modality = String(body.modality || "OT").trim().slice(0, 16);
   const description = String(body.description || "").trim().slice(0, 512);
   const accessionNumber = String(body.accessionNumber || "").trim();
   const orthancId = String(body.orthancId || "").trim().slice(0, 128);
   const studyDate = body.studyDate ? new Date(body.studyDate) : null;
+  if (studyDate && Number.isNaN(studyDate.getTime())) {
+    return NextResponse.json({ error: "Invalid studyDate" }, { status: 400 });
+  }
 
   await prisma.$executeRaw`
     INSERT INTO "ImagingStudy" (
