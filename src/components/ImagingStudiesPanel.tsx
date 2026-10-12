@@ -52,20 +52,47 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
   }, [load]);
 
   async function openViewer(id: string) {
+    // Open the tab synchronously inside the tap handler so iOS Safari does not
+    // treat it as a popup after the asynchronous authorization request.
+    const viewerTab = window.open("about:blank", "_blank");
+    if (!viewerTab) {
+      setError("Your browser blocked the new tab. Allow pop-ups for MedLum and try again.");
+      return;
+    }
+    // The new tab needs no access to the MedLum window.
+    viewerTab.opener = null;
+    viewerTab.document.title = "MedLum PACS";
+    viewerTab.document.body.innerHTML =
+      '<main style="font:16px system-ui;padding:24px;color:#334155">Checking access to this imaging study…</main>';
+
     setLaunching(id);
     setError("");
     try {
       const res = await fetch(`/api/imaging-studies?id=${encodeURIComponent(id)}&launch=1`, {
         credentials: "include",
+        cache: "no-store",
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        viewerTab.close();
         setError(data.error || "Viewer unavailable");
         return;
       }
-      if (data.viewerUrl) window.open(String(data.viewerUrl), "_blank", "noopener,noreferrer");
-      else setError("Viewer URL not available");
+      if (typeof data.viewerUrl !== "string" || !data.viewerUrl) {
+        viewerTab.close();
+        setError("Viewer URL not available");
+        return;
+      }
+
+      const target = new URL(data.viewerUrl, window.location.origin);
+      if (target.protocol !== "https:" && target.origin !== window.location.origin) {
+        viewerTab.close();
+        setError("The configured PACS viewer must use HTTPS.");
+        return;
+      }
+      viewerTab.location.replace(target.toString());
     } catch {
+      viewerTab.close();
       setError("Failed to open viewer");
     } finally {
       setLaunching(null);
@@ -108,7 +135,7 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
           External PACS is not configured. Viewing requires Orthanc + OHIF (docs/PACS_INTEGRATION.md).
         </p>
       )}
-      {error ? <p className="mt-2 text-[11px] text-red-700">{error}</p> : null}
+      {error ? <p role="alert" className="mt-2 text-[11px] text-red-700">{error}</p> : null}
       {loading ? <p className="mt-2 text-[11px] text-gray-500">Loading…</p> : null}
       {!loading && studies.length === 0 && !error ? (
         <p className="mt-2 text-[11px] text-gray-500">No imaging studies linked for this selection.</p>
@@ -140,7 +167,7 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
                 onClick={() => void openViewer(s.id)}
                 className="rounded-md bg-[#c2183a] px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
               >
-                {launching === s.id ? "Opening…" : s.status !== "AVAILABLE" ? "Awaiting PACS verification" : "Open in viewer"}
+                {launching === s.id ? "Opening…" : s.status !== "AVAILABLE" ? "Awaiting PACS verification" : "Open PACS in new tab"}
               </button>
             </div>
           </li>
