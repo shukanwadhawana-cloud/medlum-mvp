@@ -23,6 +23,8 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
   const [error, setError] = useState("");
   const [launching, setLaunching] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [dicomFile, setDicomFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +101,45 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
     }
   }
 
+  async function importStudy() {
+    if (!patientId || !diagnosticOrderId) {
+      setError("Open PACS from a specific patient's diagnostic order to link an imported study safely.");
+      return;
+    }
+    if (!dicomFile) {
+      setError("Choose a DICOM file first.");
+      return;
+    }
+    setImporting(true);
+    setError("");
+    try {
+      const body = new FormData();
+      body.set("file", dicomFile);
+      body.set("patientId", patientId);
+      body.set("diagnosticOrderId", diagnosticOrderId);
+      const res = await fetch("/api/imaging-studies/import", {
+        method: "POST",
+        credentials: "include",
+        body,
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "DICOM import failed");
+        return;
+      }
+      setDicomFile(null);
+      const picker = document.getElementById("medlum-pacs-dicom-file") as HTMLInputElement | null;
+      if (picker) picker.value = "";
+      await load();
+      setError("");
+    } catch {
+      setError("DICOM import failed. Check the PACS connection and try again.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function verifyStudy(id: string) {
     setVerifying(id);
     setError("");
@@ -136,6 +177,28 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
         </p>
       )}
       {error ? <p role="alert" className="mt-2 text-[11px] text-red-700">{error}</p> : null}
+      {pacs.enabled && patientId && diagnosticOrderId ? (
+        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2">
+          <p className="text-[12px] font-semibold text-gray-900">Import DICOM study</p>
+          <p className="mt-1 text-[10px] text-gray-600">Choose a DICOM instance for this patient and diagnostic order. The server verifies the study and patient identity before linking it.</p>
+          <input
+            id="medlum-pacs-dicom-file"
+            type="file"
+            accept=".dcm,application/dicom,application/octet-stream"
+            onChange={(event) => setDicomFile(event.target.files?.[0] || null)}
+            className="mt-2 block w-full text-[11px] text-gray-700"
+          />
+          <button
+            type="button"
+            disabled={!dicomFile || importing}
+            onClick={() => void importStudy()}
+            className="mt-2 rounded-md bg-[#c2183a] px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+          >
+            {importing ? "Importing and verifying…" : "Import and link DICOM"}
+          </button>
+        </div>
+      ) : null}
+
       {loading ? <p className="mt-2 text-[11px] text-gray-500">Loading…</p> : null}
       {!loading && studies.length === 0 && !error ? (
         <p className="mt-2 text-[11px] text-gray-500">No imaging studies linked for this selection.</p>
