@@ -50,12 +50,15 @@ mustContain("src/app/api/imaging-studies/import/route.ts", [
   "PACS_UNAVAILABLE",
   "diagnosticOrderId",
   "ORDER_PATIENT_MISMATCH",
+  "ORDER_CANCELLED",
   "/instances",
+  '"Content-Type": "application/dicom"',
   "findOrthancStudyByUid",
   "DICOM_PATIENT_ID_MISMATCH",
   "import_identity_rejected",
   "LINK_CONFLICT",
   'status: "AVAILABLE"',
+  "identityMode",
 ]);
 mustContain("src/app/api/imaging-studies/verify/route.ts", [
   "getSession",
@@ -85,7 +88,11 @@ mustContain("src/components/ImagingStudiesPanel.tsx", [
   "Import DICOM study",
   "/api/imaging-studies/import",
   "Import and link DICOM",
-  "Choose a DICOM instance for this patient and diagnostic order."
+  "Choose a DICOM instance for this patient and diagnostic order.",
+]);
+mustContain("src/app/diagnostics/page.tsx", [
+  "ImagingStudiesPanel",
+  "diagnosticOrderId={o.id}",
 ]);
 mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
   'CREATE TABLE IF NOT EXISTS "ImagingStudy"',
