@@ -129,7 +129,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {mobileModulesOpen && (
         <div className="fixed inset-0 z-[60] md:hidden" role="dialog" aria-modal="true" aria-label="All MedLum modules">
           <button type="button" className="absolute inset-0 h-full w-full bg-black/40" aria-label="Close all modules" onClick={() => setMobileModulesOpen(false)} />
-          <section className="absolute inset-x-0 bottom-0 flex max-h-[82dvh] flex-col rounded-t-2xl border-t border-[var(--ml-border)] bg-[var(--ml-surface)] shadow-2xl safe-area-bottom">
+          <section id="mobile-all-modules" className="absolute inset-x-0 bottom-0 flex max-h-[82dvh] flex-col rounded-t-2xl border-t border-[var(--ml-border)] bg-[var(--ml-surface)] shadow-2xl safe-area-bottom">
             <div className="flex items-center justify-between border-b border-[var(--ml-border)] px-4 py-3">
               <div>
                 <h2 className="text-base font-bold text-[var(--ml-ink)]">All Modules</h2>
