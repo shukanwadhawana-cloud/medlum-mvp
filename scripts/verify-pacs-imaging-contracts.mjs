@@ -14,7 +14,7 @@ function mustContain(rel, snippets) {
     if (!text.includes(s)) failures.push(`${rel} missing: ${JSON.stringify(s)}`);
   }
 }
-mustContain("src/lib/pacs.ts", ["getPacsConfig", "buildOhifViewerUrl", "PACS_ENABLED"]);
+mustContain("src/lib/pacs.ts", ["getPacsConfig", "buildOhifViewerUrl", "PACS_ENABLED", "uid.length > 64"]);
 mustContain("src/app/api/imaging-studies/route.ts", [
   "getSession",
   "requireActiveClinicMembership",
@@ -22,6 +22,9 @@ mustContain("src/app/api/imaging-studies/route.ts", [
   "ImagingStudy",
   "RBAC_DENIED",
   "PACS_UNAVAILABLE",
+  "const status = \"PENDING\";",
+  "uid.length > 64",
+  "Never accept an Orthanc object ID from the browser",
 ]);
 mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
   "CREATE TABLE IF NOT EXISTS \"ImagingStudy\"",
