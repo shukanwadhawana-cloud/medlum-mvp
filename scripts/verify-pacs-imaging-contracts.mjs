@@ -42,8 +42,7 @@ mustContain("src/app/api/imaging-studies/route.ts", [
   "Never accept an Orthanc object ID from the browser",
   'study.status !== "AVAILABLE" || !study.orthancId',
   'code: "STUDY_NOT_READY"',
-  // Browser upsert must not demote verified studies
-  'never let browser input clear a verified orthancId',
+  "never let browser input clear a verified orthancId",
 ]);
 mustContain("src/app/api/imaging-studies/verify/route.ts", [
   "getSession",
@@ -54,9 +53,8 @@ mustContain("src/app/api/imaging-studies/verify/route.ts", [
   "AVAILABLE",
   "verify_attempt",
   "verify_failed",
-  "Never accept",
+  "Browser clients cannot supply orthancId",
 ]);
-// Ensure verify route does not accept client-supplied orthancId as source of truth
 const verifySrc = fs.readFileSync(path.join(root, "src/app/api/imaging-studies/verify/route.ts"), "utf8");
 if (/body\.orthancId/.test(verifySrc) || /body\.status/.test(verifySrc)) {
   failures.push("verify route must not trust browser orthancId or status");
