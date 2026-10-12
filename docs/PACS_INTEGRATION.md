@@ -46,5 +46,6 @@ PACS_ORTHANC_PASSWORD=
 ## Limitations
 
 - Production Orthanc host not provisioned by this PR.
-- Prisma client model for ImagingStudy should be added in a careful schema commit after migration is verified.
+- The Prisma `ImagingStudy` model is present; validate migration and schema against the target database before rollout.
+- Metadata API submissions remain `PENDING`; only a trusted ingestion/verification flow may mark a study available.
 - Full E2E DICOM pixel load requires local Orthanc + synthetic studies.
