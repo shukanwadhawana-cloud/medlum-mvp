@@ -179,12 +179,10 @@ jobs:
           INSERT INTO "Patient" ("id") VALUES ('patient-test');
           INSERT INTO "ImagingStudy" ("id", "clinicId", "patientId", "studyInstanceUid")
             VALUES ('study-test', 'clinic-test', 'patient-test', '1.2.840.10008.1');
-          DO $
-          BEGIN
-            IF (SELECT "status" FROM "ImagingStudy" WHERE "id" = 'study-test') <> 'PENDING' THEN
-              RAISE EXCEPTION 'ImagingStudy default status must be PENDING';
-            END IF;
-          END $;
+          SELECT CASE
+            WHEN (SELECT "status" FROM "ImagingStudy" WHERE "id" = 'study-test') = 'PENDING' THEN 'migration default OK'
+            ELSE CAST(1 / 0 AS TEXT)
+          END;
           SQL
       - name: P1 RBAC tenant isolation (Postgres)
         env:
