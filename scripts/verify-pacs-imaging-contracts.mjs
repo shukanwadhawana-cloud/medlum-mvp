@@ -14,7 +14,18 @@ function mustContain(rel, snippets) {
     if (!text.includes(s)) failures.push(`${rel} missing: ${JSON.stringify(s)}`);
   }
 }
-mustContain("src/lib/pacs.ts", ["getPacsConfig", "buildOhifViewerUrl", "PACS_ENABLED", "uid.length > 64", "These query parameters do not configure a datasource", 'process.env.NODE_ENV !== "production"', 'u.protocol === "https:"']);
+mustContain("src/lib/pacs.ts", [
+  "getPacsConfig",
+  "buildOhifViewerUrl",
+  "findOrthancStudyByUid",
+  "PACS_ENABLED",
+  "uid.length > 64",
+  "These query parameters do not configure a datasource",
+  'process.env.NODE_ENV !== "production"',
+  'u.protocol === "https:"',
+  "/tools/find",
+  "UID_MISMATCH",
+]);
 const pacsSource = fs.readFileSync(path.join(root, "src/lib/pacs.ts"), "utf8");
 if (pacsSource.includes('url.searchParams.set("dicomwebRoot"') || pacsSource.includes('url.searchParams.set("datasources"')) {
   failures.push("OHIF URL must not pretend query params configure DICOMweb datasource");
@@ -26,18 +37,41 @@ mustContain("src/app/api/imaging-studies/route.ts", [
   "ImagingStudy",
   "RBAC_DENIED",
   "PACS_UNAVAILABLE",
-  "const status = \"PENDING\";",
+  'const status = "PENDING";',
   "uid.length > 64",
   "Never accept an Orthanc object ID from the browser",
   'study.status !== "AVAILABLE" || !study.orthancId',
   'code: "STUDY_NOT_READY"',
+  // Browser upsert must not demote verified studies
+  'never let browser input clear a verified orthancId',
 ]);
-mustContain("src/components/ImagingStudiesPanel.tsx", ['s.status !== "AVAILABLE"', "Awaiting PACS verification"]);
+mustContain("src/app/api/imaging-studies/verify/route.ts", [
+  "getSession",
+  "requireActiveClinicMembership",
+  "findOrthancStudyByUid",
+  "RBAC_DENIED",
+  "STUDY_NOT_IN_PACS",
+  "AVAILABLE",
+  "verify_attempt",
+  "verify_failed",
+  "Never accept",
+]);
+// Ensure verify route does not accept client-supplied orthancId as source of truth
+const verifySrc = fs.readFileSync(path.join(root, "src/app/api/imaging-studies/verify/route.ts"), "utf8");
+if (/body\.orthancId/.test(verifySrc) || /body\.status/.test(verifySrc)) {
+  failures.push("verify route must not trust browser orthancId or status");
+}
+mustContain("src/components/ImagingStudiesPanel.tsx", [
+  's.status !== "AVAILABLE"',
+  "Awaiting PACS verification",
+  "/api/imaging-studies/verify",
+  "Verify in PACS",
+]);
 mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
-  "CREATE TABLE IF NOT EXISTS \"ImagingStudy\"",
+  'CREATE TABLE IF NOT EXISTS "ImagingStudy"',
   "studyInstanceUid",
 ]);
-mustContain("docs/PACS_INTEGRATION.md", ["Orthanc", "OHIF", "Vercel", "PACS_ENABLED"]);
+mustContain("docs/PACS_INTEGRATION.md", ["Orthanc", "OHIF", "Vercel", "PACS_ENABLED", "verify"]);
 mustContain("services/pacs/docker-compose.yml", ["orthanc", "8042"]);
 if (failures.length) {
   console.error("verify-pacs-imaging-contracts FAILED:");

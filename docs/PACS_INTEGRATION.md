@@ -29,7 +29,21 @@ A durable hospital PACS is **not** proven ₹0 indefinitely. Dev uses `services/
 
 ## Auth model
 
-MedLum session + clinic membership + diagnostic RBAC before study list or viewer launch. Orthanc base URL only from server env (SSRF-safe). No public unauthenticated PACS proxy. Production PACS and OHIF endpoints must use HTTPS; plain HTTP endpoints are accepted only outside production. Do not put PACS credentials in browser URLs or OHIF configuration exposed to clients.
+MedLum session + clinic membership + diagnostic RBAC before study list, verification, or viewer launch. Orthanc base URL only from server env (SSRF-safe). No public unauthenticated PACS proxy. Production PACS and OHIF endpoints must use HTTPS; plain HTTP endpoints are accepted only outside production. Do not put PACS credentials in browser URLs or OHIF configuration exposed to clients.
+
+## Trusted verification
+
+Browser metadata registration always creates/updates rows as `PENDING` and never sets `orthancId`.
+
+`POST /api/imaging-studies/verify` (authenticated, clinic-scoped):
+
+1. Loads the MedLum `ImagingStudy` for the caller’s clinic.
+2. Calls Orthanc server-to-server (`/tools/find` + `/studies/{id}`) with optional basic auth from env.
+3. Requires returned `StudyInstanceUID` to match the MedLum record (`UID_MISMATCH` otherwise).
+4. Only then sets `orthancId` and `status = AVAILABLE`.
+5. Audits `verify_attempt`, `verify_failed`, and successful `verify`.
+
+Viewer launch (`?launch=1`) is rejected with `STUDY_NOT_READY` unless status is `AVAILABLE` and `orthancId` is set.
 
 ## Env (placeholders)
 
@@ -45,8 +59,7 @@ PACS_ORTHANC_PASSWORD=
 
 ## Limitations
 
-- Production Orthanc host not provisioned by this PR.
-- The Prisma `ImagingStudy` model is present; validate migration and schema against the target database before rollout.
-- Metadata API submissions remain `PENDING`; only a trusted ingestion/verification flow may mark a study available. No such production ingestion flow is provisioned yet.
-- CI now validates synthetic DICOM upload, DICOMweb QIDO/WADO-RS frame retrieval, and pixel integrity against an isolated Orthanc container. It does **not** yet prove OHIF browser rendering or production browser-to-PACS connectivity/CORS/authentication.
-- Keep `PACS_ENABLED=false` until a trusted ingestion/verification flow, OHIF browser-render smoke test, production Orthanc host, persistent storage, HTTPS, authentication, backup/restore, and access controls are verified. Never use real patient data in synthetic CI.
+- Production Orthanc/OHIF host is **not** provisioned by this application deploy.
+- CI validates synthetic DICOM upload, DICOMweb QIDO/WADO-RS frame retrieval, and pixel integrity against an isolated Orthanc container. It does **not** yet prove OHIF browser canvas rendering or production CORS/auth.
+- Keep `PACS_ENABLED=false` in production until Orthanc is hosted with HTTPS, persistent storage, backups, edge access control, and a successful synthetic OHIF browser smoke test.
+- Never use real patient DICOM in CI or shared test environments.

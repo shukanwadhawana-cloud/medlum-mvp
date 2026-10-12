@@ -167,6 +167,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid studyDate" }, { status: 400 });
   }
 
+  // On conflict: never let browser input clear a verified orthancId or demote AVAILABLE status.
   await prisma.$executeRaw`
     INSERT INTO "ImagingStudy" (
       id, "clinicId", "patientId", "diagnosticOrderId", "studyInstanceUid",
@@ -182,8 +183,6 @@ export async function POST(req: Request) {
       modality = EXCLUDED.modality,
       description = EXCLUDED.description,
       "accessionNumber" = EXCLUDED."accessionNumber",
-      "orthancId" = EXCLUDED."orthancId",
-      status = EXCLUDED.status,
       "studyDate" = COALESCE(EXCLUDED."studyDate", "ImagingStudy"."studyDate"),
       "updatedAt" = NOW()
   `;
