@@ -64,6 +64,11 @@ mustContain("src/components/ImagingStudiesPanel.tsx", [
   "Awaiting PACS verification",
   "/api/imaging-studies/verify",
   "Verify in PACS",
+  'window.open("about:blank", "_blank")',
+  "viewerTab.opener = null",
+  "viewerTab.location.replace(target.toString())",
+  "Allow pop-ups for MedLum",
+  "The configured PACS viewer must use HTTPS.",
 ]);
 mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
   'CREATE TABLE IF NOT EXISTS "ImagingStudy"',
