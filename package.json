@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:pacs-imaging": "node scripts/verify-pacs-imaging-contracts.mjs",
     "test:portal-auth": "node scripts/verify-portal-auth.mjs",
     "test:hospital-foundation": "node scripts/verify-hospital-foundation.mjs",
     "test:facility-lifecycle": "node scripts/verify-facility-lifecycle.mjs",
