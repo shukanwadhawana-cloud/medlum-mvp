@@ -125,6 +125,8 @@ jobs:
         run: npm run test:p1-authorization
       - name: Verify AI clinical draft security
         run: npm run test:clinical-ai-draft
+      - name: Verify PACS imaging contracts
+        run: npm run test:pacs-contracts
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
@@ -295,6 +297,12 @@ jobs:
           assert int(pixels[0,0]) == 0 and int(pixels[15,15]) == 255
           print("DICOM round-trip pixel integrity: passed (16x16 synthetic image)")
           PY
+          # Mirror MedLum trusted verification: Orthanc /tools/find by StudyInstanceUID
+          find_payload="$(python -c 'import json,pydicom; print(json.dumps({"Level":"Study","Query":{"StudyInstanceUID":pydicom.dcmread("synthetic.dcm").StudyInstanceUID},"Expand":False}))')"
+          find_ids="$(curl --fail --silent --show-error -X POST http://127.0.0.1:8042/tools/find -H 'Content-Type: application/json' -d "$find_payload")"
+          echo "$find_ids" | python -c 'import json,sys; ids=json.load(sys.stdin); assert isinstance(ids,list) and len(ids)>=1, ids; print("Orthanc tools/find verification path: passed", ids[0])'
+          study_meta="$(curl --fail --silent --show-error "http://127.0.0.1:8042/studies/$(echo "$find_ids" | python -c 'import json,sys; print(json.load(sys.stdin)[0])')")"
+          echo "$study_meta" | python -c 'import json,sys,pydicom; m=json.load(sys.stdin); uid=m["MainDicomTags"]["StudyInstanceUID"]; expect=pydicom.dcmread("synthetic.dcm").StudyInstanceUID; assert uid==expect, (uid,expect); print("Orthanc study UID match: passed")'
       - name: Stop isolated Orthanc
         if: always()
         run: docker rm -f medlum-orthanc-ci || true
