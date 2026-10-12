@@ -1,0 +1,20 @@
+services:
+  orthanc:
+    image: orthancteam/orthanc:latest
+    container_name: medlum-orthanc-dev
+    ports:
+      - "8042:8042"
+      - "4242:4242"
+    environment:
+      ORTHANC__NAME: "MedLum-Dev-Orthanc"
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
+      ORTHANC__REGISTERED_USERS: |
+        {"orthanc": "orthanc"}
+      ORTHANC__DICOM_WEB__ENABLE: "true"
+      ORTHANC__DICOM_WEB__ROOT: "/dicom-web/"
+      ORTHANC__REMOTE_ACCESS_ALLOWED: "true"
+    volumes:
+      - orthanc-storage:/var/lib/orthanc/db
+    restart: unless-stopped
+volumes:
+  orthanc-storage:
