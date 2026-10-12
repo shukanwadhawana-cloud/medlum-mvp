@@ -101,11 +101,11 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
             </div>
             <button
               type="button"
-              disabled={!pacs.configured || launching === s.id}
+              disabled={!pacs.configured || s.status !== "AVAILABLE" || launching === s.id}
               onClick={() => void openViewer(s.id)}
               className="rounded-md bg-[#c2183a] px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
             >
-              {launching === s.id ? "Opening…" : "Open in viewer"}
+              {launching === s.id ? "Opening…" : s.status !== "AVAILABLE" ? "Awaiting PACS verification" : "Open in viewer"}
             </button>
           </li>
         ))}
