@@ -1094,3 +1094,28 @@ model DutyAttendanceRequest {
   @@index([memberId, dayDate])
   @@index([clinicId, createdAt])
 }
+
+// PACS metadata only. DICOM pixel data remains in the external Orthanc service.
+model ImagingStudy {
+  id                String   @id
+  clinicId          String
+  patientId         String
+  diagnosticOrderId String?
+  studyInstanceUid  String
+  accessionNumber   String   @default("")
+  modality           String   @default("OT")
+  description        String   @default("")
+  studyDate          DateTime?
+  orthancId          String   @default("")
+  status             String   @default("PENDING")
+  createdByDoctorId  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([clinicId, studyInstanceUid])
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([diagnosticOrderId])
+  @@index([status])
+  @@index([studyDate])
+}
