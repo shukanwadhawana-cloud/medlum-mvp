@@ -7,8 +7,6 @@ import { canEnterDiagnosticReport, canOrderLabs } from "@/lib/permissions";
 import { buildOhifViewerUrl, getPacsConfig } from "@/lib/pacs";
 import { randomBytes } from "node:crypto";
 
-const INGEST_STATUS = new Set(["PENDING", "AVAILABLE", "FAILED", "ARCHIVED"]);
-
 function newId() {
   return `img_${randomBytes(12).toString("hex")}`;
 }
@@ -127,7 +125,7 @@ export async function POST(req: Request) {
   if (!patientId || !uid) {
     return NextResponse.json({ error: "patientId and studyInstanceUid are required" }, { status: 400 });
   }
-  if (!/^[0-9.]+$/.test(uid) || uid.length > 128) {
+  if (uid.length > 64 || !/^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$/.test(uid)) {
     return NextResponse.json({ error: "Invalid Study Instance UID" }, { status: 400 });
   }
 
@@ -150,13 +148,14 @@ export async function POST(req: Request) {
     orderId = order.id;
   }
 
-  const status =
-    body.status && INGEST_STATUS.has(String(body.status)) ? String(body.status) : "PENDING";
+  // Metadata submission is not proof that pixels exist in Orthanc. Only a verified server-side ingest flow may mark a study available.
+  const status = "PENDING";
   const id = newId();
   const modality = String(body.modality || "OT").trim().slice(0, 16);
   const description = String(body.description || "").trim().slice(0, 512);
-  const accessionNumber = String(body.accessionNumber || "").trim();
-  const orthancId = String(body.orthancId || "").trim().slice(0, 128);
+  const accessionNumber = String(body.accessionNumber || "").trim().slice(0, 64);
+  // Never accept an Orthanc object ID from the browser; it must come from a trusted ingest/verification flow.
+  const orthancId = "";
   const studyDate = body.studyDate ? new Date(body.studyDate) : null;
   if (studyDate && Number.isNaN(studyDate.getTime())) {
     return NextResponse.json({ error: "Invalid studyDate" }, { status: 400 });
