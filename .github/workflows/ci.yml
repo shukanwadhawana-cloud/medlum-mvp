@@ -238,7 +238,7 @@ jobs:
           meta.MediaStorageSOPInstanceUID = generate_uid()
           meta.TransferSyntaxUID = ExplicitVRLittleEndian
           meta.ImplementationClassUID = generate_uid()
-          ds = FileDataset("synthetic.dcm", {}, file_meta=meta, preamble=b"\\0" * 128)
+          ds = FileDataset("synthetic.dcm", {}, file_meta=meta, preamble=b"\0" * 128)
           ds.SOPClassUID = meta.MediaStorageSOPClassUID
           ds.SOPInstanceUID = meta.MediaStorageSOPInstanceUID
           ds.StudyInstanceUID = generate_uid()
