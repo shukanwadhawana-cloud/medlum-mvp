@@ -56,7 +56,7 @@ export function getPacsConfig(): PacsConfig {
 export function buildOhifViewerUrl(studyInstanceUid: string, config: PacsConfig): string | null {
   const uid = String(studyInstanceUid || "").trim();
   if (!uid || !config.enabled || !config.ohifBaseUrl) return null;
-  if (!/^[0-9.]+$/.test(uid) || uid.length > 128) return null;
+  if (uid.length > 64 || !/^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$/.test(uid)) return null;
   const dicomweb = `${config.orthancPublicUrl}${config.dicomwebRoot}`;
   const base = config.ohifBaseUrl.endsWith("/") ? config.ohifBaseUrl : `${config.ohifBaseUrl}/`;
   const url = new URL("viewer", base);
