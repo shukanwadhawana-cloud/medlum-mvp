@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
 import { formatIst } from "@/lib/time";
+import ImagingStudiesPanel from "@/components/ImagingStudiesPanel";
 
 type Patient = { id: string; name: string; uhid?: string };
 type DiagnosticOrder = {
@@ -253,6 +254,7 @@ export default function DiagnosticsPage() {
                     Chart
                   </Link>
                 </div>
+                <ImagingStudiesPanel patientId={g.patientId} />
                 <div className="mt-2 space-y-2">
                   {g.orders.map((o) => (
                     <div key={o.id} className="rounded-lg bg-gray-50 px-2.5 py-2">

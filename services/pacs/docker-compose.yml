@@ -1,0 +1,21 @@
+services:
+  orthanc:
+    image: orthancteam/orthanc:latest
+    container_name: medlum-orthanc-dev
+    # Development-only: bind to loopback so the PACS ports are not exposed on the LAN.
+    ports:
+      - "127.0.0.1:8042:8042"
+      - "127.0.0.1:4242:4242"
+    environment:
+      ORTHANC__NAME: "MedLum-Dev-Orthanc"
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
+      # Supply ORTHANC_REGISTERED_USERS as a JSON object with a strong local password.
+      ORTHANC__REGISTERED_USERS: "${ORTHANC_REGISTERED_USERS:?Set ORTHANC_REGISTERED_USERS to a JSON user map}"
+      ORTHANC__DICOM_WEB__ENABLE: "true"
+      ORTHANC__DICOM_WEB__ROOT: "/dicom-web/"
+      ORTHANC__REMOTE_ACCESS_ALLOWED: "true"
+    volumes:
+      - orthanc-storage:/var/lib/orthanc/db
+    restart: unless-stopped
+volumes:
+  orthanc-storage:

@@ -125,6 +125,8 @@ jobs:
         run: npm run test:p1-authorization
       - name: Verify AI clinical draft security
         run: npm run test:clinical-ai-draft
+      - name: Verify PACS imaging contracts
+        run: npm run test:pacs-contracts
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public
@@ -161,6 +163,40 @@ jobs:
         env:
           P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
         run: npm run test:p1-integration
+      - name: Validate ImagingStudy migration on disposable PostgreSQL database
+        env:
+          PGPASSWORD: p1
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          createdb -h 127.0.0.1 -U p1 pacstest
+
+          # 1) Minimal fixture parent tables (SQL only)
+          psql -h 127.0.0.1 -U p1 -d pacstest -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE "Clinic" ("id" TEXT PRIMARY KEY);
+          CREATE TABLE "Patient" ("id" TEXT PRIMARY KEY);
+          CREATE TABLE "DiagnosticOrder" ("id" TEXT PRIMARY KEY);
+          SQL
+
+          # 2) Apply migration outside any open SQL heredoc
+          psql -h 127.0.0.1 -U p1 -d pacstest -v ON_ERROR_STOP=1 -f prisma/migrations/20261012080000_imaging_study/migration.sql
+
+          # 3) Insert fixtures (omit status so DEFAULT 'PENDING' is applied)
+          psql -h 127.0.0.1 -U p1 -d pacstest -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO "Clinic" ("id") VALUES ('clinic-test');
+          INSERT INTO "Patient" ("id") VALUES ('patient-test');
+          INSERT INTO "ImagingStudy" ("id", "clinicId", "patientId", "studyInstanceUid")
+            VALUES ('study-test', 'clinic-test', 'patient-test', '1.2.840.10008.1');
+          SQL
+
+          # 4) Bash assertion after heredoc has closed — not sent to psql as SQL
+          status="$(psql -h 127.0.0.1 -U p1 -d pacstest -v ON_ERROR_STOP=1 -Atc "SELECT \"status\" FROM \"ImagingStudy\" WHERE \"id\" = 'study-test';")"
+          if [ "$status" != "PENDING" ]; then
+            echo "Expected status PENDING; got: ${status}" >&2
+            exit 1
+          fi
+          echo "ImagingStudy migration default verified: $status"
       - name: P1 RBAC tenant isolation (Postgres)
         env:
           P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
@@ -169,3 +205,104 @@ jobs:
         env:
           P2_07_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
         run: npm run test:p2-07
+
+  pacs-synthetic-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start isolated Orthanc with DICOMweb
+        run: |
+          set -euo pipefail
+          docker run -d --name medlum-orthanc-ci \
+            -p 127.0.0.1:8042:8042 \
+            -e ORTHANC__NAME=MedLum-Synthetic-CI \
+            -e ORTHANC__AUTHENTICATION_ENABLED=false \
+            -e ORTHANC__DICOM_WEB__ENABLE=true \
+            -e ORTHANC__REMOTE_ACCESS_ALLOWED=true \
+            orthancteam/orthanc:latest
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8042/system >/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker logs medlum-orthanc-ci
+            exit 1
+          fi
+      - name: Create synthetic DICOM with pixel data
+        run: |
+          python -m pip install --disable-pip-version-check pydicom numpy
+          python - <<'PY'
+          import datetime, numpy as np, pydicom
+          from pydicom.dataset import FileDataset, FileMetaDataset
+          from pydicom.uid import ExplicitVRLittleEndian, generate_uid, SecondaryCaptureImageStorage
+          meta = FileMetaDataset()
+          meta.MediaStorageSOPClassUID = SecondaryCaptureImageStorage
+          meta.MediaStorageSOPInstanceUID = generate_uid()
+          meta.TransferSyntaxUID = ExplicitVRLittleEndian
+          meta.ImplementationClassUID = generate_uid()
+          ds = FileDataset("synthetic.dcm", {}, file_meta=meta, preamble=b"\0" * 128)
+          ds.SOPClassUID = meta.MediaStorageSOPClassUID
+          ds.SOPInstanceUID = meta.MediaStorageSOPInstanceUID
+          ds.StudyInstanceUID = generate_uid()
+          ds.SeriesInstanceUID = generate_uid()
+          ds.PatientName = "SYNTHETIC^MEDLUM"
+          ds.PatientID = "SYNTHETIC-CI-NOT-A-REAL-PATIENT"
+          ds.Modality = "OT"
+          ds.StudyDate = datetime.date.today().strftime("%Y%m%d")
+          ds.StudyTime = "120000"
+          ds.Rows, ds.Columns = 16, 16
+          ds.SamplesPerPixel = 1
+          ds.PhotometricInterpretation = "MONOCHROME2"
+          ds.BitsAllocated, ds.BitsStored, ds.HighBit = 16, 16, 15
+          ds.PixelRepresentation = 0
+          ds.PixelData = np.arange(256, dtype=np.uint16).reshape(16, 16).tobytes()
+          ds.save_as("synthetic.dcm", enforce_file_format=True)
+          print("Created synthetic DICOM with 256 deterministic pixels")
+          PY
+      - name: Upload study and verify Orthanc plus DICOMweb pixel retrieval
+        run: |
+          set -euo pipefail
+          upload="$(curl --fail --silent --show-error -X POST \
+            http://127.0.0.1:8042/instances \
+            -H 'Content-Type: application/dicom' --data-binary @synthetic.dcm)"
+          echo "$upload" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("Status") == "Success", d; print("Orthanc instance upload: Success")'
+          study_uid="$(python -c 'import pydicom; print(pydicom.dcmread("synthetic.dcm").StudyInstanceUID)')"
+          series_uid="$(python -c 'import pydicom; print(pydicom.dcmread("synthetic.dcm").SeriesInstanceUID)')"
+          instance_uid="$(python -c 'import pydicom; print(pydicom.dcmread("synthetic.dcm").SOPInstanceUID)')"
+          curl --fail --silent --show-error \
+            "http://127.0.0.1:8042/dicom-web/studies?StudyInstanceUID=$study_uid" \
+            -H 'Accept: application/dicom+json' -o qido.json
+          python - <<'PY'
+          import json
+          data=json.load(open("qido.json"))
+          assert data, "DICOMweb QIDO returned no studies"
+          assert any(x.get("0020000D", {}).get("Value", [None])[0] for x in data), "Study UID missing from QIDO response"
+          print("DICOMweb QIDO study query: passed")
+          PY
+          curl --fail --silent --show-error \
+            "http://127.0.0.1:8042/dicom-web/studies/$study_uid/series/$series_uid/instances/$instance_uid/frames/1" \
+            -H 'Accept: multipart/related; type="application/octet-stream"; transfer-syntax=*' \
+            -o frame-response.bin -D frame-headers.txt
+          grep -qi 'content-type: multipart/related' frame-headers.txt
+          test -s frame-response.bin
+          echo "DICOMweb WADO-RS frame retrieval: non-empty pixel-frame response"
+          curl --fail --silent --show-error \
+            "http://127.0.0.1:8042/instances/$(echo "$upload" | python -c 'import json,sys; print(json.load(sys.stdin)["ID"])')/file" \
+            -o roundtrip.dcm
+          python - <<'PY'
+          import numpy as np, pydicom
+          ds=pydicom.dcmread("roundtrip.dcm")
+          pixels=ds.pixel_array
+          assert pixels.shape == (16,16), pixels.shape
+          assert int(pixels[0,0]) == 0 and int(pixels[15,15]) == 255
+          print("DICOM round-trip pixel integrity: passed (16x16 synthetic image)")
+          PY
+          # Mirror MedLum trusted verification: Orthanc /tools/find by StudyInstanceUID
+          find_payload="$(python -c 'import json,pydicom; print(json.dumps({"Level":"Study","Query":{"StudyInstanceUID":pydicom.dcmread("synthetic.dcm").StudyInstanceUID},"Expand":False}))')"
+          find_ids="$(curl --fail --silent --show-error -X POST http://127.0.0.1:8042/tools/find -H 'Content-Type: application/json' -d "$find_payload")"
+          echo "$find_ids" | python -c 'import json,sys; ids=json.load(sys.stdin); assert isinstance(ids,list) and len(ids)>=1, ids; print("Orthanc tools/find verification path: passed", ids[0])'
+          study_meta="$(curl --fail --silent --show-error "http://127.0.0.1:8042/studies/$(echo "$find_ids" | python -c 'import json,sys; print(json.load(sys.stdin)[0])')")"
+          echo "$study_meta" | python -c 'import json,sys,pydicom; m=json.load(sys.stdin); uid=m["MainDicomTags"]["StudyInstanceUID"]; expect=pydicom.dcmread("synthetic.dcm").StudyInstanceUID; assert uid==expect, (uid,expect); print("Orthanc study UID match: passed")'
+      - name: Stop isolated Orthanc
+        if: always()
+        run: docker rm -f medlum-orthanc-ci || true
