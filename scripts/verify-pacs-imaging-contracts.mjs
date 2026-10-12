@@ -14,7 +14,7 @@ function mustContain(rel, snippets) {
     if (!text.includes(s)) failures.push(`${rel} missing: ${JSON.stringify(s)}`);
   }
 }
-mustContain("src/lib/pacs.ts", ["getPacsConfig", "buildOhifViewerUrl", "PACS_ENABLED", "uid.length > 64", "These query parameters do not configure a datasource"]);
+mustContain("src/lib/pacs.ts", ["getPacsConfig", "buildOhifViewerUrl", "PACS_ENABLED", "uid.length > 64", "These query parameters do not configure a datasource", 'process.env.NODE_ENV !== "production"', 'u.protocol === "https:"']);
 const pacsSource = fs.readFileSync(path.join(root, "src/lib/pacs.ts"), "utf8");
 if (pacsSource.includes('url.searchParams.set("dicomwebRoot"') || pacsSource.includes('url.searchParams.set("datasources"')) {
   failures.push("OHIF URL must not pretend query params configure DICOMweb datasource");
