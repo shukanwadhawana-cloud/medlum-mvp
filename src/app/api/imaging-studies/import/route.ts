@@ -160,12 +160,12 @@ export async function POST(req: Request) {
   // Never infer identity from patient name: require the DICOM PatientID to match
   // an existing MedLum UHID or registration number before linking the study.
   const dicomPatientId = String(metadata.PatientMainDicomTags?.PatientID || "").trim();
-  const identityRows = await prisma.$queryRaw<{ uhid: string; registrationNo: string }[]>\`
+  const identityRows = await prisma.$queryRaw<{ uhid: string; registrationNo: string }[]>`
     SELECT uhid, "registrationNo" FROM "Patient"
     WHERE id = ${patient.id}
       AND ("clinicId" = ${membership.clinicId} OR "clinicId" IS NULL)
     LIMIT 1
-  \`;
+  `;
   const identity = identityRows[0];
   if (!dicomPatientId || !identity ||
       (dicomPatientId !== identity.uhid && dicomPatientId !== identity.registrationNo)) {
