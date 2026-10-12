@@ -179,7 +179,7 @@ jobs:
           INSERT INTO "Patient" ("id") VALUES ('patient-test');
           INSERT INTO "ImagingStudy" ("id", "clinicId", "patientId", "studyInstanceUid")
             VALUES ('study-test', 'clinic-test', 'patient-test', '1.2.840.10008.1');
-          status=$(psql -h 127.0.0.1 -U p1 -d pacstest -v ON_ERROR_STOP=1 -Atc 'SELECT "status" FROM "ImagingStudy" WHERE "id" = ''study-test'';')
+          status=$(psql -h 127.0.0.1 -U p1 -d pacstest -v ON_ERROR_STOP=1 -Atc 'SELECT "status" FROM "ImagingStudy" LIMIT 1;')
           test "$status" = "PENDING" || { echo "Expected migration status default PENDING, got: $status"; exit 1; }
           echo "migration default OK: $status"
           SQL
