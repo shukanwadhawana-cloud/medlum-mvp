@@ -45,8 +45,8 @@ export async function GET(req: Request) {
 
   if (studyId && launch) {
     const rows = await prisma.$queryRaw<
-      { id: string; patientId: string; studyInstanceUid: string; modality: string; description: string; status: string }[]
-    >`SELECT id, "patientId", "studyInstanceUid", modality, description, status
+      { id: string; patientId: string; studyInstanceUid: string; modality: string; description: string; status: string; orthancId: string }[]
+    >`SELECT id, "patientId", "studyInstanceUid", modality, description, status, "orthancId"
       FROM "ImagingStudy"
       WHERE id = ${String(studyId)} AND "clinicId" = ${membership.clinicId}
       LIMIT 1`;
@@ -54,6 +54,12 @@ export async function GET(req: Request) {
     if (!study) return NextResponse.json({ error: "Study not found" }, { status: 404 });
     const patient = await findAuthorizedPatient(membership, study.patientId);
     if (!patient) return NextResponse.json({ error: "Study not found" }, { status: 404 });
+    if (study.status !== "AVAILABLE" || !study.orthancId) {
+      return NextResponse.json(
+        { error: "Imaging study is not verified in PACS yet", code: "STUDY_NOT_READY", status: study.status },
+        { status: 409, headers: { "Cache-Control": "no-store" } }
+      );
+    }
     if (!pacs.enabled) {
       return NextResponse.json({ error: "PACS is not configured", code: "PACS_UNAVAILABLE", configured: false }, { status: 503 });
     }
