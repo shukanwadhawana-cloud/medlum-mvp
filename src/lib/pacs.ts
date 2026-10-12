@@ -14,7 +14,8 @@ function stripTrailingSlash(url: string): string {
 function isSafeHttpUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.protocol === "http:" || u.protocol === "https:";
+    const httpAllowed = process.env.NODE_ENV !== "production" && u.protocol === "http:";
+    return u.protocol === "https:" || httpAllowed;
   } catch {
     return false;
   }
