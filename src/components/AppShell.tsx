@@ -54,6 +54,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [facilities, setFacilities] = useState<Array<{ clinicId: string; name: string; role: string }>>([]);
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
   const [switchingFacility, setSwitchingFacility] = useState(false);
+  const [mobileModulesOpen, setMobileModulesOpen] = useState(false);
 
   const isOwner = Boolean(doctor?.isOwner);
   // Platform Owner navigation is independent of the selected facility membership.
@@ -125,9 +126,37 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="medlum-main">{children}</main>
 
+      {mobileModulesOpen && (
+        <div className="fixed inset-0 z-[60] md:hidden" role="dialog" aria-modal="true" aria-label="All MedLum modules">
+          <button type="button" className="absolute inset-0 h-full w-full bg-black/40" aria-label="Close all modules" onClick={() => setMobileModulesOpen(false)} />
+          <section className="absolute inset-x-0 bottom-0 flex max-h-[82dvh] flex-col rounded-t-2xl border-t border-[var(--ml-border)] bg-[var(--ml-surface)] shadow-2xl safe-area-bottom">
+            <div className="flex items-center justify-between border-b border-[var(--ml-border)] px-4 py-3">
+              <div>
+                <h2 className="text-base font-bold text-[var(--ml-ink)]">All Modules</h2>
+                <p className="text-xs text-[var(--ml-muted)]">Every module available to your role</p>
+              </div>
+              <button type="button" onClick={() => setMobileModulesOpen(false)} className="rounded-lg border px-3 py-2 text-sm font-semibold" aria-label="Close all modules">Close</button>
+            </div>
+            <nav className="grid grid-cols-2 gap-2 overflow-y-auto overscroll-contain p-3" aria-label="All available modules">
+              {sidebarItems.map((item) => (
+                <Link key={item.href} href={item.href} onClick={() => setMobileModulesOpen(false)} aria-current={isActive(pathname, item.href) ? "page" : undefined} className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-3 text-sm font-medium ${isActive(pathname, item.href) ? "border-[#c2183a] bg-red-50 text-[#c2183a]" : "border-[var(--ml-border)] bg-white text-[var(--ml-ink)]"}`}>
+                  <Icon name={item.icon} size={18} />
+                  <span className="min-w-0">{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </section>
+        </div>
+      )}
       <div className="medlum-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t bg-white/95 backdrop-blur safe-area-bottom md:hidden">
-        <nav className="mx-auto flex max-w-full overflow-x-auto px-2 gap-1 scrollbar-none">
-          {[...primaryNav, ...mobileWorkflowItems].map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-w-[72px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a] bg-red-50" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span className="truncate max-w-[68px]">{item.label}</span></Link>)}
+        <nav className="mx-auto flex max-w-full items-stretch gap-1 px-2" aria-label="Mobile navigation">
+          <button type="button" onClick={() => setMobileModulesOpen(true)} aria-expanded={mobileModulesOpen} aria-controls="mobile-all-modules" className="flex min-h-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border-r border-[var(--ml-border)] px-3 text-[11px] font-bold text-[#c2183a]">
+            <Icon name="more" size={19} />
+            <span>All Modules</span>
+          </button>
+          <div className="flex min-w-0 flex-1 overflow-x-auto gap-1 scrollbar-none">
+            {primaryNav.map((item) => <Link key={item.href} href={item.href} title={item.label} className={`flex min-w-[66px] min-h-14 shrink-0 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium ${isActive(pathname, item.href) ? "text-[#c2183a] bg-red-50" : "text-gray-500"}`}><Icon name={item.icon} size={18}/><span className="truncate max-w-[62px]">{item.label}</span></Link>)}
+          </div>
         </nav>
       </div>
       <MedLumChat />
