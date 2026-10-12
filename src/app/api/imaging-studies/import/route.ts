@@ -144,6 +144,7 @@ export async function POST(req: Request) {
   const metadata = await metadataResponse.json() as {
     ID?: string;
     MainDicomTags?: { StudyInstanceUID?: string; StudyDate?: string; ModalitiesInStudy?: string; StudyDescription?: string; AccessionNumber?: string };
+    PatientMainDicomTags?: { PatientID?: string };
   };
   const uid = String(metadata.MainDicomTags?.StudyInstanceUID || "").trim();
   if (!uid || uid.length > 64 || !/^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$/.test(uid)) {
@@ -154,6 +155,29 @@ export async function POST(req: Request) {
   const verified = await findOrthancStudyByUid(uid, pacs);
   if (!verified.ok) {
     return NextResponse.json({ error: verified.message, code: verified.code }, { status: 422 });
+  }
+
+  // Never infer identity from patient name: require the DICOM PatientID to match
+  // an existing MedLum UHID or registration number before linking the study.
+  const dicomPatientId = String(metadata.PatientMainDicomTags?.PatientID || "").trim();
+  const identityRows = await prisma.$queryRaw<{ uhid: string; registrationNo: string }[]>\`
+    SELECT uhid, "registrationNo" FROM "Patient"
+    WHERE id = ${patient.id}
+      AND ("clinicId" = ${membership.clinicId} OR "clinicId" IS NULL)
+    LIMIT 1
+  \`;
+  const identity = identityRows[0];
+  if (!dicomPatientId || !identity ||
+      (dicomPatientId !== identity.uhid && dicomPatientId !== identity.registrationNo)) {
+    await writeAudit({
+      doctorId: session.doctorId, clinicId: membership.clinicId,
+      action: "import_identity_rejected", entity: "ImagingStudy", entityId: uid,
+      meta: { patientId: patient.id, diagnosticOrderId: order.id, code: "DICOM_PATIENT_ID_MISMATCH" },
+    });
+    return NextResponse.json({
+      error: "DICOM PatientID must match this patient's MedLum UHID or registration number. The study was not linked; correct the DICOM demographics or patient mapping before retrying.",
+      code: "DICOM_PATIENT_ID_MISMATCH",
+    }, { status: 409 });
   }
 
   const modality = String(metadata.MainDicomTags?.ModalitiesInStudy || "OT").split("\\")[0].slice(0, 16) || "OT";
