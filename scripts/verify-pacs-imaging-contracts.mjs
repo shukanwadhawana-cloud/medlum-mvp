@@ -44,6 +44,19 @@ mustContain("src/app/api/imaging-studies/route.ts", [
   'code: "STUDY_NOT_READY"',
   "never let browser input clear a verified orthancId",
 ]);
+mustContain("src/app/api/imaging-studies/import/route.ts", [
+  "getSession",
+  "requireActiveClinicMembership",
+  "PACS_UNAVAILABLE",
+  "diagnosticOrderId",
+  "ORDER_PATIENT_MISMATCH",
+  "/instances",
+  "findOrthancStudyByUid",
+  "DICOM_PATIENT_ID_MISMATCH",
+  "import_identity_rejected",
+  "LINK_CONFLICT",
+  'status: "AVAILABLE"',
+]);
 mustContain("src/app/api/imaging-studies/verify/route.ts", [
   "getSession",
   "requireActiveClinicMembership",
@@ -69,6 +82,10 @@ mustContain("src/components/ImagingStudiesPanel.tsx", [
   "viewerTab.location.replace(target.toString())",
   "Allow pop-ups for MedLum",
   "The configured PACS viewer must use HTTPS.",
+  "Import DICOM study",
+  "/api/imaging-studies/import",
+  "Import and link DICOM",
+  "Choose a DICOM instance for this patient and diagnostic order."
 ]);
 mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
   'CREATE TABLE IF NOT EXISTS "ImagingStudy"',
