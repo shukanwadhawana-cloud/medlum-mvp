@@ -57,11 +57,10 @@ export function buildOhifViewerUrl(studyInstanceUid: string, config: PacsConfig)
   const uid = String(studyInstanceUid || "").trim();
   if (!uid || !config.enabled || !config.ohifBaseUrl) return null;
   if (uid.length > 64 || !/^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$/.test(uid)) return null;
-  const dicomweb = `${config.orthancPublicUrl}${config.dicomwebRoot}`;
+  // OHIF's DICOMweb datasource must be configured in its deployment config.
+  // These query parameters do not configure a datasource; never put PACS credentials in the URL.
   const base = config.ohifBaseUrl.endsWith("/") ? config.ohifBaseUrl : `${config.ohifBaseUrl}/`;
   const url = new URL("viewer", base);
   url.searchParams.set("StudyInstanceUIDs", uid);
-  url.searchParams.set("datasources", "dicomweb");
-  url.searchParams.set("dicomwebRoot", dicomweb);
   return url.toString();
 }
