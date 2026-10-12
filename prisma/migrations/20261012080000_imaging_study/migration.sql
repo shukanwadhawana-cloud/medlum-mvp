@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "ImagingStudy" (
     "description" TEXT NOT NULL DEFAULT '',
     "studyDate" TIMESTAMP(3),
     "orthancId" TEXT NOT NULL DEFAULT '',
-    "status" TEXT NOT NULL DEFAULT 'AVAILABLE',
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
     "createdByDoctorId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
