@@ -25,6 +25,7 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
   const [verifying, setVerifying] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [dicomFile, setDicomFile] = useState<File | null>(null);
+  const [importNotice, setImportNotice] = useState<{ kind: "success" | "warning"; message: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +113,7 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
     }
     setImporting(true);
     setError("");
+    setImportNotice(null);
     try {
       const body = new FormData();
       body.set("file", dicomFile);
@@ -133,6 +135,18 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
       if (picker) picker.value = "";
       await load();
       setError("");
+      if (data.identityMode === "matched") {
+        setImportNotice({
+          kind: "success",
+          message: "DICOM PatientID matched the patient's MedLum UHID or registration number.",
+        });
+      } else {
+        setImportNotice({
+          kind: "warning",
+          message:
+            "Patient identity could not be confirmed from the DICOM PatientID. This study was linked to the selected patient/order; confirm the patient and order before clinical use.",
+        });
+      }
     } catch {
       setError("DICOM import failed. Check the PACS connection and try again.");
     } finally {
@@ -177,6 +191,18 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
         </p>
       )}
       {error ? <p role="alert" className="mt-2 text-[11px] text-red-700">{error}</p> : null}
+      {importNotice ? (
+        <p
+          role={importNotice.kind === "warning" ? "alert" : "status"}
+          className={
+            importNotice.kind === "warning"
+              ? "mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-900"
+              : "mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-2 text-[11px] text-emerald-900"
+          }
+        >
+          {importNotice.message}
+        </p>
+      ) : null}
       {pacs.enabled && patientId && diagnosticOrderId ? (
         <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2">
           <p className="text-[12px] font-semibold text-gray-900">Import DICOM study</p>
