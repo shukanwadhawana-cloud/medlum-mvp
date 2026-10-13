@@ -53,6 +53,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Study not found" }, { status: 404 });
   }
 
+  // Do not let ordinary PACS verification silently approve a study whose patient identity
+  // could not be matched during import. Require the explicit clinician confirmation endpoint.
+  if (study.status === "IDENTITY_UNVERIFIED") {
+    return NextResponse.json(
+      {
+        error: "Patient identity requires explicit clinician confirmation before this study can be made available.",
+        code: "IDENTITY_CONFIRMATION_REQUIRED",
+      },
+      { status: 409, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   // Idempotent: already verified
   if (study.status === "AVAILABLE" && study.orthancId) {
     await writeAudit({
