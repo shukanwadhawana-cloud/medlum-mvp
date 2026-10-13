@@ -45,6 +45,8 @@ Browser metadata registration always creates/updates rows as `PENDING` and never
 
 Viewer launch (`?launch=1`) is rejected with `STUDY_NOT_READY` unless status is `AVAILABLE` and `orthancId` is set.
 
+If DICOM `PatientID` is missing or cannot be matched to the selected patient's MedLum UHID/registration number, the import is recorded as `IDENTITY_UNVERIFIED`. It cannot be opened in OHIF or promoted by ordinary PACS verification. An authorized clinician must explicitly confirm the patient and diagnostic order; the server rechecks the Orthanc StudyInstanceUID, validates the clinic-scoped order, and audits the confirmation before changing status to `AVAILABLE`.
+
 ## Env (placeholders)
 
 ```

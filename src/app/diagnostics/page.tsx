@@ -254,7 +254,6 @@ export default function DiagnosticsPage() {
                     Chart
                   </Link>
                 </div>
-                <ImagingStudiesPanel patientId={g.patientId} />
                 <div className="mt-2 space-y-2">
                   {g.orders.map((o) => (
                     <div key={o.id} className="rounded-lg bg-gray-50 px-2.5 py-2">
@@ -318,6 +317,7 @@ export default function DiagnosticsPage() {
                           )}
                         </div>
                       </div>
+                      <ImagingStudiesPanel patientId={g.patientId} diagnosticOrderId={o.id} />
                     </div>
                   ))}
                 </div>

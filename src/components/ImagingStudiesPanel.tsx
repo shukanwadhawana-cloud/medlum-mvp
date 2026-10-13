@@ -23,6 +23,10 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
   const [error, setError] = useState("");
   const [launching, setLaunching] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [dicomFile, setDicomFile] = useState<File | null>(null);
+  const [importNotice, setImportNotice] = useState<{ kind: "success" | "warning"; message: string } | null>(null);
+  const [confirmingIdentity, setConfirmingIdentity] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +103,91 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
     }
   }
 
+  async function importStudy() {
+    if (!patientId || !diagnosticOrderId) {
+      setError("Open PACS from a specific patient's diagnostic order to link an imported study safely.");
+      return;
+    }
+    if (!dicomFile) {
+      setError("Choose a DICOM file first.");
+      return;
+    }
+    setImporting(true);
+    setError("");
+    setImportNotice(null);
+    try {
+      const body = new FormData();
+      body.set("file", dicomFile);
+      body.set("patientId", patientId);
+      body.set("diagnosticOrderId", diagnosticOrderId);
+      const res = await fetch("/api/imaging-studies/import", {
+        method: "POST",
+        credentials: "include",
+        body,
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "DICOM import failed");
+        return;
+      }
+      setDicomFile(null);
+      const picker = document.getElementById("medlum-pacs-dicom-file") as HTMLInputElement | null;
+      if (picker) picker.value = "";
+      await load();
+      setError("");
+      if (data.identityMode === "matched") {
+        setImportNotice({
+          kind: "success",
+          message: "DICOM PatientID matched the patient's MedLum UHID or registration number.",
+        });
+      } else {
+        setImportNotice({
+          kind: "warning",
+          message:
+            "Patient identity could not be confirmed from the DICOM PatientID. The study remains unavailable for viewing until an authorized clinician confirms the patient and order.",
+        });
+      }
+    } catch {
+      setError("DICOM import failed. Check the PACS connection and try again.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function confirmIdentity(id: string) {
+    const confirmed = window.confirm(
+      "Confirm that you have independently checked this DICOM study and verified that it belongs to the selected patient and diagnostic order. The confirmation will be audited."
+    );
+    if (!confirmed) return;
+    setConfirmingIdentity(id);
+    setError("");
+    setImportNotice(null);
+    try {
+      const res = await fetch("/api/imaging-studies/confirm-identity", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studyId: id, confirmed: true }),
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Identity confirmation failed");
+        return;
+      }
+      setImportNotice({
+        kind: "success",
+        message: "Patient identity was explicitly confirmed by an authorized clinician and recorded in the audit log.",
+      });
+      await load();
+    } catch {
+      setError("Identity confirmation failed. Refresh and try again.");
+    } finally {
+      setConfirmingIdentity(null);
+    }
+  }
+
   async function verifyStudy(id: string) {
     setVerifying(id);
     setError("");
@@ -136,6 +225,40 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
         </p>
       )}
       {error ? <p role="alert" className="mt-2 text-[11px] text-red-700">{error}</p> : null}
+      {importNotice ? (
+        <p
+          role={importNotice.kind === "warning" ? "alert" : "status"}
+          className={
+            importNotice.kind === "warning"
+              ? "mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-900"
+              : "mt-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-2 text-[11px] text-emerald-900"
+          }
+        >
+          {importNotice.message}
+        </p>
+      ) : null}
+      {pacs.enabled && patientId && diagnosticOrderId ? (
+        <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2">
+          <p className="text-[12px] font-semibold text-gray-900">Import DICOM study</p>
+          <p className="mt-1 text-[10px] text-gray-600">Choose a DICOM instance for this patient and diagnostic order. The server verifies the study and patient identity before linking it.</p>
+          <input
+            id="medlum-pacs-dicom-file"
+            type="file"
+            accept=".dcm,application/dicom,application/octet-stream"
+            onChange={(event) => setDicomFile(event.target.files?.[0] || null)}
+            className="mt-2 block w-full text-[11px] text-gray-700"
+          />
+          <button
+            type="button"
+            disabled={!dicomFile || importing}
+            onClick={() => void importStudy()}
+            className="mt-2 rounded-md bg-[#c2183a] px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+          >
+            {importing ? "Importing and verifying…" : "Import and link DICOM"}
+          </button>
+        </div>
+      ) : null}
+
       {loading ? <p className="mt-2 text-[11px] text-gray-500">Loading…</p> : null}
       {!loading && studies.length === 0 && !error ? (
         <p className="mt-2 text-[11px] text-gray-500">No imaging studies linked for this selection.</p>
@@ -151,7 +274,7 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
               <p className="text-[10px] text-gray-500">Status: {s.status}</p>
             </div>
             <div className="flex flex-wrap gap-1">
-              {s.status !== "AVAILABLE" && (
+              {s.status !== "AVAILABLE" && s.status !== "IDENTITY_UNVERIFIED" && (
                 <button
                   type="button"
                   disabled={!pacs.enabled || verifying === s.id}
@@ -161,6 +284,16 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
                   {verifying === s.id ? "Verifying…" : "Verify in PACS"}
                 </button>
               )}
+              {s.status === "IDENTITY_UNVERIFIED" ? (
+                <button
+                  type="button"
+                  disabled={!pacs.enabled || confirmingIdentity === s.id}
+                  onClick={() => void confirmIdentity(s.id)}
+                  className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
+                >
+                  {confirmingIdentity === s.id ? "Confirming…" : "Confirm patient identity"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={!pacs.configured || s.status !== "AVAILABLE" || launching === s.id}
