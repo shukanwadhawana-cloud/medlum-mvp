@@ -89,6 +89,9 @@ mustContain("src/components/ImagingStudiesPanel.tsx", [
   "/api/imaging-studies/import",
   "Import and link DICOM",
   "Choose a DICOM instance for this patient and diagnostic order.",
+  'data.identityMode === "matched"',
+  "Patient identity could not be confirmed from the DICOM PatientID.",
+  'importNotice.kind === "warning"',
 ]);
 mustContain("src/app/diagnostics/page.tsx", [
   "ImagingStudiesPanel",
