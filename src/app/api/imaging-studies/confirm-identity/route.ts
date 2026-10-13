@@ -61,12 +61,17 @@ export async function POST(req: Request) {
   const patient = await findAuthorizedPatient(membership, study.patientId);
   if (!patient) return NextResponse.json({ error: "Study not found" }, { status: 404 });
 
+  const members = await prisma.clinicMember.findMany({
+    where: { clinicId: membership.clinicId, isActive: true },
+    select: { doctorId: true },
+  });
+  const doctorIds = Array.from(new Set([session.doctorId, ...members.map((member) => member.doctorId)]));
   const order = await prisma.diagnosticOrder.findFirst({
     where: {
       id: study.diagnosticOrderId,
       patientId: patient.id,
       patient: {
-        OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: session.doctorId }],
+        OR: [{ clinicId: membership.clinicId }, { clinicId: null, doctorId: { in: doctorIds } }],
       },
     },
     select: { id: true, status: true },
