@@ -209,6 +209,10 @@ jobs:
   pacs-synthetic-e2e:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - name: Start isolated Orthanc with DICOMweb
         run: |
           set -euo pipefail
