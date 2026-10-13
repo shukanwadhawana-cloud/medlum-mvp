@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     status: string;
     orthancId: string | null;
     modality: string;
-  }>`SELECT id, "clinicId", "patientId", "diagnosticOrderId", "studyInstanceUid", status, "orthancId", modality
+  }[]>`SELECT id, "clinicId", "patientId", "diagnosticOrderId", "studyInstanceUid", status, "orthancId", modality
     FROM "ImagingStudy"
     WHERE id = ${studyId} AND "clinicId" = ${membership.clinicId}
     LIMIT 1`;
