@@ -268,6 +268,7 @@ export async function POST(req: Request) {
   const studyDate = /^\d{8}$/.test(rawDate)
     ? new Date(Date.UTC(Number(rawDate.slice(0, 4)), Number(rawDate.slice(4, 6)) - 1, Number(rawDate.slice(6, 8))))
     : null;
+  const identityStatus = identityMode === "matched" ? "AVAILABLE" : "IDENTITY_UNVERIFIED";
   const id = newId();
 
   // Idempotent: same clinic+UID keeps existing patient binding; never reassign patient/order conflict.
@@ -279,12 +280,12 @@ export async function POST(req: Request) {
     ) VALUES (
       ${id}, ${membership.clinicId}, ${patient.id}, ${order.id}, ${uid},
       ${accessionNumber}, ${modality}, ${description}, ${studyDate}, ${verified.match.orthancId},
-      'AVAILABLE', ${session.doctorId}, NOW(), NOW()
+      ${identityStatus}, ${session.doctorId}, NOW(), NOW()
     )
     ON CONFLICT ("clinicId", "studyInstanceUid") DO UPDATE SET
       "diagnosticOrderId" = COALESCE("ImagingStudy"."diagnosticOrderId", EXCLUDED."diagnosticOrderId"),
       "orthancId" = EXCLUDED."orthancId",
-      status = 'AVAILABLE',
+      status = EXCLUDED.status,
       modality = EXCLUDED.modality,
       description = EXCLUDED.description,
       "accessionNumber" = EXCLUDED."accessionNumber",
@@ -306,7 +307,7 @@ export async function POST(req: Request) {
     LIMIT 1
   `;
   const linked = linkedRows[0];
-  if (!linked || linked.patientId !== patient.id || linked.diagnosticOrderId !== order.id || linked.status !== "AVAILABLE") {
+  if (!linked || linked.patientId !== patient.id || linked.diagnosticOrderId !== order.id || linked.status !== identityStatus) {
     await writeAudit({
       doctorId: session.doctorId,
       clinicId: membership.clinicId,
@@ -344,7 +345,7 @@ export async function POST(req: Request) {
         studyInstanceUid: uid,
         modality,
         description,
-        status: "AVAILABLE",
+        status: linked.status,
       },
       identityMode,
       note:
