@@ -57,9 +57,22 @@ mustContain("src/app/api/imaging-studies/import/route.ts", [
   "DICOM_PATIENT_ID_MISMATCH",
   "import_identity_rejected",
   "LINK_CONFLICT",
-  'status: "AVAILABLE"',
+  'identityMode === "matched" ? "AVAILABLE" : "IDENTITY_UNVERIFIED"',
+  "identityStatus",
   "identityMode",
 ]);
+mustContain("src/app/api/imaging-studies/confirm-identity/route.ts", [
+  "getSession",
+  "requireActiveClinicMembership",
+  "findAuthorizedPatient",
+  "IDENTITY_UNVERIFIED",
+  "confirmed !== true",
+  "findOrthancStudyByUid",
+  "identity_confirmed",
+  "explicit_clinician_confirmation",
+  "status = 'AVAILABLE'",
+]);
+
 mustContain("src/app/api/imaging-studies/verify/route.ts", [
   "getSession",
   "requireActiveClinicMembership",
@@ -70,6 +83,7 @@ mustContain("src/app/api/imaging-studies/verify/route.ts", [
   "verify_attempt",
   "verify_failed",
   "Browser clients cannot supply orthancId",
+  "IDENTITY_CONFIRMATION_REQUIRED",
 ]);
 const verifySrc = fs.readFileSync(path.join(root, "src/app/api/imaging-studies/verify/route.ts"), "utf8");
 if (/body\.orthancId/.test(verifySrc) || /body\.status/.test(verifySrc)) {
@@ -89,6 +103,11 @@ mustContain("src/components/ImagingStudiesPanel.tsx", [
   "/api/imaging-studies/import",
   "Import and link DICOM",
   "Choose a DICOM instance for this patient and diagnostic order.",
+  "Patient identity could not be confirmed from the DICOM PatientID.",
+  "Confirm patient identity",
+  "/api/imaging-studies/confirm-identity",
+  "explicitly confirmed by an authorized clinician",
+  's.status !== "IDENTITY_UNVERIFIED"',
   'data.identityMode === "matched"',
   "Patient identity could not be confirmed from the DICOM PatientID.",
   'importNotice.kind === "warning"',
