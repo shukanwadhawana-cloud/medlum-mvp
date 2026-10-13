@@ -285,10 +285,7 @@ export async function POST(req: Request) {
     ON CONFLICT ("clinicId", "studyInstanceUid") DO UPDATE SET
       "diagnosticOrderId" = COALESCE("ImagingStudy"."diagnosticOrderId", EXCLUDED."diagnosticOrderId"),
       "orthancId" = EXCLUDED."orthancId",
-      status = CASE
-        WHEN "ImagingStudy".status = 'AVAILABLE' THEN 'AVAILABLE'
-        ELSE EXCLUDED.status
-      END,
+      status = EXCLUDED.status,
       modality = EXCLUDED.modality,
       description = EXCLUDED.description,
       "accessionNumber" = EXCLUDED."accessionNumber",
@@ -314,7 +311,7 @@ export async function POST(req: Request) {
     !linked ||
     linked.patientId !== patient.id ||
     linked.diagnosticOrderId !== order.id ||
-    (linked.status !== identityStatus && linked.status !== "AVAILABLE")
+    linked.status !== identityStatus
   ) {
     await writeAudit({
       doctorId: session.doctorId,
