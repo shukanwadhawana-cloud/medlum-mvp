@@ -212,7 +212,8 @@ jobs:
       - name: Start isolated Orthanc with DICOMweb
         run: |
           set -euo pipefail
-          docker run -d --name medlum-orthanc-ci \
+          docker network create medlum-pacs-ci
+          docker run -d --name medlum-orthanc-ci --network medlum-pacs-ci \
             -p 127.0.0.1:8042:8042 \
             -e ORTHANC__NAME=MedLum-Synthetic-CI \
             -e ORTHANC__AUTHENTICATION_ENABLED=false \
@@ -267,6 +268,7 @@ jobs:
             -H 'Content-Type: application/dicom' --data-binary @synthetic.dcm)"
           echo "$upload" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("Status") == "Success", d; print("Orthanc instance upload: Success")'
           study_uid="$(python -c 'import pydicom; print(pydicom.dcmread("synthetic.dcm").StudyInstanceUID)')"
+          printf '%s' "$study_uid" > study_uid.txt
           series_uid="$(python -c 'import pydicom; print(pydicom.dcmread("synthetic.dcm").SeriesInstanceUID)')"
           instance_uid="$(python -c 'import pydicom; print(pydicom.dcmread("synthetic.dcm").SOPInstanceUID)')"
           curl --fail --silent --show-error \
@@ -303,6 +305,75 @@ jobs:
           echo "$find_ids" | python -c 'import json,sys; ids=json.load(sys.stdin); assert isinstance(ids,list) and len(ids)>=1, ids; print("Orthanc tools/find verification path: passed", ids[0])'
           study_meta="$(curl --fail --silent --show-error "http://127.0.0.1:8042/studies/$(echo "$find_ids" | python -c 'import json,sys; print(json.load(sys.stdin)[0])')")"
           echo "$study_meta" | python -c 'import json,sys,pydicom; m=json.load(sys.stdin); uid=m["MainDicomTags"]["StudyInstanceUID"]; expect=pydicom.dcmread("synthetic.dcm").StudyInstanceUID; assert uid==expect, (uid,expect); print("Orthanc study UID match: passed")'
-      - name: Stop isolated Orthanc
+      - name: Render synthetic DICOM in OHIF browser
+        run: |
+          set -euo pipefail
+          cat > ohif-ci-config.js <<'OHIF'
+          window.config = {
+            routerBasename: '/',
+            extensions: [],
+            modes: [],
+            showStudyList: false,
+            dataSources: [{
+              namespace: '@ohif/extension-default.dataSourcesModule.dicomweb',
+              sourceName: 'dicomweb',
+              configuration: {
+                friendlyName: 'MedLum synthetic Orthanc',
+                name: 'orthanc',
+                qidoRoot: window.location.origin + '/dicom-web',
+                wadoRoot: window.location.origin + '/dicom-web',
+                wadoUriRoot: window.location.origin + '/wado',
+                qidoSupportsIncludeField: true,
+                supportsReject: false,
+                imageRendering: 'wadors',
+                thumbnailRendering: 'wadors',
+                enableStudyLazyLoad: true,
+                supportsFuzzyMatching: false,
+                supportsWildcard: false
+              }
+            }],
+            defaultDataSourceName: 'dicomweb'
+          };
+          OHIF
+          docker run -d --name medlum-ohif-ci --network medlum-pacs-ci \
+            -e APP_CONFIG="$(cat ohif-ci-config.js)" ohif/app:v3.9.2
+          cat > nginx-pacs-ci.conf <<'NGINX'
+          server {
+            listen 8080;
+            server_name _;
+            location /dicom-web/ {
+              proxy_pass http://medlum-orthanc-ci:8042/dicom-web/;
+              proxy_set_header Host $host;
+            }
+            location /wado {
+              proxy_pass http://medlum-orthanc-ci:8042/wado;
+              proxy_set_header Host $host;
+            }
+            location / {
+              proxy_pass http://medlum-ohif-ci:80;
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Proto $scheme;
+            }
+          }
+          NGINX
+          docker run -d --name medlum-pacs-proxy-ci --network medlum-pacs-ci \
+            -p 127.0.0.1:8080:8080 \
+            -v "$PWD/nginx-pacs-ci.conf:/etc/nginx/conf.d/default.conf:ro" nginx:alpine
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker logs medlum-ohif-ci
+            docker logs medlum-pacs-proxy-ci
+            exit 1
+          fi
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+          PACS_TEST_STUDY_UID="$(cat study_uid.txt)" node scripts/verify-pacs-ohif-browser.mjs
+      - name: Stop isolated Orthanc and OHIF
         if: always()
-        run: docker rm -f medlum-orthanc-ci || true
+        run: |
+          docker rm -f medlum-pacs-proxy-ci medlum-ohif-ci medlum-orthanc-ci || true
+          docker network rm medlum-pacs-ci || true
