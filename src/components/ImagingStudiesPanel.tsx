@@ -26,6 +26,7 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
   const [importing, setImporting] = useState(false);
   const [dicomFile, setDicomFile] = useState<File | null>(null);
   const [importNotice, setImportNotice] = useState<{ kind: "success" | "warning"; message: string } | null>(null);
+  const [confirmingIdentity, setConfirmingIdentity] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,13 +145,46 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
         setImportNotice({
           kind: "warning",
           message:
-            "Patient identity could not be confirmed from the DICOM PatientID. This study was linked to the selected patient/order; confirm the patient and order before clinical use.",
+            "Patient identity could not be confirmed from the DICOM PatientID. The study remains unavailable for viewing until an authorized clinician confirms the patient and order.",
         });
       }
     } catch {
       setError("DICOM import failed. Check the PACS connection and try again.");
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function confirmIdentity(id: string) {
+    const confirmed = window.confirm(
+      "Confirm that you have independently checked this DICOM study and verified that it belongs to the selected patient and diagnostic order. The confirmation will be audited."
+    );
+    if (!confirmed) return;
+    setConfirmingIdentity(id);
+    setError("");
+    setImportNotice(null);
+    try {
+      const res = await fetch("/api/imaging-studies/confirm-identity", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studyId: id, confirmed: true }),
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Identity confirmation failed");
+        return;
+      }
+      setImportNotice({
+        kind: "success",
+        message: "Patient identity was explicitly confirmed by an authorized clinician and recorded in the audit log.",
+      });
+      await load();
+    } catch {
+      setError("Identity confirmation failed. Refresh and try again.");
+    } finally {
+      setConfirmingIdentity(null);
     }
   }
 
@@ -240,7 +274,7 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
               <p className="text-[10px] text-gray-500">Status: {s.status}</p>
             </div>
             <div className="flex flex-wrap gap-1">
-              {s.status !== "AVAILABLE" && (
+              {s.status !== "AVAILABLE" && s.status !== "IDENTITY_UNVERIFIED" && (
                 <button
                   type="button"
                   disabled={!pacs.enabled || verifying === s.id}
@@ -250,6 +284,16 @@ export default function ImagingStudiesPanel({ patientId, diagnosticOrderId }: Pr
                   {verifying === s.id ? "Verifying…" : "Verify in PACS"}
                 </button>
               )}
+              {s.status === "IDENTITY_UNVERIFIED" ? (
+                <button
+                  type="button"
+                  disabled={!pacs.enabled || confirmingIdentity === s.id}
+                  onClick={() => void confirmIdentity(s.id)}
+                  className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
+                >
+                  {confirmingIdentity === s.id ? "Confirming…" : "Confirm patient identity"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={!pacs.configured || s.status !== "AVAILABLE" || launching === s.id}
