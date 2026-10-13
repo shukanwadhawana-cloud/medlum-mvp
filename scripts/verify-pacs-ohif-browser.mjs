@@ -16,6 +16,7 @@ try {
 
   await page.waitForFunction(
     () => Array.from(document.querySelectorAll("canvas")).some((canvas) => canvas.width > 100 && canvas.height > 100),
+    undefined,
     { timeout: 90_000 }
   );
 
@@ -27,7 +28,7 @@ try {
         return false;
       }
     });
-  }, { timeout: 30_000 });
+  }, undefined, { timeout: 30_000 });
 
   const renderedCanvases = await page.locator("canvas").evaluateAll((canvases) =>
     canvases
