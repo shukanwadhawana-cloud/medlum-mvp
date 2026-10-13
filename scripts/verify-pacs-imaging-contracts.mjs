@@ -122,6 +122,17 @@ mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
 ]);
 mustContain("docs/PACS_INTEGRATION.md", ["Orthanc", "OHIF", "Vercel", "PACS_ENABLED", "verify"]);
 mustContain("services/pacs/docker-compose.yml", ["orthanc", "8042"]);
+mustContain("scripts/verify-pacs-ohif-browser.mjs", [
+  "chromium.launch",
+  "StudyInstanceUIDs",
+  "canvas.toDataURL",
+  "renderedCanvases",
+]);
+mustContain(".github/workflows/ci.yml", [
+  "Render synthetic DICOM in OHIF browser",
+  "ohif/app:v3.9.2",
+  "verify-pacs-ohif-browser.mjs",
+]);
 if (failures.length) {
   console.error("verify-pacs-imaging-contracts FAILED:");
   failures.forEach((f) => console.error(" -", f));
