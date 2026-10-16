@@ -8,6 +8,7 @@
     "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run db:migrate:deploy; fi && npm run build",
     "build:desktop-web": "node scripts/prepare-desktop-web.mjs",
     "start": "next start",
+    "start:slate": "next start -H 0.0.0.0 -p ${PORT:-${ZC_SLATE_PORT:-3000}}",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:portal-auth": "node scripts/verify-portal-auth.mjs",
