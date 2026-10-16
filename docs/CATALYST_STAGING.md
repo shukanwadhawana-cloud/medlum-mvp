@@ -12,74 +12,80 @@
 | `/login` | **HTTP 500** |
 | `/api/health` | **HTTP 500** |
 | Deployment env vars | **None configured** |
-| Deployed commit | `d2db6cdea504b4fa2e2a41c7fea529cadf3c5f2d` |
+| Originally deployed commit | `d2db6cdea504b4fa2e2a41c7fea529cadf3c5f2d` |
+| Auto-deploy | **Disabled** — code fixes do not change the live preview until a human redeploys |
 
 Because `/api/health` does **not** open Prisma or require `DATABASE_URL`, a missing database alone does **not** explain the universal 500. The Zoho-branded error body indicates the **platform proxy / process layer** is failing before a normal Next.js response is returned (process not listening, wrong start command/port, or process crash at boot).
 
-## Official Slate constraints (from Catalyst docs)
+Same application commit serves `/api/health` **200** on Vercel, so the app itself is runnable; the failure is host-specific to Catalyst Slate.
 
-- Slate is primarily a **front-end deployment** product with Next.js listed as a supported framework.
-- Local serve defaults document Next.js as: `npm run dev -- --port $ZC_SLATE_PORT`.
-- **After** `npm run build`, production serving must use **`next start`**, not `next dev`.
-- The process must bind the port Catalyst injects (`PORT` and/or `ZC_SLATE_PORT`).
-- Prefer hostname `0.0.0.0` so the platform proxy can reach the process.
+## What command does the runtime execute?
 
-## Required Catalyst console settings
+This repository **cannot** read the Catalyst console configuration via API (no Catalyst connector).
+
+Inferred defaults from Catalyst docs + this app’s other hosts:
+
+| Host | Start path |
+|------|------------|
+| **Vercel** | Platform serverless runtime — does **not** use `npm start` |
+| **Render / Docker** | `Dockerfile` ends with `exec npm start` and sets `PORT=10000` |
+| **Catalyst Slate** | Console “start command” (often auto-filled). Local docs show `npm run dev -- --port $ZC_SLATE_PORT` for Next.js — **wrong** after a production build |
+
+**Do not assume** that adding a `start:slate` script changes runtime behavior. The platform only runs whatever **start command** is configured in the Slate deployment (commonly `npm start` or an auto-detected value).
+
+## Code fix on `fix/catalyst-staging-runtime`
+
+`package.json`:
+
+```json
+"start": "next start -H 0.0.0.0 -p ${PORT:-${ZC_SLATE_PORT:-3000}}"
+```
+
+Rationale:
+
+- Next.js already documents default hostname `0.0.0.0` and port from `PORT`.
+- Making this **explicit** ensures Catalyst’s injected `PORT` / `ZC_SLATE_PORT` is used even if defaults differ.
+- **Render/Docker** already set `PORT` and call `npm start` — compatible.
+- **Vercel** does not invoke `npm start` for this app — production path unchanged.
+
+`start:slate` remains an alias of `npm start` for clarity in the console.
+
+## Required Catalyst console settings (human)
 
 | Setting | Recommended value |
 |---------|-------------------|
+| Git ref | Branch `fix/catalyst-staging-runtime` (or its latest commit) |
 | Framework | Next.js |
-| Node runtime | **20** or **22** (match deploy; Next 16.3.x needs modern Node) |
+| Node runtime | **20** or **22** |
 | Root path | `./` |
-| Install | `npm install` (or `npm ci` if lockfile is committed) |
+| Install | `npm install` |
 | Build | `npm run build` |
-| Build / output path | `.next` |
-| **Start command** | `npm run start:slate` (see `package.json`) |
-| Memory | 1024–2048 MB for this app |
-
-### Start command (critical)
-
-```bash
-npm run start:slate
-```
-
-This expands to production `next start` bound to `0.0.0.0` and `PORT` / `ZC_SLATE_PORT`.
+| Output path | `.next` |
+| **Start command** | `npm start` (preferred) or `npm run start:slate` |
+| Memory | 1024–2048 MB |
 
 **Do not** use `npm run dev` as the remote start command after a production build.
 
 ## Staging-only environment variables
 
-Set these in Catalyst **Development** environment variables (never commit values):
-
-| Variable | Required to | Notes |
-|----------|-------------|-------|
-| `SESSION_SECRET` | Boot auth/session paths in `NODE_ENV=production` | ≥32 chars, non-weak random; **staging-only** |
-| `DATABASE_URL` | Any Prisma-backed route | **Isolated staging DB only** — never production Neon |
-| `NODE_ENV` | Usually set by platform | If set, `production` enables strict session secret checks |
-| `MEDLUM_OWNER_EMAIL` | Owner features | Optional on staging |
-| `STORAGE_PROVIDER` | Document uploads | Prefer `processed` or staging R2; not production R2 credentials |
-
-**Minimum for liveness:** platform must successfully run `next start` on the injected port.  
-**Minimum for login smoke:** `SESSION_SECRET` + staging `DATABASE_URL`.
+| Variable | For | Notes |
+|----------|-----|-------|
+| (none) | `/api/health` liveness | Health does not need DB or session |
+| `SESSION_SECRET` | Login / session | ≥32 chars, **staging-only** |
+| `DATABASE_URL` | Prisma routes | **Isolated staging DB only** |
 
 ## Verification after redeploy
 
 ```bash
-curl -sS -o /tmp/h.json -w "%{http_code}\n" https://<preview-host>/api/health
+curl -sS -w "%{http_code}\n" https://medlum-mvp-vsnppthd.onslate.in/api/health
 # expect 200 and {"status":"ok",...}
 
-curl -sS -o /dev/null -w "%{http_code}\n" https://<preview-host>/
-curl -sS -o /dev/null -w "%{http_code}\n" https://<preview-host>/login
+curl -sS -o /dev/null -w "%{http_code}\n" https://medlum-mvp-vsnppthd.onslate.in/
+curl -sS -o /dev/null -w "%{http_code}\n" https://medlum-mvp-vsnppthd.onslate.in/login
 ```
-
-If status remains Zoho HTML 500 with correct start command and env, open **Catalyst runtime logs** for the deployment (previously “not indexed”) and capture the Node process stderr.
-
-## Incompatibility note
-
-If Slate cannot keep a long-lived `next start` process reachable on the assigned port for Next.js 16 App Router (API routes + middleware), treat Catalyst as **unsupported for this full-stack app** and stage on **Vercel Preview** or another Node host instead. Do not weaken MedLum security to fit an incompatible host.
 
 ## Safety
 
-- Do not use production `DATABASE_URL`, `SESSION_SECRET`, R2 keys, or patient data on Catalyst.
-- Do not run production migrations from Catalyst.
-- Do not change Vercel production as part of this staging recovery.
+- No production secrets, Neon URL, or patient data on Catalyst.
+- No production migrations from Catalyst.
+- Do not change Vercel production for this recovery.
