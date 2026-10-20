@@ -119,7 +119,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <nav className="medlum-primary-nav hidden md:flex" aria-label="Clinical navigation">
-        <div className="medlum-primary-nav-inner"><Link href="/dashboard" className="medlum-sidebar-brand"><span className="medlum-brand-mark"><Icon name="brand" size={20}/></span><span><strong>MEDLUM</strong><small>Clinical workspace</small></span></Link>
+        <div className="medlum-primary-nav-inner"><Link href="/dashboard" className="medlum-sidebar-brand"><span className="medlum-brand-mark"><Icon name="brand" size={20}/></span><span><strong>MEDLUM HEALTHCARE</strong><small>Clinical workspace</small></span></Link>
           {sidebarItems.map((item) => <Link key={item.href} href={item.href} aria-current={isActive(pathname, item.href) ? "page" : undefined} className={`medlum-primary-nav-item ${isActive(pathname, item.href) ? "is-active" : ""}`}><Icon name={item.icon} size={15}/><span>{item.label}</span></Link>)}
         </div>
       </nav>
