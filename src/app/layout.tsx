@@ -7,13 +7,18 @@ export const metadata: Metadata = {
   description: "MedLum Healthcare — secure hospital and clinic operations platform",
   applicationName: "MedLum Healthcare",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/medlum-icon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/medlum-icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/medlum-icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#140a1f",
+  themeColor: "#4a0f20",
 };
 
 export default function RootLayout({
