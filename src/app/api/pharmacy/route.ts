@@ -30,12 +30,11 @@ export async function GET() {
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
   if (!canManagePharmacy(membership.role)) return NextResponse.json({ error: "Pharmacy access is not authorized for this role.", code: "RBAC_DENIED" }, { status: 403 });
   const clinicId = membership.clinicId;
-  const memberIds = (
-    await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } })
-  ).map((m) => m.doctorId);
   const [items, prescriptions, dispensings] = await Promise.all([
+    // Use facility-owned stock first. Legacy rows without clinicId are visible only
+    // to their own doctor until their clinic ownership can be mapped unambiguously.
     prisma.pharmacyItem.findMany({
-      where: { doctorId: { in: memberIds.length ? memberIds : [session.doctorId] } },
+      where: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] },
       orderBy: { name: "asc" },
     }),
     prisma.prescription.findMany({ where: { patient: { clinicId } }, include: { patient: { select: { notes: true } } }, orderBy: { createdAt: "desc" }, take: 80 }),
@@ -68,7 +67,8 @@ export async function POST(req: Request) {
       const quantity = Math.max(0, Math.floor(Number(body.quantity || 0)));
       const item = await prisma.pharmacyItem.create({
         data: {
-          doctorId: session.doctorId, name, genericName: String(body.genericName || ""), form: String(body.form || ""),
+          doctorId: session.doctorId, clinicId: membership.clinicId,
+          name, genericName: String(body.genericName || ""), form: String(body.form || ""),
           batchNumber: String(body.batchNumber || ""), expiryDate: String(body.expiryDate || ""),
           quantity, reorderLevel: Math.max(0, Math.floor(Number(body.reorderLevel || 0))), unit: String(body.unit || "units"),
         },
@@ -130,8 +130,16 @@ export async function PATCH(req: Request) {
             const prescription = await tx.prescription.findFirst({ where: { id: existing.prescriptionId, patient: { clinicId: membership.clinicId } }, select: { status: true } });
             if (!prescription || prescription.status === "CANCELLED" || prescription.status === "DISCONTINUED") return { status: 409, body: { success: false, error: "A discontinued or unavailable prescription cannot be dispensed." } };
             const names = medicineNamesFromText(existing.medicines);
-            const memberIds = (await tx.clinicMember.findMany({ where: { clinicId: membership.clinicId, isActive: true }, select: { doctorId: true } })).map((m) => m.doctorId);
-            const stockItems = await tx.pharmacyItem.findMany({ where: { doctorId: { in: memberIds.length ? memberIds : [session.doctorId] } } });
+            // Do not match stock from a different facility simply because a doctor
+            // belongs to more than one clinic. Ambiguous legacy stock stays doctor-owned.
+            const stockItems = await tx.pharmacyItem.findMany({
+              where: {
+                OR: [
+                  { clinicId: membership.clinicId },
+                  { clinicId: null, doctorId: session.doctorId },
+                ],
+              },
+            });
             const deductions: { itemId: string; name: string; from: number; to: number }[] = [];
             for (const name of names) {
               const lower = name.toLowerCase();
@@ -160,14 +168,16 @@ export async function PATCH(req: Request) {
     }
     if (action === "inventory") {
       if (!canManagePharmacy(membership.role)) return NextResponse.json({ success: false, error: "Pharmacy inventory access is not authorized.", code: "RBAC_DENIED" }, { status: 403 });
-      let item = await prisma.pharmacyItem.findFirst({ where: { id, doctorId: session.doctorId } });
-      if (!item) {
-        const memberIds = (
-          await prisma.clinicMember.findMany({ where: { clinicId: membership.clinicId, isActive: true }, select: { doctorId: true } })
-        ).map((m) => m.doctorId);
-        item = await prisma.pharmacyItem.findFirst({ where: { id, doctorId: { in: memberIds } } });
-      }
-      if (!item) return NextResponse.json({ success: false, error: "Inventory item not found" }, { status: 404 });
+      const item = await prisma.pharmacyItem.findFirst({
+        where: {
+          id,
+          OR: [
+            { clinicId: membership.clinicId },
+            { clinicId: null, doctorId: session.doctorId },
+          ],
+        },
+      });
+      if (!item) return NextResponse.json({ success: false, error: "Inventory item not found in this clinic" }, { status: 404 });
       const nextQty = body.quantity === undefined ? item.quantity : Math.max(0, Math.floor(Number(body.quantity)));
       const prevQty = item.quantity;
       const updated = await prisma.pharmacyItem.update({
