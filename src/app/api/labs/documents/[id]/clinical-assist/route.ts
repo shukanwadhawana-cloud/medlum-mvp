@@ -40,9 +40,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ success: false, error: "Invalid request body." }, { status: 400 });
   }
 
-  const input = body && typeof body === "object"
-    ? body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown }
-    : {};
+  const input: { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown } =
+    body && typeof body === "object"
+      ? body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown }
+      : {};
   const text = typeof input.text === "string" ? input.text.trim().slice(0, 20_000) : "";
   if (text.length < 20) {
     return NextResponse.json({ success: false, error: "Clinical Assist returned too little readable text. Try a clearer, upright scan." }, { status: 422 });
