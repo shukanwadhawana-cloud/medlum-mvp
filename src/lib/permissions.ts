@@ -91,6 +91,10 @@ export function canAccessPath(role: string | null | undefined, pathname: string)
   if (path.startsWith("/billing")) return canAccessModule(role, "billing");
   if (path.startsWith("/reports")) return canAccessModule(role, "reports");
   if (path.startsWith("/clinical-assist")) return canAccessModule(role, "clinical_assist");
+  // These modules are navigation extensions rather than entries in MODULE_ROLES,
+  // so direct URL access must use the same role matrix as their APIs.
+  if (path.startsWith("/dietitian")) return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Dietitian", "Dietician", "Nutritionist"].includes(normalizeClinicRole(role || ""));
+  if (path.startsWith("/physiotherapy")) return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Physiotherapist"].includes(normalizeClinicRole(role || ""));
   if (path.startsWith("/owner")) return canAccessModule(role, "owner_platform");
   return true;
 }
