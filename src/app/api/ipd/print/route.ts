@@ -3,6 +3,7 @@ import { parsePatientProfile } from "@/lib/patient-metadata";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { canViewClinicalChart } from "@/lib/permissions";
 
 /**
  * Patient-facing IPD discharge / hospital summary print.
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canViewClinicalChart(membership.role)) return NextResponse.json({ error: "Clinical chart access is required.", code: "RBAC_DENIED" }, { status: 403 });
 
   const url = new URL(req.url);
   const patientId = url.searchParams.get("patientId") || "";
