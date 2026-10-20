@@ -60,7 +60,20 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       setDocs(next);
       const latest = next[0];
       if (latest) {
-        setSelectedDoc(latest);
+        setSelectedDoc((previous) => {
+          // Keep a clinician's in-progress edits when refreshing the same document.
+          if (previous?.id !== latest.id) {
+            let rawText = "";
+            try { rawText = String(JSON.parse(latest.ocrDraft || "{}").rawTextPreview || ""); } catch { /* keep empty */ }
+            setManualResult(rawText);
+          } else {
+            setManualResult((current) => {
+              if (current.trim()) return current;
+              try { return String(JSON.parse(latest.ocrDraft || "{}").rawTextPreview || ""); } catch { return ""; }
+            });
+          }
+          return latest;
+        });
         setValues(candidatesFrom(latest));
       }
     } catch {
@@ -273,21 +286,36 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           {selectedStatus === "FAILED" && (
             <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
               <p className="text-[11px] font-semibold text-amber-900">
-                Automatic OCR could not structure this report
+                Clinical Assist could not create a structured draft
               </p>
               <p className="text-[10px] text-amber-800">
-                Extraction failed. Retry against the stored original, or re-upload the same report if the original is unavailable. Review and correct all extracted text before verification; nothing becomes a clinical result until you verify it.
+                MedLum will retry the saved report using the enhanced Clinical Assist OCR path, including image preprocessing and alternate recognition settings. Extracted text stays a draft and must be checked against the original before verification.
               </p>
+              {(() => {
+                let diagnostic = "";
+                let warnings: string[] = [];
+                try {
+                  const parsed = JSON.parse(selectedDoc.ocrDraft || "{}");
+                  diagnostic = String(parsed.message || "");
+                  warnings = Array.isArray(parsed.warnings) ? parsed.warnings.map(String).filter(Boolean) : [];
+                } catch { /* legacy draft format */ }
+                return (diagnostic || warnings.length > 0) ? (
+                  <div className="rounded-md border border-amber-200 bg-white/70 p-2 text-[10px] text-amber-900">
+                    {diagnostic && <p>{diagnostic}</p>}
+                    {warnings.map((warning, index) => <p key={index} className="mt-1">{warning}</p>)}
+                  </div>
+                ) : null;
+              })()}
               <button
                 type="button"
                 disabled={verifying || retrying}
                 onClick={() => void retryExtraction()}
                 className="w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
               >
-                {retrying ? "Retrying extraction…" : "Retry report extraction"}
+                {retrying ? "Retrying extraction…" : "Retry Clinical Assist extraction"}
               </button>
               <div>
-                <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
+                <p className="text-[10px] font-semibold text-gray-700">Extracted text / clinical findings (editable draft)</p>
                 <textarea
                   value={manualResult}
                   onChange={(e) => setManualResult(e.target.value)}
