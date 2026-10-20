@@ -5,6 +5,7 @@
  */
 
 import { createRequire } from "node:module";
+import { extractClinicalOcrText } from "@/lib/clinical-ocr";
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -266,14 +267,34 @@ export async function extractLabOcrDraft(
         message: "Unsupported document type for OCR assist",
       };
     }
-    const draft = extractCandidates(text);
+    let draft = extractCandidates(text);
+    // If the first pass cannot map values, reuse the stronger Clinical Assist OCR
+    // pipeline: contrast preprocessing, alternate Tesseract segmentation, and
+    // PDF text-layer/scanned-page fallback. This remains a draft, never a result.
+    if (Object.keys(draft).length === 0) {
+      try {
+        const enhanced = await extractClinicalOcrText(data, mimeType);
+        const enhancedText = String(enhanced.text || "").trim();
+        const enhancedDraft = extractCandidates(enhancedText);
+        if (enhancedText.length > text.length) text = enhancedText;
+        if (Object.keys(enhancedDraft).length > Object.keys(draft).length) {
+          draft = enhancedDraft;
+        }
+        warnings.push("Enhanced OCR fallback used " + enhanced.method + (enhanced.confidence == null ? "" : " (confidence " + Math.round(enhanced.confidence) + "%)") + ".");
+        if (enhanced.pageLimitReached) warnings.push("Only the supported first pages of this PDF were OCR processed.");
+      } catch (fallbackError) {
+        warnings.push("Enhanced OCR fallback did not complete: " + (fallbackError instanceof Error ? fallbackError.message : "unknown OCR error"));
+      }
+    }
     if (Object.keys(draft).length === 0) {
       return {
         status: "FAILED",
         draft: {},
         rawTextPreview: text.slice(0, 4000),
         message:
-          "OCR completed but no supported lab values could be mapped from the extracted text.",
+          text.trim().length >= 20
+            ? "Text was extracted, but no supported lab values could be mapped. Review the retained OCR text and enter/correct the result manually."
+            : "OCR could not read enough text from this report. Try a clearer, upright image or a PDF; you can also enter the result manually.",
         warnings,
       };
     }
