@@ -203,6 +203,34 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     }
   }
 
+  async function runClinicalAssistFromSavedDocument() {
+    if (!selectedDoc || clinicalAssistBusy || verifying || retrying) return;
+    setClinicalAssistBusy(true);
+    setClinicalAssistStatus("Loading the saved report for on-device Clinical Assist…");
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/labs/documents/${selectedDoc.id}/view?raw=1`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error("The stored original is not available for browser extraction. Use “Choose report file instead” to select the original PDF/photo.");
+      }
+      const blob = await response.blob();
+      const file = new File([blob], selectedDoc.originalFileName, {
+        type: selectedDoc.mimeType || blob.type || "application/octet-stream",
+      });
+      // runClinicalAssist owns the OCR state and keeps the output as a draft.
+      await runClinicalAssist(file);
+    } catch (e: any) {
+      setError(e?.message || "Could not read the saved report for Clinical Assist");
+      setClinicalAssistStatus("");
+    } finally {
+      setClinicalAssistBusy(false);
+    }
+  }
+
   async function runClinicalAssist(file: File) {
     if (!selectedDoc) {
       setError("Upload and select a saved lab report before running Clinical Assist.");
@@ -422,13 +450,21 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               <button
                 type="button"
                 disabled={clinicalAssistBusy || verifying || retrying}
-                onClick={() => clinicalAssistInputRef.current?.click()}
+                onClick={() => void runClinicalAssistFromSavedDocument()}
                 className="w-full rounded-lg bg-[#4a0f20] px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
               >
-                {clinicalAssistBusy ? "Running Clinical Assist…" : "Use Clinical Assist extraction"}
+                {clinicalAssistBusy ? "Running Clinical Assist…" : "Run Clinical Assist on saved report"}
+              </button>
+              <button
+                type="button"
+                disabled={clinicalAssistBusy || verifying || retrying}
+                onClick={() => clinicalAssistInputRef.current?.click()}
+                className="w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
+              >
+                Choose report file instead
               </button>
               <p className="text-[10px] text-amber-800">
-                Choose the same PDF or photo again. Clinical Assist reads it in this browser; MedLum saves the extracted text and detected values as an unverified draft. It does not write the lab result until you verify.
+                MedLum first tries to read the saved original. If it is no longer available, choose the same PDF/photo. Clinical Assist processes the file in this browser; extracted values remain an unverified draft until you verify.
               </p>
               {clinicalAssistStatus && <p className="text-[10px] text-amber-900" role="status">{clinicalAssistStatus}</p>}
               <div>
