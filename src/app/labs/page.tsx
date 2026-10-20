@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiCreateLabOrder, apiGetLabOrders, apiUpdateLabOrder } from "@/lib/api";
+import { apiCreateLabOrder, apiGetLabOrders, apiGetPatients, apiUpdateLabOrder } from "@/lib/api";
 import { LAB_CATALOG } from "@/lib/diagnostic-catalog";
 import LabResultDocumentPanel from "@/components/LabResultDocumentPanel";
 import { formatIst } from "@/lib/time";
 
+type Patient = { id: string; name: string; uhid?: string; registrationNo?: string; notes?: string };
 type LabOrder = {
   id: string;
   patientId: string;
@@ -294,11 +295,19 @@ export default function LabsPage() {
         </div>
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
             setError("");
+            if (!patients.length) {
+              try {
+                const list = await apiGetPatients();
+                setPatients(list as Patient[]);
+              } catch {
+                setError("Could not load patients.");
+                return;
+              }
+            }
             setShowAdd(true);
           }}
-          disabled={!patients.length}
           className="h-9 rounded-lg bg-[#c2183a] px-3 text-sm font-medium text-white disabled:opacity-40"
         >
           + Order Test
