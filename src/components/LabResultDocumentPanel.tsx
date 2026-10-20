@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
 
 type Doc = {
   id: string;
@@ -23,6 +24,11 @@ function formatBytes(n?: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function rawTextFrom(doc?: Doc | null): string {
+  if (!doc?.ocrDraft) return "";
+  try { return String(JSON.parse(doc.ocrDraft).rawTextPreview || ""); } catch { return ""; }
 }
 
 function candidatesFrom(doc?: Doc | null): Record<string, string> {
@@ -49,6 +55,9 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [verifying, setVerifying] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [manualResult, setManualResult] = useState("");
+  const [clinicalAssistBusy, setClinicalAssistBusy] = useState(false);
+  const [clinicalAssistStatus, setClinicalAssistStatus] = useState("");
+  const clinicalAssistInputRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     try {
@@ -62,6 +71,9 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       if (latest) {
         setSelectedDoc(latest);
         setValues(candidatesFrom(latest));
+        // Restore retained OCR text after reopening a failed report; otherwise the
+        // manual-review box can appear empty even when extraction saved a text preview.
+        if (latest.ocrStatus === "FAILED") setManualResult(rawTextFrom(latest));
       }
     } catch {
       setDocs([]);
@@ -145,6 +157,61 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       setError(e?.message || "Could not retry extraction");
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function runClinicalAssist(file: File) {
+    if (!selectedDoc) {
+      setError("Upload and select a saved lab report before running Clinical Assist.");
+      return;
+    }
+    setClinicalAssistBusy(true);
+    setClinicalAssistStatus("Preparing document for on-device Clinical Assist…");
+    setError("");
+    setMessage("");
+    try {
+      // This is the same browser OCR engine used by the Clinical Assist page.
+      // Only the extracted text is submitted; it remains an unverified draft.
+      const scan = await runClinicalAssistOcr(file, (status) => setClinicalAssistStatus(status));
+      const rawText = scan.text.trim();
+      if (rawText.length < 20) {
+        throw new Error("Clinical Assist found too little readable text. Try a clearer, upright photo or a higher-quality PDF.");
+      }
+      setManualResult(rawText);
+      setClinicalAssistStatus("Saving extracted text as an unverified draft…");
+      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/clinical-assist`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-MedLum-Requested-With": "MedLum",
+        },
+        body: JSON.stringify({
+          rawText,
+          method: scan.label,
+          confidence: scan.confidence,
+          partial: Boolean(scan.partial),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || "Could not save Clinical Assist draft");
+      const doc = data.document as Doc;
+      setSelectedDoc(doc);
+      setValues(candidatesFrom(doc));
+      setManualResult(rawTextFrom(doc) || rawText);
+      setClinicalAssistStatus(
+        scan.label + (scan.confidence == null ? "" : " · OCR confidence " + Math.round(scan.confidence) + "%") +
+        (scan.partial ? " · only the supported first PDF pages were processed" : "")
+      );
+      setMessage(data.ocr?.status === "DRAFT"
+        ? "Clinical Assist extracted " + (data.ocr?.candidateCount || 0) + " candidate lab values. Review each value against the source report before verifying."
+        : "Clinical Assist extracted text but could not map supported lab values. The text is available for manual review; no clinical result has been written.");
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Clinical Assist extraction failed");
+      setClinicalAssistStatus("");
+    } finally {
+      setClinicalAssistBusy(false);
     }
   }
 
@@ -286,6 +353,30 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               >
                 {retrying ? "Retrying extraction…" : "Retry report extraction"}
               </button>
+              <input
+                ref={clinicalAssistInputRef}
+                type="file"
+                accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                className="sr-only"
+                disabled={clinicalAssistBusy || verifying}
+                onChange={(e) => {
+                  const file = e.currentTarget.files?.[0];
+                  if (file) void runClinicalAssist(file);
+                  e.currentTarget.value = "";
+                }}
+              />
+              <button
+                type="button"
+                disabled={clinicalAssistBusy || verifying || retrying}
+                onClick={() => clinicalAssistInputRef.current?.click()}
+                className="w-full rounded-lg bg-[#4a0f20] px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+              >
+                {clinicalAssistBusy ? "Running Clinical Assist…" : "Use Clinical Assist extraction"}
+              </button>
+              <p className="text-[10px] text-amber-800">
+                Choose the same PDF or photo again. Clinical Assist reads it in this browser; MedLum saves the extracted text and detected values as an unverified draft. It does not write the lab result until you verify.
+              </p>
+              {clinicalAssistStatus && <p className="text-[10px] text-amber-900" role="status">{clinicalAssistStatus}</p>}
               <div>
                 <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
                 <textarea
