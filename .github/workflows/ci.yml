@@ -91,6 +91,8 @@ jobs:
         run: npm run test:facility-data-migration
       - name: Verify patient discovery facility scope
         run: npm run test:patient-discovery
+      - name: Verify server-side workflow permissions
+        run: npm run test:workflow-permissions
       - name: Verify P2-01 IPD discharge lifecycle
         run: npm run test:p2-01
       - name: Verify owner full-access entitlement
