@@ -43,7 +43,12 @@ ok(retry.includes("verified: false"), "retry output remains an unverified draft"
 
 const retryPanel = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
 ok(retryPanel.includes("retryExtraction"), "report panel exposes retry extraction action");
-ok(retryPanel.includes("Retry report extraction"), "retry action has clear UI label");
+ok(retryPanel.includes("Retry server extraction"), "server retry action has clear UI label");
+ok(retryPanel.includes("runClinicalAssistOcr"), "lab panel can use the on-device Clinical Assist OCR engine");
+ok(retryPanel.includes("extractCandidates"), "on-device OCR uses the same lab-value candidate parser");
+ok(retryPanel.includes("/draft"), "lab panel persists Clinical Assist output as a draft");
+ok(retryPanel.includes("Use Clinical Assist OCR on this device"), "failed lab report exposes a Clinical Assist fallback");
+ok(retryPanel.includes("setManualResult(retainedText)"), "retained OCR text is restored when reopening an existing report");
 
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
 const verify = readFileSync("src/app/api/labs/documents/[id]/verify/route.ts", "utf8");
@@ -65,6 +70,16 @@ ok(storage.includes("processed"), "processed provider wired");
 
 const view = readFileSync("src/app/api/labs/documents/[id]/view/route.ts", "utf8");
 ok(view.includes("clinicId: membership.clinicId"), "view tenant-scoped");
+
+
+const sharedCandidates = readFileSync("src/lib/lab-ocr-candidates.ts", "utf8");
+ok(sharedCandidates.includes("export function extractCandidates"), "browser-safe candidate parser is shared with server OCR");
+const localDraft = readFileSync("src/app/api/labs/documents/[id]/draft/route.ts", "utf8");
+ok(localDraft.includes("requireActiveClinicMembership"), "on-device draft persistence is clinic scoped");
+ok(localDraft.includes("DRAFT_ROLES"), "on-device draft persistence is role restricted");
+ok(localDraft.includes('ocrStatus,') && localDraft.includes('verified: false'), "on-device extraction persists as unverified draft only");
+ok(localDraft.includes("LAB_DOCUMENT_CLINICAL_ASSIST_DRAFT"), "on-device draft persistence is audited");
+ok(!localDraft.includes("prisma.labOrder.update"), "on-device OCR cannot directly write a clinical lab result");
 
 if (fails.length) {
   console.error("FAIL document-intelligence:");
