@@ -46,6 +46,16 @@ function rawTextFrom(doc?: Doc | null): string {
   try { return String(JSON.parse(doc.ocrDraft).rawTextPreview || ""); } catch { return ""; }
 }
 
+function warningsFrom(doc?: Doc | null): string[] {
+  if (!doc?.ocrDraft) return [];
+  try {
+    const warnings = JSON.parse(doc.ocrDraft).warnings;
+    return Array.isArray(warnings) ? warnings.filter((item: unknown): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 async function sha256Hex(file: File): Promise<string> {
   if (!globalThis.crypto?.subtle) throw new Error("This browser cannot securely validate the selected report. Use a current browser over HTTPS.");
   const digest = await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
@@ -332,6 +342,11 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           {candidateEntries.length > 0 && selectedStatus === "DRAFT" && (
             <div className="mt-3 space-y-2">
               <p className="text-[11px] font-semibold text-gray-700">OCR draft — verify each value</p>
+              {warningsFrom(selectedDoc).length > 0 && (
+                <ul className="list-disc pl-4 space-y-1 text-[10px] text-amber-900">
+                  {warningsFrom(selectedDoc).map((warning, index) => <li key={index}>{warning}</li>)}
+                </ul>
+              )}
               {candidateEntries.map(([key, value]) => (
                 <label key={key} className="block">
                   <span className="text-[10px] text-gray-500">{key}</span>
