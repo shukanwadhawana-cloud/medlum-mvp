@@ -112,23 +112,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const usage = await prisma.medicalDocument.aggregate({
-      where: { clinicId, deletedAt: null },
-      _sum: { sizeBytes: true },
-    });
-    const used = usage._sum.sizeBytes || 0;
-    const quota = storageQuotaBytes();
-    if (used + file.size > quota) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Storage quota would be exceeded. Free space or raise STORAGE_QUOTA_BYTES within free-tier limits.",
-          storage: { usedBytes: used, quotaBytes: quota },
-        },
-        { status: 413 }
-      );
-    }
-
     const buf = Buffer.from(await file.arrayBuffer());
     const checksum = createHash("sha256").update(buf).digest("hex");
 
@@ -180,6 +163,24 @@ export async function POST(req: Request) {
         });
       }
       return NextResponse.json({ success: true, document: existing, deduplicated: true });
+    }
+
+    // Only genuinely new documents consume quota; retries of duplicates must still work at quota.
+    const usage = await prisma.medicalDocument.aggregate({
+      where: { clinicId, deletedAt: null },
+      _sum: { sizeBytes: true },
+    });
+    const used = usage._sum.sizeBytes || 0;
+    const quota = storageQuotaBytes();
+    if (used + file.size > quota) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Storage quota would be exceeded. Free space or raise STORAGE_QUOTA_BYTES within free-tier limits.",
+          storage: { usedBytes: used, quotaBytes: quota },
+        },
+        { status: 413 }
+      );
     }
 
     const documentId = randomUUID().replace(/-/g, "").slice(0, 24);
