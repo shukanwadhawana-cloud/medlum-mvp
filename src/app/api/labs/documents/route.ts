@@ -139,6 +139,7 @@ export async function POST(req: Request) {
           candidates: assist.draft,
           rawTextPreview: assist.rawTextPreview,
           warnings: assist.warnings || [],
+          message: assist.message,
           machineExtracted: true,
           verified: false,
           retryAttemptedAt: new Date().toISOString(),
@@ -201,6 +202,7 @@ export async function POST(req: Request) {
         candidates: assist.draft,
         rawTextPreview: assist.rawTextPreview,
         warnings: (assist as { warnings?: string[] }).warnings || [],
+        message: assist.message,
         machineExtracted: true,
         verified: false,
       });
@@ -208,7 +210,7 @@ export async function POST(req: Request) {
       ocrMessage = assist.message;
     } catch {
       ocrStatus = "FAILED";
-      ocrDraft = JSON.stringify({ candidates: {}, warnings: [], machineExtracted: true, verified: false });
+      ocrDraft = JSON.stringify({ candidates: {}, warnings: [], message: ocrMessage, machineExtracted: true, verified: false });
       ocrMessage = "OCR processing failed. The report was not converted into clinical truth; diagnostic status is retained for investigation.";
     }
 
