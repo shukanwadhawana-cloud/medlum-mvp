@@ -19,6 +19,7 @@
     "test:role-access": "node scripts/verify-role-access.mjs",
     "test:runtime-e2e": "node scripts/runtime-e2e-harness.mjs",
     "test:invoice-snapshot": "node scripts/verify-invoice-snapshot.mjs",
+    "test:workflow-permissions": "node scripts/verify-workflow-permissions.mjs",
     "test:otp-login-invariant": "node scripts/verify-otp-login-invariant.mjs",
     "test:eka": "node scripts/verify-eka-onboarding.mjs",
     "test:data-architecture": "node scripts/verify-data-architecture.mjs",
