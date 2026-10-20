@@ -96,7 +96,12 @@ export async function POST(req: Request) {
           cancelledAt: null,
         },
       });
-      if (!encounter) encounterId = null;
+      if (!encounter) {
+        return NextResponse.json(
+          { success: false, error: "Encounter does not belong to this patient or is cancelled." },
+          { status: 400 }
+        );
+      }
     } else {
       // Auto-link the patient's most recent active encounter when the client omits encounterId.
       // Do not invent IDs; leave null when no active encounter exists (historical truth preserved).
