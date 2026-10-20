@@ -73,7 +73,7 @@ const MODULE_ROLES: Record<MedLumModule, readonly ClinicRole[]> = {
 
 export function canAccessModule(role: string | null | undefined, module: MedLumModule): boolean {
   const normalized = normalizeClinicRole(role || "") as ClinicRole;
-  if (normalized === "Owner") return true;
+  if (normalized === "Owner" && module !== "owner_platform") return true;
   return (MODULE_ROLES[module] as readonly string[]).includes(normalized);
 }
 
