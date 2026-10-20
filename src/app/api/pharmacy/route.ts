@@ -28,6 +28,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canManagePharmacy(membership.role)) return NextResponse.json({ error: "Pharmacy access is not authorized for this role.", code: "RBAC_DENIED" }, { status: 403 });
   const clinicId = membership.clinicId;
   const memberIds = (
     await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } })
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const action = String(body.action || "");
     if (action === "inventory") {
+      if (!canManagePharmacy(membership.role)) return NextResponse.json({ success: false, error: "Pharmacy inventory access is not authorized.", code: "RBAC_DENIED" }, { status: 403 });
       const name = String(body.name || "").trim();
       if (!name) return NextResponse.json({ success: false, error: "Medicine name required" }, { status: 400 });
       const quantity = Math.max(0, Math.floor(Number(body.quantity || 0)));
@@ -157,6 +159,7 @@ export async function PATCH(req: Request) {
       }
     }
     if (action === "inventory") {
+      if (!canManagePharmacy(membership.role)) return NextResponse.json({ success: false, error: "Pharmacy inventory access is not authorized.", code: "RBAC_DENIED" }, { status: 403 });
       let item = await prisma.pharmacyItem.findFirst({ where: { id, doctorId: session.doctorId } });
       if (!item) {
         const memberIds = (
