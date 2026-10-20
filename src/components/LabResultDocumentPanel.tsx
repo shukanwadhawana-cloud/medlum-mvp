@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
+import { extractCandidates } from "@/lib/lab-ocr-candidates";
 
 type Doc = {
   id: string;
@@ -48,6 +50,8 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [clinicalAssistBusy, setClinicalAssistBusy] = useState(false);
+  const [clinicalAssistStatus, setClinicalAssistStatus] = useState("");
   const [manualResult, setManualResult] = useState("");
 
   async function load() {
@@ -62,6 +66,9 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       if (latest) {
         setSelectedDoc(latest);
         setValues(candidatesFrom(latest));
+        let retainedText = "";
+        try { retainedText = String(JSON.parse(latest.ocrDraft || "{}").rawTextPreview || ""); } catch { /* malformed legacy draft */ }
+        setManualResult(retainedText);
       }
     } catch {
       setDocs([]);
@@ -115,6 +122,64 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     } catch (e: any) {
       setPhase("failed");
       setError(e?.message || "Upload failed");
+    }
+  }
+
+  async function runClinicalAssistFallback(file: File) {
+    if (!selectedDoc || clinicalAssistBusy || verifying) return;
+    setClinicalAssistBusy(true);
+    setClinicalAssistStatus("Preparing on-device Clinical Assist OCR…");
+    setError("");
+    setMessage("");
+    try {
+      const lowerName = file.name.toLowerCase();
+      const isSupportedType =
+        file.type === "application/pdf" ||
+        file.type.startsWith("image/") ||
+        /\\.(pdf|jpe?g|png|webp)$/i.test(lowerName);
+      if (!isSupportedType || /\\.(heic|heif)$/i.test(lowerName)) {
+        throw new Error("Choose a PDF, JPG, PNG, or WebP report. HEIC/HEIF is not supported yet.");
+      }
+      const result = await runClinicalAssistOcr(file, setClinicalAssistStatus);
+      const rawTextPreview = String(result.text || "").trim();
+      if (rawTextPreview.length < 20) {
+        throw new Error("Clinical Assist could not extract enough readable text. Try a clearer, upright photo or a PDF.");
+      }
+      const candidates = extractCandidates(rawTextPreview);
+      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/draft`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-MedLum-Requested-With": "MedLum",
+        },
+        body: JSON.stringify({
+          candidates,
+          rawTextPreview,
+          method: result.label,
+          confidence: result.confidence,
+          partial: result.partial === true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success || !data.document) {
+        throw new Error(data.error || "Could not save the Clinical Assist draft.");
+      }
+      const updated = data.document as Doc;
+      setSelectedDoc(updated);
+      setDocs((previous) => previous.map((item) => item.id === updated.id ? updated : item));
+      setValues(candidatesFrom(updated));
+      setManualResult(rawTextPreview);
+      const count = Object.keys(candidates).length;
+      setMessage(count > 0
+        ? `Clinical Assist extracted ${count} candidate lab values using ${result.label}. Check every value against the original report before verifying.`
+        : `Clinical Assist extracted readable text using ${result.label}, but did not map supported lab values. The text is loaded below for review or manual correction; no clinical result was written.`);
+      setClinicalAssistStatus("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Clinical Assist extraction failed.");
+      setClinicalAssistStatus("");
+    } finally {
+      setClinicalAssistBusy(false);
     }
   }
 
@@ -210,7 +275,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       />
 
       {phase === "uploading" && <p className="text-xs text-gray-600">Uploading and preparing OCR draft…</p>}
-      {message && <p className="text-xs text-emerald-700">{message}</p>}
+      {message && <p className={`text-xs ${selectedDoc?.ocrStatus === "FAILED" ? "text-amber-700" : "text-emerald-700"}`}>{message}</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
 
       {selectedDoc && (
@@ -276,15 +341,35 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                 Automatic OCR could not structure this report
               </p>
               <p className="text-[10px] text-amber-800">
-                Extraction failed. Retry against the stored original, or re-upload the same report if the original is unavailable. Review and correct all extracted text before verification; nothing becomes a clinical result until you verify it.
+                The server retry reprocesses the saved original. If it still cannot map values, use Clinical Assist on this device to read the report image/PDF and create a separate editable draft. Nothing becomes a clinical result until a permitted clinician verifies it.
               </p>
+              <input
+                id={`clinical-assist-local-${selectedDoc.id}`}
+                type="file"
+                accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
+                className="sr-only"
+                disabled={verifying || retrying || clinicalAssistBusy}
+                onChange={(e) => {
+                  const file = e.currentTarget.files?.[0];
+                  e.currentTarget.value = "";
+                  if (file) void runClinicalAssistFallback(file);
+                }}
+              />
+              <label
+                htmlFor={`clinical-assist-local-${selectedDoc.id}`}
+                aria-disabled={verifying || retrying || clinicalAssistBusy}
+                className={`block w-full rounded-lg bg-[#4a0f20] px-2 py-2.5 text-center text-[11px] font-semibold text-white ${verifying || retrying || clinicalAssistBusy ? "opacity-50 pointer-events-none" : "cursor-pointer"}`}
+              >
+                {clinicalAssistBusy ? "Reading with Clinical Assist…" : "Use Clinical Assist OCR on this device"}
+              </label>
+              {clinicalAssistStatus && <p className="text-[10px] text-amber-900" role="status">{clinicalAssistStatus}</p>}
               <button
                 type="button"
-                disabled={verifying || retrying}
+                disabled={verifying || retrying || clinicalAssistBusy}
                 onClick={() => void retryExtraction()}
                 className="w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
               >
-                {retrying ? "Retrying extraction…" : "Retry report extraction"}
+                {retrying ? "Retrying server extraction…" : "Retry server extraction"}
               </button>
               <div>
                 <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
