@@ -12,7 +12,7 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 COPY . .
 
 # prisma generate (via npm run build) requires DATABASE_URL at build time.
-# Use a non-production placeholder; runtime CMD uses real Render env DATABASE_URL for migrate deploy.
+# Use a non-production placeholder; runtime entrypoint uses Render's real DATABASE_URL for migrate deploy.
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
 ENV SESSION_SECRET="build-time-placeholder-not-used-at-runtime"
 
