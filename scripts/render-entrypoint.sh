@@ -3,6 +3,11 @@ set -u
 
 # Keep startup behavior explicit and avoid Render shell-quoting the inline CMD.
 # This preserves the existing retry policy for deploy-time Prisma migrations.
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "DATABASE_URL is required at runtime. Configure the Render database connection before starting MedLum." >&2
+  exit 1
+fi
+
 attempt=1
 while [ "$attempt" -le 5 ]; do
   echo "Prisma migration attempt ${attempt}/5"
