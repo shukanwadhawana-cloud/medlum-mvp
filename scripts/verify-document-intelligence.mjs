@@ -45,6 +45,30 @@ const retryPanel = readFileSync("src/components/LabResultDocumentPanel.tsx", "ut
 ok(retryPanel.includes("retryExtraction"), "report panel exposes retry extraction action");
 ok(retryPanel.includes("Retry report extraction"), "retry action has clear UI label");
 
+const sourcePath = "src/app/api/labs/documents/[id]/source/route.ts";
+ok(existsSync(sourcePath), "authenticated source route exposes the stored original for local OCR");
+const source = readFileSync(sourcePath, "utf8");
+ok(source.includes("requireActiveClinicMembership"), "source route derives tenant from active clinic membership");
+ok(source.includes("clinicId: membership.clinicId"), "source route scopes document bytes to the active clinic");
+ok(source.includes("getStorageProvider().getObject"), "source route uses stored original bytes");
+ok(source.includes('"Cache-Control": "private, no-store, max-age=0"'), "source route prevents shared caching of clinical files");
+
+const assistPath = "src/app/api/labs/documents/[id]/clinical-assist/route.ts";
+ok(existsSync(assistPath), "on-device Clinical Assist draft endpoint exists");
+const assist = readFileSync(assistPath, "utf8");
+ok(assist.includes("requireActiveClinicMembership"), "Clinical Assist endpoint derives tenant from session membership");
+ok(assist.includes('doc.ocrStatus !== "FAILED"'), "Clinical Assist cannot silently overwrite an existing non-failed draft");
+ok(assist.includes("extractCandidates(text)"), "Clinical Assist OCR text is mapped into supported lab candidates");
+ok(assist.includes("clinicalAssist: true"), "Clinical Assist extraction is identified in draft metadata");
+ok(assist.includes("verified: false"), "Clinical Assist output remains unverified");
+ok(assist.includes("LAB_DOCUMENT_CLINICAL_ASSIST"), "Clinical Assist extraction is audited without logging OCR text");
+
+ok(retryPanel.includes('runClinicalAssistOcr'), "report panel uses the local Clinical Assist OCR engine");
+ok(retryPanel.includes("/source"), "report panel retrieves the saved original for local OCR");
+ok(retryPanel.includes("/clinical-assist"), "report panel submits OCR output as a draft");
+ok(retryPanel.includes("Run Clinical Assist on this device"), "failed report UI exposes the Clinical Assist action");
+ok(retryPanel.includes("No clinical result is written until an authorised user verifies it"), "UI explains local extraction and verification gate");
+
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
 const verify = readFileSync("src/app/api/labs/documents/[id]/verify/route.ts", "utf8");
 ok(verify.includes("ACCEPT"), "ACCEPT action");
