@@ -54,10 +54,8 @@ function mapIpdPatient(
   const latest = vitalsMap.get(p.id) || null;
   return {
     id: p.id, name: p.name, age: p.age, gender: p.gender, phone: p.phone, allergies: p.allergies, status: p.status,
-    uhid: p.uhid || "", registrationNo: p.uhid || "",
-    consultantName: String(profile.consultantName || p.doctor?.name || "").trim(),
     notes: cleanPatientNotes(p.notes), ...profile,
-    uhid: p.uhid || "", registrationNo: p.uhid || "",
+    uhid: p.uhid || "", registrationNo: p.registrationNo || p.uhid || "",
     consultantName: String(profile.consultantName || p.doctor?.name || "").trim(),
     consultantSpecialty: String(profile.consultantSpecialty || profile.department || "").trim(),
     vitals: latest,
