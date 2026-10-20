@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { canViewBillingDetail } from "@/lib/permissions";
 
 /** Printable invoice payload with hospital branding + snapshotted line items (never live tariff). */
 export async function GET(req: Request) {
@@ -9,6 +10,7 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canViewBillingDetail(membership.role)) return NextResponse.json({ error: "Billing access is required to print invoices.", code: "RBAC_DENIED" }, { status: 403 });
 
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
