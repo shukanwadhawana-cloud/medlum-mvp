@@ -54,6 +54,8 @@ ok(clinicalAssistRoute.includes('verified: false'), "Clinical Assist output rema
 ok(clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_EXTRACTION"), "Clinical Assist extraction is audit logged");
 ok(!clinicalAssistRoute.includes("prisma.labOrder.update"), "Clinical Assist extraction does not directly write lab results");
 ok(retryPanel.includes("runClinicalAssistOcr"), "lab panel reuses the browser Clinical Assist OCR engine");
+ok(retryPanel.includes("preprocessClinicalAssistImage"), "lab panel preprocesses photos like Clinical Assist");
+ok(retryPanel.includes('file.size > 8 * 1024 * 1024'), "lab Clinical Assist respects the 8 MB file limit");
 ok(retryPanel.includes("Use Clinical Assist extraction"), "lab panel exposes the Clinical Assist action");
 ok(retryPanel.includes("/clinical-assist"), "lab panel sends extraction output to the facility-scoped bridge");
 
