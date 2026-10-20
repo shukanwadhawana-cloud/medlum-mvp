@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
+import { prepareClinicalAssistImage, runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
 
 type Doc = {
   id: string;
@@ -227,7 +227,12 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       }
       setAssistSourceFile(originalFile);
 
-      const scan = await runClinicalAssistOcr(originalFile, (progress) => setClinicalAssistProgress(progress));
+      let ocrFile = originalFile;
+      if (originalFile.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(originalFile.name)) {
+        setClinicalAssistProgress("Preparing the report image for OCR…");
+        ocrFile = await prepareClinicalAssistImage(originalFile);
+      }
+      const scan = await runClinicalAssistOcr(ocrFile, (progress) => setClinicalAssistProgress(progress));
       const text = scan.text.trim();
       if (text.length < 20) {
         throw new Error("Clinical Assist found too little readable text. Try a clearer, upright image or a higher-quality PDF.");
