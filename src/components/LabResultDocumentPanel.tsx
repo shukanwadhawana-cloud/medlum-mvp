@@ -60,20 +60,13 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       setDocs(next);
       const latest = next[0];
       if (latest) {
-        setSelectedDoc((previous) => {
-          // Keep a clinician's in-progress edits when refreshing the same document.
-          if (previous?.id !== latest.id) {
-            let rawText = "";
-            try { rawText = String(JSON.parse(latest.ocrDraft || "{}").rawTextPreview || ""); } catch { /* keep empty */ }
-            setManualResult(rawText);
-          } else {
-            setManualResult((current) => {
-              if (current.trim()) return current;
-              try { return String(JSON.parse(latest.ocrDraft || "{}").rawTextPreview || ""); } catch { return ""; }
-            });
-          }
-          return latest;
-        });
+        let rawText = "";
+        try { rawText = String(JSON.parse(latest.ocrDraft || "{}").rawTextPreview || ""); } catch { /* legacy draft format */ }
+        // Populate the retained OCR output on initial load. Keep staff edits when
+        // refreshing the same document, unless the draft text was still empty.
+        if (selectedDoc?.id !== latest.id) setManualResult(rawText);
+        else setManualResult((current) => current.trim() ? current : rawText);
+        setSelectedDoc(latest);
         setValues(candidatesFrom(latest));
       }
     } catch {
