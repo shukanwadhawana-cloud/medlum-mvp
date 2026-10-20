@@ -45,6 +45,18 @@ const retryPanel = readFileSync("src/components/LabResultDocumentPanel.tsx", "ut
 ok(retryPanel.includes("retryExtraction"), "report panel exposes retry extraction action");
 ok(retryPanel.includes("Retry report extraction"), "retry action has clear UI label");
 
+ok(existsSync("src/app/api/labs/documents/[id]/clinical-assist/route.ts"), "Clinical Assist extraction bridge exists");
+const clinicalAssistRoute = readFileSync("src/app/api/labs/documents/[id]/clinical-assist/route.ts", "utf8");
+ok(clinicalAssistRoute.includes("requireActiveClinicMembership"), "Clinical Assist bridge requires active facility membership");
+ok(clinicalAssistRoute.includes("extractCandidates"), "Clinical Assist text is mapped into lab value candidates");
+ok(clinicalAssistRoute.includes('doc.ocrStatus !== "FAILED"'), "Clinical Assist bridge only retries failed extraction");
+ok(clinicalAssistRoute.includes('verified: false'), "Clinical Assist output remains an unverified draft");
+ok(clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_EXTRACTION"), "Clinical Assist extraction is audit logged");
+ok(!clinicalAssistRoute.includes("prisma.labOrder.update"), "Clinical Assist extraction does not directly write lab results");
+ok(retryPanel.includes("runClinicalAssistOcr"), "lab panel reuses the browser Clinical Assist OCR engine");
+ok(retryPanel.includes("Use Clinical Assist extraction"), "lab panel exposes the Clinical Assist action");
+ok(retryPanel.includes("/clinical-assist"), "lab panel sends extraction output to the facility-scoped bridge");
+
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
 const verify = readFileSync("src/app/api/labs/documents/[id]/verify/route.ts", "utf8");
 ok(verify.includes("ACCEPT"), "ACCEPT action");
