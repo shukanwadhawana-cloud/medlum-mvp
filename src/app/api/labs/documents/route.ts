@@ -136,6 +136,49 @@ export async function POST(req: Request) {
       where: { clinicId, labOrderId, checksum, deletedAt: null },
     });
     if (existing) {
+      // A checksum duplicate with FAILED OCR is a retry opportunity, not a dead end.
+      // Reuse the bytes the clinician just supplied; never create a second document.
+      if (existing.ocrStatus === "FAILED") {
+        let assist;
+        try {
+          assist = await extractLabOcrDraft(buf, normalizedMime || mimeType);
+        } catch {
+          assist = {
+            status: "FAILED" as const,
+            draft: {},
+            rawTextPreview: "",
+            message: "Extraction retry failed. The report remains unverified; try a clearer copy or enter the result manually.",
+            warnings: [],
+          };
+        }
+        const retryStatus = assist.status === "DRAFT" ? "DRAFT" : "FAILED";
+        const retryDraft = JSON.stringify({
+          candidates: assist.draft,
+          rawTextPreview: assist.rawTextPreview,
+          warnings: assist.warnings || [],
+          machineExtracted: true,
+          verified: false,
+          retryAttemptedAt: new Date().toISOString(),
+        });
+        const updated = await prisma.medicalDocument.update({
+          where: { id: existing.id },
+          data: { ocrStatus: retryStatus, ocrDraft: retryDraft, ocrExtractedAt: new Date() },
+        });
+        await writeAudit({
+          doctorId: session.doctorId,
+          action: "LAB_DOCUMENT_OCR_RETRY",
+          entity: "MedicalDocument",
+          entityId: existing.id,
+          meta: { clinicId, labOrderId, patientId, ocrStatus: retryStatus, source: "duplicate-upload" },
+        });
+        return NextResponse.json({
+          success: true,
+          document: updated,
+          deduplicated: true,
+          retried: true,
+          ocr: { status: retryStatus, message: assist.message, verified: false },
+        });
+      }
       return NextResponse.json({ success: true, document: existing, deduplicated: true });
     }
 
