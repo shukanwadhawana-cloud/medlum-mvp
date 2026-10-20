@@ -39,6 +39,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     where: { id, clinicId: membership.clinicId, deletedAt: null },
   });
   if (!doc) return NextResponse.json({ success: false, error: "Document not found" }, { status: 404 });
+
+  const sourceChecksum = typeof body.sourceChecksum === "string" ? body.sourceChecksum.trim().toLowerCase() : "";
+  if (!/^[a-f0-9]{64}$/.test(sourceChecksum)) {
+    return NextResponse.json({ success: false, error: "A valid source-report fingerprint is required." }, { status: 400 });
+  }
+  if (!doc.checksum || doc.checksum.toLowerCase() !== sourceChecksum) {
+    return NextResponse.json({
+      success: false,
+      error: "The selected file does not match this saved report. Choose the exact original file attached to this report; no draft was changed.",
+    }, { status: 409 });
+  }
   if (doc.ocrStatus !== "FAILED") {
     return NextResponse.json({
       success: false,
