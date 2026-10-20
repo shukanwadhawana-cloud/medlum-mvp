@@ -16,7 +16,7 @@ const LAB_ALIASES: Record<string, string[]> = {
   Monocytes: ["monocyte", "mono"],
   Eosinophils: ["eosinophil", "eos"],
   Basophils: ["basophil", "baso"],
-  Platelets: ["platelet", "plt"],
+  Platelets: ["platelets", "platelet", "plt"],
   RBC: ["rbc", "red blood cell"],
   HCT: ["hct", "hematocrit", "haematocrit", "pcv"],
   MCV: ["mcv"],
@@ -86,20 +86,16 @@ function normalizeOcrLines(text: string): string[] {
     .replace(/\r/g, "\n")
     .replace(/\u00a0/g, " ")
     .split("\n")
-    .map((line) => line.replace(/[|]+/g, " ").replace(/[ \\t]+/g, " ").trim())
+    .map((line) => line.replace(/[|]+/g, " ").replace(/[ \t]+/g, " ").trim())
     .filter(Boolean);
 }
 
 function extractValueFromSegment(segment: string): string | null {
-  // Prefer a numeric value that is explicitly followed by a recognised unit.
   const withUnit = new RegExp(
     "([<>]?\\d+(?:[.,]\\d+)?)\\s*(" + LAB_UNITS.source + ")",
     "i"
   ).exec(segment);
   if (withUnit?.[1]) return withUnit[1].replace(",", ".") + (withUnit[2] ? " " + withUnit[2] : "");
-
-  // Otherwise take the first standalone numeric token, but do not treat a
-  // reference interval such as 13-17 as the measured result.
   const numeric = /[<>]?\d+(?:[.,]\d+)?/g;
   for (const match of segment.matchAll(numeric)) {
     const start = match.index ?? 0;
@@ -115,13 +111,8 @@ function extractValueFromSegment(segment: string): string | null {
 export function extractCandidates(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = normalizeOcrLines(text);
-
-  // OCR output can be a real table, a PDF text layer, or a scanned report.
-  // First inspect each line containing an analyte. If the value is separated
-  // into neighbouring OCR columns/lines, inspect a small bounded window too.
   for (const [canonical, aliases] of Object.entries(LAB_ALIASES)) {
     const orderedAliases = [...aliases].sort((a, b) => b.length - a.length);
-
     for (let i = 0; i < lines.length && !out[canonical]; i += 1) {
       const line = lines[i];
       for (const alias of orderedAliases) {
@@ -131,19 +122,12 @@ export function extractCandidates(text: string): Record<string, string> {
         );
         const match = aliasRe.exec(line);
         if (!match) continue;
-
-        // Look after the analyte first. This handles "Hemoglobin 13.2 g/dL"
-        // and "Hemoglobin | 13.2 | g/dL | 13-17".
         const afterAlias = line.slice(match.index + match[0].length);
         const direct = extractValueFromSegment(afterAlias);
         if (direct) {
           out[canonical] = direct;
           break;
         }
-
-        // Some OCR engines place table columns on separate lines. Inspect
-        // only a few adjacent lines to avoid accidentally attaching a distant
-        // patient's/reference value to the analyte.
         for (let offset = 1; offset <= 2 && i + offset < lines.length; offset += 1) {
           const nearby = extractValueFromSegment(lines[i + offset]);
           if (nearby) {
@@ -155,7 +139,6 @@ export function extractCandidates(text: string): Record<string, string> {
       }
     }
   }
-
   return out;
 }
 
@@ -169,7 +152,6 @@ async function ocrImage(data: Buffer): Promise<string> {
     cachePath: "/tmp/medlum-tessdata",
     cacheMethod: "write",
   });
-
   try {
     const result = await worker.recognize(data);
     return String(result?.data?.text || "");
@@ -185,10 +167,8 @@ async function extractPdf(
   const document = await pdfjs.getDocument({
     data: new Uint8Array(data),
   }).promise;
-
   const textParts: string[] = [];
   const maxPagesForOcr = Math.min(document.numPages, 5);
-
   try {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
@@ -200,21 +180,16 @@ async function extractPdf(
       );
       page.cleanup();
     }
-
     const text = textParts.join("\n");
-
     if (Object.keys(extractCandidates(text)).length > 0) {
       return { text, scannedOcrText: "", pagesOcr: 0 };
     }
-
     const { createCanvas } = await import("@napi-rs/canvas");
-
     class NodeCanvasFactory {
       create(width: number, height: number) {
         const canvas = createCanvas(Math.ceil(width), Math.ceil(height));
         return { canvas, context: canvas.getContext("2d") };
       }
-
       reset(
         cc: { canvas: { width: number; height: number }; context: unknown },
         width: number,
@@ -223,7 +198,6 @@ async function extractPdf(
         cc.canvas.width = Math.ceil(width);
         cc.canvas.height = Math.ceil(height);
       }
-
       destroy(cc: {
         canvas: { width: number; height: number };
         context: unknown;
@@ -232,27 +206,21 @@ async function extractPdf(
         cc.canvas.height = 0;
       }
     }
-
     const ocrParts: string[] = [];
-
     for (let pageNumber = 1; pageNumber <= maxPagesForOcr; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1.8 });
       const factory = new NodeCanvasFactory();
       const { canvas, context } = factory.create(viewport.width, viewport.height);
-
       await page.render({
         canvasContext: context as any,
         viewport,
         canvasFactory: factory,
       } as any).promise;
-
       ocrParts.push(await ocrImage(canvas.toBuffer("image/png")));
-
       factory.destroy({ canvas, context });
       page.cleanup();
     }
-
     return {
       text,
       scannedOcrText: ocrParts.join("\n"),
@@ -278,11 +246,9 @@ export async function extractLabOcrDraft(
   try {
     let text = "";
     const warnings: string[] = [];
-
     if (mimeType === "application/pdf") {
       const pdf = await extractPdf(data);
       text = [pdf.text, pdf.scannedOcrText].filter(Boolean).join("\n");
-
       if (pdf.pagesOcr > 0) {
         warnings.push(
           "PDF had no usable text-layer values; OCR fallback scanned up to " +
@@ -300,9 +266,7 @@ export async function extractLabOcrDraft(
         message: "Unsupported document type for OCR assist",
       };
     }
-
     const draft = extractCandidates(text);
-
     if (Object.keys(draft).length === 0) {
       return {
         status: "FAILED",
@@ -313,7 +277,6 @@ export async function extractLabOcrDraft(
         warnings,
       };
     }
-
     return {
       status: "DRAFT",
       draft,
