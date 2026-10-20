@@ -3,9 +3,9 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "MedLum – Clinical Intelligence",
-  description: "Secure multi-doctor clinical operations platform",
-  applicationName: "MedLum",
+  title: "MedLum Healthcare – Clinical Intelligence",
+  description: "MedLum Healthcare — secure hospital and clinic operations platform",
+  applicationName: "MedLum Healthcare",
   manifest: "/manifest.webmanifest",
 };
 
