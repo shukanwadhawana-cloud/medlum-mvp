@@ -9,6 +9,7 @@ type Doc = {
   ocrStatus: string;
   mimeType?: string;
   sizeBytes?: number;
+  checksum?: string;
   ocrDraft?: string | null;
   verifiedAt?: string | null;
 };
@@ -54,6 +55,12 @@ function warningsFrom(doc?: Doc | null): string[] {
   return Array.isArray(value) ? value.filter((item: unknown): item is string => typeof item === "string") : [];
 }
 
+async function sha256Hex(file: File): Promise<string> {
+  if (!globalThis.crypto?.subtle) throw new Error("This browser cannot securely validate the selected report. Use a current browser over HTTPS.");
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export default function LabResultDocumentPanel({ labOrderId, patientId, onVerified }: Props) {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<Doc | null>(null);
@@ -65,6 +72,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [retrying, setRetrying] = useState(false);
   const [clinicalAssistRunning, setClinicalAssistRunning] = useState(false);
   const [clinicalAssistProgress, setClinicalAssistProgress] = useState("");
+  const [assistSourceFile, setAssistSourceFile] = useState<File | null>(null);
   const [manualResult, setManualResult] = useState("");
 
   async function load() {
@@ -111,6 +119,9 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
 
       const doc = data.document as Doc;
       setSelectedDoc(doc);
+      // Keep the exact browser-selected bytes in memory: the production "processed"
+      // storage provider may intentionally retain metadata/OCR only, not the binary.
+      setAssistSourceFile(file);
       const nextValues = candidatesFrom(doc);
       setValues(nextValues);
       setManualResult(String(data.document?.ocrDraft || "").includes("rawTextPreview")
@@ -167,25 +178,41 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     }
   }
 
-  async function extractWithClinicalAssist() {
+  async function extractWithClinicalAssist(chosenFile?: File) {
     if (!selectedDoc || clinicalAssistRunning || verifying || retrying) return;
     setClinicalAssistRunning(true);
-    setClinicalAssistProgress("Loading the saved original report…");
+    setClinicalAssistProgress("Loading and validating the original report…");
     setError("");
     setMessage("");
     try {
-      // Same-origin, clinic-scoped download; OCR runs locally in the browser.
-      const source = await fetch(`/api/labs/documents/${selectedDoc.id}/view?raw=1`, {
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!source.ok) {
-        const sourceError = await source.json().catch(() => ({}));
-        throw new Error(sourceError.error || "Could not load the saved original report.");
+      // Use the exact file from the current upload when available. Production's
+      // zero-cost "processed" provider deliberately does not retain binary files.
+      let originalFile = chosenFile || assistSourceFile;
+      if (!originalFile) {
+        const source = await fetch(`/api/labs/documents/${selectedDoc.id}/view?raw=1`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!source.ok) {
+          throw new Error("This hosting configuration did not retain the original file. Choose the exact same report file below; MedLum will verify its checksum before extracting.");
+        }
+        const blob = await source.blob();
+        originalFile = new File(
+          [blob],
+          selectedDoc.originalFileName || "lab-report",
+          { type: selectedDoc.mimeType || blob.type || "application/octet-stream" }
+        );
       }
-      const blob = await source.blob();
-      const mimeType = selectedDoc.mimeType || blob.type || "application/octet-stream";
-      const originalFile = new File([blob], selectedDoc.originalFileName || "lab-report", { type: mimeType });
+
+      // Prevent a different document from being processed into this patient's lab order.
+      if (!selectedDoc.checksum) {
+        throw new Error("The saved document checksum is unavailable. Reload the lab panel before attempting extraction.");
+      }
+      const suppliedChecksum = await sha256Hex(originalFile);
+      if (suppliedChecksum.toLowerCase() !== selectedDoc.checksum.toLowerCase()) {
+        throw new Error("This file does not exactly match the saved report. Select the original file that was uploaded for this lab order.");
+      }
+
       const scan = await runClinicalAssistOcr(originalFile, (progress) => setClinicalAssistProgress(progress));
       const text = scan.text.trim();
       if (text.length < 20) {
@@ -360,8 +387,25 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                   onClick={() => void extractWithClinicalAssist()}
                   className="w-full rounded-lg bg-emerald-800 px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
                 >
-                  {clinicalAssistRunning ? "Running Clinical Assist…" : "Extract with Clinical Assist"}
+                  {clinicalAssistRunning ? "Running Clinical Assist…" : assistSourceFile ? "Extract with Clinical Assist" : "Extract stored report with Clinical Assist"}
                 </button>
+                <label className="block cursor-pointer rounded-lg border border-emerald-300 bg-white px-2 py-2 text-center text-[11px] font-semibold text-emerald-900">
+                  Choose the original report file
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                    className="sr-only"
+                    disabled={clinicalAssistRunning || retrying || verifying}
+                    onChange={(event) => {
+                      const f = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      if (f) void extractWithClinicalAssist(f);
+                    }}
+                  />
+                </label>
+                <p className="text-[10px] text-gray-500">
+                  If MedLum did not retain the binary, reselect the exact same file. Its SHA-256 checksum is checked before OCR.
+                </p>
                 {clinicalAssistRunning && clinicalAssistProgress && (
                   <p className="text-[10px] text-emerald-800" role="status">{clinicalAssistProgress}</p>
                 )}
