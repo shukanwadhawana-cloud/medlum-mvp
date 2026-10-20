@@ -28,7 +28,7 @@ export default function NursingPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/ipd", { credentials: "include", cache: "no-store" });
+      const response = await fetch("/api/nursing/census", { credentials: "include", cache: "no-store" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load nursing census");
       setPatients(data.patients || []);
