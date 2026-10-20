@@ -346,10 +346,10 @@ export default function IpdCoverSheet({
                   <td className="py-1.5 pr-2">{selected?.wardType || "—"}</td>
                   <td className="py-1.5 pr-2">{selected?.roomNumber || "—"}</td>
                   <td className="py-1.5">
-                    {selected?.consultantName || "—"}
+                    <u>{selected?.consultantName || "Consultant not assigned"}</u>
                     {selected?.department ? (
                       <span className="block text-[10px] text-gray-400">
-                        {selected.department}
+                        {selected.consultantSpecialty || selected.department}
                       </span>
                     ) : null}
                   </td>

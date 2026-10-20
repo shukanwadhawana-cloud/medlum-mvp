@@ -38,7 +38,7 @@ function istIsoLabel(d: Date) {
 }
 
 function mapIpdPatient(
-  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string },
+  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string; uhid?: string; registrationNo?: string },
   vitalsMap: Map<string, unknown>,
   notesMap: Map<string, unknown[]>,
   labOrders: { patientId: string }[],
@@ -50,6 +50,7 @@ function mapIpdPatient(
   const latest = vitalsMap.get(p.id) || null;
   return {
     id: p.id, name: p.name, age: p.age, gender: p.gender, phone: p.phone, allergies: p.allergies, status: p.status,
+    uhid: p.uhid || "", registrationNo: p.registrationNo || "",
     notes: cleanPatientNotes(p.notes), ...profile, vitals: latest,
     clinicalNotes: notesMap.get(p.id) || [],
     labOrders: labOrders.filter((l) => l.patientId === p.id),
@@ -188,6 +189,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, orders, order: orders[0] });
     }
 
+    if (action === "update-admission-details" || action === "update-diagnosis") {
+      const patientId = String(body.patientId || "").trim();
+      if (!patientId) return NextResponse.json({ success: false, error: "Patient is required." }, { status: 400 });
+      const patient = await getPatient(patientId, session.doctorId, clinicId);
+      if (!patient) return NextResponse.json({ success: false, error: "Patient not found in this clinic." }, { status: 404 });
+      const profile = parsePatientProfile(patient.notes);
+      const nextProfile = action === "update-diagnosis"
+        ? { ...profile,
+            workingDiagnosis: String(body.workingDiagnosis ?? profile.workingDiagnosis ?? "").trim(),
+            diagnosis: String(body.diagnosis ?? profile.diagnosis ?? "").trim(),
+            icdCode: String(body.icdCode ?? profile.icdCode ?? "").trim(),
+          }
+        : { ...profile,
+            consultantName: String(body.consultantName ?? profile.consultantName ?? "").trim(),
+            consultantSpecialty: String(body.consultantSpecialty ?? profile.consultantSpecialty ?? "").trim(),
+          };
+      const existingUhid = String(patient.uhid || patient.registrationNo || "").trim();
+      const uhid = existingUhid || `MLH-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${crypto.randomUUID().replace(/-/g,"").slice(0,8).toUpperCase()}`;
+      await prisma.patient.update({ where: { id: patientId }, data: {
+        ...(patient.uhid ? {} : { uhid }),
+        ...(patient.registrationNo ? {} : { registrationNo: uhid }),
+        notes: encodePatientNotes(cleanPatientNotes(patient.notes), parseCareSetting(patient.notes), nextProfile),
+      } });
+      await writeAudit({ doctorId: session.doctorId, action: "update", entity: "Patient", entityId: patientId, meta: {
+        clinicId, updateType: action, consultantName: nextProfile.consultantName || "",
+        consultantSpecialty: nextProfile.consultantSpecialty || "", diagnosisUpdated: action === "update-diagnosis",
+        uhidAssigned: !existingUhid && Boolean(uhid),
+      } });
+      return NextResponse.json({ success: true, patientId, uhid, profile: nextProfile });
+    }
+
     if (action === "update-allergies") {
       const patientId = String(body.patientId || "");
       const allergies = String(body.allergies ?? body.allergy ?? "").trim();
@@ -218,6 +250,8 @@ export async function POST(req: Request) {
         data: {
           doctorId: session.doctorId, clinicId, name, age: parseInt(String(body.age), 10) || 0,
           gender: String(body.gender || "Male"), phone, bp: "", allergies: String(body.allergies || ""),
+          uhid: `MLH-${new Date().toISOString().slice(0,10).replace(/-/g,"")}-${crypto.randomUUID().replace(/-/g,"").slice(0,8).toUpperCase()}`,
+          registrationNo: "",
           notes: encodePatientNotes(String(body.notes || ""), careSetting, profile),
         },
       });
