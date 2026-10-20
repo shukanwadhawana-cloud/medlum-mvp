@@ -6,7 +6,8 @@ import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientPr
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { normalizeClinicRole, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
-import { hashClinicalNote } from "@/lib/clinical-signing";
+import { canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
+import { canViewClinicalChart } from "@/lib/permissions";
 
 function metaOf(l: { meta?: string | null } | null | undefined) {
   try { return l?.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
@@ -261,6 +262,11 @@ export async function POST(req: Request) {
 
     if (action === "discharge-summary-draft" || action === "discharge-summary-submit" || action === "discharge-complete") {
       if (!clinicId) return NextResponse.json({ success: false, error: "An active clinic membership is required for discharge summary signing." }, { status: 403 });
+      if (!canViewClinicalChart(membership.role)) return NextResponse.json({ success: false, error: "Clinical chart access is required for discharge summaries.", code: "RBAC_DENIED" }, { status: 403 });
+      if (action === "discharge-complete") {
+        const actor = await getClinicalActor(session.doctorId, clinicId);
+        if (!actor || !canFinalizeClinicalNote(actor.normalizedRole)) return NextResponse.json({ success: false, error: "Your clinic role cannot final-sign discharge summaries.", code: "RBAC_DENIED" }, { status: 403 });
+      }
       const patientId = String(body.patientId || "").trim();
       const content = String(body.content || "").trim();
       const patient = await getPatient(patientId, session.doctorId, clinicId);
@@ -299,12 +305,18 @@ export async function POST(req: Request) {
       }
 
       const note = await prisma.clinicalNote.findFirst({
-        where: { clinicId: clinicId || undefined, patientId, noteType: "Discharge Note", authorDoctorId: session.doctorId },
+        where: {
+          clinicId,
+          patientId,
+          noteType: "Discharge Note",
+          ...(action === "discharge-summary-submit" ? { authorDoctorId: session.doctorId, status: "DRAFT" } : { status: "PENDING_VERIFICATION" }),
+        },
         orderBy: { createdAt: "desc" },
       });
       if (!note) return NextResponse.json({ success: false, error: "No saved discharge summary draft exists." }, { status: 409 });
 
       if (action === "discharge-summary-submit") {
+        if (note.status !== "DRAFT" || note.authorDoctorId !== session.doctorId) return NextResponse.json({ success: false, error: "Only your own saved draft can be submitted.", code: "INVALID_NOTE_STATE" }, { status: 409 });
         const nextContent = content || note.content;
         if (!nextContent.trim()) return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
         const version = note.version + 1;
@@ -319,7 +331,10 @@ export async function POST(req: Request) {
       if (patient.status === "DISCHARGED") {
         return NextResponse.json({ success: false, error: "Patient is already discharged" }, { status: 409 });
       }
-      const nextContent = (content || note.content || "").trim();
+      if (note.status !== "PENDING_VERIFICATION") return NextResponse.json({ success: false, error: "Only a submitted discharge summary can be final-signed.", code: "INVALID_NOTE_STATE" }, { status: 409 });
+      if (note.authorDoctorId === session.doctorId) return NextResponse.json({ success: false, error: "The author cannot be the second verifier. A different clinician must final-sign.", code: "SECOND_SIGNER_REQUIRED" }, { status: 409 });
+      const nextContent = String(note.content || "").trim();
+      if (note.contentHash !== hashClinicalNote(nextContent, note.version)) return NextResponse.json({ success: false, error: "Discharge summary integrity check failed; the note must not be signed.", code: "CONTENT_HASH_MISMATCH" }, { status: 409 });
       if (!nextContent) {
         return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
       }
@@ -336,17 +351,15 @@ export async function POST(req: Request) {
             (err as Error & { code?: string }).code = "ALREADY_DISCHARGED";
             throw err;
           }
-          await tx.clinicalNote.update({
-            where: { id: note.id },
-            data: {
-              content: nextContent,
-              status: "FINAL",
-              verifierDoctorId: session.doctorId,
-              verifiedAt: now,
-              finalizedAt: now,
-              finalHash,
-            },
+          const finalized = await tx.clinicalNote.updateMany({
+            where: { id: note.id, clinicId, patientId: patient.id, status: "PENDING_VERIFICATION", version: note.version, contentHash: note.contentHash, authorDoctorId: note.authorDoctorId, verifierDoctorId: null },
+            data: { status: "FINAL", verifierDoctorId: session.doctorId, verifiedAt: now, finalizedAt: now, finalHash },
           });
+          if (finalized.count !== 1) {
+            const err = new Error("Discharge summary changed during verification");
+            (err as Error & { code?: string }).code = "NOTE_CHANGED";
+            throw err;
+          }
           return tx.patient.update({ where: { id: patient.id }, data: { status: "DISCHARGED" } });
         });
       } catch (e: unknown) {
@@ -354,6 +367,7 @@ export async function POST(req: Request) {
         if (code === "ALREADY_DISCHARGED") {
           return NextResponse.json({ success: false, error: "Patient is already discharged" }, { status: 409 });
         }
+        if (code === "NOTE_CHANGED" || code === "P2034") return NextResponse.json({ success: false, error: "Discharge summary changed during verification. Reload and review it again.", code: "CONCURRENT_UPDATE" }, { status: 409 });
         throw e;
       }
       await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_COMPLETE", entity: "Patient", entityId: patient.id, meta: { clinicId, noteId: note.id, status: "DISCHARGED" } });
