@@ -349,7 +349,7 @@ export default function IpdCoverSheet({
                     <u>{selected?.consultantName || "Consultant not assigned"}</u>
                     {selected?.department ? (
                       <span className="block text-[10px] text-gray-400">
-                        {selected.department}
+                        {selected.consultantSpecialty || selected.department}
                       </span>
                     ) : null}
                   </td>
