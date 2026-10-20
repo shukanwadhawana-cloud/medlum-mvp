@@ -47,7 +47,7 @@ ok(retryPanel.includes("Retry Clinical Assist extraction"), "retry action clearl
 ok(retryPanel.includes("rawTextPreview"), "report panel restores retained OCR text on initial load");
 ok(retryPanel.includes("Clinical Assist could not create a structured draft"), "failed state explains the enhanced extraction path");
 ok(retryPanel.includes('data.code === "ORIGINAL_FILE_UNAVAILABLE"'), "panel handles non-durable processed storage without a misleading retry failure");
-ok(retryPanel.includes("choose the same report above to rerun Clinical Assist"), "panel explains re-upload retry for existing failed reports");
+ok(retryPanel.includes("Choose the same report above to rerun Clinical Assist"), "panel explains re-upload retry for existing failed reports");
 ok(ocrLib.includes("primaryFailed || Object.keys(draft).length < 4"), "Clinical Assist fallback runs when primary OCR errors or finds too few values");
 ok(ocrLib.includes("Initial lab OCR pass failed:"), "primary OCR errors are retained as diagnostics instead of skipping fallback");
 
