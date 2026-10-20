@@ -57,6 +57,11 @@ export async function GET(req: Request) {
     where: patientId
       ? { patientId, patient: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] } }
       : { patient: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] } },
+    include: {
+      encounter: {
+        select: { id: true, date: true, status: true, chiefComplaint: true, cancelledAt: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: 150,
   });
@@ -83,10 +88,32 @@ export async function POST(req: Request) {
     if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
     let encounterId: string | null = body.encounterId ? String(body.encounterId) : null;
     if (encounterId) {
+      // Explicit link: encounter must belong to the same patient (never cross-patient).
       const encounter = await prisma.encounter.findFirst({
-        where: { id: encounterId, patientId, doctorId: session.doctorId },
+        where: {
+          id: encounterId,
+          patientId,
+          cancelledAt: null,
+        },
       });
-      if (!encounter) encounterId = null;
+      if (!encounter) {
+        return NextResponse.json(
+          { success: false, error: "Encounter does not belong to this patient or is cancelled." },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Auto-link the patient's most recent active encounter when the client omits encounterId.
+      // Do not invent IDs; leave null when no active encounter exists (historical truth preserved).
+      const active = await prisma.encounter.findFirst({
+        where: {
+          patientId,
+          cancelledAt: null,
+          NOT: { status: "CANCELLED" },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      encounterId = active?.id ?? null;
     }
     const order = await prisma.labOrder.create({
       data: {

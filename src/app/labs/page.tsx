@@ -27,6 +27,13 @@ type LabOrder = {
   patientUhid?: string;
   patientRegistrationNo?: string;
   encounterType?: string;
+  encounter?: {
+    id: string;
+    date: string;
+    status: string;
+    chiefComplaint?: string;
+    cancelledAt?: string | null;
+  } | null;
 };
 
 const ACTIVE_STATUSES = new Set([
@@ -99,7 +106,11 @@ type PatientGroup = {
 
 function resolveEncounterType(o: LabOrder): string {
   if (o.encounterType && o.encounterType.trim()) return o.encounterType.trim();
-  if (o.encounterId) return "Encounter";
+  if (o.encounter && !o.encounter.cancelledAt) {
+    const datePart = o.encounter.date ? ` · ${o.encounter.date}` : "";
+    return `Linked encounter${datePart}`;
+  }
+  if (o.encounterId) return "Linked encounter";
   return "Encounter not linked";
 }
 
