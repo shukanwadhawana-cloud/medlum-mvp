@@ -19,6 +19,7 @@ const owner = read("src/app/owner/page.tsx");
 const ownerHospitals = read("src/app/owner/hospitals/page.tsx");
 const docker = read("Dockerfile");
 const entrypoint = read("scripts/render-entrypoint.sh");
+const permissions = read("src/lib/permissions.ts");
 
 check(invoicePrint.includes("canViewBillingDetail(membership.role)"), "Invoice print payload enforces the billing role matrix");
 check((pharmacy.match(/if \(!canManagePharmacy\(membership\.role\)\)/g) || []).length >= 5, "Pharmacy read, inventory mutations, and dispensing actions are role-gated");
@@ -30,6 +31,8 @@ check(owner.includes("const isOwner = Boolean(doctor.isOwner)") && !owner.includ
 check(!ownerHospitals.includes('primaryRole!=="Owner"'), "Hospital-owner screen matches platform-owner authorization");
 check(docker.includes('ENTRYPOINT ["sh", "/app/scripts/render-entrypoint.sh"]'), "Render startup uses an explicit entrypoint script rather than inline shell quoting");
 check(entrypoint.includes("npx prisma migrate deploy") && entrypoint.includes('exec npm start'), "Render entrypoint retains migration retry behavior and starts the app only after migrations succeed");
+check(permissions.includes('path.startsWith("/dietitian")') && permissions.includes('"Dietitian", "Dietician", "Nutritionist"'), "Direct Dietitian/Nutrition routes enforce the dietitian role matrix");
+check(permissions.includes('path.startsWith("/physiotherapy")') && permissions.includes('"Nurse", "Physiotherapist"'), "Direct Physiotherapy routes enforce their role matrix");
 
 if (failures.length) {
   console.error("\nWorkflow permission regression verification FAILED:\n" + failures.map((x) => " - " + x).join("\n"));
