@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
 
 type Doc = {
   id: string;
@@ -8,6 +9,7 @@ type Doc = {
   ocrStatus: string;
   mimeType?: string;
   sizeBytes?: number;
+  checksum?: string;
   ocrDraft?: string | null;
   verifiedAt?: string | null;
 };
@@ -39,6 +41,17 @@ function candidatesFrom(doc?: Doc | null): Record<string, string> {
   }
 }
 
+function rawTextFrom(doc?: Doc | null): string {
+  if (!doc?.ocrDraft) return "";
+  try { return String(JSON.parse(doc.ocrDraft).rawTextPreview || ""); } catch { return ""; }
+}
+
+async function sha256Hex(file: File): Promise<string> {
+  if (!globalThis.crypto?.subtle) throw new Error("This browser cannot securely validate the selected report. Use a current browser over HTTPS.");
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export default function LabResultDocumentPanel({ labOrderId, patientId, onVerified }: Props) {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<Doc | null>(null);
@@ -48,6 +61,9 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [clinicalAssistRunning, setClinicalAssistRunning] = useState(false);
+  const [clinicalAssistProgress, setClinicalAssistProgress] = useState("");
+  const [assistSourceFile, setAssistSourceFile] = useState<File | null>(null);
   const [manualResult, setManualResult] = useState("");
 
   async function load() {
@@ -98,6 +114,9 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
 
       const doc = data.document as Doc;
       setSelectedDoc(doc);
+      // Keep the exact selected bytes in memory for local OCR: processed storage
+      // deliberately retains metadata/drafts, not the original binary.
+      setAssistSourceFile(file);
       const nextValues = candidatesFrom(doc);
       setValues(nextValues);
       setManualResult(String(data.document?.ocrDraft || "").includes("rawTextPreview")
@@ -162,6 +181,75 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     }
   }
 
+  async function extractWithClinicalAssist(chosenFile?: File) {
+    if (!selectedDoc || clinicalAssistRunning || verifying || retrying) return;
+    setClinicalAssistRunning(true);
+    setClinicalAssistProgress("Loading and validating the original report…");
+    setError("");
+    setMessage("");
+    try {
+      // Use the exact file from the current upload when available. The zero-cost
+      // processed provider intentionally does not retain original report bytes.
+      let originalFile = chosenFile || assistSourceFile;
+      if (!originalFile) {
+        const source = await fetch(`/api/labs/documents/${selectedDoc.id}/view?raw=1`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!source.ok) {
+          throw new Error("This hosting configuration did not retain the original file. Choose the exact same report file below; its checksum will be validated before OCR.");
+        }
+        const blob = await source.blob();
+        originalFile = new File(
+          [blob],
+          selectedDoc.originalFileName || "lab-report",
+          { type: selectedDoc.mimeType || blob.type || "application/octet-stream" }
+        );
+      }
+
+      // Prevent text from another report being associated with this patient's lab order.
+      if (!selectedDoc.checksum) {
+        throw new Error("The saved document checksum is unavailable. Reload the lab panel before attempting extraction.");
+      }
+      const suppliedChecksum = await sha256Hex(originalFile);
+      if (suppliedChecksum.toLowerCase() !== selectedDoc.checksum.toLowerCase()) {
+        throw new Error("This file does not exactly match the saved report. Select the original file that was uploaded for this lab order.");
+      }
+      setAssistSourceFile(originalFile);
+
+      const scan = await runClinicalAssistOcr(originalFile, (progress) => setClinicalAssistProgress(progress));
+      const text = scan.text.trim();
+      if (text.length < 20) {
+        throw new Error("Clinical Assist found too little readable text. Try a clearer, upright image or a higher-quality PDF.");
+      }
+
+      setClinicalAssistProgress("Structuring candidate lab values…");
+      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/clinical-assist`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-MedLum-Requested-With": "MedLum",
+        },
+        body: JSON.stringify({ text, label: scan.label, confidence: scan.confidence, partial: scan.partial === true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || "Clinical Assist could not save its draft.");
+      const doc = data.document as Doc;
+      setSelectedDoc(doc);
+      setValues(candidatesFrom(doc));
+      setManualResult(rawTextFrom(doc));
+      setMessage(data.ocr?.message || "Clinical Assist finished. Review every value against the original report.");
+      setClinicalAssistProgress("");
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Clinical Assist extraction failed. You can still retry server OCR or enter findings manually.");
+      setClinicalAssistProgress("");
+    } finally {
+      setClinicalAssistRunning(false);
+    }
+  }
+
   async function verify(action: "ACCEPT" | "CORRECT" | "REJECT" | "MANUAL") {
     if (!selectedDoc) return;
     setVerifying(true);
@@ -214,7 +302,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       <input
         type="file"
         accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
-        disabled={phase === "uploading" || verifying}
+        disabled={phase === "uploading" || verifying || retrying || clinicalAssistRunning}
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) void upload(f);
@@ -281,11 +369,51 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               >
                 Reject report
               </button>
+              {rawTextFrom(selectedDoc) && (
+                <details className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+                  <summary className="cursor-pointer text-[10px] font-semibold text-gray-700">View full OCR text</summary>
+                  <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[10px] text-gray-700">{rawTextFrom(selectedDoc)}</pre>
+                </details>
+              )}
             </div>
           )}
 
           {selectedStatus === "FAILED" && (
             <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="rounded-lg border border-emerald-200 bg-white p-3 space-y-2">
+                <p className="text-[11px] font-semibold text-emerald-900">Extract with Clinical Assist on this device</p>
+                <p className="text-[10px] text-gray-600">
+                  Re-read this exact report with on-device OCR. Machine-extracted values remain drafts until a clinician verifies them.
+                </p>
+                <button
+                  type="button"
+                  disabled={clinicalAssistRunning || retrying || verifying}
+                  onClick={() => void extractWithClinicalAssist()}
+                  className="w-full rounded-lg bg-emerald-800 px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+                >
+                  {clinicalAssistRunning ? "Running Clinical Assist…" : "Extract with Clinical Assist"}
+                </button>
+                <label className="block cursor-pointer rounded-lg border border-emerald-300 bg-white px-2 py-2 text-center text-[11px] font-semibold text-emerald-900">
+                  Choose the original report file
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                    className="sr-only"
+                    disabled={clinicalAssistRunning || retrying || verifying}
+                    onChange={(event) => {
+                      const f = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      if (f) void extractWithClinicalAssist(f);
+                    }}
+                  />
+                </label>
+                <p className="text-[10px] text-gray-500">
+                  This hosting mode may not retain original file bytes. Re-select the exact same file; MedLum checks its SHA-256 before extracting.
+                </p>
+                {clinicalAssistRunning && clinicalAssistProgress && (
+                  <p className="text-[10px] text-emerald-800" role="status">{clinicalAssistProgress}</p>
+                )}
+              </div>
               <p className="text-[11px] font-semibold text-amber-900">
                 Clinical Assist could not create a structured draft
               </p>
@@ -309,7 +437,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               })()}
               <button
                 type="button"
-                disabled={verifying || retrying}
+                disabled={verifying || retrying || clinicalAssistRunning}
                 onClick={() => void retryExtraction()}
                 className="w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
               >
@@ -320,7 +448,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                 <textarea
                   value={manualResult}
                   onChange={(e) => setManualResult(e.target.value)}
-                  disabled={verifying}
+                  disabled={verifying || clinicalAssistRunning || retrying}
                   placeholder="Type or paste the laboratory findings from the report. Verify to save as the clinical result."
                   className="mt-1 min-h-28 w-full rounded border bg-white px-2 py-1.5 text-xs"
                 />
@@ -330,7 +458,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               </p>
               <button
                 type="button"
-                disabled={!canManualVerify}
+                disabled={!canManualVerify || clinicalAssistRunning || retrying}
                 onClick={() => void verify("MANUAL")}
                 className="w-full rounded-lg bg-[#c2183a] px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
               >
