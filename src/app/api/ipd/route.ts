@@ -310,7 +310,7 @@ export async function POST(req: Request) {
         if (!note) return NextResponse.json({ success: false, error: "Save your own discharge summary draft before submitting it for independent verification." }, { status: 409 });
         const nextContent = content || note.content;
         if (!nextContent.trim()) return NextResponse.json({ success: false, error: "Discharge summary content required." }, { status: 400 });
-        if (!/Acknowledgement of receipt:\\s*Yes/i.test(nextContent)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before submitting the discharge summary." }, { status: 400 });
+        if (!/Acknowledgement of receipt:\s*Yes/i.test(nextContent)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before submitting the discharge summary." }, { status: 400 });
         const version = note.version + 1;
         const submitted = await prisma.clinicalNote.updateMany({
           where: { id: note.id, clinicId, patientId, authorDoctorId: session.doctorId, status: "DRAFT", version: note.version },
@@ -325,14 +325,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: false, error: "Your clinic role cannot final-sign a discharge summary.", code: "RBAC_DENIED" }, { status: 403 });
       }
       const note = await prisma.clinicalNote.findFirst({
-        where: { clinicId, patientId, noteType: "Discharge Note", status: "PENDING_VERIFICATION" },
+        where: { clinicId, patientId, noteType: "Discharge Note", status: "PENDING_VERIFICATION", authorDoctorId: { not: session.doctorId } },
         orderBy: { updatedAt: "desc" },
       });
       if (!note) return NextResponse.json({ success: false, error: "No discharge summary is awaiting independent verification." }, { status: 409 });
       if (note.authorDoctorId === session.doctorId) {
         return NextResponse.json({ success: false, error: "The author cannot be the second verifier. A different clinician must final-sign this discharge summary." }, { status: 409 });
       }
-      if (!/Acknowledgement of receipt:\\s*Yes/i.test(note.content)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before final discharge." }, { status: 409 });
+      if (!/Acknowledgement of receipt:\s*Yes/i.test(note.content)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before final discharge." }, { status: 409 });
       if (note.contentHash !== hashClinicalNote(note.content, note.version)) {
         return NextResponse.json({ success: false, error: "Discharge summary integrity check failed. Do not sign this version; ask the author to review it." }, { status: 409 });
       }
