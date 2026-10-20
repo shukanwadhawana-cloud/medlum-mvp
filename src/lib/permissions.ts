@@ -79,24 +79,34 @@ export function canAccessModule(role: string | null | undefined, module: MedLumM
 
 export function canAccessPath(role: string | null | undefined, pathname: string): boolean {
   const path = pathname.split("?")[0] || "/";
-  if (path === "/" || path === "/dashboard" || path.startsWith("/dashboard/")) return canAccessModule(role, "dashboard");
+  if (path === "/" || path === "/dashboard" || path.startsWith("/dashboard/") || path === "/more") return canAccessModule(role, "dashboard");
   if (path.startsWith("/patients")) return canAccessModule(role, "patients");
-  if (path.startsWith("/opd")) return canAccessModule(role, "opd");
+  if (path.startsWith("/opd") || path.startsWith("/appointments")) return canAccessModule(role, "opd");
   if (path.startsWith("/ipd")) return canAccessModule(role, "ipd");
   if (path.startsWith("/emergency")) return canAccessModule(role, "emergency");
   if (path.startsWith("/pharmacy")) return canAccessModule(role, "pharmacy");
   if (path.startsWith("/labs")) return canAccessModule(role, "labs");
   if (path.startsWith("/diagnostics")) return canAccessModule(role, "diagnostics");
   if (path.startsWith("/nursing")) return canAccessModule(role, "nursing");
-  if (path.startsWith("/billing")) return canAccessModule(role, "billing");
+  if (path.startsWith("/billing") || path.startsWith("/razorpay-test")) return canAccessModule(role, "billing");
+  if (path.startsWith("/prescriptions")) return canAccessModule(role, "prescriptions");
+  if (path.startsWith("/telemedicine")) return canAccessModule(role, "telemedicine");
+  if (path.startsWith("/duty")) return canAccessModule(role, "duty");
+  if (path.startsWith("/people") || path.startsWith("/workforce")) return canAccessModule(role, "workforce");
+  if (path.startsWith("/clinic/setup")) return canAccessModule(role, "clinic_setup");
+  if (path.startsWith("/clinic/tariffs")) return canAccessModule(role, "tariffs");
+  if (path.startsWith("/clinic")) return canAccessModule(role, "clinic");
+  if (path.startsWith("/blood-bank")) return canAccessModule(role, "blood_bank");
+  if (path.startsWith("/insurance")) return canAccessModule(role, "insurance");
   if (path.startsWith("/reports")) return canAccessModule(role, "reports");
   if (path.startsWith("/clinical-assist")) return canAccessModule(role, "clinical_assist");
-  // These modules are navigation extensions rather than entries in MODULE_ROLES,
-  // so direct URL access must use the same role matrix as their APIs.
+  if (path.startsWith("/mvp-blueprint")) return canAccessModule(role, "clinic");
+  // These modules use specialised role matrices in their server APIs.
   if (path.startsWith("/dietitian")) return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Dietitian", "Dietician", "Nutritionist"].includes(normalizeClinicRole(role || ""));
   if (path.startsWith("/physiotherapy")) return ["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Nurse", "Physiotherapist"].includes(normalizeClinicRole(role || ""));
   if (path.startsWith("/owner")) return canAccessModule(role, "owner_platform");
-  return true;
+  // Do not silently grant access to a new private route until it is mapped above.
+  return false;
 }
 
 export function canManageStaff(role: string | null | undefined): boolean {
