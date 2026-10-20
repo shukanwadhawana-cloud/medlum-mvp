@@ -26,7 +26,6 @@ export default function MedicationAdministrationPanel({ patient }: Props) {
   const [busy,setBusy]=useState(false); const [message,setMessage]=useState(""); const [error,setError]=useState("");
   async function load(){const res=await fetch("/api/ipd/medications?patientId="+encodeURIComponent(patient.id),{credentials:"include",cache:"no-store"});const body=await res.json().catch(()=>({}));if(!res.ok)throw new Error(body.error||"Could not load medication administration record");setData({prescriptions:body.prescriptions||[],administrations:body.administrations||[]});}
   useEffect(()=>{if(!patient?.id)return;setSelectedPrescriptionId("");setMedicationText("");setMedicationName("");setFrequency("OD");setMessage("");setError("");void load().catch((e)=>setError(e.message));},[patient?.id]);
-  const selectedPrescription=useMemo(()=>data.prescriptions.find((p)=>p.id===selectedPrescriptionId),[data.prescriptions,selectedPrescriptionId]);
   // Use the IPD workspace's already-loaded prescription list as a resilient fallback.
   // This keeps freshly ordered medicines selectable even if the separate MAR request
   // is temporarily stale or its prescription projection is delayed.
