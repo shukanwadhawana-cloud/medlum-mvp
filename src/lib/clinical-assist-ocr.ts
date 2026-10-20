@@ -16,6 +16,77 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   });
 }
 
+/**
+ * Use the same grayscale preprocessing in every Clinical Assist entry point.
+ * The generated file stays on-device and is bounded to the OCR size limit.
+ */
+export async function prepareClinicalAssistImage(file: File): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  let preparedBlob: Blob;
+  try {
+    const maxWidth = 2400;
+    const maxHeight = 3200;
+    const scale = Math.min(1, maxWidth / bitmap.width, maxHeight / bitmap.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Canvas is unavailable on this device.");
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = image.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const gray = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+      pixels[i] = pixels[i + 1] = pixels[i + 2] = gray;
+    }
+    context.putImageData(image, 0, 0);
+    preparedBlob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("Could not prepare the report image.")),
+        "image/png",
+        1,
+      )
+    );
+    canvas.width = 1;
+    canvas.height = 1;
+  } finally {
+    bitmap.close();
+  }
+
+  if (preparedBlob.size <= MAX_BYTES) {
+    return new File([preparedBlob], "medlum-scan.png", { type: "image/png" });
+  }
+
+  const secondBitmap = await createImageBitmap(preparedBlob);
+  try {
+    const maxDimension = 1600;
+    const scale = Math.min(1, maxDimension / Math.max(secondBitmap.width, secondBitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(secondBitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(secondBitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is unavailable for image compression.");
+    context.drawImage(secondBitmap, 0, 0, canvas.width, canvas.height);
+    const compressed = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("Could not compress the report image.")),
+        "image/jpeg",
+        0.86,
+      )
+    );
+    canvas.width = 1;
+    canvas.height = 1;
+    if (compressed.size > MAX_BYTES) {
+      throw new Error("The prepared report is still larger than 8 MB. Choose a smaller or clearer image.");
+    }
+    return new File([compressed], "medlum-scan.jpg", { type: "image/jpeg" });
+  } finally {
+    secondBitmap.close();
+  }
+}
+
 function isPdf(file: File): boolean {
   const name = (file.name || "").toLowerCase();
   return file.type === "application/pdf" || name.endsWith(".pdf");
