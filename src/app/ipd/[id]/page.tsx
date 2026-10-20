@@ -271,7 +271,15 @@ export default function IPDPatientWorkspace(){
     {mainTab==="Dashboard"&&leftNav==="OPD/IPD Details"&&(
      <div className="text-xs space-y-2"><h3 className="font-semibold text-sm">OPD / IPD Details</h3>
       <p>Care setting: IPD · Ward: {selected.wardType||"—"} · Bed: {selected.roomNumber||"—"}</p>
-      <p>Consultant: {selected.consultantName||"—"} · Specialty: {selected.consultantSpecialty||department}</p>
+      <p><u>Consultant</u>: {selected.consultantName||"Not assigned"} ({selected.consultantSpecialty||"Specialty not recorded"})</p>
+      <form onSubmit={saveConsultant} className="mt-3 border rounded-lg p-3 space-y-2 max-w-xl">
+       <h4 className="font-semibold">Assign / update consultant</h4>
+       <div className="grid sm:grid-cols-2 gap-2">
+        <label className="text-[11px] text-gray-600">Consultant name<input required value={consultantForm.consultantName} onChange={e=>setConsultantForm({...consultantForm,consultantName:e.target.value})} placeholder="Dr. Full name" className="mt-1 w-full h-9 px-2 rounded border text-xs"/></label>
+        <label className="text-[11px] text-gray-600">Specialty / faculty<input required value={consultantForm.consultantSpecialty} onChange={e=>setConsultantForm({...consultantForm,consultantSpecialty:e.target.value})} placeholder="General Medicine, Orthopaedics…" className="mt-1 w-full h-9 px-2 rounded border text-xs"/></label>
+       </div>
+       <button disabled={saving} className="h-8 px-3 rounded bg-[#c2183a] text-white text-xs">{saving?"Saving…":"Save consultant"}</button>
+      </form>
       <p>Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleString("en-IN"):"—"}</p>
       <div className="flex gap-2 mt-2">
        <button type="button" onClick={()=>setShowTransfer(true)} className="h-8 px-3 rounded border text-xs">Transfer bed</button>
