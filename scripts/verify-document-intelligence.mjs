@@ -41,8 +41,9 @@ ok(retry.includes("provider.getObject(doc.storageKey)"), "retry route uses store
 ok(retry.includes("LAB_DOCUMENT_OCR_RETRY"), "retry route audit");
 ok(retry.includes("verified: false"), "retry output remains an unverified draft");
 
-ok(panel.includes("retryExtraction"), "report panel exposes retry extraction action");
-ok(panel.includes("Retry report extraction"), "retry action has clear UI label");
+const retryPanel = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
+ok(retryPanel.includes("retryExtraction"), "report panel exposes retry extraction action");
+ok(retryPanel.includes("Retry report extraction"), "retry action has clear UI label");
 
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
 const verify = readFileSync("src/app/api/labs/documents/[id]/verify/route.ts", "utf8");
