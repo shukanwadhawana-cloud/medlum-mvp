@@ -57,6 +57,7 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canManagePharmacy(membership.role)) return NextResponse.json({ error: "Pharmacy access is required.", code: "RBAC_DENIED" }, { status: 403 });
   try {
     const body = await req.json();
     const action = String(body.action || "");
@@ -110,6 +111,7 @@ export async function PATCH(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canManagePharmacy(membership.role)) return NextResponse.json({ error: "Pharmacy access is required.", code: "RBAC_DENIED" }, { status: 403 });
   try {
     const body = await req.json();
     const id = String(body.id || "");
