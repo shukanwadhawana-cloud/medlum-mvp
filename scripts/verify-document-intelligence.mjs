@@ -30,6 +30,20 @@ ok(ocrLib.includes("Never invents values") || ocrLib.includes("not verified") ||
 const upload = readFileSync("src/app/api/labs/documents/route.ts", "utf8");
 ok(upload.includes("requireActiveClinicMembership"), "tenant membership required");
 ok(upload.includes("LAB_DOCUMENT_UPLOADED"), "upload audit");
+ok(upload.includes('existing.ocrStatus === "FAILED"'), "duplicate failed report can retry extraction without creating a duplicate");
+ok(upload.includes("LAB_DOCUMENT_OCR_RETRY"), "duplicate retry audit event");
+
+ok(existsSync("src/app/api/labs/documents/[id]/retry/route.ts"), "retry extraction route exists");
+const retry = readFileSync("src/app/api/labs/documents/[id]/retry/route.ts", "utf8");
+ok(retry.includes("requireActiveClinicMembership"), "retry route derives tenant from session membership");
+ok(retry.includes('doc.ocrStatus !== "FAILED"'), "retry route only reprocesses failed documents");
+ok(retry.includes("provider.getObject(doc.storageKey)"), "retry route uses stored original bytes");
+ok(retry.includes("LAB_DOCUMENT_OCR_RETRY"), "retry route audit");
+ok(retry.includes("verified: false"), "retry output remains an unverified draft");
+
+const retryPanel = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
+ok(retryPanel.includes("retryExtraction"), "report panel exposes retry extraction action");
+ok(retryPanel.includes("Retry report extraction"), "retry action has clear UI label");
 
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
 const verify = readFileSync("src/app/api/labs/documents/[id]/verify/route.ts", "utf8");
