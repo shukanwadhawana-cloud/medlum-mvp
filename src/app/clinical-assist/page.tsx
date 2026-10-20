@@ -8,7 +8,7 @@ import AppShell from "@/components/AppShell";
 import { apiAddPatient, apiAddPrescriptionWithEncounter, apiCreateEncounter, apiGetPatientDetail, apiGetPatients } from "@/lib/api";
 import { detectClinicalTerms, normalizeClinicalText, type ClinicalTerm } from "@/lib/clinical/terminology";
 import ClinicalAiDraftPanel, { type AiDraftSections } from "@/components/ClinicalAiDraftPanel";
-import { runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
+import { prepareClinicalAssistImage, runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
 
 type Patient = { id: string; name: string; age: number; gender: string; phone: string; allergies?: string; bp?: string };
 type Field = "chiefComplaint" | "clinicalNotes" | "diagnosis" | "assessment" | "plan" | "medicines" | "advice";
@@ -41,37 +41,6 @@ function parseScan(text: string) {
   if (medicines) out.medicines = medicines.replace(/\s+/g, " ").trim();
   if (advice) out.advice = advice.replace(/\s+/g, " ").trim();
   return out;
-}
-
-async function preprocessImage(file: File, variant: "clean" | "contrast" | "threshold") {
-  const bitmap = await createImageBitmap(file);
-  const maxWidth = 2400;
-  const scale = Math.min(1, maxWidth / bitmap.width);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) throw new Error("Canvas is unavailable on this device.");
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = image.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-    if (variant === "threshold") {
-      const v = gray > 170 ? 255 : gray < 95 ? 0 : Math.round(((gray - 95) / 75) * 255);
-      data[i] = data[i + 1] = data[i + 2] = v;
-    } else if (variant === "contrast") {
-      const v = Math.max(0, Math.min(255, (gray - 128) * 1.45 + 128));
-      data[i] = data[i + 1] = data[i + 2] = v;
-    } else {
-      data[i] = data[i + 1] = data[i + 2] = gray;
-    }
-  }
-  ctx.putImageData(image, 0, 0);
-  return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare scan.")), "image/png", 1));
 }
 
 export default function ClinicalAssistPage() {
@@ -143,29 +112,7 @@ export default function ClinicalAssistPage() {
       let ocrFile = file;
       if (isImage) {
         setScanStatus("Preparing photo for OCR…");
-        const prepared = await preprocessImage(file, "clean");
-        ocrFile = new File([prepared], "medlum-scan.png", { type: "image/png" });
-        if (ocrFile.size > 8 * 1024 * 1024) {
-          const compressed = await new Promise<Blob>((resolve, reject) => {
-            const img = new Image();
-            const url = URL.createObjectURL(ocrFile);
-            img.onload = () => {
-              const max = 1600;
-              const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-              const canvas = document.createElement("canvas");
-              canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-              canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-              const ctx = canvas.getContext("2d");
-              if (!ctx) { URL.revokeObjectURL(url); reject(new Error("Could not prepare scan.")); return; }
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              URL.revokeObjectURL(url);
-              canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not compress scan.")), "image/jpeg", 0.86);
-            };
-            img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read the prepared scan.")); };
-            img.src = url;
-          });
-          ocrFile = new File([compressed], "medlum-scan.jpg", { type: "image/jpeg" });
-        }
+        ocrFile = await prepareClinicalAssistImage(file);
       }
 
       setScanStatus(isPdf ? "Reading PDF locally…" : "Running OCR on this device…");
