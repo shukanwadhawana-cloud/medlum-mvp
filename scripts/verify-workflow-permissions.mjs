@@ -43,6 +43,7 @@ check(permissions.includes('path.startsWith("/clinic/tariffs")') && permissions.
 check(permissions.includes('path.startsWith("/blood-bank")') && permissions.includes('canAccessModule(role, "blood_bank")'), "Blood-bank routes use blood-bank permissions");
 check(permissions.includes('path.startsWith("/insurance")') && permissions.includes('canAccessModule(role, "insurance")'), "Insurance routes use insurance permissions");
 check(permissions.includes('if (normalized === "Owner" && module !== "owner_platform") return true;'), "Facility Owner entitlement cannot grant platform-owner module access");
+check(permissions.includes('if (path.startsWith("/owner")) return canAccessModule(role, "owner_platform");'), "Owner URLs use the platform-only entitlement check");
 check(permissions.includes("return false;"), "Unknown private routes fail closed instead of receiving default access");
 const doctorProvider = read("src/components/DoctorProvider.tsx");
 check(doctorProvider.includes('"/book"'), "Public appointment booking route is explicitly available without sign-in");
