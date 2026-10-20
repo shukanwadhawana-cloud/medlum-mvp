@@ -17,6 +17,10 @@ async function getPatient(patientId: string, doctorId: string, clinicId: string 
   }
   return prisma.patient.findFirst({ where: { id: patientId, doctorId } });
 }
+function generateUhid(): string {
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, "").slice(2);
+  return `UHID-${day}-${Math.floor(Math.random() * 900000 + 100000)}`;
+}
 function normalizeRoomCategory(value: unknown, unitType: unknown = "Ward") {
   const unit = String(unitType || "Ward").trim();
   if (unit === "ICU") return "ICU";
@@ -38,7 +42,7 @@ function istIsoLabel(d: Date) {
 }
 
 function mapIpdPatient(
-  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string },
+  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string; uhid: string; registrationNo: string; doctor?: { name: string } | null },
   vitalsMap: Map<string, unknown>,
   notesMap: Map<string, unknown[]>,
   labOrders: { patientId: string }[],
@@ -50,7 +54,11 @@ function mapIpdPatient(
   const latest = vitalsMap.get(p.id) || null;
   return {
     id: p.id, name: p.name, age: p.age, gender: p.gender, phone: p.phone, allergies: p.allergies, status: p.status,
-    notes: cleanPatientNotes(p.notes), ...profile, vitals: latest,
+    notes: cleanPatientNotes(p.notes), ...profile,
+    uhid: p.uhid || "", registrationNo: p.registrationNo || p.uhid || "",
+    consultantName: String(profile.consultantName || p.doctor?.name || "").trim(),
+    consultantSpecialty: String(profile.consultantSpecialty || profile.department || "").trim(),
+    vitals: latest,
     clinicalNotes: notesMap.get(p.id) || [],
     labOrders: labOrders.filter((l) => l.patientId === p.id),
     diagnosticOrders: diagnosticOrders.filter((d) => d.patientId === p.id),
@@ -78,6 +86,7 @@ export async function GET() {
   // when a doctor leaves the facility or when an Owner is viewing the census.
   const patients = await prisma.patient.findMany({
     where: { deletedAt: null, ...(clinicId ? { clinicId } : { doctorId: { in: doctorIds } }) },
+    include: { doctor: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
   const patientIds = patients.map((p) => p.id);
@@ -204,6 +213,8 @@ export async function POST(req: Request) {
       const phone = String(body.phone || "").trim();
       if (!name || !phone) return NextResponse.json({ success: false, error: "Name and phone required" }, { status: 400 });
       const careSetting = "IPD" as const;
+      const signedInDoctor = await prisma.doctor.findUnique({ where: { id: session.doctorId }, select: { name: true } });
+      const doctorName = signedInDoctor?.name || "";
       const profile = {
         address: String(body.address || ""), idType: String(body.idType || ""), idNumber: String(body.idNumber || ""),
         mlcNumber: String(body.mlcNumber || ""), prdNumber: String(body.prdNumber || ""), wardType: String(body.wardType || ""),
@@ -212,12 +223,15 @@ export async function POST(req: Request) {
         chiefComplaint: String(body.chiefComplaint || ""), hpi: String(body.hpi || ""), pastHistory: String(body.pastHistory || ""),
         surgicalHistory: String(body.surgicalHistory || ""), systemicExam: String(body.systemicExam || ""),
         workingDiagnosis: String(body.workingDiagnosis || ""), diagnosis: String(body.diagnosis || ""), icdCode: String(body.icdCode || ""),
-        consultantName: String(body.consultantName || ""), consultantSpecialty: String(body.consultantSpecialty || ""),
+        consultantName: String(body.consultantName || doctorName || "").trim(),
+        consultantSpecialty: String(body.consultantSpecialty || body.department || "").trim(),
+        department: String(body.department || body.consultantSpecialty || "").trim(),
       };
       const patient = await prisma.patient.create({
         data: {
           doctorId: session.doctorId, clinicId, name, age: parseInt(String(body.age), 10) || 0,
           gender: String(body.gender || "Male"), phone, bp: "", allergies: String(body.allergies || ""),
+          uhid: generateUhid(), registrationNo: "",
           notes: encodePatientNotes(String(body.notes || ""), careSetting, profile),
         },
       });
