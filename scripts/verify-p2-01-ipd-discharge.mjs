@@ -34,7 +34,7 @@ ok(
 ok(lifecycle.includes('patient.status === "DISCHARGED"'), "Lifecycle endpoint rejects an already discharged patient");
 ok(ipd.includes('prisma.$transaction(async (tx) =>'), "Discharge-complete uses one Prisma transaction");
 ok(ipd.includes('status === "DISCHARGED"') && ipd.includes('status: 409'), "Already-discharged discharge-complete returns 409");
-ok(ipd.includes('const nextContent = (content || note.content || "").trim()') && ipd.includes('status: 400'), "Discharge-complete rejects empty summary content");
+ok(ipd.includes('const nextContent = String(note.content || "").trim()') && ipd.includes('if (!nextContent)') && ipd.includes('status: 400'), "Discharge-complete rejects empty summary content and finalizes only the submitted content");
 ok(ipd.includes('tx.clinicalNote.update') && ipd.includes('tx.patient.update'), "Discharge-complete finalizes the note and patient status inside the same transaction");
 ok(lifecycle.includes("status: 409"), "Already-discharged transition returns a conflict");
 
