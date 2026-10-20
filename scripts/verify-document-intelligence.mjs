@@ -43,7 +43,11 @@ ok(retry.includes("verified: false"), "retry output remains an unverified draft"
 
 const retryPanel = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
 ok(retryPanel.includes("retryExtraction"), "report panel exposes retry extraction action");
-ok(retryPanel.includes("Retry report extraction"), "retry action has clear UI label");
+ok(retryPanel.includes("Retry Clinical Assist extraction"), "retry action clearly identifies Clinical Assist");
+ok(retryPanel.includes("rawTextPreview"), "report panel restores retained OCR text on initial load");
+ok(retryPanel.includes("Clinical Assist could not create a structured draft"), "failed state explains the enhanced extraction path");
+ok(ocrLib.includes("primaryFailed || Object.keys(draft).length < 4"), "Clinical Assist fallback runs when primary OCR errors or finds too few values");
+ok(ocrLib.includes("Initial lab OCR pass failed:"), "primary OCR errors are retained as diagnostics instead of skipping fallback");
 
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
 const verify = readFileSync("src/app/api/labs/documents/[id]/verify/route.ts", "utf8");
