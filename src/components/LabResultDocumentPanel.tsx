@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
 
 type Doc = {
   id: string;
@@ -25,18 +26,32 @@ function formatBytes(n?: number) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function candidatesFrom(doc?: Doc | null): Record<string, string> {
+function parsedDraft(doc?: Doc | null): Record<string, any> {
   if (!doc?.ocrDraft) return {};
   try {
     const parsed = JSON.parse(doc.ocrDraft);
-    const c = parsed?.candidates;
-    if (!c || typeof c !== "object" || Array.isArray(c)) return {};
-    return Object.fromEntries(
-      Object.entries(c).map(([k, v]) => [String(k), String(v ?? "")]).filter(([, v]) => v.trim())
-    );
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
+}
+
+function candidatesFrom(doc?: Doc | null): Record<string, string> {
+  const c = parsedDraft(doc)?.candidates;
+  if (!c || typeof c !== "object" || Array.isArray(c)) return {};
+  return Object.fromEntries(
+    Object.entries(c).map(([k, v]) => [String(k), String(v ?? "")]).filter(([, v]) => v.trim())
+  );
+}
+
+function rawTextFrom(doc?: Doc | null): string {
+  const value = parsedDraft(doc)?.rawTextPreview;
+  return typeof value === "string" ? value : "";
+}
+
+function warningsFrom(doc?: Doc | null): string[] {
+  const value = parsedDraft(doc)?.warnings;
+  return Array.isArray(value) ? value.filter((item: unknown): item is string => typeof item === "string") : [];
 }
 
 export default function LabResultDocumentPanel({ labOrderId, patientId, onVerified }: Props) {
@@ -48,6 +63,8 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [clinicalAssistRunning, setClinicalAssistRunning] = useState(false);
+  const [clinicalAssistProgress, setClinicalAssistProgress] = useState("");
   const [manualResult, setManualResult] = useState("");
 
   async function load() {
@@ -62,6 +79,8 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       if (latest) {
         setSelectedDoc(latest);
         setValues(candidatesFrom(latest));
+        // Restore retained OCR text when this modal opens or the report list refreshes.
+        setManualResult(rawTextFrom(latest));
       }
     } catch {
       setDocs([]);
@@ -108,7 +127,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
             ? "Report already exists. Its current extraction status and draft have been loaded."
             : data.ocr?.status === "DRAFT"
               ? "Report uploaded. OCR draft is ready for human verification."
-              : "Report uploaded, but OCR did not produce a usable structured draft. Review retained text or enter the result manually; no clinical result was written."
+              : (data.ocr?.message || "Report uploaded, but OCR did not produce a usable structured draft. Review retained text or enter the result manually; no clinical result was written.")
       );
       setPhase("ready");
       await load();
@@ -145,6 +164,58 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       setError(e?.message || "Could not retry extraction");
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function extractWithClinicalAssist() {
+    if (!selectedDoc || clinicalAssistRunning || verifying || retrying) return;
+    setClinicalAssistRunning(true);
+    setClinicalAssistProgress("Loading the saved original report…");
+    setError("");
+    setMessage("");
+    try {
+      // Same-origin, clinic-scoped download; OCR runs locally in the browser.
+      const source = await fetch(`/api/labs/documents/${selectedDoc.id}/view?raw=1`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!source.ok) {
+        const sourceError = await source.json().catch(() => ({}));
+        throw new Error(sourceError.error || "Could not load the saved original report.");
+      }
+      const blob = await source.blob();
+      const mimeType = selectedDoc.mimeType || blob.type || "application/octet-stream";
+      const originalFile = new File([blob], selectedDoc.originalFileName || "lab-report", { type: mimeType });
+      const scan = await runClinicalAssistOcr(originalFile, (progress) => setClinicalAssistProgress(progress));
+      const text = scan.text.trim();
+      if (text.length < 20) {
+        throw new Error("Clinical Assist found too little readable text. Try a clearer, upright image or a higher-quality PDF.");
+      }
+
+      setClinicalAssistProgress("Structuring candidate lab values…");
+      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/clinical-assist`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-MedLum-Requested-With": "MedLum",
+        },
+        body: JSON.stringify({ text, label: scan.label, confidence: scan.confidence, partial: scan.partial === true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || "Clinical Assist could not save its draft.");
+      const doc = data.document as Doc;
+      setSelectedDoc(doc);
+      setValues(candidatesFrom(doc));
+      setManualResult(rawTextFrom(doc));
+      setMessage(data.ocr?.message || "Clinical Assist finished. Review every value against the original report.");
+      setClinicalAssistProgress("");
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Clinical Assist extraction failed. You can still retry server OCR or enter findings manually.");
+      setClinicalAssistProgress("");
+    } finally {
+      setClinicalAssistRunning(false);
     }
   }
 
@@ -272,6 +343,23 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
 
           {selectedStatus === "FAILED" && (
             <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="rounded-lg border border-emerald-200 bg-white p-3 space-y-2">
+                <p className="text-[11px] font-semibold text-emerald-900">Try Clinical Assist on this device</p>
+                <p className="text-[10px] text-gray-600">
+                  Re-read the saved original using Clinical Assist’s on-device OCR engine. The extracted text and candidate values remain unverified until a clinician checks them.
+                </p>
+                <button
+                  type="button"
+                  disabled={clinicalAssistRunning || retrying || verifying}
+                  onClick={() => void extractWithClinicalAssist()}
+                  className="w-full rounded-lg bg-emerald-800 px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+                >
+                  {clinicalAssistRunning ? "Running Clinical Assist…" : "Extract with Clinical Assist"}
+                </button>
+                {clinicalAssistRunning && clinicalAssistProgress && (
+                  <p className="text-[10px] text-emerald-800" role="status">{clinicalAssistProgress}</p>
+                )}
+              </div>
               <p className="text-[11px] font-semibold text-amber-900">
                 Automatic OCR could not structure this report
               </p>
@@ -291,17 +379,22 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                 <textarea
                   value={manualResult}
                   onChange={(e) => setManualResult(e.target.value)}
-                  disabled={verifying}
-                  placeholder="Type or paste the laboratory findings from the report. Verify to save as the clinical result."
+                  disabled={verifying || clinicalAssistRunning || retrying}
+                  placeholder="Clinical Assist text appears here after extraction. Review it against the source, correct if needed, then verify to save the clinical result."
                   className="mt-1 min-h-28 w-full rounded border bg-white px-2 py-1.5 text-xs"
                 />
               </div>
+              {warningsFrom(selectedDoc).length > 0 && (
+                <ul className="list-disc pl-4 space-y-1 text-[10px] text-amber-900">
+                  {warningsFrom(selectedDoc).map((warning, index) => <li key={index}>{warning}</li>)}
+                </ul>
+              )}
               <p className="text-[10px] text-gray-600">
                 Review the source report and correct the text below if needed, then verify it as the clinical result.
               </p>
               <button
                 type="button"
-                disabled={!canManualVerify}
+                disabled={!canManualVerify || clinicalAssistRunning || retrying}
                 onClick={() => void verify("MANUAL")}
                 className="w-full rounded-lg bg-[#c2183a] px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
               >
