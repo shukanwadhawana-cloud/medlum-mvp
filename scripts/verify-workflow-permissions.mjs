@@ -20,6 +20,8 @@ const ownerHospitals = read("src/app/owner/hospitals/page.tsx");
 const docker = read("Dockerfile");
 const entrypoint = read("scripts/render-entrypoint.sh");
 const permissions = read("src/lib/permissions.ts");
+const schema = read("prisma/schema.prisma");
+const pharmacyScopeMigration = read("prisma/migrations/20261020180000_reconcile_pharmacy_clinic_scope/migration.sql");
 
 check(invoicePrint.includes("canViewBillingDetail(membership.role)"), "Invoice print payload enforces the billing role matrix");
 check((pharmacy.match(/if \(!canManagePharmacy\(membership\.role\)\)/g) || []).length >= 5, "Pharmacy read, inventory mutations, and dispensing actions are role-gated");
@@ -31,6 +33,10 @@ check(owner.includes("const isOwner = Boolean(doctor.isOwner)") && !owner.includ
 check(!ownerHospitals.includes('primaryRole!=="Owner"'), "Hospital-owner screen matches platform-owner authorization");
 check(docker.includes('ENTRYPOINT ["sh", "/app/scripts/render-entrypoint.sh"]'), "Render startup uses an explicit entrypoint script rather than inline shell quoting");
 check(entrypoint.includes("npx prisma migrate deploy") && entrypoint.includes('exec npm start'), "Render entrypoint retains migration retry behavior and starts the app only after migrations succeed");
+check(schema.includes("pharmacyItems      PharmacyItem[]") && schema.includes("clinicId     String?") && schema.includes('clinic       Clinic?  @relation(fields: [clinicId], references: [id], onDelete: Restrict)'), "PharmacyItem schema maps the existing nullable clinic scope and foreign key");
+check(pharmacyScopeMigration.includes("ADD COLUMN \"clinicId\" TEXT") && pharmacyScopeMigration.includes("CREATE INDEX IF NOT EXISTS \"PharmacyItem_clinicId_idx\"") && pharmacyScopeMigration.includes("PharmacyItem_clinicId_fkey"), "Forward migration reconciles the pharmacy clinic column, index and foreign key idempotently");
+check(pharmacyScopeMigration.includes("information_schema.columns") && pharmacyScopeMigration.includes("IF NOT EXISTS"), "Pharmacy reconciliation is safe when production objects already exist");
+check(pharmacy.includes("clinicId: membership.clinicId") && pharmacy.includes('OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }]'), "Pharmacy inventory creation and read paths use facility ownership and own-only legacy fallback");
 check(permissions.includes('path.startsWith("/dietitian")') && permissions.includes('"Dietitian", "Dietician", "Nutritionist"'), "Direct Dietitian/Nutrition routes enforce the dietitian role matrix");
 check(permissions.includes('path.startsWith("/physiotherapy")') && permissions.includes('"Nurse", "Physiotherapist"'), "Direct Physiotherapy routes enforce their role matrix");
 check(permissions.includes('path.startsWith("/appointments")') && permissions.includes('canAccessModule(role, "opd")'), "Appointment routes use OPD permissions");
