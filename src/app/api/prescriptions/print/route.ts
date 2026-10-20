@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { canManagePharmacy, canViewFullClinicalChart, requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { canManagePharmacy, requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { canViewClinicalChart } from "@/lib/permissions";
 
 /** Patient-facing prescription print — clinical content only. */
 export async function GET(req: Request) {
@@ -9,7 +10,7 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
-  if (!canViewFullClinicalChart(membership.role) && !canManagePharmacy(membership.role)) return NextResponse.json({ error: "Prescription access is not authorized for this role.", code: "RBAC_DENIED" }, { status: 403 });
+  if (!canViewClinicalChart(membership.role) && !canManagePharmacy(membership.role)) return NextResponse.json({ error: "Prescription access is not authorized for this role.", code: "RBAC_DENIED" }, { status: 403 });
 
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
