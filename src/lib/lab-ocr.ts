@@ -244,20 +244,25 @@ export async function extractLabOcrDraft(
   data: Buffer,
   mimeType: string
 ): Promise<OcrAssistResult> {
+  const warnings: string[] = [];
+  let text = "";
+  let draft: Record<string, string> = {};
+  let primaryFailed = false;
+
+  // Keep the current lab-specific parser, but do not let a Tesseract worker or
+  // PDF primary-pass error skip the stronger Clinical Assist fallback.
   try {
-    let text = "";
-    const warnings: string[] = [];
     if (mimeType === "application/pdf") {
       const pdf = await extractPdf(data);
       text = [pdf.text, pdf.scannedOcrText].filter(Boolean).join("\n");
       if (pdf.pagesOcr > 0) {
         warnings.push(
-          "PDF had no usable text-layer values; OCR fallback scanned up to " +
+          "Primary PDF pass had no usable text-layer values; OCR fallback scanned up to " +
             pdf.pagesOcr +
             " page(s)."
         );
       }
-    } else if (mimeType.startsWith("image/")) {
+    } else if (mimeType.startsWith("image/") || mimeType === "image/jpg") {
       text = await ocrImage(data);
     } else {
       return {
@@ -265,59 +270,69 @@ export async function extractLabOcrDraft(
         draft: {},
         rawTextPreview: "",
         message: "Unsupported document type for OCR assist",
+        warnings: ["Supported report formats are PDF, JPEG and PNG."],
       };
     }
-    let draft = extractCandidates(text);
-    // If the first pass cannot map values, reuse the stronger Clinical Assist OCR
-    // pipeline: contrast preprocessing, alternate Tesseract segmentation, and
-    // PDF text-layer/scanned-page fallback. This remains a draft, never a result.
-    if (Object.keys(draft).length === 0) {
-      try {
-        const enhanced = await extractClinicalOcrText(data, mimeType);
-        const enhancedText = String(enhanced.text || "").trim();
-        const enhancedDraft = extractCandidates(enhancedText);
-        if (enhancedText.length > text.length) text = enhancedText;
-        if (Object.keys(enhancedDraft).length > Object.keys(draft).length) {
-          draft = enhancedDraft;
-        }
-        warnings.push("Enhanced OCR fallback used " + enhanced.method + (enhanced.confidence == null ? "" : " (confidence " + Math.round(enhanced.confidence) + "%)") + ".");
-        if (enhanced.pageLimitReached) warnings.push("Only the supported first pages of this PDF were OCR processed.");
-      } catch (fallbackError) {
-        warnings.push("Enhanced OCR fallback did not complete: " + (fallbackError instanceof Error ? fallbackError.message : "unknown OCR error"));
-      }
-    }
-    if (Object.keys(draft).length === 0) {
-      return {
-        status: "FAILED",
-        draft: {},
-        rawTextPreview: text.slice(0, 4000),
-        message:
-          text.trim().length >= 20
-            ? "Text was extracted, but no supported lab values could be mapped. Review the retained OCR text and enter/correct the result manually."
-            : "OCR could not read enough text from this report. Try a clearer, upright image or a PDF; you can also enter the result manually.",
-        warnings,
-      };
-    }
-    return {
-      status: "DRAFT",
-      draft,
-      rawTextPreview: text.slice(0, 4000),
-      message:
-        "OCR draft extracted. Review and correct before verifying the clinical result.",
-      warnings,
-    };
+    draft = extractCandidates(text);
   } catch (error) {
+    primaryFailed = true;
+    warnings.push(
+      "Initial lab OCR pass failed: " +
+        (error instanceof Error ? error.message : "unknown OCR error")
+    );
+  }
+
+  // Run the same enhanced extraction path used by Clinical Assist when the
+  // primary engine failed or could not map enough lab values. This is important
+  // for photographed tables, where the first pass can return text but no values.
+  if (primaryFailed || Object.keys(draft).length < 4) {
+    try {
+      const enhanced = await extractClinicalOcrText(data, mimeType);
+      const enhancedText = String(enhanced.text || "").trim();
+      const enhancedDraft = extractCandidates(enhancedText);
+
+      // Merge candidates from both OCR passes; prefer the regular lab pass for
+      // keys it identified, then fill gaps from Clinical Assist.
+      draft = { ...enhancedDraft, ...draft };
+      if (enhancedText.length > text.length || primaryFailed) text = enhancedText;
+      warnings.push(
+        "Clinical Assist enhanced OCR used " +
+          enhanced.method +
+          (enhanced.confidence == null
+            ? ""
+            : " (confidence " + Math.round(enhanced.confidence) + "%)") +
+          "."
+      );
+      if (enhanced.pageLimitReached) {
+        warnings.push("Only the supported first pages of this PDF were OCR processed.");
+      }
+    } catch (error) {
+      warnings.push(
+        "Clinical Assist enhanced OCR did not complete: " +
+          (error instanceof Error ? error.message : "unknown OCR error")
+      );
+    }
+  }
+
+  if (Object.keys(draft).length === 0) {
+    const hasText = text.trim().length >= 20;
     return {
       status: "FAILED",
       draft: {},
-      rawTextPreview: "",
-      message:
-        error instanceof Error
-          ? "OCR processing failed: " + error.message
-          : "OCR processing failed",
-      warnings: [
-        "The report binary was processed in memory only; no third-party OCR API was used.",
-      ],
+      rawTextPreview: text.slice(0, 4000),
+      message: hasText
+        ? "Clinical Assist extracted text, but could not safely map supported lab values. Review the extracted text and enter/correct the findings manually."
+        : "Clinical Assist could not read enough text from this report. Try a clearer, upright image or a PDF; the extracted text area is available for review if any text was recovered.",
+      warnings,
     };
   }
+
+  return {
+    status: "DRAFT",
+    draft,
+    rawTextPreview: text.slice(0, 4000),
+    message:
+      "Clinical Assist prepared an editable lab-result draft. Check every value and unit against the original report before verifying.",
+    warnings,
+  };
 }
