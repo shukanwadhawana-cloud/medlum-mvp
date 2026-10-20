@@ -28,8 +28,9 @@ ok(ipd.includes("prisma.$transaction(async (tx) =>") && ipd.includes("tx.clinica
 ok(ipd.includes("patient acknowledgement must be recorded"), "Server enforces patient acknowledgement before submit and final discharge");
 ok(print.includes('status: "FINAL"') && print.includes("not yet finalized"), "IPD print endpoint rejects non-final summaries");
 
-ok(lifecycle.includes('patient.status === "DISCHARGED"'), "Lifecycle endpoint rejects already discharged patients");
-ok(lifecycle.includes('status: 409'), "Duplicate discharge transitions return conflict");
+ok(lifecycle.includes("USE_IPD_DISCHARGE_WORKFLOW"), "Legacy lifecycle API explicitly blocks direct patient discharge");
+ok(!/action === "discharge"[\s\S]{0,1000}data: \{ status: "DISCHARGED" \}/.test(lifecycle), "Legacy lifecycle API cannot mark patients discharged directly");
+ok(lifecycle.includes('["soft-delete", "restore"]'), "Lifecycle endpoint remains available for scoped retention management");
 
 if (fail.length) {
   console.error("\nP2-01 discharge workflow verification FAILED:\n" + fail.map((x) => " - " + x).join("\n"));
