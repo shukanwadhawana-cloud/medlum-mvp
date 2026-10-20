@@ -20,10 +20,10 @@ const products: Product[] = [
 
 export default function OwnerHomePage() {
   const { doctor, logout, loading } = useDoctor(); const [data, setData] = useState<Overview | null>(null); const [error, setError] = useState("");
-  useEffect(() => { if (!doctor?.isOwner && doctor?.primaryRole !== "Owner") return; fetch("/api/owner/overview", { cache: "no-store" }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Unable to load owner dashboard"); return d; }).then(setData).catch(e => setError(e instanceof Error ? e.message : "Unable to load owner dashboard")); }, [doctor]);
+  useEffect(() => { if (!doctor?.isOwner) return; fetch("/api/owner/overview", { cache: "no-store" }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Unable to load owner dashboard"); return d; }).then(setData).catch(e => setError(e instanceof Error ? e.message : "Unable to load owner dashboard")); }, [doctor]);
   if (loading) return <div className="min-h-screen grid place-items-center bg-[#f6f7fb] text-sm text-slate-500">Loading…</div>;
   if (!doctor) return <div className="min-h-screen grid place-items-center bg-[#f6f7fb]"><Link href="/login" className="text-[#c2183a] font-medium">Sign in</Link></div>;
-  const isOwner = Boolean(doctor.isOwner || doctor.primaryRole === "Owner");
+  const isOwner = Boolean(doctor.isOwner);
   if (!isOwner) return <div className="min-h-screen grid place-items-center bg-[#f6f7fb] px-6 text-center"><div><p className="font-semibold">Owner access required</p><Link href="/dashboard" className="mt-2 inline-block text-[#c2183a]">Open clinical workspace</Link></div></div>;
   const s = data?.platform; const workspace = data?.ownerWorkspace.existingWorkspace;
   const cards = [["Hospitals", s?.activeHospitals, "Active facilities"], ["Doctors", s?.activeDoctors, "Active accounts"], ["Patients", s?.totalPatients, `${s?.opdPatients ?? 0} OPD · ${s?.ipdPatients ?? 0} IPD`], ["Clinical encounters", s?.encounters, "Recorded encounters"]];
