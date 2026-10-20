@@ -7,39 +7,32 @@ const fail = [];
 const ok = (condition, message) => condition ? console.log("OK:", message) : (fail.push(message), console.error("FAIL:", message));
 
 const summary = read("src/app/ipd-summaries/page.tsx");
+const dischargeUi = read("src/app/ipd/[id]/discharge/page.tsx");
 const ipd = read("src/app/api/ipd/route.ts");
 const lifecycle = read("src/app/api/patients/lifecycle/route.ts");
+const print = read("src/app/api/ipd/print/route.ts");
 
-ok(summary.includes('fetch("/api/ipd"') && summary.includes('action:"clinical-note"'), "Discharge Summary is still saved through the existing IPD documentation API");
-ok(summary.includes('fetch("/api/patients/lifecycle"'), "Discharge action reuses the existing patient lifecycle API");
-ok(summary.includes('action:"discharge"'), "Discharge action sends the existing discharge operation");
-ok(summary.includes("window.confirm("), "Final discharge requires explicit confirmation");
-ok(summary.includes('type==="Discharge Summary"'), "Final discharge control is exposed only for Discharge Summary");
-ok(summary.includes("disabled={saving||discharging}"), "Save/discharge controls prevent concurrent double submission");
-const saveSection = summary.slice(summary.indexOf("const save="), summary.indexOf("const discharge="));
-ok(!saveSection.includes('fetch("/api/patients/lifecycle"'), "Saving a summary does not silently call the discharge lifecycle");
-ok(summary.includes("setSelected(null)") && summary.includes("await load()"), "Successful discharge clears the selected active patient and refreshes IPD state");
+ok(summary.includes('window.location.assign(`/ipd/${selected.id}/discharge`)'), "Legacy summaries route Discharge Summary into the canonical discharge workflow");
+ok(!summary.includes('/api/patients/lifecycle'), "Legacy summaries cannot directly discharge a patient through the old lifecycle route");
+ok(!summary.includes('const discharge=async'), "Legacy summaries no longer contain a separate discharge finalization handler");
+ok(dischargeUi.includes('action("discharge-summary-draft")'), "Canonical discharge UI saves a draft");
+ok(dischargeUi.includes('action("discharge-summary-submit")'), "Canonical discharge UI submits the author draft for second verification");
+ok(dischargeUi.includes('action("discharge-complete")') && dischargeUi.includes("canVerify"), "Only a different clinician can see the finalization action");
+ok(dischargeUi.includes('note.author?.id!==doctor?.id'), "The UI prioritizes a pending summary authored by a different clinician");
+ok(ipd.includes("canViewFullClinicalChart(membership.role)"), "Discharge actions require clinical chart permissions");
+ok(ipd.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))"), "Final discharge signing is limited to authorized verifier roles");
+ok(ipd.includes("note.authorDoctorId === session.doctorId"), "The author cannot verify their own discharge summary");
+ok(ipd.includes('note.contentHash !== hashClinicalNote(note.content, note.version)'), "Submitted discharge content integrity is verified before final signature");
+ok(ipd.includes('status: "PENDING_VERIFICATION"') && ipd.includes('verifierDoctorId: null'), "Finalization only signs a submitted, not-yet-verified note");
+ok(ipd.includes("prisma.$transaction(async (tx) =>") && ipd.includes("tx.clinicalNote.updateMany") && ipd.includes("tx.patient.updateMany"), "Final note signature and patient discharge happen atomically");
+ok(ipd.includes("patient acknowledgement must be recorded"), "Server enforces patient acknowledgement before submit and final discharge");
+ok(print.includes('status: "FINAL"') && print.includes("not yet finalized"), "IPD print endpoint rejects non-final summaries");
 
-ok(
-  /parseCareSetting\(p\.notes\)\s*===\s*"IPD"\s*&&\s*p\.status\s*===\s*"ACTIVE"/.test(ipd),
-  "IPD census is limited to active IPD patients"
-);
-ok(
-  ipd.includes("ipdHistory") && (
-    /parseCareSetting\(p\.notes\)\s*===\s*"IPD"\s*&&\s*p\.status\s*===\s*"DISCHARGED"/.test(ipd) ||
-    /parseCareSetting\(p\.notes\)\s*===\s*"IPD"\s*&&\s*p\.status\s*!==\s*"ACTIVE"/.test(ipd)
-  ),
-  "Discharged IPD patients remain available via ipdHistory"
-);
-ok(lifecycle.includes('patient.status === "DISCHARGED"'), "Lifecycle endpoint rejects an already discharged patient");
-ok(ipd.includes('prisma.$transaction(async (tx) =>'), "Discharge-complete uses one Prisma transaction");
-ok(ipd.includes('status === "DISCHARGED"') && ipd.includes('status: 409'), "Already-discharged discharge-complete returns 409");
-ok(ipd.includes('const nextContent = (content || note.content || "").trim()') && ipd.includes('status: 400'), "Discharge-complete rejects empty summary content");
-ok(ipd.includes('tx.clinicalNote.update') && ipd.includes('tx.patient.update'), "Discharge-complete finalizes the note and patient status inside the same transaction");
-ok(lifecycle.includes("status: 409"), "Already-discharged transition returns a conflict");
+ok(lifecycle.includes('patient.status === "DISCHARGED"'), "Lifecycle endpoint rejects already discharged patients");
+ok(lifecycle.includes('status: 409'), "Duplicate discharge transitions return conflict");
 
 if (fail.length) {
-  console.error("\nP2-01 regression verification FAILED:\n" + fail.map(x => " - " + x).join("\n"));
+  console.error("\nP2-01 discharge workflow verification FAILED:\n" + fail.map((x) => " - " + x).join("\n"));
   process.exit(1);
 }
-console.log("\nP2-01 regression verification PASSED");
+console.log("\nP2-01 independent-verification discharge workflow verification PASSED");
