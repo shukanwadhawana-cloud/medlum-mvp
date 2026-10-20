@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { requireActiveClinicMembership } from "@/lib/clinic-auth";
-import { canViewBillingDetail } from "@/lib/permissions";
+import { requireActiveClinicMembership, canViewBillingDetail } from "@/lib/clinic-auth";
 
 /** Printable invoice payload with hospital branding + snapshotted line items (never live tariff). */
 export async function GET(req: Request) {
