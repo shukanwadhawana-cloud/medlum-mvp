@@ -48,6 +48,7 @@ export async function GET(req: Request) {
       originalFileName: true,
       mimeType: true,
       sizeBytes: true,
+      checksum: true,
       ocrStatus: true,
       ocrDraft: true,
       verifiedAt: true,
