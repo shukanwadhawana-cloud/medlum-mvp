@@ -63,6 +63,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
         candidates: assist.draft,
         rawTextPreview: assist.rawTextPreview,
         warnings: assist.warnings || [],
+        message: assist.message,
         machineExtracted: true,
         verified: false,
         retryAttemptedAt: new Date().toISOString(),
