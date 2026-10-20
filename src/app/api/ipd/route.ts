@@ -310,6 +310,7 @@ export async function POST(req: Request) {
         if (!note) return NextResponse.json({ success: false, error: "Save your own discharge summary draft before submitting it for independent verification." }, { status: 409 });
         const nextContent = content || note.content;
         if (!nextContent.trim()) return NextResponse.json({ success: false, error: "Discharge summary content required." }, { status: 400 });
+        if (!/Acknowledgement of receipt:\\s*Yes/i.test(nextContent)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before submitting the discharge summary." }, { status: 400 });
         const version = note.version + 1;
         const submitted = await prisma.clinicalNote.updateMany({
           where: { id: note.id, clinicId, patientId, authorDoctorId: session.doctorId, status: "DRAFT", version: note.version },
@@ -331,12 +332,13 @@ export async function POST(req: Request) {
       if (note.authorDoctorId === session.doctorId) {
         return NextResponse.json({ success: false, error: "The author cannot be the second verifier. A different clinician must final-sign this discharge summary." }, { status: 409 });
       }
+      if (!/Acknowledgement of receipt:\\s*Yes/i.test(note.content)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before final discharge." }, { status: 409 });
       if (note.contentHash !== hashClinicalNote(note.content, note.version)) {
         return NextResponse.json({ success: false, error: "Discharge summary integrity check failed. Do not sign this version; ask the author to review it." }, { status: 409 });
       }
       if (patient.status === "DISCHARGED") return NextResponse.json({ success: false, error: "Patient is already discharged." }, { status: 409 });
 
-      const finalHash = hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nVERIFIER:${session.doctorId}\\nNOTE:${note.id}`, note.version);
+      const finalHash = hashClinicalNote(`${note.content}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`, note.version);
       try {
         await prisma.$transaction(async (tx) => {
           const currentPatient = await tx.patient.findFirst({
