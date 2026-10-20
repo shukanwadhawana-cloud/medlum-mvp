@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { requireActiveClinicMembership, findAuthorizedPatient } from "@/lib/clinic-auth";
 import { canEnterLabResult, canOrderLabs } from "@/lib/permissions";
+import { parseCareSetting } from "@/lib/patient-metadata";
 
 /** Statuses the lab work queue UI and PATCH accept (must stay in sync with labs page). */
 const LAB_STATUSES = new Set([
@@ -59,8 +60,22 @@ export async function GET(req: Request) {
       : { patient: { OR: [{ clinicId }, { clinicId: null, doctorId: session.doctorId }] } },
     orderBy: { createdAt: "desc" },
     take: 150,
+    include: { patient: { select: { notes: true, uhid: true, registrationNo: true } } },
   });
-  return NextResponse.json({ orders }, { headers: { "Cache-Control": "no-store" } });
+  const formatIdentifier = (value: string | null | undefined) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^UHID-/i.test(raw)) return raw.toUpperCase();
+    const legacy = raw.match(/^ML-(\\d{6})-(\\d{4,6})$/i);
+    return legacy ? `UHID-${legacy[1]}-${legacy[2]}` : raw.toUpperCase();
+  };
+  const queueOrders = orders.map(({ patient, ...order }) => ({
+    ...order,
+    patientCareSetting: parseCareSetting(patient?.notes || ""),
+    patientUhid: formatIdentifier(patient?.uhid),
+    patientRegistrationNo: formatIdentifier(patient?.registrationNo),
+  }));
+  return NextResponse.json({ orders: queueOrders }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
