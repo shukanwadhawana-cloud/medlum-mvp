@@ -109,7 +109,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="medlum-topbar-inner max-w-7xl">
           <Link href="/dashboard" className="medlum-brand">
             <span className="medlum-brand-mark"><Icon name="brand" size={20}/></span>
-            <span><strong>MEDLUM</strong><small>Clinical workspace</small></span>
+            <span><strong>MEDLUM HEALTHCARE</strong><small>Clinical workspace</small></span>
           </Link>
           <div className="medlum-topbar-spacer"/>
           {facilities.length > 0 && <select value={selectedFacilityId} onChange={(e) => switchFacility(e.target.value)} disabled={switchingFacility} className="medlum-facility-select" aria-label="Select facility">{facilities.map((f) => <option key={f.clinicId} value={f.clinicId}>{f.name}</option>)}</select>}
