@@ -28,6 +28,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
   if (!membership) return NextResponse.json({ error: "No active clinic membership" }, { status: 403 });
+  if (!canManagePharmacy(membership.role)) return NextResponse.json({ error: "Pharmacy access is required.", code: "RBAC_DENIED" }, { status: 403 });
   const clinicId = membership.clinicId;
   const memberIds = (
     await prisma.clinicMember.findMany({ where: { clinicId, isActive: true }, select: { doctorId: true } })
