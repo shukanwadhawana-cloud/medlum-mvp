@@ -1,11 +1,19 @@
 {
   "name": "MedLum Healthcare",
-  "short_name": "MedLum Healthcare",
+  "short_name": "MedLum",
   "description": "MedLum Healthcare — secure hospital and clinic operations platform",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#f5f5f7",
-  "theme_color": "#140a1f",
+  "background_color": "#fbf5f6",
+  "theme_color": "#4a0f20",
   "orientation": "any",
-  "scope": "/"
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/medlum-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
