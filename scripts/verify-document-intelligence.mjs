@@ -66,6 +66,19 @@ ok(storage.includes("processed"), "processed provider wired");
 const view = readFileSync("src/app/api/labs/documents/[id]/view/route.ts", "utf8");
 ok(view.includes("clinicId: membership.clinicId"), "view tenant-scoped");
 
+const clinicalAssistRoutePath = "src/app/api/labs/documents/[id]/clinical-assist/route.ts";
+ok(existsSync(clinicalAssistRoutePath), "Clinical Assist retry endpoint exists");
+const clinicalAssistRoute = readFileSync(clinicalAssistRoutePath, "utf8");
+ok(clinicalAssistRoute.includes("requireActiveClinicMembership") && clinicalAssistRoute.includes("clinicId: membership.clinicId"), "Clinical Assist retry is scoped to the active clinic");
+ok(clinicalAssistRoute.includes("extractCandidates(text)"), "Clinical Assist OCR text is mapped into candidate lab fields");
+ok(clinicalAssistRoute.includes('verified: false') && clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_RETRY"), "Clinical Assist output remains a draft and is audited");
+
+ok(view.includes('searchParams.get("raw") === "1"'), "document viewer supports authenticated raw bytes for local OCR");
+const panelClinicalAssist = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
+ok(panelClinicalAssist.includes("runClinicalAssistOcr") && panelClinicalAssist.includes("Extract with Clinical Assist"), "failed lab report exposes the actual on-device Clinical Assist OCR engine");
+ok(panelClinicalAssist.includes("setManualResult(rawTextFrom(latest))"), "stored OCR text is restored when the panel loads");
+ok(panelClinicalAssist.includes("/view?raw=1") && panelClinicalAssist.includes("/clinical-assist"), "Clinical Assist reads the saved original and sends only draft text to the scoped endpoint");
+
 if (fails.length) {
   console.error("FAIL document-intelligence:");
   fails.forEach((f) => console.error("-", f));
