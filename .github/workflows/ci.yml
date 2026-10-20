@@ -73,6 +73,8 @@ jobs:
         run: npm run test:invoice-snapshot
       - name: Verify patient portal auth and dashboard
         run: npm run test:portal-auth
+      - name: Verify lab document extraction and retry safety
+        run: npm run test:document-intelligence
       - name: Verify multi-tenant isolation (static)
         run: npm run test:tenant-isolation
       - name: Verify P1 closure (static)
