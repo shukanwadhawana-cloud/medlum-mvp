@@ -72,6 +72,23 @@ ok(storage.includes("processed"), "processed provider wired");
 const view = readFileSync("src/app/api/labs/documents/[id]/view/route.ts", "utf8");
 ok(view.includes("clinicId: membership.clinicId"), "view tenant-scoped");
 
+const clinicalAssistRoutePath = "src/app/api/labs/documents/[id]/clinical-assist/route.ts";
+ok(existsSync(clinicalAssistRoutePath), "Clinical Assist retry endpoint exists");
+const clinicalAssistRoute = readFileSync(clinicalAssistRoutePath, "utf8");
+ok(clinicalAssistRoute.includes("requireActiveClinicMembership") && clinicalAssistRoute.includes("clinicId: membership.clinicId"), "Clinical Assist retry is clinic-scoped");
+ok(clinicalAssistRoute.includes("extractCandidates(text)"), "Clinical Assist OCR text is parsed into candidate lab values");
+ok(clinicalAssistRoute.includes('verified: false') && clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_RETRY"), "Clinical Assist output remains an audited draft");
+ok(clinicalAssistRoute.includes('ocrStatus: "FAILED"') && clinicalAssistRoute.includes("updateMany"), "Clinical Assist uses a compare-and-set guard to avoid overwriting concurrent verification");
+
+ok(view.includes('searchParams.get("raw") === "1"'), "authenticated document viewer supports same-origin raw bytes for local OCR");
+const documentRoute = readFileSync("src/app/api/labs/documents/route.ts", "utf8");
+ok(documentRoute.includes("checksum: true"), "document list exposes stored report checksum for source matching");
+const panelClinicalAssist = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
+ok(panelClinicalAssist.includes("runClinicalAssistOcr") && panelClinicalAssist.includes("Extract with Clinical Assist"), "failed report panel invokes the on-device Clinical Assist OCR engine");
+ok(panelClinicalAssist.includes("sha256Hex") && panelClinicalAssist.includes("selectedDoc.checksum"), "OCR source file checksum is validated before association");
+ok(panelClinicalAssist.includes("Choose the original report file"), "staff can reselect the same report when the provider did not retain original bytes");
+ok(panelClinicalAssist.includes("setAssistSourceFile(file)"), "the exact just-uploaded file is retained in memory for immediate local extraction");
+
 if (fails.length) {
   console.error("FAIL document-intelligence:");
   fails.forEach((f) => console.error("-", f));
