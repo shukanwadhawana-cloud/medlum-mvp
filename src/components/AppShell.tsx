@@ -9,7 +9,7 @@ import MedLumChat from "./MedLumChat";
 const Icon = ({ name, size = 16 }: { name: string; size?: number }) => {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
   const paths: Record<string, React.ReactNode> = {
-    brand: (<><path d="M4 17V7l4 4 4-6 4 6 4-4v10" /><path d="M8 17h8" /></>),
+    brand: (<><path d="M4 18V6l8 8 8-8v12" stroke="#9e1430" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M12 7v10M7 12h10" stroke="#e95c83" strokeWidth="2.2" strokeLinecap="round"/></>),
     patients: (<><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3.2 2.5-5 6-5s6 1.8 6 5" /><path d="M17 11a3 3 0 1 0-1-5.8" /><path d="M17 15c2.5.2 4 1.8 4 5" /></>),
     ipd: (<><path d="M4 21V5h16v16" /><path d="M8 9h8M8 13h8M8 17h3M15 15v5M12 17h6" /></>),
     ai: (<><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" /><circle cx="12" cy="12" r="5" /><path d="m10 12 1.4 1.5L14.5 10" /></>),
