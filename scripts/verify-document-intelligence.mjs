@@ -67,6 +67,7 @@ ok(retryPanel.includes('runClinicalAssistOcr'), "report panel uses the local Cli
 ok(retryPanel.includes("/source"), "report panel retrieves the saved original for local OCR");
 ok(retryPanel.includes("/clinical-assist"), "report panel submits OCR output as a draft");
 ok(retryPanel.includes("Run Clinical Assist on this device"), "failed report UI exposes the Clinical Assist action");
+ok(retryPanel.includes("Choose original report from this device"), "report panel supports local-file fallback if stored original is unavailable");
 ok(retryPanel.includes("No clinical result is written until an authorised user verifies it"), "UI explains local extraction and verification gate");
 
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
