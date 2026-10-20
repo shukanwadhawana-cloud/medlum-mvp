@@ -26,7 +26,7 @@ function formatBytes(n?: number) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function parsedDraft(doc?: Doc | null): Record<string, any> {
+function parsedDraft(doc?: Doc | null): Record<string, unknown> {
   if (!doc?.ocrDraft) return {};
   try {
     const parsed = JSON.parse(doc.ocrDraft);
@@ -271,7 +271,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       <input
         type="file"
         accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
-        disabled={phase === "uploading" || verifying}
+        disabled={phase === "uploading" || verifying || retrying || clinicalAssistRunning}
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) void upload(f);
@@ -338,6 +338,12 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               >
                 Reject report
               </button>
+              {rawTextFrom(selectedDoc) && (
+                <details className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+                  <summary className="cursor-pointer text-[10px] font-semibold text-gray-700">View full Clinical Assist OCR text</summary>
+                  <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[10px] text-gray-700">{rawTextFrom(selectedDoc)}</pre>
+                </details>
+              )}
             </div>
           )}
 
@@ -368,7 +374,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               </p>
               <button
                 type="button"
-                disabled={verifying || retrying}
+                disabled={verifying || retrying || clinicalAssistRunning}
                 onClick={() => void retryExtraction()}
                 className="w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
               >
