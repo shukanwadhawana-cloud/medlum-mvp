@@ -48,6 +48,8 @@ const isActive = (pathname: string, href: string) =>
   (href === "/clinic" && (pathname === "/clinic" || pathname.startsWith("/clinic?"))) ||
   (href === "/nursing" && pathname.startsWith("/nursing"));
 
+const displayFacilityName = (name: string) => name.trim().toUpperCase() === "MEDIUM HEALTHCARE" ? "MEDLUM HEALTHCARE" : name;
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const { doctor, logout } = useDoctor();
@@ -112,7 +114,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span><strong>MEDLUM HEALTHCARE</strong><small>Clinical workspace</small></span>
           </Link>
           <div className="medlum-topbar-spacer"/>
-          {facilities.length > 0 && <select value={selectedFacilityId} onChange={(e) => switchFacility(e.target.value)} disabled={switchingFacility} className="medlum-facility-select" aria-label="Select facility">{facilities.map((f) => <option key={f.clinicId} value={f.clinicId}>{f.name}</option>)}</select>}
+          {facilities.length > 0 && <select value={selectedFacilityId} onChange={(e) => switchFacility(e.target.value)} disabled={switchingFacility} className="medlum-facility-select" aria-label="Select facility">{facilities.map((f) => <option key={f.clinicId} value={f.clinicId}>{displayFacilityName(f.name)}</option>)}</select>}
           <span className="medlum-user-name">{doctor?.name || "Clinical user"}</span>
           <button type="button" onClick={() => logout()} className="medlum-top-action medlum-logout-action"><Icon name="logout" size={14}/>Logout</button>
         </div>
