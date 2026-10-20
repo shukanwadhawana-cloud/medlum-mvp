@@ -5,13 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { useDoctor } from "@/components/DoctorProvider";
-import { apiCreateLabOrder, apiGetLabOrders, apiGetPatients, apiUpdateLabOrder } from "@/lib/api";
+import { apiCreateLabOrder, apiGetLabOrders, apiUpdateLabOrder } from "@/lib/api";
 import { LAB_CATALOG } from "@/lib/diagnostic-catalog";
 import LabResultDocumentPanel from "@/components/LabResultDocumentPanel";
 import { formatIst } from "@/lib/time";
-import { parseCareSetting } from "@/lib/patient-metadata";
 
-type Patient = { id: string; name: string; uhid?: string; registrationNo?: string; notes?: string };
 type LabOrder = {
   id: string;
   patientId: string;
@@ -27,6 +25,7 @@ type LabOrder = {
   patientUhid?: string;
   patientRegistrationNo?: string;
   encounterType?: string;
+  patientCareSetting?: string;
 };
 
 const ACTIVE_STATUSES = new Set([
@@ -153,19 +152,8 @@ export default function LabsPage() {
   const selectedTest = useMemo(() => LAB_CATALOG.find((item) => item.name === form.testName), [form.testName]);
 
   const load = useCallback(async () => {
-    const [pts, list] = await Promise.all([apiGetPatients(), apiGetLabOrders()]);
-    setPatients(pts as Patient[]);
-    const byId = new Map((pts as Patient[]).map((p) => [p.id, p]));
-    setOrders(
-      (list as LabOrder[]).map((o) => {
-        const p = byId.get(o.patientId);
-        return {
-          ...o,
-          patientUhid: o.patientUhid || p?.uhid || "",
-          patientRegistrationNo: o.patientRegistrationNo || p?.registrationNo || "",
-        };
-      })
-    );
+    const list = await apiGetLabOrders();
+    setOrders(list as LabOrder[]);
   }, []);
 
   useEffect(() => {
@@ -193,14 +181,10 @@ export default function LabsPage() {
     return list;
   }, [orders, queueTab, search]);
 
-  const visibleOrders = useMemo(() => {
-    const patientById = new Map(patients.map((p) => [p.id, p]));
-    return filtered.filter((o) => {
-      const patient = patientById.get(o.patientId);
-      const setting = parseCareSetting(patient?.notes || "") === "IPD" ? "IPD" : "OPD";
-      return setting === careSetting;
-    });
-  }, [filtered, patients, careSetting]);
+  const visibleOrders = useMemo(
+    () => filtered.filter((order) => (order.patientCareSetting === "IPD" ? "IPD" : "OPD") === careSetting),
+    [filtered, careSetting]
+  );
 
   const groups = useMemo(() => groupByPatient(visibleOrders), [visibleOrders]);
 
