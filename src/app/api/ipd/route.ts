@@ -42,7 +42,7 @@ function istIsoLabel(d: Date) {
 }
 
 function mapIpdPatient(
-  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string; uhid: string; doctor?: { name: string } | null },
+  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string; uhid: string; registrationNo: string; doctor?: { name: string } | null },
   vitalsMap: Map<string, unknown>,
   notesMap: Map<string, unknown[]>,
   labOrders: { patientId: string }[],
