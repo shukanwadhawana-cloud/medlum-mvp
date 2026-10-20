@@ -38,7 +38,7 @@ function istIsoLabel(d: Date) {
 }
 
 function mapIpdPatient(
-  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string },
+  p: { id: string; name: string; age: number; gender: string; phone: string; allergies: string; status: string; notes: string; uhid: string; doctor?: { name: string } | null },
   vitalsMap: Map<string, unknown>,
   notesMap: Map<string, unknown[]>,
   labOrders: { patientId: string }[],
@@ -50,7 +50,13 @@ function mapIpdPatient(
   const latest = vitalsMap.get(p.id) || null;
   return {
     id: p.id, name: p.name, age: p.age, gender: p.gender, phone: p.phone, allergies: p.allergies, status: p.status,
-    notes: cleanPatientNotes(p.notes), ...profile, vitals: latest,
+    uhid: p.uhid || "", registrationNo: p.uhid || "",
+    consultantName: String(profile.consultantName || p.doctor?.name || "").trim(),
+    notes: cleanPatientNotes(p.notes), ...profile,
+    uhid: p.uhid || "", registrationNo: p.uhid || "",
+    consultantName: String(profile.consultantName || p.doctor?.name || "").trim(),
+    consultantSpecialty: String(profile.consultantSpecialty || profile.department || "").trim(),
+    vitals: latest,
     clinicalNotes: notesMap.get(p.id) || [],
     labOrders: labOrders.filter((l) => l.patientId === p.id),
     diagnosticOrders: diagnosticOrders.filter((d) => d.patientId === p.id),
