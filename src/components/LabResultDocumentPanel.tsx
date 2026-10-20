@@ -31,6 +31,49 @@ function rawTextFrom(doc?: Doc | null): string {
   try { return String(JSON.parse(doc.ocrDraft).rawTextPreview || ""); } catch { return ""; }
 }
 
+async function preprocessClinicalAssistImage(file: File): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const maxWidth = 2400;
+  const scale = Math.min(1, maxWidth / bitmap.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) { bitmap.close(); throw new Error("Canvas is unavailable on this device."); }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+
+  // Match Clinical Assist's clean pass: grayscale + high-quality resize.
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = image.data;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const gray = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+    pixels[i] = pixels[i + 1] = pixels[i + 2] = gray;
+  }
+  ctx.putImageData(image, 0, 0);
+
+  const png = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare the report photo.")), "image/png", 1)
+  );
+  if (png.size <= 8 * 1024 * 1024) return new File([png], "medlum-scan.png", { type: "image/png" });
+
+  // Large camera photos are downsized/compressed using Clinical Assist's fallback.
+  const maxDimension = 1600;
+  const compressScale = Math.min(1, maxDimension / Math.max(canvas.width, canvas.height));
+  const compressedCanvas = document.createElement("canvas");
+  compressedCanvas.width = Math.max(1, Math.round(canvas.width * compressScale));
+  compressedCanvas.height = Math.max(1, Math.round(canvas.height * compressScale));
+  const compressedContext = compressedCanvas.getContext("2d");
+  if (!compressedContext) throw new Error("Could not compress the report photo.");
+  compressedContext.drawImage(canvas, 0, 0, compressedCanvas.width, compressedCanvas.height);
+  const compressed = await new Promise<Blob>((resolve, reject) =>
+    compressedCanvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not compress the report photo.")), "image/jpeg", 0.86)
+  );
+  return new File([compressed], "medlum-scan.jpg", { type: "image/jpeg" });
+}
+
 function candidatesFrom(doc?: Doc | null): Record<string, string> {
   if (!doc?.ocrDraft) return {};
   try {
@@ -170,9 +213,20 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     setError("");
     setMessage("");
     try {
-      // This is the same browser OCR engine used by the Clinical Assist page.
+      // Match Clinical Assist's supported inputs, size limit and image preprocessing.
+      if (file.size <= 0) throw new Error("The selected document is empty.");
+      if (file.size > 8 * 1024 * 1024) throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image.");
+      const lowerName = file.name.toLowerCase();
+      const isPdf = file.type === "application/pdf" || lowerName.endsWith(".pdf");
+      const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(lowerName);
+      if (!isPdf && !isImage) throw new Error("Unsupported document type. Upload a PDF, JPG, PNG, or WebP image.");
+      if (/\.heic$|\.heif$/i.test(lowerName) || file.type === "image/heic" || file.type === "image/heif") {
+        throw new Error("HEIC/HEIF is not supported yet. Export or retake the photo as JPG/PNG, or upload a PDF.");
+      }
+      const ocrFile = isImage ? await preprocessClinicalAssistImage(file) : file;
+      // Use the same on-device OCR engine as the Clinical Assist page.
       // Only the extracted text is submitted; it remains an unverified draft.
-      const scan = await runClinicalAssistOcr(file, (status) => setClinicalAssistStatus(status));
+      const scan = await runClinicalAssistOcr(ocrFile, (status) => setClinicalAssistStatus(status));
       const rawText = scan.text.trim();
       if (rawText.length < 20) {
         throw new Error("Clinical Assist found too little readable text. Try a clearer, upright photo or a higher-quality PDF.");
