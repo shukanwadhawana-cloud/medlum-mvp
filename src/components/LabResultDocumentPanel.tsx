@@ -251,6 +251,13 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       if (/\.heic$|\.heif$/i.test(lowerName) || file.type === "image/heic" || file.type === "image/heif") {
         throw new Error("HEIC/HEIF is not supported yet. Export or retake the photo as JPG/PNG, or upload a PDF.");
       }
+      // Fingerprint the original input before preprocessing. The server must confirm
+      // this is the exact binary already attached to the selected MedicalDocument.
+      const sourceBuffer = await file.arrayBuffer();
+      const sourceDigest = await crypto.subtle.digest("SHA-256", sourceBuffer);
+      const sourceChecksum = Array.from(new Uint8Array(sourceDigest))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
       const ocrFile = isImage ? await preprocessClinicalAssistImage(file) : file;
       // Use the same on-device OCR engine as the Clinical Assist page.
       // Only the extracted text is submitted; it remains an unverified draft.
@@ -270,6 +277,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
         },
         body: JSON.stringify({
           rawText,
+          sourceChecksum,
           method: scan.label,
           confidence: scan.confidence,
           partial: Boolean(scan.partial),
