@@ -136,7 +136,15 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
         headers: { "X-MedLum-Requested-With": "MedLum" },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) throw new Error(data.error || "Could not retry extraction");
+      if (!res.ok || !data.success) {
+        if (data.code === "ORIGINAL_FILE_UNAVAILABLE") {
+          // The zero-cost processed provider does not persist binaries on serverless hosts.
+          // Re-uploading the same file re-runs OCR against the supplied bytes and deduplicates.
+          setMessage("This hosting mode does not retain the original file. Choose the same report above to rerun Clinical Assist; MedLum will reuse the saved report instead of creating a duplicate.");
+          return;
+        }
+        throw new Error(data.error || "Could not retry extraction");
+      }
       const doc = data.document as Doc;
       setSelectedDoc(doc);
       setValues(candidatesFrom(doc));
