@@ -47,6 +47,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [retryingOcr, setRetryingOcr] = useState(false);
   const [manualResult, setManualResult] = useState("");
 
   async function load() {
@@ -100,16 +101,50 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
         : "");
       setMessage(
         data.deduplicated
-          ? "Report already exists. Review the OCR draft below."
+          ? (doc.ocrStatus === "FAILED"
+              ? "This exact report is already saved. Retry Clinical AI extraction below; the existing report will not be duplicated."
+              : "This exact report is already saved. Its existing draft is loaded below.")
           : data.ocr?.status === "DRAFT"
-            ? "Report uploaded. OCR draft is ready for human verification."
-            : "Report uploaded, but OCR did not produce a usable structured draft. Diagnostic OCR output is retained for investigation; no clinical result was written."
+            ? "Report uploaded. AI extraction produced an editable draft for human verification."
+            : "Report saved, but the first extraction did not identify structured values. Retry Clinical AI extraction below; no clinical result was written."
       );
       setPhase("ready");
       await load();
     } catch (e: any) {
       setPhase("failed");
       setError(e?.message || "Upload failed");
+    }
+  }
+
+  async function retryOcr() {
+    if (!selectedDoc) return;
+    setRetryingOcr(true);
+    setError("");
+    setMessage("Clinical AI is re-reading the saved report and preparing a new draft…");
+    try {
+      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/ocr`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-MedLum-Requested-With": "MedLum" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || "Could not retry report extraction");
+      const response = await fetch(`/api/labs/documents?labOrderId=${encodeURIComponent(labOrderId)}`, { credentials: "include" });
+      const refreshed = await response.json();
+      const doc = ((refreshed.documents || []) as Doc[]).find((item) => item.id === selectedDoc.id);
+      if (doc) {
+        setSelectedDoc(doc);
+        setValues(candidatesFrom(doc));
+        try { setManualResult(String(JSON.parse(doc.ocrDraft || "{}").rawTextPreview || "")); } catch { setManualResult(""); }
+      }
+      setMessage(data.ocrStatus === "DRAFT"
+        ? "Clinical AI produced a new editable draft. Check every value against the original report before verifying."
+        : "The report was reprocessed, but no structured values were found. Review any extracted text or enter the findings manually.");
+    } catch (e: any) {
+      setError(e?.message || "Could not retry report extraction");
+      setMessage("");
+    } finally {
+      setRetryingOcr(false);
     }
   }
 
@@ -238,8 +273,19 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           {selectedStatus === "FAILED" && (
             <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
               <p className="text-[11px] font-semibold text-amber-900">
-                Automatic OCR could not structure this report
+                Clinical AI needs another pass
               </p>
+              <p className="text-[10px] text-amber-800">
+                The report is saved. Run enhanced extraction again to try image preprocessing and alternate OCR settings. If it still cannot identify values, enter or paste the findings below. Nothing is saved as a clinical result until a clinician verifies it.
+              </p>
+              <button
+                type="button"
+                disabled={retryingOcr || verifying}
+                onClick={() => void retryOcr()}
+                className="w-full rounded-lg bg-[#4a0f20] px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+              >
+                {retryingOcr ? "Re-reading report…" : "Retry Clinical AI extraction"}
+              </button>
               <p className="text-[10px] text-amber-800">
                 The uploaded file is saved. Review any extracted text below, correct it, then verify to write the clinical lab result. Nothing is clinical until you verify.
               </p>
