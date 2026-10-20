@@ -49,6 +49,8 @@ ok(existsSync("src/app/api/labs/documents/[id]/clinical-assist/route.ts"), "Clin
 const clinicalAssistRoute = readFileSync("src/app/api/labs/documents/[id]/clinical-assist/route.ts", "utf8");
 ok(clinicalAssistRoute.includes("requireActiveClinicMembership"), "Clinical Assist bridge requires active facility membership");
 ok(clinicalAssistRoute.includes("extractCandidates"), "Clinical Assist text is mapped into lab value candidates");
+ok(clinicalAssistRoute.includes("doc.checksum.toLowerCase() !== sourceChecksum"), "Clinical Assist extraction must match the saved report fingerprint");
+ok(retryPanel.includes('crypto.subtle.digest("SHA-256"'), "lab panel fingerprints the original file before preprocessing");
 ok(clinicalAssistRoute.includes('doc.ocrStatus !== "FAILED"'), "Clinical Assist bridge only retries failed extraction");
 ok(clinicalAssistRoute.includes("verified: false"), "Clinical Assist output remains an unverified draft");
 ok(clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_EXTRACTION"), "Clinical Assist extraction is audit logged");
