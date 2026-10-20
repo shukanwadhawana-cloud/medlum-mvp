@@ -47,6 +47,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [manualResult, setManualResult] = useState("");
 
   async function load() {
@@ -99,17 +100,51 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           })()
         : "");
       setMessage(
-        data.deduplicated
-          ? "Report already exists. Review the OCR draft below."
-          : data.ocr?.status === "DRAFT"
-            ? "Report uploaded. OCR draft is ready for human verification."
-            : "Report uploaded, but OCR did not produce a usable structured draft. Diagnostic OCR output is retained for investigation; no clinical result was written."
+        data.retried
+          ? data.ocr?.status === "DRAFT"
+            ? "This report already existed. Extraction was retried and a draft is ready for clinician review."
+            : "This report already existed. The retry did not produce a structured draft; review the retained text or enter the result manually."
+          : data.deduplicated
+            ? "Report already exists. Its current extraction status and draft have been loaded."
+            : data.ocr?.status === "DRAFT"
+              ? "Report uploaded. OCR draft is ready for human verification."
+              : "Report uploaded, but OCR did not produce a usable structured draft. Review retained text or enter the result manually; no clinical result was written."
       );
       setPhase("ready");
       await load();
     } catch (e: any) {
       setPhase("failed");
       setError(e?.message || "Upload failed");
+    }
+  }
+
+  async function retryExtraction() {
+    if (!selectedDoc || retrying || verifying) return;
+    setRetrying(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/retry`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "X-MedLum-Requested-With": "MedLum" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || "Could not retry extraction");
+      const doc = data.document as Doc;
+      setSelectedDoc(doc);
+      setValues(candidatesFrom(doc));
+      let rawText = "";
+      try { rawText = String(JSON.parse(doc.ocrDraft || "{}").rawTextPreview || ""); } catch { /* keep empty */ }
+      setManualResult(rawText);
+      setMessage(data.ocr?.status === "DRAFT"
+        ? "Extraction retry succeeded. Review every value before accepting or correcting it."
+        : "Extraction retry finished, but no structured draft was produced. You can re-upload the same report or enter/correct the result manually.");
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Could not retry extraction");
+    } finally {
+      setRetrying(false);
     }
   }
 
@@ -241,8 +276,16 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                 Automatic OCR could not structure this report
               </p>
               <p className="text-[10px] text-amber-800">
-                The uploaded file is saved. Review any extracted text below, correct it, then verify to write the clinical lab result. Nothing is clinical until you verify.
+                Extraction failed. Retry against the stored original, or re-upload the same report if the original is unavailable. Review and correct all extracted text before verification; nothing becomes a clinical result until you verify it.
               </p>
+              <button
+                type="button"
+                disabled={verifying || retrying}
+                onClick={() => void retryExtraction()}
+                className="w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
+              >
+                {retrying ? "Retrying extraction…" : "Retry report extraction"}
+              </button>
               <div>
                 <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
                 <textarea
