@@ -33,6 +33,7 @@ check(owner.includes("const isOwner = Boolean(doctor.isOwner)") && !owner.includ
 check(!ownerHospitals.includes('primaryRole!=="Owner"'), "Hospital-owner screen matches platform-owner authorization");
 check(docker.includes('ENTRYPOINT ["sh", "/app/scripts/render-entrypoint.sh"]'), "Render startup uses an explicit entrypoint script rather than inline shell quoting");
 check(entrypoint.includes("npx prisma migrate deploy") && entrypoint.includes('exec npm start'), "Render entrypoint retains migration retry behavior and starts the app only after migrations succeed");
+check(entrypoint.includes("DATABASE_URL is required at runtime"), "Render startup fails with an actionable message when DATABASE_URL is missing");
 check(schema.includes("pharmacyItems      PharmacyItem[]") && schema.includes("clinicId     String?") && schema.includes('clinic       Clinic?  @relation(fields: [clinicId], references: [id], onDelete: Restrict)'), "PharmacyItem schema maps the existing nullable clinic scope and foreign key");
 check(pharmacyScopeMigration.includes("ADD COLUMN \"clinicId\" TEXT") && pharmacyScopeMigration.includes("CREATE INDEX IF NOT EXISTS \"PharmacyItem_clinicId_idx\"") && pharmacyScopeMigration.includes("PharmacyItem_clinicId_fkey"), "Forward migration reconciles the pharmacy clinic column, index and foreign key idempotently");
 check(pharmacyScopeMigration.includes("information_schema.columns") && pharmacyScopeMigration.includes("IF NOT EXISTS"), "Pharmacy reconciliation is safe when production objects already exist");
