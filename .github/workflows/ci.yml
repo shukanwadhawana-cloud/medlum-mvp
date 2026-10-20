@@ -201,6 +201,41 @@ jobs:
             exit 1
           fi
           echo "ImagingStudy migration default verified: $status"
+
+      - name: Validate PharmacyItem clinic scope reconciliation on disposable PostgreSQL database
+        env:
+          PGPASSWORD: p1
+        run: |
+          set -euo pipefail
+          createdb -h 127.0.0.1 -U p1 pharmacyscopetest
+
+          # Start from the pre-reconciliation shape, with an existing stock row.
+          psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE "Clinic" ("id" TEXT PRIMARY KEY);
+          CREATE TABLE "PharmacyItem" (
+            "id" TEXT PRIMARY KEY,
+            "doctorId" TEXT NOT NULL,
+            "name" TEXT NOT NULL
+          );
+          INSERT INTO "Clinic" ("id") VALUES ('clinic-test');
+          INSERT INTO "PharmacyItem" ("id", "doctorId", "name")
+            VALUES ('stock-test', 'doctor-test', 'Test medicine');
+          SQL
+
+          # Apply twice to prove idempotence, as well as preservation of existing stock rows.
+          psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -f prisma/migrations/20261020180000_reconcile_pharmacy_clinic_scope/migration.sql
+          psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -f prisma/migrations/20261020180000_reconcile_pharmacy_clinic_scope/migration.sql
+
+          nullable="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='PharmacyItem' AND column_name='clinicId';")"
+          stock_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"PharmacyItem\" WHERE \"id\"='stock-test';")"
+          index_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='PharmacyItem' AND indexname='PharmacyItem_clinicId_idx';")"
+          fk_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_constraint WHERE conname='PharmacyItem_clinicId_fkey' AND conrelid='\"PharmacyItem\"'::regclass;")"
+
+          [ "$nullable" = "YES" ] || { echo "Expected nullable clinicId, got: $nullable" >&2; exit 1; }
+          [ "$stock_count" = "1" ] || { echo "Existing PharmacyItem row was not preserved" >&2; exit 1; }
+          [ "$index_count" = "1" ] || { echo "Expected PharmacyItem clinicId index" >&2; exit 1; }
+          [ "$fk_count" = "1" ] || { echo "Expected PharmacyItem clinicId FK" >&2; exit 1; }
+          echo "PharmacyItem clinic scope migration is idempotent and preserves existing stock."
       - name: P1 RBAC tenant isolation (Postgres)
         env:
           P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
