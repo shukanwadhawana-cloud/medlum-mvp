@@ -212,6 +212,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       if (suppliedChecksum.toLowerCase() !== selectedDoc.checksum.toLowerCase()) {
         throw new Error("This file does not exactly match the saved report. Select the original file that was uploaded for this lab order.");
       }
+      setAssistSourceFile(originalFile);
 
       const scan = await runClinicalAssistOcr(originalFile, (progress) => setClinicalAssistProgress(progress));
       const text = scan.text.trim();
