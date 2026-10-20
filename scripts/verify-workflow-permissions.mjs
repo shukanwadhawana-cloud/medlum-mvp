@@ -22,8 +22,8 @@ const entrypoint = read("scripts/render-entrypoint.sh");
 
 check(invoicePrint.includes("canViewBillingDetail(membership.role)"), "Invoice print payload enforces the billing role matrix");
 check((pharmacy.match(/if \(!canManagePharmacy\(membership\.role\)\)/g) || []).length >= 5, "Pharmacy read, inventory mutations, and dispensing actions are role-gated");
-check(prescriptionPrint.includes("canViewFullClinicalChart(membership.role)") && prescriptionPrint.includes("canManagePharmacy(membership.role)"), "Prescription printing is limited to clinical-chart or pharmacy roles");
-check(labPrint.includes("canViewFullClinicalChart(membership.role)") && labPrint.includes("canManageLab(membership.role)"), "Lab printing is limited to clinical-chart or lab-management roles");
+check(prescriptionPrint.includes("canViewClinicalChart(membership.role)") && prescriptionPrint.includes("canManagePharmacy(membership.role)"), "Prescription printing is limited to clinical-chart or pharmacy roles");
+check(labPrint.includes("canViewClinicalChart(membership.role)") && labPrint.includes("canManageLab(membership.role)"), "Lab printing is limited to clinical-chart or lab-management roles");
 check(ipdPrint.includes("canViewClinicalChart(membership.role)"), "Discharge summary printing enforces clinical-chart access");
 check(ipdApi.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))") && ipdApi.includes("verifierDoctorId: null"), "Discharge finalization requires a distinct authorized verifier");
 check(owner.includes("const isOwner = Boolean(doctor.isOwner)") && !owner.includes('primaryRole === "Owner"'), "Owner dashboard UI does not substitute a facility role for platform-owner entitlement");
