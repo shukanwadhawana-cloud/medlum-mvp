@@ -78,6 +78,13 @@ const panelClinicalAssist = readFileSync("src/components/LabResultDocumentPanel.
 ok(panelClinicalAssist.includes("runClinicalAssistOcr") && panelClinicalAssist.includes("Extract with Clinical Assist"), "failed lab report exposes the actual on-device Clinical Assist OCR engine");
 ok(panelClinicalAssist.includes("setManualResult(rawTextFrom(latest))"), "stored OCR text is restored when the panel loads");
 ok(panelClinicalAssist.includes("/view?raw=1") && panelClinicalAssist.includes("/clinical-assist"), "Clinical Assist reads the saved original and sends only draft text to the scoped endpoint");
+ok(panelClinicalAssist.includes("sha256Hex") && panelClinicalAssist.includes("selectedDoc.checksum"), "Clinical Assist verifies the exact source file before associating OCR with a lab document");
+ok(panelClinicalAssist.includes("Choose the original report file"), "Clinical Assist can use the same source file again when object storage did not retain the binary");
+const documentRoute = readFileSync("src/app/api/labs/documents/route.ts", "utf8");
+ok(documentRoute.includes("checksum: true"), "clinic-scoped document list exposes the saved file checksum for source matching");
+const processedStorage = readFileSync("src/lib/storage/processed.ts", "utf8");
+ok(processedStorage.includes("async getObject(_key: string)") && processedStorage.includes("return null"), "test captures the production processed-storage no-binary contract so local retry fallback cannot regress");
+
 
 if (fails.length) {
   console.error("FAIL document-intelligence:");
