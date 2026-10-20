@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
 
 type Doc = {
   id: string;
@@ -48,6 +49,8 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [clinicalAssistBusy, setClinicalAssistBusy] = useState(false);
+  const [clinicalAssistProgress, setClinicalAssistProgress] = useState("");
   const [manualResult, setManualResult] = useState("");
 
   async function load() {
@@ -145,6 +148,66 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       setError(e?.message || "Could not retry extraction");
     } finally {
       setRetrying(false);
+    }
+  }
+
+  async function runClinicalAssist() {
+    if (!selectedDoc || clinicalAssistBusy || retrying || verifying) return;
+    setClinicalAssistBusy(true);
+    setClinicalAssistProgress("Opening the saved report…");
+    setError("");
+    setMessage("Clinical Assist will process the saved report in this browser. Extracted text is saved only as an unverified draft.");
+    try {
+      const source = await fetch(`/api/labs/documents/${encodeURIComponent(selectedDoc.id)}/source`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!source.ok) {
+        const body = await source.json().catch(() => ({}));
+        throw new Error(body.error || "Could not retrieve the saved report for Clinical Assist.");
+      }
+      const blob = await source.blob();
+      const mimeType = selectedDoc.mimeType || blob.type || "application/octet-stream";
+      const file = new File([blob], selectedDoc.originalFileName || "lab-report", { type: mimeType });
+      const result = await runClinicalAssistOcr(file, (status) => {
+        setClinicalAssistProgress(status);
+        setMessage("Clinical Assist: " + status);
+      });
+      if (result.text.trim().length < 20) {
+        throw new Error("Clinical Assist found too little readable text. Try a clearer scan or re-upload a sharper report.");
+      }
+      const response = await fetch(`/api/labs/documents/${encodeURIComponent(selectedDoc.id)}/clinical-assist`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-MedLum-Requested-With": "MedLum",
+        },
+        body: JSON.stringify({
+          text: result.text,
+          confidence: result.confidence,
+          method: result.label,
+          partial: result.partial === true,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || "Clinical Assist could not save its extraction draft.");
+      const doc = data.document as Doc;
+      setSelectedDoc(doc);
+      setValues(candidatesFrom(doc));
+      let rawText = "";
+      try { rawText = String(JSON.parse(doc.ocrDraft || "{}").rawTextPreview || ""); } catch { /* retain OCR text below */ }
+      setManualResult(rawText || result.text);
+      setMessage(data.ocr?.status === "DRAFT"
+        ? `Clinical Assist extracted ${data.ocr.candidateCount} structured candidate(s) using ${result.label}. Check each value against the original report before verification.`
+        : "Clinical Assist extracted text, but could not safely map supported structured lab values. Review the retained text below, correct it, and verify manually if appropriate.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Clinical Assist extraction failed.");
+      setMessage("");
+    } finally {
+      setClinicalAssistBusy(false);
+      setClinicalAssistProgress("");
     }
   }
 
@@ -280,12 +343,26 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               </p>
               <button
                 type="button"
-                disabled={verifying || retrying}
+                disabled={verifying || retrying || clinicalAssistBusy}
                 onClick={() => void retryExtraction()}
                 className="w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-[11px] font-semibold text-amber-900 disabled:opacity-50"
               >
                 {retrying ? "Retrying extraction…" : "Retry report extraction"}
               </button>
+              <button
+                type="button"
+                disabled={verifying || retrying || clinicalAssistBusy}
+                onClick={() => void runClinicalAssist()}
+                className="w-full rounded-lg bg-[#4a0f20] px-2 py-2 text-[11px] font-semibold text-white disabled:opacity-50"
+              >
+                {clinicalAssistBusy ? "Running Clinical Assist…" : "Run Clinical Assist on this device"}
+              </button>
+              {clinicalAssistBusy && clinicalAssistProgress && (
+                <p role="status" aria-live="polite" className="text-[10px] text-amber-900">{clinicalAssistProgress}</p>
+              )}
+              <p className="text-[10px] text-amber-800">
+                Clinical Assist reads the saved file in this browser. Its extracted text and suggested values are sent to MedLum as an unverified draft; no clinical result is written until an authorised user verifies it.
+              </p>
               <div>
                 <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
                 <textarea
