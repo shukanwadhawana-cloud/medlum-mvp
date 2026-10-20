@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description: "MedLum Healthcare — secure hospital and clinic operations platform",
   applicationName: "MedLum Healthcare",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/medlum-icon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/medlum-icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/medlum-icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export const viewport: Viewport = {
