@@ -151,24 +151,27 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     }
   }
 
-  async function runClinicalAssist() {
+  async function runClinicalAssist(localFile?: File) {
     if (!selectedDoc || clinicalAssistBusy || retrying || verifying) return;
     setClinicalAssistBusy(true);
     setClinicalAssistProgress("Opening the saved report…");
     setError("");
     setMessage("Clinical Assist will process the saved report in this browser. Extracted text is saved only as an unverified draft.");
     try {
-      const source = await fetch(`/api/labs/documents/${encodeURIComponent(selectedDoc.id)}/source`, {
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!source.ok) {
-        const body = await source.json().catch(() => ({}));
-        throw new Error(body.error || "Could not retrieve the saved report for Clinical Assist.");
+      let file = localFile;
+      if (!file) {
+        const source = await fetch(`/api/labs/documents/${encodeURIComponent(selectedDoc.id)}/source`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!source.ok) {
+          const body = await source.json().catch(() => ({}));
+          throw new Error((body.error || "Could not retrieve the saved report.") + " Use the file picker below to select the original report from this device.");
+        }
+        const blob = await source.blob();
+        const mimeType = selectedDoc.mimeType || blob.type || "application/octet-stream";
+        file = new File([blob], selectedDoc.originalFileName || "lab-report", { type: mimeType });
       }
-      const blob = await source.blob();
-      const mimeType = selectedDoc.mimeType || blob.type || "application/octet-stream";
-      const file = new File([blob], selectedDoc.originalFileName || "lab-report", { type: mimeType });
       const result = await runClinicalAssistOcr(file, (status) => {
         setClinicalAssistProgress(status);
         setMessage("Clinical Assist: " + status);
@@ -361,8 +364,22 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                 <p role="status" aria-live="polite" className="text-[10px] text-amber-900">{clinicalAssistProgress}</p>
               )}
               <p className="text-[10px] text-amber-800">
-                Clinical Assist reads the saved file in this browser. Its extracted text and suggested values are sent to MedLum as an unverified draft; no clinical result is written until an authorised user verifies it.
+                Clinical Assist reads the saved file in this browser. Its extracted text and suggested values are sent to MedLum as an unverified draft; no clinical result is written until an authorised user verifies it. If the stored original is unavailable, choose the report again below.
               </p>
+              <label className="block rounded-lg border border-dashed border-amber-300 bg-white p-2 text-[10px] font-medium text-amber-900">
+                Choose original report from this device
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                  disabled={verifying || retrying || clinicalAssistBusy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void runClinicalAssist(file);
+                    e.target.value = "";
+                  }}
+                  className="mt-1 block w-full text-[10px] text-gray-600"
+                />
+              </label>
               <div>
                 <p className="text-[10px] font-semibold text-gray-700">Retained OCR text / clinical findings</p>
                 <textarea
