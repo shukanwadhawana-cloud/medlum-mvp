@@ -14,10 +14,10 @@ async function masterOwner() {
   return doctor;
 }
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ clinicId: string }> }) {
   const user = await masterOwner();
   if (!user) return NextResponse.json({ success: false, error: "Master Owner access required." }, { status: 403 });
-  const { id } = await params;
+  const { clinicId: id } = await params;
   const body = await req.json().catch(() => ({}));
   const status = String(body.status || "").trim().toUpperCase();
   const reason = String(body.reason || "").trim();
@@ -56,10 +56,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return NextResponse.json({ success: true, facility: clinic });
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ clinicId: string }> }) {
   const user = await masterOwner();
   if (!user) return NextResponse.json({ success: false, error: "Master Owner access required." }, { status: 403 });
-  const { id } = await params;
+  const { clinicId: id } = await params;
   const body = await req.json().catch(() => ({}));
   const confirmName = String(body.confirmName || "").trim();
   const reason = String(body.reason || "").trim();
