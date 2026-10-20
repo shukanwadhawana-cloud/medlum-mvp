@@ -185,14 +185,14 @@ export default function IPDPatientWorkspace(){
     <div className="p-3 border-r bg-emerald-50/40">
      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Patient Demographic Details</p>
      <p className="font-semibold text-sm mt-1">{selected.name}</p>
-     <p className="text-gray-600 mt-0.5">{selected.age} yrs · {selected.gender} · UHID {selected.uhid||"—"}</p>
+     <p className="text-gray-600 mt-0.5">{selected.age} yrs · {selected.gender} · UHID {selected.uhid || selected.registrationNo || "Not assigned"}</p>
      <p className="text-gray-500">MedLum ID: {selected.medlumId||"—"} · Phone: {selected.phone||"—"}</p>
     </div>
     <div className="p-3 border-r bg-sky-50/40">
      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Admission / Location</p>
      <p className="font-semibold text-sm mt-1">{selected.wardType||"Ward"} · Bed {selected.roomNumber||"Unassigned"}</p>
      <p className="text-gray-600">Admitted: {selected.admissionDate?new Date(selected.admissionDate).toLocaleString("en-IN"):"—"}</p>
-     <p className="text-gray-500">Consultant: {selected.consultantName||"—"} · {selected.consultantSpecialty||department}</p>
+     <p className="text-gray-500">Consultant: {selected.consultantName || doctor?.name || "Not assigned"} ({selected.consultantSpecialty || selected.department || department || "Specialty not recorded"})</p>
     </div>
     <div className="p-3 bg-amber-50/40">
      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Clinical Alerts</p>
@@ -269,7 +269,7 @@ export default function IPDPatientWorkspace(){
     {mainTab==="Dashboard"&&leftNav==="OPD/IPD Details"&&(
      <div className="text-xs space-y-2"><h3 className="font-semibold text-sm">OPD / IPD Details</h3>
       <p>Care setting: IPD · Ward: {selected.wardType||"—"} · Bed: {selected.roomNumber||"—"}</p>
-      <p>Consultant: {selected.consultantName||"—"} · Specialty: {selected.consultantSpecialty||department}</p>
+      <p>Consultant: {selected.consultantName || doctor?.name || "Not assigned"} ({selected.consultantSpecialty || selected.department || department || "Specialty not recorded"})</p>
       <p>Admission: {selected.admissionDate?new Date(selected.admissionDate).toLocaleString("en-IN"):"—"}</p>
       <div className="flex gap-2 mt-2">
        <button type="button" onClick={()=>setShowTransfer(true)} className="h-8 px-3 rounded border text-xs">Transfer bed</button>
