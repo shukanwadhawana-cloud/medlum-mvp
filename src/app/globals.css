@@ -1,24 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --primary: #c2183a;
-  --primary-dark: #9e1430;
+  --primary: #b51f46;
+  --primary-dark: #861532;
   --dark: #140a1f;
   --bg: #f5f5f7;
   --text: #1a1a1f;
   --muted: #6b6b75;
-  --ml-ink: #140a1f;
-  --ml-ink-soft: #5f4b52;
-  --ml-muted: #76666c;
-  --ml-canvas: #f5f5f7;
-  --ml-canvas-deep: #eee9ec;
-  --ml-surface: #fbfcfd;
-  --ml-surface-subtle: #f8f3f5;
-  --ml-surface-tint: #f8e8ed;
-  --ml-border: #e3d4d9;
-  --ml-primary: #c2183a;
-  --ml-primary-dark: #9e1430;
-  --ml-primary-soft: #f9dce4;
+  --ml-ink: #35101f;
+  --ml-ink-soft: #704451;
+  --ml-muted: #8b6b75;
+  --ml-canvas: #fbf5f6;
+  --ml-canvas-deep: #f2e5e9;
+  --ml-surface: #fffdfd;
+  --ml-surface-subtle: #fbf1f4;
+  --ml-surface-tint: #f8e4eb;
+  --ml-border: #ead4dc;
+  --ml-primary: #b51f46;
+  --ml-primary-dark: #861532;
+  --ml-primary-soft: #f7dce5;
   --ml-accent: #7c3aed;
   --ml-danger: #b42318;
   --ml-warning: #9a6700;
@@ -28,7 +28,7 @@
 
 html, body { min-width: 320px; max-width: 100%; overflow-x: hidden; scroll-behavior: smooth; background: var(--ml-canvas); }
 body {
-  background: radial-gradient(circle at 82% -12%, rgba(194,24,58,.055), transparent 34rem), var(--ml-canvas);
+  background: radial-gradient(circle at 82% -12%, rgba(181,31,70,.055), transparent 34rem), var(--ml-canvas);
   color: var(--ml-ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: -0.004em; margin: 0;
@@ -47,18 +47,18 @@ iframe { display: block; width: 100%; max-width: 100%; border: 0; }
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
 .telemedicine-video-frame { width: 100%; height: min(72vh, 720px); min-height: 320px; background: #000; }
 .telemedicine-video-frame iframe { width: 100%; height: 100%; min-height: 320px; }
-::selection { background: #f3c3cf; color: #7a1830; }
+::selection { background: #f4cbd7; color: #70152f; }
 
 input, select, textarea { border-color: var(--ml-border); color: var(--ml-ink); background: var(--ml-surface); border-radius: 10px; transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
 input::placeholder, textarea::placeholder { color: #94a3b8; }
-input:focus, select:focus, textarea:focus { outline: none; border-color: #e05a78; box-shadow: 0 0 0 3px rgba(194,24,58,.11); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: #e05a78; box-shadow: 0 0 0 3px rgba(181,31,70,.11); }
 main .bg-white.rounded-lg, main .bg-white.rounded-xl, main .bg-white.rounded-2xl, main .bg-white.rounded-3xl { background: var(--ml-surface); box-shadow: var(--ml-shadow); border-color: var(--ml-border); }
 main .border { border-color: var(--ml-border); }
 main h1, main h2, main h3 { color: var(--ml-ink); letter-spacing: -0.02em; }
 main .bg-gray-50 { background-color: var(--ml-surface-subtle) !important; }
 main .hover\\:bg-gray-50:hover { background-color: #f1e5e9 !important; }
 main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
-.medlum-primary { background: var(--ml-primary) !important; color: #fff !important; box-shadow: 0 4px 12px rgba(194,24,58,.18); }
+.medlum-primary { background: var(--ml-primary) !important; color: #fff !important; box-shadow: 0 4px 12px rgba(181,31,70,.18); }
 .medlum-primary:hover { background: var(--ml-primary-dark) !important; }
 .bg-\\[\\#140a1f\\] { background-color: var(--ml-ink) !important; }
 .bg-\\[\\#c2183a\\] { background-color: var(--ml-primary) !important; }
@@ -67,12 +67,12 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 .border-\\[\\#c2183a\\] { border-color: var(--ml-primary) !important; }
 
 .medlum-app { width: 100%; min-height: 100vh; overflow-x: clip; }
-.medlum-topbar { position: sticky; top: 0; z-index: 40; background: #4a0f14; color: #fff; border-bottom: 1px solid rgba(255,255,255,.12); box-shadow: 0 4px 16px rgba(20,10,31,.14); }
+.medlum-topbar { position: sticky; top: 0; z-index: 40; background: #4a0f20; color: #fff; border-bottom: 1px solid rgba(255,255,255,.12); box-shadow: 0 4px 16px rgba(20,10,31,.14); }
 .medlum-topbar-inner { width: 100%; max-width: 1500px; min-height: 62px; margin: 0 auto; padding: 0 22px; display: flex; align-items: center; gap: 10px; }
 .medlum-brand { display: inline-flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; flex: 0 0 auto; }
-.medlum-brand-mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.16); }
+.medlum-brand-mark { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: #8f1739; background: linear-gradient(145deg,#fff8fa,#f4d8e2); border: 1px solid rgba(255,255,255,.65); box-shadow: 0 2px 8px rgba(30,5,15,.16); overflow:hidden; }
 .medlum-brand strong { display: block; font-size: 18px; letter-spacing: -.03em; line-height: 1.05; }
-.medlum-brand small { display: block; margin-top: 2px; font-size: 10px; color: #e9cdd2; letter-spacing: .04em; }
+.medlum-brand small { display: block; margin-top: 2px; font-size: 10px; color: #f0cbd6; letter-spacing: .04em; }
 .medlum-topbar-spacer { flex: 1 1 0%; min-width: 12px; }
 .medlum-facility-select { height: 34px; max-width: 180px; min-width: 108px; flex: 0 1 180px; border-radius: 9px; padding: 0 10px; background: rgba(255,255,255,.09) !important; border: 1px solid rgba(255,255,255,.18) !important; color: #fff !important; font-size: 12px; }
 .medlum-facility-select option { color: #140a1f; background: #fff; }
