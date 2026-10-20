@@ -40,7 +40,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ success: false, error: "Invalid request body." }, { status: 400 });
   }
 
-  const input = body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown };
+  const input = body && typeof body === "object"
+    ? body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown }
+    : {};
   const text = typeof input.text === "string" ? input.text.trim().slice(0, 20_000) : "";
   if (text.length < 20) {
     return NextResponse.json({ success: false, error: "Clinical Assist returned too little readable text. Try a clearer, upright scan." }, { status: 422 });
@@ -60,8 +62,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     ...(partial ? ["Only the supported first pages of this PDF were processed."] : []),
     ...(!hasCandidates ? ["Readable text was extracted, but no supported lab-value labels could be mapped. Review the retained text and enter or correct results manually."] : []),
   ];
-  const updated = await prisma.medicalDocument.update({
-    where: { id: doc.id },
+  const write = await prisma.medicalDocument.updateMany({
+    where: { id: doc.id, clinicId: membership.clinicId, deletedAt: null, ocrStatus: "FAILED" },
     data: {
       ocrStatus,
       ocrDraft: JSON.stringify({
@@ -79,6 +81,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       ocrExtractedAt: new Date(),
     },
   });
+  // Do not overwrite a result if a different user has already verified/rejected it.
+  if (write.count !== 1) {
+    return NextResponse.json({ success: false, error: "This report changed while Clinical Assist was running. Reload it before retrying." }, { status: 409 });
+  }
+  const updated = await prisma.medicalDocument.findFirst({
+    where: { id: doc.id, clinicId: membership.clinicId, deletedAt: null },
+  });
+  if (!updated) return NextResponse.json({ success: false, error: "Document not found" }, { status: 404 });
 
   await writeAudit({
     doctorId: session.doctorId,
