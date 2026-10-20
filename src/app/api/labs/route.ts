@@ -66,7 +66,7 @@ export async function GET(req: Request) {
     const raw = String(value || "").trim();
     if (!raw) return "";
     if (/^UHID-/i.test(raw)) return raw.toUpperCase();
-    const legacy = raw.match(/^ML-(\\d{6})-(\\d{4,6})$/i);
+    const legacy = raw.match(/^ML-(\d{6})-(\d{4,6})$/i);
     return legacy ? `UHID-${legacy[1]}-${legacy[2]}` : raw.toUpperCase();
   };
   const queueOrders = orders.map(({ patient, ...order }) => ({
