@@ -18,7 +18,7 @@ ok(!summary.includes('const discharge=async'), "Legacy summaries no longer conta
 ok(dischargeUi.includes('action("discharge-summary-draft")'), "Canonical discharge UI saves a draft");
 ok(dischargeUi.includes('action("discharge-summary-submit")'), "Canonical discharge UI submits the author draft for second verification");
 ok(dischargeUi.includes('action("discharge-complete")') && dischargeUi.includes("canVerify"), "Only a different clinician can see the finalization action");
-ok(dischargeUi.includes('note.author?.id!==doctor?.id'), "The UI prioritizes a pending summary authored by a different clinician");
+ok(dischargeUi.includes('n.author?.id!==doctor?.id'), "The UI prioritizes a pending summary authored by a different clinician");
 ok(ipd.includes("canViewFullClinicalChart(membership.role)"), "Discharge actions require clinical chart permissions");
 ok(ipd.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))"), "Final discharge signing is limited to authorized verifier roles");
 ok(ipd.includes("note.authorDoctorId === session.doctorId"), "The author cannot verify their own discharge summary");
