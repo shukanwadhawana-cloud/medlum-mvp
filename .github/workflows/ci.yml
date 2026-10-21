@@ -538,6 +538,7 @@ jobs:
       SESSION_SECRET: ephemeral-ci-only-session-secret-never-use-in-production-2026-001
       MEDLUM_CI_SYNTHETIC_FIXTURE: "YES"
       MEDLUM_RUNTIME_TEST_BASE_URL: http://127.0.0.1:3000
+      MEDLUM_CASE_SUMMARY_FORCE_TIMELINE: "YES"
     steps:
       - name: Checkout exact triggering commit
         uses: actions/checkout@v4
@@ -575,6 +576,8 @@ jobs:
         run: npm run test:clinical-assist-runtime
       - name: Run password reset HTTP runtime acceptance
         run: npm run test:password-reset-runtime
+      - name: Run longitudinal IPD case-summary runtime acceptance
+        run: npm run test:ipd-case-summary-runtime
       - name: Print application logs on failure
         if: failure()
         run: cat /tmp/medlum-next.log
