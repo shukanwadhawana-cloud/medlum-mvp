@@ -1,4 +1,4 @@
-# MedLum MVP — Frozen Product Blueprint
+# MedLum Health — Frozen Product Blueprint
 
 **Status:** Frozen baseline for MVP validation  
 **Source of truth:** current `main` implementation, not a future feature list  
