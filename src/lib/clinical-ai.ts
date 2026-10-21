@@ -183,6 +183,12 @@ export function validateDraftSections(raw: unknown): ClinicalAiDraftSections | n
 }
 
 function providerName(): "openai" | "gemini" | "none" {
+  // Sending clinical context to an external AI service is disabled unless an
+  // operator explicitly enables it after reviewing provider terms, data-flow,
+  // and the facility's applicable consent/legal requirements. Heuristic drafts
+  // and recorded-timeline summaries remain available without external calls.
+  if (process.env.CLINICAL_AI_EXTERNAL_PROCESSING_ENABLED !== "true") return "none";
+
   const configured = (process.env.CLINICAL_AI_PROVIDER || "").toLowerCase().trim();
   if (configured === "openai" && process.env.OPENAI_API_KEY) return "openai";
   if (configured === "gemini" && process.env.GEMINI_API_KEY) return "gemini";
