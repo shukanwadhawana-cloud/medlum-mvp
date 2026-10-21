@@ -8,6 +8,7 @@ import IpdCoverSheet from "@/components/IpdCoverSheet";
 import { useDoctor } from "@/components/DoctorProvider";
 import { EXPANDED_LAB_CATALOG, EXPANDED_RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
 import MedicationAdministrationPanel from "@/components/ipd/MedicationAdministrationPanel";
+import ClinicalQAPanel from "@/components/ClinicalQAPanel";
 import MedOrderPanel from "@/components/ipd/MedOrderPanel";
 
 const WARDS=["General","Twin Sharing","Deluxe","Super Deluxe","VIP"];
@@ -39,7 +40,7 @@ const DIAGNOSTICS=["Chest X-ray","Abdominal X-ray","Ultrasound Abdomen","Ultraso
 const DEPARTMENTS=["General Medicine","General Surgery","Gastroenterology","GI Surgery / Surgical Gastroenterology","Cardiology","Cardiothoracic & Vascular Surgery (CTVS)","Neurology","Neurosurgery","Nephrology & Dialysis","Urology","Orthopaedics","Obstetrics & Gynaecology","Paediatrics","Paediatric Surgery","Neonatology","ENT","Ophthalmology","Dermatology & Venereology","Pulmonary / Respiratory Medicine","Critical Care Medicine","Emergency Medicine & Trauma","Endocrinology","Rheumatology","Clinical Haematology","Medical Oncology","Surgical Oncology","Radiation Oncology","Plastic & Reconstructive Surgery","Anaesthesiology","Physical Medicine & Rehabilitation","Psychiatry & Mental Health","Nuclear Medicine","Radiology / Interventional Radiology","Palliative Care","Dental","Other"];
 
 /** CPRS top tabs — only one main panel visible at a time */
-const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","Discharge Summary","MAR"] as const;
+const MAIN_TABS=["Cover Sheet","Dashboard","Orders","Clinical Notes","Clinical Q&A","Discharge Summary","MAR"] as const;
 type MainTab=typeof MAIN_TABS[number];
 
 /** Left nav items depend on main tab (CPRS pattern) */
@@ -48,6 +49,7 @@ const LEFT_NAV:Record<MainTab,string[]>={
   "Dashboard":["Vitals","Problems","Final Diagnosis","Chief-Complaints","Allergies","OPD/IPD Details"],
   "Orders":["Order Medicines","Laboratory","Radiology","Procedure"],
   "Clinical Notes":["Note View","Initial Assessment","Progress Note","Consultant Note","RMO Note","Nursing Care Note","Case Summary"],
+  "Clinical Q&A":["Quick Questions"],
   "Discharge Summary":[],
   "MAR":["Medication Administration Record"],
 };
