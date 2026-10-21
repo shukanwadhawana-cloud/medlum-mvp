@@ -139,7 +139,7 @@ export async function GET() {
       title: meta.title,
       content: meta.content,
       authorRole: meta.authorRole,
-      authorName: meta.authorRole,
+      authorName: String(meta.authorRole).split(/\s+·\s+/)[0].trim() || String(meta.authorRole),
       status: typeof meta.status === "string" ? meta.status : "DRAFT",
       version: 1,
       createdAt: log.createdAt,
