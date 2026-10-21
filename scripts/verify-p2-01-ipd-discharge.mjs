@@ -16,12 +16,12 @@ ok(summary.includes('window.location.assign(`/ipd/${selected.id}/discharge`)'), 
 ok(!summary.includes('/api/patients/lifecycle'), "Legacy summaries cannot directly discharge a patient through the old lifecycle route");
 ok(!summary.includes('const discharge=async'), "Legacy summaries no longer contain a separate discharge finalization handler");
 ok(dischargeUi.includes('action("discharge-summary-draft")'), "Canonical discharge UI saves a draft");
-ok(dischargeUi.includes('action("discharge-summary-submit")'), "Canonical discharge UI submits the author draft for second verification");
-ok(dischargeUi.includes('action("discharge-complete")') && dischargeUi.includes("canVerify"), "Only a different clinician can see the finalization action");
-ok(dischargeUi.includes('n.author?.id!==doctor?.id'), "The UI prioritizes a pending summary authored by a different clinician");
+ok(dischargeUi.includes('action("discharge-summary-submit")'), "Canonical discharge UI submits the author draft for signing");
+ok(dischargeUi.includes('action("discharge-complete")') && dischargeUi.includes("canVerify") && dischargeUi.includes('noteAuthorId===doctor?.id'), "Original author can see the finalization action for their own summary");
+ok(dischargeUi.includes('n.author?.id===doctor?.id'), "The UI prioritizes the current author’s pending summary");
 ok(ipd.includes("canViewFullClinicalChart(membership.role)"), "Discharge actions require clinical chart permissions");
 ok(ipd.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))"), "Final discharge signing is limited to authorized verifier roles");
-ok(ipd.includes("note.authorDoctorId === session.doctorId"), "The author cannot verify their own discharge summary");
+ok(ipd.includes("note.authorDoctorId !== session.doctorId") && ipd.includes('signatureMode: "AUTHOR"'), "Only the original author can sign; audit records author signature");
 ok(ipd.includes('note.contentHash !== hashClinicalNote(note.content, note.version)'), "Submitted discharge content integrity is verified before final signature");
 ok(ipd.includes('event: existing ? "DRAFT_SAVED" : "CREATED_DRAFT"') && ipd.includes('event: "SUBMITTED_FOR_VERIFICATION"'), "IPD discharge draft and submitted versions are snapshotted");
 ok(ipd.includes("tx.clinicalNoteVersion.create") && ipd.includes('isolationLevel: "Serializable"'), "IPD discharge version snapshots are transactional and race-safe");
