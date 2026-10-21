@@ -80,8 +80,8 @@ has(page,'Submit for co-signature"',"author can submit an existing draft for opt
 has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can final-sign directly from the mobile note list");
 has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
 has(page,"Sign &amp; complete as author","IPD note list offers author self-signing");
-has(page,"cancelClinicalNote(n.id,n.status)","IPD note list offers audited cancellation/removal");
-has(page,"Remove draft","draft removal affordance is explicit");
+has(page,"cancelClinicalNote(n.id,status)","IPD note list offers audited cancellation/removal for unsigned notes");
+has(page,"Remove draft","legacy draft removal affordance is explicit");
 notHas(page,'(n.status==="FINAL"&&["Owner","Admin"].includes(currentRole))',"signed final notes are not offered the cancel/remove shortcut");
 console.log("IPD list-level author signing, cancellation, and role visibility checks passed.");
 
@@ -98,11 +98,11 @@ has(page,'onClick={e=>void saveStructured(e as any,false,true)',"Initial Assessm
 has(page,'onClick={()=>void saveProgress(false,true)',"Progress Note offers save-time sign and complete");
 has(page,'onClick={()=>void saveNote(false,leftNav,true)',"Consultant/RMO/Nursing/Case Summary offers save-time sign and complete");
 has(cancelApi,'if (entity === "ClinicalNote")',"existing audited ClinicalNote cancellation route is used");
-has(cancelApi,"Only the author or clinic Owner/Admin can remove this draft","draft cancellation checks authorship/ownership");
-has(cancelApi,"Only the original author or clinic Owner/Admin can remove/cancel an unsigned note","cancellation checks authorship/ownership");
+has(cancelApi,"Only the original author can cancel this unsigned note.","draft cancellation is restricted to the original author");
+has(cancelApi,"Only the original author can cancel this unsigned note.","cancellation checks authorship");
 has(cancelApi,"Signed/final notes must use an amendment workflow.","signed notes are blocked from the cancellation shortcut");
-has(cancelApi,"const isUnsigned = note.status === \"DRAFT\" || note.status === \"PENDING_VERIFICATION\"","cancellation is limited to draft or awaiting-co-signature statuses");
-has(cancelApi,'action:"CANCEL"',"submitted note cancellation is written to the audit log");
+has(cancelApi,'if (!["DRAFT", "PENDING_VERIFICATION"].includes(note.status))',"cancellation is limited to draft or awaiting-co-signature statuses");
+has(cancelApi,'action: "CLINICAL_NOTE_CANCELLED"',"cancellation is written to the audit log");
 has(page,'showCancelledNotes?clinicalNotes:clinicalNotes.filter((n:any)=>n.status!=="CANCELLED")',"cancelled notes are hidden in the active Note View and can be revealed");
 has(page,'onClick={()=>setShowCancelledNotes(v=>!v)}',"Note View exposes Show/Hide cancelled toggle");
 has(page,'cancelClinicalNote(n.id,status)',"author can cancel/remove before co-signature from Note View");
