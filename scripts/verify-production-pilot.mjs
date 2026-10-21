@@ -1,4 +1,4 @@
-const baseUrl = (process.env.PILOT_BASE_URL || "https://medlum-mvp.onrender.com").replace(/\/$/, "");
+const baseUrl = (process.env.PILOT_BASE_URL || "https://medlumhealth.com").replace(/\/$/, "");
 
 async function request(path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
