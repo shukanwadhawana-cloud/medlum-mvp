@@ -79,5 +79,5 @@ has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can f
 has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
 console.log("IPD list-level signature actions and role visibility checks passed.");
 
-has(route,'const signedVersion = current.version + 1',"author sign creates a unique version instead of a duplicate version row");
-has(route,'contentHash: signedContentHash',"signed note content hash is updated for the new version");
+has(signingApi,'const signedVersion = current.version + 1',"author sign creates a unique version instead of a duplicate version row");
+has(signingApi,'contentHash: signedContentHash',"signed note content hash is updated for the new version");
