@@ -220,9 +220,10 @@ export async function PATCH(req: Request) {
     }
 
     if (action === "sign-own") {
-      // Self-signing is not second-clinician verification. Authorship, active
-      // clinic membership, unsigned status, integrity and optimistic concurrency
-      // are enforced below; verifier-role policy applies only to action=finalize.
+      if (!canFinalizeClinicalNote(actor.normalizedRole)) {
+        return NextResponse.json({ success: false, error: "Your clinic role cannot sign clinical notes" }, { status: 403 });
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         const current = await tx.clinicalNote.findFirst({
           where: { id, clinicId: membership.clinicId },
