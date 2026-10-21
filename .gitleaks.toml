@@ -1,0 +1,11 @@
+title = "MedLum Gitleaks Configuration"
+
+[allowlist]
+description = "Known legacy localStorage namespace identifiers; these are storage keys, not credentials."
+regexTarget = "line"
+regexes = [
+  '''const DOCTORS_KEY = "medlum_doctors_v2";''',
+  '''const PATIENTS_KEY = "medlum_patients_v2";''',
+  '''const APPTS_KEY = "medlum_appointments_v2";''',
+  '''const INV_KEY = "medlum_invoices_v2";''',
+]
