@@ -285,7 +285,13 @@ jobs:
           echo "Disposable DB prepared with pending forward migration and an orphaned applied row."
 
       - name: Build Render container for startup smoke test
-        run: docker build --pull=false -t medlum-render-smoke .
+        run: |
+          # Earlier npm install in this job creates a transient lockfile when none is tracked.
+          # Do not let that generated file accidentally switch the clean-checkout Docker build to npm ci.
+          if ! git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            rm -f package-lock.json
+          fi
+          docker build --pull=false -t medlum-render-smoke .
 
       - name: Smoke-test Render startup, migration deploy, and HTTP port
         env:
