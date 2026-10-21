@@ -14,7 +14,7 @@ has(page,'noteType:"Initial Assessment"',"canonical clinical note type");
 has(page,"second-clinician verification","provisional submission");
 has(page,'action:"finalize"',"final signing action");
 has(page,'timeZone:"Asia/Kolkata"',"IST assessment clock");
-has(page,'replace(/^UHID[\\s:-]*/i, "")',"UHID display avoids repeating the stored UHID prefix");
+has(page,'UHID: {selected.uhid||selected.registrationNo||"Not assigned"}',"IPD clinical workspace shows a single patient-facing UHID");
 has(page,"Final-sign as second clinician","final signing button");
 
 const initialStart=page.indexOf('leftNav==="Initial Assessment"');
