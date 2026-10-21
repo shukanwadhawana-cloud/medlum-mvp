@@ -109,6 +109,11 @@ async function main() {
   assert.equal(latestLabs.response.status, 200, "authorized clinician can ask about lab results");
   assert.match(latestLabs.body.answer, /Synthetic CBC/i, "lab answer comes from the selected patient's synthetic lab record");
 
+  const latestVitals = await postClinicalQa(patientId, cookie, "latest-vitals");
+  assert.equal(latestVitals.response.status, 200, "authorized clinician can ask about latest vitals");
+  assert.match(latestVitals.body.answer, /116\/74/, "vitals answer includes synthetic nursing observations");
+  assert.match(latestVitals.body.answer, /Nursing observation/i, "vitals answer labels nursing observations as a source");
+
   const badQuestion = await postClinicalQa(patientId, cookie, "free-text-prompt");
   assert.equal(badQuestion.response.status, 400, "arbitrary free-text prompts are rejected");
 
