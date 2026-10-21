@@ -28,12 +28,11 @@ export default function IPDDischargePage(){
    const nr=await fetch(`/api/clinical-notes?patientId=${encodeURIComponent(id)}`,{credentials:"include",cache:"no-store"}),nd=await nr.json().catch(()=>({}));
    if(nr.ok){
      const notes=(nd.notes||[]).filter((n:any)=>n.noteType==="Discharge Note").sort((a:any,b:any)=>new Date(b.updatedAt||b.createdAt).getTime()-new Date(a.updatedAt||a.createdAt).getTime());
-     // Prefer a pending note authored by another clinician so the second verifier
-     // can review and sign it; otherwise show the user's own draft or latest final.
-     const note=notes.find((n:any)=>n.status==="PENDING_VERIFICATION"&&n.author?.id!==doctor?.id)
+     // Prefer the current author's pending summary so they can complete their own signing workflow.
+     const note=notes.find((n:any)=>n.status==="PENDING_VERIFICATION"&&n.author?.id===doctor?.id)
        ||notes.find((n:any)=>n.status==="DRAFT"&&n.author?.id===doctor?.id)
-       ||notes.find((n:any)=>n.status==="PENDING_VERIFICATION"&&n.author?.id===doctor?.id)
        ||notes.find((n:any)=>n.status==="FINAL")
+       ||notes.find((n:any)=>n.status==="PENDING_VERIFICATION")
        ||notes[0];
      if(note){
        setNoteId(note.id||""); setNoteStatus(note.status||"DRAFT"); setNoteAuthorId(note.author?.id||""); setNoteAuthorName(note.author?.name||"");
@@ -49,7 +48,7 @@ export default function IPDDischargePage(){
  const final=noteStatus==="FINAL"||patient?.status==="DISCHARGED";
  const canEdit=!final&&(noteStatus==="NONE"||(noteStatus==="DRAFT"&&noteAuthorId===doctor?.id));
  const canSubmit=!final&&noteStatus==="DRAFT"&&noteAuthorId===doctor?.id;
- const canVerify=!final&&noteStatus==="PENDING_VERIFICATION"&&Boolean(noteAuthorId)&&noteAuthorId!==doctor?.id;
+ const canVerify=!final&&noteStatus==="PENDING_VERIFICATION"&&Boolean(noteAuthorId)&&noteAuthorId===doctor?.id;
  if(authLoading||loading)return <AppShell><div className="p-6 text-sm text-gray-500">Loading discharge workflow…</div></AppShell>;
  if(!doctor)return <AppShell><div className="p-6 text-sm text-gray-500">Sign in to complete discharge.</div></AppShell>;
  const printHref=noteId?`/ipd/print?patientId=${encodeURIComponent(id)}&noteId=${encodeURIComponent(noteId)}`:`/ipd/print?patientId=${encodeURIComponent(id)}`;
@@ -57,15 +56,15 @@ export default function IPDDischargePage(){
   <div className="flex items-start justify-between gap-3 mb-4"><div><p className="text-[10px] uppercase tracking-wide text-[#c2183a] font-semibold">IPD Discharge</p><h1 className="text-xl font-bold">Discharge Summary</h1><p className="text-xs text-gray-500">{patient?.name} · UHID {patient?.uhid||patient?.registrationNo||"—"}</p></div><Link href={`/ipd/${id}/clinical`} className="h-9 px-3 rounded-lg border text-xs inline-flex items-center">Back to workspace</Link></div>
   {error&&<div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}{msg&&<div className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{msg}</div>}
   <section className="rounded-2xl border bg-white p-4 space-y-3"><div className="flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-gray-100 px-2.5 py-1">Summary: <b>{noteStatus}</b></span><span className="rounded-full bg-gray-100 px-2.5 py-1">Clinical status: <b>{patient?.status||"ACTIVE"}</b></span></div>
-   {noteAuthorName&&<p className="text-xs text-gray-500">Prepared by: <b>{noteAuthorName}</b>{canVerify?" · You are the independent verifier.":""}</p>}
-   {noteStatus==="PENDING_VERIFICATION"&&!canVerify&&!final&&<p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">This summary is awaiting a different authorised clinician. The author cannot final-sign their own document.</p>}
-   {canVerify&&<p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">Review the submitted content below. The submitted summary is locked; finalisation will record your independent verification and discharge the patient atomically.</p>}
+   {noteAuthorName&&<p className="text-xs text-gray-500">Prepared by: <b>{noteAuthorName}</b>{canVerify?" · Ready for your signature.":""}</p>}
+   {noteStatus==="PENDING_VERIFICATION"&&!canVerify&&!final&&<p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">This summary is ready for the clinician who prepared it to sign and complete.</p>}
+   {canVerify&&<p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">Review your submitted summary below. It is locked; signing will record your author signature and discharge the patient atomically.</p>}
    <div className="grid md:grid-cols-2 gap-3"><label className="text-xs font-semibold">Discharge date/time<input type="datetime-local" value={form.dischargeDateTime} disabled={!canEdit} onChange={e=>set("dischargeDateTime",e.target.value)} className="mt-1 w-full h-9 rounded-lg border px-2 font-normal"/></label><label className="text-xs font-semibold">Diagnosis<input value={form.diagnosis} disabled={!canEdit} onChange={e=>set("diagnosis",e.target.value)} className="mt-1 w-full h-9 rounded-lg border px-2 font-normal"/></label></div>
    {([["presentingComplaints","Presenting complaints"],["courseInHospital","Course in hospital"],["procedures","Procedures"],["investigations","Investigations / results"],["medicationsDuringStay","Medications during stay"],["conditionOnDischarge","Condition on discharge"],["advice","Advice"],["followUpAdvice","Follow-up advice"]] as const).map(([k,label])=><label key={k} className="block text-xs font-semibold">{label}<textarea value={form[k]} disabled={!canEdit} onChange={e=>set(k,e.target.value)} className="mt-1 w-full min-h-16 rounded-lg border px-2 py-2 font-normal"/></label>)}
    <label className="flex gap-2 items-start border-t pt-3 text-xs"><input type="checkbox" checked={acknowledged} disabled={!canEdit} onChange={e=>setAcknowledged(e.target.checked)} className="mt-0.5"/><span>I/We hereby acknowledge receipt of the discharge summary, instructions and follow-up advice.</span></label>
    <div className="flex flex-wrap gap-2 pt-2">{canEdit&&<button type="button" onClick={()=>action("discharge-summary-draft")} disabled={saving} className="h-10 rounded-xl border px-4 text-xs font-semibold">{saving?"Saving…":"Save Draft"}</button>}
    {canSubmit&&<button type="button" onClick={()=>acknowledged?action("discharge-summary-submit"):setError("Please acknowledge receipt before submitting the discharge summary.")} disabled={saving} className="h-10 rounded-xl border border-[#c2183a]/30 px-4 text-xs font-semibold text-[#c2183a]">{saving?"Submitting…":"Submit for second verification"}</button>}
-   {canVerify&&<button type="button" onClick={()=>acknowledged?action("discharge-complete"):setError("Please acknowledge receipt before completing discharge.")} disabled={saving} className="h-10 rounded-xl bg-[#c2183a] px-4 text-xs font-semibold text-white">{saving?"Finalizing…":"Verify & Finalize Discharge"}</button>}
+   {canVerify&&<button type="button" onClick={()=>acknowledged?action("discharge-complete"):setError("Please acknowledge receipt before completing discharge.")} disabled={saving} className="h-10 rounded-xl bg-[#c2183a] px-4 text-xs font-semibold text-white">{saving?"Finalizing…":"Sign & Finalize Discharge"}</button>}
    {final&&<><span className="h-10 rounded-xl bg-gray-100 px-4 inline-flex items-center text-xs font-semibold text-gray-700">DISCHARGED · FINAL</span><Link href={printHref} target="_blank" className="h-10 rounded-xl border px-4 inline-flex items-center text-xs font-semibold text-[#c2183a]">Print / Save PDF</Link></>}</div>
    <p className="text-[10px] text-gray-500">Clinical discharge removes the admission from active IPD census only. The patient, UHID, clinical history and billing records remain retained; billing clearance is separate.</p>
   </section></div></AppShell>;
