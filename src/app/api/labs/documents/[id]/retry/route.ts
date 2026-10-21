@@ -4,13 +4,16 @@ import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
 import { writeAudit } from "@/lib/audit";
 import { getStorageProvider } from "@/lib/storage";
-import { extractLabOcrDraft } from "@/lib/lab-ocr";
 
 export const runtime = "nodejs";
 
 const RETRY_ROLES = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO", "Laboratory"]);
 
-/** Re-run OCR on an existing FAILED document. Output remains a draft until human verification. */
+/**
+ * Queue retry for the browser's on-device Clinical Assist engine. Never run
+ * CPU-heavy OCR inside this serverless route: the deployed Vercel runtime has
+ * shown missing Tesseract WASM assets and 300-second request timeouts.
+ */
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
@@ -27,8 +30,11 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     where: { id, clinicId: membership.clinicId, deletedAt: null },
   });
   if (!doc) return NextResponse.json({ success: false, error: "Document not found" }, { status: 404 });
-  if (doc.ocrStatus !== "FAILED") {
-    return NextResponse.json({ success: false, error: "Retry is available only when extraction status is FAILED." }, { status: 409 });
+  if (!["FAILED", "PENDING"].includes(doc.ocrStatus)) {
+    return NextResponse.json({
+      success: false,
+      error: "Retry is available only for pending or failed extraction. Verified reports are not modified.",
+    }, { status: 409 });
   }
 
   const provider = getStorageProvider();
@@ -37,52 +43,71 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({
       success: false,
       code: "ORIGINAL_FILE_UNAVAILABLE",
-      error: "The original file is not available in durable storage. Re-upload the same report file to retry extraction; MedLum will reuse the existing document instead of creating a duplicate.",
+      error: "The original file is not available in durable storage. Choose or re-upload the exact same report file; MedLum validates its checksum and reuses this report instead of creating a duplicate.",
     }, { status: 409 });
   }
 
-  let assist;
+  let priorDraft: Record<string, unknown> = {};
   try {
-    assist = await extractLabOcrDraft(stored.data, doc.mimeType || stored.mimeType);
+    const parsed = JSON.parse(doc.ocrDraft || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) priorDraft = parsed;
   } catch {
-    assist = {
-      status: "FAILED" as const,
-      draft: {},
-      rawTextPreview: "",
-      message: "Extraction retry failed. The report remains unverified; try a clearer copy or enter the result manually.",
-      warnings: [],
-    };
+    // Preserve a safe draft envelope if an older row contains malformed JSON.
   }
-
-  const ocrStatus = assist.status === "DRAFT" ? "DRAFT" : "FAILED";
-  const updated = await prisma.medicalDocument.update({
-    where: { id: doc.id },
+  const retryAt = new Date();
+  const updatedCount = await prisma.medicalDocument.updateMany({
+    where: {
+      id: doc.id,
+      clinicId: membership.clinicId,
+      deletedAt: null,
+      ocrStatus: doc.ocrStatus,
+      verifiedAt: null,
+    },
     data: {
-      ocrStatus,
+      ocrStatus: "PENDING",
       ocrDraft: JSON.stringify({
-        candidates: assist.draft,
-        rawTextPreview: assist.rawTextPreview,
-        warnings: assist.warnings || [],
-        message: assist.message,
-        machineExtracted: true,
+        ...priorDraft,
+        machineExtracted: priorDraft.machineExtracted === true,
         verified: false,
-        retryAttemptedAt: new Date().toISOString(),
+        message: "The original report is available. Run Clinical Assist on this device to prepare an editable draft.",
+        retryAttemptedAt: retryAt.toISOString(),
+        extractionMethod: "clinical-assist-on-device",
       }),
-      ocrExtractedAt: new Date(),
+      ocrExtractedAt: null,
     },
   });
+  if (updatedCount.count !== 1) {
+    return NextResponse.json({
+      success: false,
+      error: "This report changed while the retry was being queued. Reload it before continuing.",
+    }, { status: 409 });
+  }
 
   await writeAudit({
     doctorId: session.doctorId,
-    action: "LAB_DOCUMENT_OCR_RETRY",
+    action: "LAB_DOCUMENT_OCR_RETRY_QUEUED",
     entity: "MedicalDocument",
     entityId: doc.id,
-    meta: { clinicId: membership.clinicId, labOrderId: doc.labOrderId, patientId: doc.patientId, ocrStatus },
+    meta: {
+      clinicId: membership.clinicId,
+      labOrderId: doc.labOrderId,
+      patientId: doc.patientId,
+      previousStatus: doc.ocrStatus,
+      ocrStatus: "PENDING",
+      extractionMethod: "clinical-assist-on-device",
+    },
   });
 
+  const updated = await prisma.medicalDocument.findFirst({
+    where: { id: doc.id, clinicId: membership.clinicId, deletedAt: null },
+  });
   return NextResponse.json({
     success: true,
     document: updated,
-    ocr: { status: ocrStatus, message: assist.message, verified: false },
+    ocr: {
+      status: "PENDING",
+      verified: false,
+      message: "The report is saved. Select it and run Clinical Assist in the browser; OCR will remain a draft until a clinician verifies it.",
+    },
   });
 }
