@@ -10,6 +10,7 @@ type Doc = {
   mimeType?: string;
   sizeBytes?: number;
   checksum?: string;
+  storageProvider?: string;
   ocrDraft?: string | null;
   verifiedAt?: string | null;
 };
@@ -206,6 +207,28 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       const suppliedChecksum = await sha256Hex(originalFile);
       if (suppliedChecksum.toLowerCase() !== targetDoc.checksum.toLowerCase()) {
         throw new Error("This file does not exactly match the saved report. Select the original file that was uploaded for this lab order.");
+      }
+      // Some older records were saved by the historical metadata-only
+      // provider. Re-upload the exact selected bytes through the idempotent
+      // upload API so the original becomes durable before extracting it.
+      if (!targetDoc.storageProvider || ["processed", "local"].includes(targetDoc.storageProvider)) {
+        setClinicalAssistProgress("Restoring the original report to durable storage…");
+        const fd = new FormData();
+        fd.append("file", originalFile);
+        fd.append("labOrderId", labOrderId);
+        fd.append("patientId", patientId);
+        const restore = await fetch("/api/labs/documents", {
+          method: "POST",
+          credentials: "include",
+          headers: { "X-MedLum-Requested-With": "MedLum" },
+          body: fd,
+        });
+        const restored = await restore.json().catch(() => ({}));
+        if (!restore.ok || !restored.success || restored.document?.id !== targetDoc.id) {
+          throw new Error(restored.error || "The original report could not be restored to durable storage.");
+        }
+        setSelectedDoc(restored.document as Doc);
+        await load(targetDoc.id);
       }
       setAssistSourceFile(originalFile);
 
