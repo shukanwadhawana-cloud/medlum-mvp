@@ -103,6 +103,21 @@ export async function POST(req: Request) {
             },
           })
         : null;
+      if (note) {
+        await tx.clinicalNoteVersion.create({
+          data: {
+            clinicalNoteId: note.id,
+            clinicId: membership.clinicId,
+            version: 1,
+            title: note.title,
+            noteType: note.noteType,
+            content,
+            contentHash: note.contentHash,
+            event: "CREATED_DRAFT",
+            createdByDoctorId: session.doctorId,
+          },
+        });
+      }
       return { encounter, note };
     });
     await writeAudit({ doctorId: session.doctorId, action: "create", entity: "Encounter", entityId: result.encounter.id, clinicId: membership.clinicId, meta: { patientId, clinicalNoteId: result.note?.id || null, signingStatus: result.note?.status || null } });
