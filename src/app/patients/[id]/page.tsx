@@ -405,7 +405,7 @@ export default function PatientDetailPage() {
                   {n.status === "DRAFT" && n.author?.id === doctor?.id && (
                     <div className="flex gap-1.5">
                       <button type="button" onClick={() => { setEditingNoteId(n.id); setNoteType(n.noteType); setNoteTitle(n.title || ""); setNoteContent(n.content); setNoteError(""); setShowNoteComposer(true); }} className="px-2.5 py-1.5 rounded-lg border text-[11px]">Edit draft</button>
-                      <button type="button" onClick={() => submitClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Submit for verification</button>
+                      <button type="button" onClick={() => submitClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Submit for signing</button>
                       <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel draft</button>
                     </div>
                   )}
