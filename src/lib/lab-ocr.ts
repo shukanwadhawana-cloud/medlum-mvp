@@ -47,7 +47,9 @@ const LAB_ALIASES: Record<string, string[]> = {
   "Total Protein": ["total protein", "protein total"],
   Globulin: ["globulin"],
   Calcium: ["calcium", "ca"],
-  Magnesium: ["magnesium", "mg"],
+  // Bare "mg" collides with the mg/dL unit in unrelated results and creates false candidates.
+  // Require an explicit Magnesium label instead.
+  Magnesium: ["magnesium"],
   Phosphorus: ["phosphorus", "phosphate", "phos"],
   "Uric Acid": ["uric acid", "uric"],
   Amylase: ["amylase"],
