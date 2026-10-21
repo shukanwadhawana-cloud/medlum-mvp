@@ -5,12 +5,12 @@
 #   DATABASE_URL=... bash scripts/verify-prisma-migration-state.sh --require-clean
 set -euo pipefail
 
-MODE="${1:-status}"
+MODE="\${1:-status}"
 if [[ "$MODE" != "status" && "$MODE" != "--require-clean" ]]; then
   echo "Usage: $0 [--require-clean]" >&2
   exit 2
 fi
-if [[ -z "${DATABASE_URL:-}" ]]; then
+if [[ -z "\${DATABASE_URL:-}" ]]; then
   echo "ERROR: DATABASE_URL is required (value is not printed)." >&2
   exit 2
 fi
@@ -49,7 +49,7 @@ NODE
 
 # Read only the most recent attempt for each migration. Query output contains
 # migration metadata only, never clinical rows or connection credentials.
-psql "$psql_url" -X -v ON_ERROR_STOP=1 -qAt -F $'\t' \
+psql "$psql_url" -X -v ON_ERROR_STOP=1 -qAt -F '|' \
   -c 'SELECT DISTINCT ON ("migration_name")
         "migration_name",
         "checksum",
@@ -59,81 +59,8 @@ psql "$psql_url" -X -v ON_ERROR_STOP=1 -qAt -F $'\t' \
       ORDER BY "migration_name", "started_at" DESC, "id" DESC' > "$tmp"
 
 declare -A db_checksum db_finished db_rolled_back db_applied
-while IFS=
-  db_finished["$migration_name"]="$finished"
-  db_rolled_back["$migration_name"]="$rolled_back"
-done < "$tmp"
-
-mapfile -t local_migrations < <(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort)
-if [[ ${#local_migrations[@]} -eq 0 ]]; then
-  echo "ERROR: no local Prisma migration directories were found." >&2
-  exit 2
-fi
-
-legacy_orphan_seen=0
-for migration_name in "${!db_checksum[@]}"; do
-  checksum="${db_checksum[$migration_name]}"
-  finished="${db_finished[$migration_name]}"
-  rolled_back="${db_rolled_back[$migration_name]}"
-  migration_file="prisma/migrations/$migration_name/migration.sql"
-
-  if [[ "$finished" == "t" && "$rolled_back" == "t" ]]; then
-    echo "ERROR: inconsistent migration state (finished and rolled back): $migration_name" >&2
-    exit 1
-  fi
-  if [[ "$finished" != "t" && "$rolled_back" != "t" ]]; then
-    echo "ERROR: unresolved/incomplete migration attempt: $migration_name" >&2
-    exit 1
-  fi
-
-  if [[ ! -f "$migration_file" ]]; then
-    if [[ "$migration_name" == "$LEGACY_ORPHAN_NAME" &&
-          "$checksum" == "$LEGACY_ORPHAN_CHECKSUM" &&
-          "$finished" == "t" &&
-          "$rolled_back" == "f" ]]; then
-      legacy_orphan_seen=1
-      db_applied["$migration_name"]=1
-      echo "Recognized the single documented legacy applied migration absent from Git: $migration_name (checksum verified)."
-      continue
-    fi
-    echo "ERROR: database migration history references a migration file absent from Git: $migration_name" >&2
-    exit 1
-  fi
-
-  if [[ "$finished" == "t" && "$rolled_back" == "f" ]]; then
-    local_checksum="$(sha256sum "$migration_file" | awk '{print $1}')"
-    if [[ "$checksum" != "$local_checksum" ]]; then
-      echo "ERROR: migration checksum mismatch: $migration_name" >&2
-      exit 1
-    fi
-    db_applied["$migration_name"]=1
-  fi
-done
-
-pending=()
-for migration_name in "${local_migrations[@]}"; do
-  if [[ "${db_applied[$migration_name]:-}" == "1" ]]; then
-    continue
-  fi
-  pending+=("$migration_name")
-done
-
-echo "Migration inventory verified: ${#local_migrations[@]} local migration directories; no unexpected orphan, checksum mismatch, or incomplete migration attempt."
-if [[ "$legacy_orphan_seen" == "1" ]]; then
-  echo "Historical exception: exactly one known legacy applied migration was present and its stored checksum matched the reviewed exception."
-fi
-if [[ ${#pending[@]} -gt 0 ]]; then
-  echo "Pending local migrations (${#pending[@]}):"
-  printf '  - %s\n' "${pending[@]}"
-  if [[ "$MODE" == "--require-clean" ]]; then
-    echo "ERROR: migration history is not clean; pending migrations remain." >&2
-    exit 1
-  fi
-else
-  echo "No pending local migrations."
-fi
-\t' read -r migration_name checksum finished rolled_back; do
-  [[ -z "${migration_name:-}" ]] && continue
+while IFS='|' read -r migration_name checksum finished rolled_back; do
+  [[ -z "\${migration_name:-}" ]] && continue
   if [[ ! "$migration_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
     echo "ERROR: invalid migration identifier in database history." >&2
     exit 1
@@ -143,17 +70,17 @@ fi
   db_rolled_back["$migration_name"]="$rolled_back"
 done < "$tmp"
 
-mapfile -t local_migrations < <(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort)
-if [[ ${#local_migrations[@]} -eq 0 ]]; then
+mapfile -t local_migrations < <(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | LC_ALL=C sort)
+if [[ \${#local_migrations[@]} -eq 0 ]]; then
   echo "ERROR: no local Prisma migration directories were found." >&2
   exit 2
 fi
 
 legacy_orphan_seen=0
-for migration_name in "${!db_checksum[@]}"; do
-  checksum="${db_checksum[$migration_name]}"
-  finished="${db_finished[$migration_name]}"
-  rolled_back="${db_rolled_back[$migration_name]}"
+for migration_name in "\${!db_checksum[@]}"; do
+  checksum="\${db_checksum[$migration_name]}"
+  finished="\${db_finished[$migration_name]}"
+  rolled_back="\${db_rolled_back[$migration_name]}"
   migration_file="prisma/migrations/$migration_name/migration.sql"
 
   if [[ "$finished" == "t" && "$rolled_back" == "t" ]]; then
@@ -171,7 +98,6 @@ for migration_name in "${!db_checksum[@]}"; do
           "$finished" == "t" &&
           "$rolled_back" == "f" ]]; then
       legacy_orphan_seen=1
-      db_applied["$migration_name"]=1
       echo "Recognized the single documented legacy applied migration absent from Git: $migration_name (checksum verified)."
       continue
     fi
@@ -190,20 +116,20 @@ for migration_name in "${!db_checksum[@]}"; do
 done
 
 pending=()
-for migration_name in "${local_migrations[@]}"; do
-  if [[ "${db_applied[$migration_name]:-}" == "1" ]]; then
+for migration_name in "\${local_migrations[@]}"; do
+  if [[ "\${db_applied[$migration_name]:-}" == "1" ]]; then
     continue
   fi
   pending+=("$migration_name")
 done
 
-echo "Migration inventory verified: ${#local_migrations[@]} local migration directories; no unexpected orphan, checksum mismatch, or incomplete migration attempt."
+echo "Migration inventory verified: \${#local_migrations[@]} local migration directories; no unexpected orphan, checksum mismatch, or incomplete migration attempt."
 if [[ "$legacy_orphan_seen" == "1" ]]; then
   echo "Historical exception: exactly one known legacy applied migration was present and its stored checksum matched the reviewed exception."
 fi
-if [[ ${#pending[@]} -gt 0 ]]; then
-  echo "Pending local migrations (${#pending[@]}):"
-  printf '  - %s\n' "${pending[@]}"
+if [[ \${#pending[@]} -gt 0 ]]; then
+  echo "Pending local migrations (\${#pending[@]}):"
+  printf '  - %s\\n' "\${pending[@]}"
   if [[ "$MODE" == "--require-clean" ]]; then
     echo "ERROR: migration history is not clean; pending migrations remain." >&2
     exit 1
