@@ -45,3 +45,23 @@ has(schema,"verifierDoctorId","clinical verifier field");
 has(schema,'status            String    @default("DRAFT")',"clinical note status");
 
 console.log("IPD clinical workflow verification passed.");
+
+
+// Clinical Notes signing and phone-width regression checks.
+has(page,'DRAFT:"Draft · not signed"',"human-readable draft state must be explicit");
+has(page,'PENDING_VERIFICATION:"Awaiting second signature"',"pending verification label must be explicit");
+has(page,'FINAL:"Final-signed"',"final signature label must be explicit");
+has(page,'timeZone:"Asia/Kolkata"',"note timestamps must use IST");
+has(page,"clinicalNoteDateTime(n.createdAt)","note creation time is shown");
+has(page,"Added by","note author is labelled in the list");
+has(page,'className="grid gap-2 md:hidden"',"mobile note cards are present");
+has(page,'hidden md:block overflow-x-auto border rounded-xl',"desktop notes table is hidden on small screens");
+has(page,'flex flex-col md:flex-row min-w-0 min-h-[520px]',"IPD navigation and content stack on phones");
+has(page,'action:"submit"',"existing author drafts can be submitted for verification from Note View");
+has(page,'action:"finalize"',"eligible second clinician can final-sign from Note View");
+has(page,'onClick={()=>void saveProgress(true)}',"Progress Note offers submit-for-verification action");
+has(page,'onClick={()=>void saveNote(true,leftNav)}',"Consultant/RMO/Nursing/Case Summary forms offer submit-for-verification");
+notHas(page,"MedLum ID:","IPD demographics show one primary patient-facing identifier");
+notHas(page,"MedLum Record ID:","internal MedLum record key is not exposed as a duplicate patient identifier");
+
+console.log("IPD note signing and mobile layout regression checks passed.");
