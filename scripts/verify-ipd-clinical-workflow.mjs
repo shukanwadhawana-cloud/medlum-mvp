@@ -50,7 +50,7 @@ console.log("IPD clinical workflow verification passed.");
 // Clinical Notes signing and phone-width regression checks.
 has(page,'DRAFT:"Draft · not signed"',"human-readable draft state must be explicit");
 has(page,'PENDING_VERIFICATION:"Awaiting second signature"',"pending verification label must be explicit");
-has(page,'FINAL:"Final-signed"',"final signature label must be explicit");
+has(page,'FINAL:"Signed / completed"',"final signed status is explicit without implying mandatory co-signing");
 has(page,'timeZone:"Asia/Kolkata"',"note timestamps must use IST");
 has(page,"clinicalNoteDateTime(n.createdAt)","note creation time is shown");
 has(page,"Added by","note author is labelled in the list");
