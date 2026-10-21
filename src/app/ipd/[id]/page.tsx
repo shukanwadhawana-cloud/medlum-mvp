@@ -389,6 +389,7 @@ export default function IPDPatientWorkspace(){
         <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Initial Assessment")}} className="h-7 px-2 rounded border">+ Initial Assessment</button>
         <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Progress Note")}} className="h-7 px-2 rounded border">+ Progress Note</button>
         <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Consultant Note")}} className="h-7 px-2 rounded border">+ Consultant Note</button>
+         <button type="button" onClick={()=>setShowCancelledNotes(v=>!v)} className="h-7 px-2 rounded border text-gray-600">{showCancelledNotes?"Hide cancelled":"Show cancelled"} ({cancelledClinicalNoteCount})</button>
        </div>
       </div>
       {noteViewId?(
