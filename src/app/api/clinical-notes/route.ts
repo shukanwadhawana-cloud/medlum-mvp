@@ -275,26 +275,26 @@ export async function PATCH(req: Request) {
         });
         if (!current) return { status: 404, body: { success: false, error: "Clinical note not found" } };
         if (current.status !== "PENDING_VERIFICATION") return { status: 409, body: { success: false, error: "Only notes awaiting verification can be final-signed" } };
-        if (current.authorDoctorId === session.doctorId) return { status: 409, body: { success: false, error: "The author cannot be the second verifier. A different clinician must final-sign." } };
+        if (current.authorDoctorId !== session.doctorId) return { status: 403, body: { success: false, error: "Only the original author can sign this note." } };
 
         const hash = hashClinicalNote(current.content, current.version);
         if (current.contentHash !== hash) return { status: 409, body: { success: false, error: "Clinical note integrity check failed; the note must not be signed." } };
 
         const finalHash = hashClinicalNote(
-          `${current.content}\nAUTHOR:${current.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${current.id}`,
+          `${current.content}\nAUTHOR:${current.authorDoctorId}\nAUTHOR_SIGNATURE:${session.doctorId}\nNOTE:${current.id}`,
           current.version,
         );
         const verifiedAt = new Date();
         const updated = await tx.clinicalNote.updateMany({
-          where: { id, clinicId: membership.clinicId, status: "PENDING_VERIFICATION", verifierDoctorId: null, version: current.version },
-          data: { status: "FINAL", verifierDoctorId: session.doctorId, verifiedAt, finalizedAt: verifiedAt, finalHash },
+          where: { id, clinicId: membership.clinicId, authorDoctorId: session.doctorId, status: "PENDING_VERIFICATION", verifierDoctorId: null, version: current.version },
+          data: { status: "FINAL", verifierDoctorId: null, verifiedAt: null, finalizedAt: verifiedAt, finalHash },
         });
         if (updated.count !== 1) return { status: 409, body: { success: false, error: "This note was finalized by another verifier or changed concurrently." } };
 
         await tx.auditLog.create({
           data: {
             doctorId: session.doctorId,
-            action: "FINAL_SIGN",
+            action: "AUTHOR_SIGN",
             entity: "ClinicalNote",
             entityId: id,
             meta: JSON.stringify({
@@ -302,7 +302,7 @@ export async function PATCH(req: Request) {
               patientId: current.patientId,
               noteType: current.noteType,
               authorDoctorId: current.authorDoctorId,
-              verifierDoctorId: session.doctorId,
+              signedByDoctorId: session.doctorId,
               version: current.version,
               contentHash: current.contentHash,
               finalHash,
@@ -310,7 +310,7 @@ export async function PATCH(req: Request) {
             }),
           },
         });
-        return { status: 200, body: { success: true, status: "FINAL", verifierDoctorId: session.doctorId, finalHash } };
+        return { status: 200, body: { success: true, status: "FINAL", signedByDoctorId: session.doctorId, finalHash } };
       }, { isolationLevel: "Serializable" });
 
       return NextResponse.json(result.body, { status: result.status });
