@@ -78,3 +78,6 @@ has(page,'>Submit</button>',"author can submit an existing draft directly from t
 has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can final-sign directly from the mobile note list");
 has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
 console.log("IPD list-level signature actions and role visibility checks passed.");
+
+has(signingApi,'const signedVersion = current.version + 1',"author sign creates a unique version instead of a duplicate version row");
+has(signingApi,'contentHash: signedContentHash',"signed note content hash is updated for the new version");

@@ -236,21 +236,25 @@ export async function PATCH(req: Request) {
         const hash = hashClinicalNote(current.content, current.version);
         if (current.contentHash !== hash) return { status: 409, body: { success: false, error: "Clinical note integrity check failed; the note must not be signed." } };
 
+        // A note version is unique per clinicalNoteId. Signing is a new immutable
+        // version/event, not a second row for the already-saved draft version.
+        const signedVersion = current.version + 1;
+        const signedContentHash = hashClinicalNote(current.content, signedVersion);
         const signedAt = new Date();
         const finalHash = hashClinicalNote(
           `${current.content}\\nAUTHOR:${current.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${current.id}`,
-          current.version,
+          signedVersion,
         );
         const updated = await tx.clinicalNote.updateMany({
-          where: { id, clinicId: membership.clinicId, authorDoctorId: session.doctorId, status: current.status, verifierDoctorId: null, version: current.version },
-          data: { status: "FINAL", verifiedAt: null, finalizedAt: signedAt, finalHash },
+          where: { id, clinicId: membership.clinicId, authorDoctorId: session.doctorId, status: current.status, verifierDoctorId: null, version: current.version, contentHash: current.contentHash },
+          data: { status: "FINAL", version: signedVersion, contentHash: signedContentHash, verifiedAt: null, finalizedAt: signedAt, finalHash },
         });
         if (updated.count !== 1) return { status: 409, body: { success: false, error: "This note changed concurrently; reload and try again." } };
 
         await tx.clinicalNoteVersion.create({ data: {
-          clinicalNoteId: id, clinicId: membership.clinicId, version: current.version,
+          clinicalNoteId: id, clinicId: membership.clinicId, version: signedVersion,
           title: "Author-signed", noteType: current.noteType, content: current.content,
-          contentHash: current.contentHash, event: "AUTHOR_SIGNED",
+          contentHash: signedContentHash, event: "AUTHOR_SIGNED",
           createdByDoctorId: session.doctorId, createdAt: signedAt,
         } });
         await tx.auditLog.create({ data: {
