@@ -16,7 +16,7 @@ CREATE TABLE "ClinicalNoteVersion" (
 CREATE UNIQUE INDEX "ClinicalNoteVersion_clinicalNoteId_version_key" ON "ClinicalNoteVersion"("clinicalNoteId", "version");
 CREATE INDEX "ClinicalNoteVersion_clinicId_clinicalNoteId_version_idx" ON "ClinicalNoteVersion"("clinicId", "clinicalNoteId", "version");
 CREATE INDEX "ClinicalNoteVersion_createdByDoctorId_createdAt_idx" ON "ClinicalNoteVersion"("createdByDoctorId", "createdAt");
-ALTER TABLE "ClinicalNoteVersion" ADD CONSTRAINT "ClinicalNoteVersion_clinicalNoteId_fkey" FOREIGN KEY ("clinicalNoteId") REFERENCES "ClinicalNote"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ClinicalNoteVersion" ADD CONSTRAINT "ClinicalNoteVersion_clinicalNoteId_fkey" FOREIGN KEY ("clinicalNoteId") REFERENCES "ClinicalNote"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "ClinicalNoteVersion" ADD CONSTRAINT "ClinicalNoteVersion_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ClinicalNoteVersion" ADD CONSTRAINT "ClinicalNoteVersion_createdByDoctorId_fkey" FOREIGN KEY ("createdByDoctorId") REFERENCES "Doctor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 -- Backfill a truthful baseline for every existing note. Earlier versions cannot be reconstructed.
