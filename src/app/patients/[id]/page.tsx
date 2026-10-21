@@ -409,10 +409,9 @@ export default function PatientDetailPage() {
                       <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel draft</button>
                     </div>
                   )}
-                  {n.status === "PENDING_VERIFICATION" && n.author?.id !== doctor?.id && (
+                  {n.status === "PENDING_VERIFICATION" && n.author?.id === doctor?.id && (
                     <div className="flex gap-1.5">
-                      <button type="button" onClick={() => finalSignClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Second verify + final sign</button>
-                      <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>
+                      <button type="button" onClick={() => signOwnClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Sign & complete</button>
                     </div>
                   )}
                 </div>
@@ -533,7 +532,7 @@ export default function PatientDetailPage() {
               <div><label className="text-xs text-gray-500">Title</label><input value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} className="w-full h-10 px-3 rounded-lg border text-sm" placeholder="Optional title" /></div>
               <div><label className="text-xs text-gray-500">Clinical content</label><textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} className="w-full min-h-[180px] px-3 py-2 rounded-lg border text-sm" placeholder="Write the clinical note or summary…" /></div>
               <div className="rounded-lg bg-amber-50 text-amber-800 text-xs px-3 py-2">
-                Final signing requires a second active clinician. The author cannot approve their own document. Once FINAL, the content is locked; later corrections must be documented as a new/addendum note.
+                The original author signs and completes the note. Once FINAL, the content is locked; later corrections must be documented as a new/addendum note.
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={resetNoteComposer} className="flex-1 h-11 rounded-lg border text-sm">Cancel</button>
