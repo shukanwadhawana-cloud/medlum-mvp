@@ -82,6 +82,7 @@ has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(curre
 has(page,"Sign &amp; complete as author","IPD note list offers author self-signing");
 has(page,"cancelClinicalNote(n.id,n.status)","IPD note list offers audited cancellation/removal");
 has(page,"Remove draft","draft removal affordance is explicit");
+notHas(page,'(n.status==="FINAL"&&["Owner","Admin"].includes(currentRole))',"signed final notes are not offered the cancel/remove shortcut");
 console.log("IPD list-level author signing, cancellation, and role visibility checks passed.");
 
 has(signingApi,'const signedVersion = current.version + 1',"author sign creates a unique version instead of a duplicate version row");
@@ -98,7 +99,9 @@ has(page,'onClick={()=>void saveProgress(false,true)',"Progress Note offers save
 has(page,'onClick={()=>void saveNote(false,leftNav,true)',"Consultant/RMO/Nursing/Case Summary offers save-time sign and complete");
 has(cancelApi,'if (entity === "ClinicalNote")',"existing audited ClinicalNote cancellation route is used");
 has(cancelApi,"Only the author or clinic Owner/Admin can remove this draft","draft cancellation checks authorship/ownership");
-has(cancelApi,"Only the author or clinic Owner/Admin can cancel this submitted note","pending co-signature cancellation checks authorship/ownership");
+has(cancelApi,"Only the original author or clinic Owner/Admin can remove/cancel an unsigned note","cancellation checks authorship/ownership");
+has(cancelApi,"Signed/final notes must use an amendment workflow.","signed notes are blocked from the cancellation shortcut");
+has(cancelApi,"const isUnsigned = note.status === \"DRAFT\" || note.status === \"PENDING_VERIFICATION\"","cancellation is limited to draft or awaiting-co-signature statuses");
 has(cancelApi,'action:"CANCEL"',"submitted note cancellation is written to the audit log");
 has(page,'showCancelledNotes?clinicalNotes:clinicalNotes.filter((n:any)=>n.status!=="CANCELLED")',"cancelled notes are hidden in the active Note View and can be revealed");
 has(page,'onClick={()=>setShowCancelledNotes(v=>!v)}',"Note View exposes Show/Hide cancelled toggle");
