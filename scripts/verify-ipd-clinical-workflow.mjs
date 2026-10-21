@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 const page = fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const ipdApi = fs.readFileSync("src/app/api/ipd/route.ts","utf8");
 const signingApi = fs.readFileSync("src/app/api/clinical-notes/route.ts","utf8");
+const cancelApi = fs.readFileSync("src/app/api/records/cancel/route.ts","utf8");
+const caseSummaryApi = fs.readFileSync("src/app/api/ipd/[id]/case-summary/route.ts","utf8");
 const schema = fs.readFileSync("prisma/schema.prisma","utf8");
 
 const has=(text,needle,label)=>assert.ok(text.includes(needle),label+": missing "+needle);
@@ -25,7 +27,7 @@ notHas(initial,'placeholder="Treatment given"',"initial assessment treatment fie
 notHas(initial,"Treatment on discharge:","initial assessment discharge treatment");
 notHas(initial,"Follow-up date/time:","initial assessment follow-up");
 
-has(ipdApi,'const status = submit ? "PENDING_VERIFICATION" : "DRAFT"',"IPD note status");
+has(ipdApi,'const status = sign ? "FINAL" : submit ? "PENDING_VERIFICATION" : "DRAFT"',"IPD note supports draft, direct author signing, and optional co-signature");
 has(ipdApi,"tx.clinicalNote.create","IPD notes persist as canonical clinical-note records");
 has(ipdApi,"tx.clinicalNoteVersion.create","IPD note creation records version history");
 has(ipdApi,"legacy-audit-","previously saved audit-only IPD notes remain visible");
@@ -49,7 +51,7 @@ console.log("IPD clinical workflow verification passed.");
 
 // Clinical Notes signing and phone-width regression checks.
 has(page,'DRAFT:"Draft · not signed"',"human-readable draft state must be explicit");
-has(page,'PENDING_VERIFICATION:"Submitted · awaiting signature"',"submitted notes have a neutral pending-signature label");
+has(page,'PENDING_VERIFICATION:"Awaiting co-signature"',"submitted notes show optional co-signature state");
 has(page,'FINAL:"Signed / completed"',"final signed status is explicit without implying mandatory co-signing");
 has(page,'timeZone:"Asia/Kolkata"',"note timestamps must use IST");
 has(page,"clinicalNoteDateTime(n.createdAt)","note creation time is shown");
@@ -59,8 +61,8 @@ has(page,'hidden md:block overflow-x-auto border rounded-xl',"desktop notes tabl
 has(page,'flex flex-col md:flex-row min-w-0 min-h-[520px]',"IPD navigation and content stack on phones");
 has(page,'action:"submit"',"existing author drafts can be submitted for verification from Note View");
 has(page,'action:"finalize"',"eligible second clinician can final-sign from Note View");
-has(page,'onClick={()=>void saveProgress(true)}',"Progress Note offers submit-for-verification action");
-has(page,'onClick={()=>void saveNote(true,leftNav)}',"Consultant/RMO/Nursing/Case Summary forms offer submit-for-verification");
+has(page,'onClick={()=>void saveProgress(true,false)',"Progress Note offers explicit optional co-signature action");
+has(page,'onClick={()=>void saveNote(true,leftNav,false)',"Consultant/RMO/Nursing/Case Summary forms offer explicit optional co-signature");
 notHas(page,"MedLum ID:","IPD demographics show one primary patient-facing identifier");
 notHas(page,"MedLum Record ID:","internal MedLum record key is not exposed as a duplicate patient identifier");
 
@@ -74,7 +76,7 @@ has(page,'n.authorDoctorId!==doctor?.id', "the author cannot use the second-clin
 
 console.log("IPD note author, signing-header, and status compatibility checks passed.");
 
-has(page,'>Submit</button>',"author can submit an existing draft directly from the desktop note list");
+has(page,'Submit for co-signature"',"author can submit an existing draft for optional co-signature from the desktop note list");
 has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can final-sign directly from the mobile note list");
 has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
 has(page,"Sign &amp; complete as author","IPD note list offers author self-signing");
@@ -84,3 +86,23 @@ console.log("IPD list-level author signing, cancellation, and role visibility ch
 
 has(signingApi,'const signedVersion = current.version + 1',"author sign creates a unique version instead of a duplicate version row");
 has(signingApi,'contentHash: signedContentHash',"signed note content hash is updated for the new version");
+
+
+// Save-time signing and cancel-before-co-signature regression coverage.
+has(ipdApi,'const sign = body.sign === true',"IPD API receives direct author-sign intent");
+has(ipdApi,'finalizedAt: sign ? now : null',"author-signed notes persist a finalization timestamp");
+has(ipdApi,'event: sign ? "CREATED_AND_AUTHOR_SIGNED" : submit ? "CREATED_AND_SUBMITTED" : "CREATED_DRAFT"',"direct author signature is recorded in note-version history");
+has(ipdApi,'action: sign ? "AUTHOR_SIGN" : submit ? "SUBMIT_FOR_VERIFICATION" : "CREATE_DRAFT"',"direct author signature is recorded in audit log");
+has(page,'onClick={e=>void saveStructured(e as any,false,true)',"Initial Assessment offers save-time sign and complete");
+has(page,'onClick={()=>void saveProgress(false,true)',"Progress Note offers save-time sign and complete");
+has(page,'onClick={()=>void saveNote(false,leftNav,true)',"Consultant/RMO/Nursing/Case Summary offers save-time sign and complete");
+has(cancelApi,'if (entity === "ClinicalNote")',"existing audited ClinicalNote cancellation route is used");
+has(cancelApi,"Only the author or clinic Owner/Admin can remove this draft","draft cancellation checks authorship/ownership");
+has(cancelApi,"Only the author or clinic Owner/Admin can cancel this submitted note","pending co-signature cancellation checks authorship/ownership");
+has(cancelApi,'action:"CANCEL"',"submitted note cancellation is written to the audit log");
+has(page,'showCancelledNotes?clinicalNotes:clinicalNotes.filter((n:any)=>n.status!=="CANCELLED")',"cancelled notes are hidden in the active Note View and can be revealed");
+has(page,'onClick={()=>setShowCancelledNotes(v=>!v)}',"Note View exposes Show/Hide cancelled toggle");
+has(page,'cancelClinicalNote(n.id,status)',"author can cancel/remove before co-signature from Note View");
+has(signingApi,'status: { not: "CANCELLED" }',"default clinical-notes API hides cancelled notes");
+has(caseSummaryApi,'status: { not: "CANCELLED" }',"generated case summaries exclude cancelled notes");
+console.log("IPD direct signing, optional co-signature, and cancellation regression checks passed.");
