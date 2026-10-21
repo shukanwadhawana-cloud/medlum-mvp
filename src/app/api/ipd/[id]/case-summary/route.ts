@@ -126,7 +126,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     })).map((item) => item.doctorId);
     const [notes, encounters, prescriptions, labOrders, diagnosticOrders, administrations, dispensings, logs] = await Promise.all([
       prisma.clinicalNote.findMany({
-        where: { patientId, clinicId: membership.clinicId },
+        where: { patientId, clinicId: membership.clinicId, status: { not: "CANCELLED" } },
         orderBy: { createdAt: "asc" },
         select: { id: true, noteType: true, title: true, content: true, status: true, authorRole: true, createdAt: true, updatedAt: true, finalizedAt: true },
       }),
