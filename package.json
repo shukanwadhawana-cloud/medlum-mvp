@@ -89,7 +89,8 @@
     "test:pacs-contracts": "node scripts/verify-pacs-imaging-contracts.mjs",
     "test:password-reset": "node scripts/verify-password-reset.mjs",
     "test:password-reset-runtime": "node scripts/verify-password-reset-runtime.mjs",
-    "test:ipd-case-summary-runtime": "node scripts/verify-ipd-case-summary-runtime.mjs"
+    "test:ipd-case-summary-runtime": "node scripts/verify-ipd-case-summary-runtime.mjs",
+    "test:clinical-qa": "node scripts/verify-clinical-qa.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
