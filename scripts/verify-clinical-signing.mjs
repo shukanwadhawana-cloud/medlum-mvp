@@ -65,3 +65,21 @@ const versionFailures = versionChecks.filter(([, ok]) => !ok);
 for (const [label, ok] of versionChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
 if (versionFailures.length) process.exit(1);
 console.log("Author-sign version uniqueness regression checks: GREEN");
+
+
+const ownSignBlock = route.slice(route.indexOf('if (action === "sign-own")'), route.indexOf('if (action === "finalize")'));
+const cancellationBlock = route.slice(route.indexOf('if (action === "cancel")'), route.indexOf('if (action === "sign-own")'));
+const removalChecks = [
+  ["author self-sign is not gated on second-verifier role", !ownSignBlock.includes("canFinalizeClinicalNote(actor.normalizedRole)")],
+  ["cancel action exists", route.includes('action === "cancel"')],
+  ["cancel can only be performed by original author", cancellationBlock.includes("current.authorDoctorId !== session.doctorId")],
+  ["cancel only accepts unsigned/pending notes", cancellationBlock.includes('["DRAFT", "PENDING_VERIFICATION"].includes(current.status)')],
+  ["cancel preserves a versioned cancellation event", cancellationBlock.includes('event: "CANCELLED_BY_AUTHOR"')],
+  ["cancel reason is written to the audit trail", cancellationBlock.includes('action: "CLINICAL_NOTE_CANCELLED"') && cancellationBlock.includes("reason, previousStatus: current.status")],
+  ["UI offers author-only cancellation", ipdUi.includes("Cancel / remove") && ipdUi.includes('action:"cancel"')],
+  ["cancelled notes are hidden from default clinical-note API", route.includes('status: { not: "CANCELLED" }')],
+];
+const removalFailures = removalChecks.filter(([, ok]) => !ok);
+for (const [label, ok] of removalChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
+if (removalFailures.length) process.exit(1);
+console.log("Author cancellation and self-sign role-scope tests: GREEN");
