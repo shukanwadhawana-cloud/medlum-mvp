@@ -288,7 +288,8 @@ async function callGemini(ctx: ClinicalAiContext): Promise<ClinicalAiDraftSectio
 /** Generate a validated structured draft. Falls back to heuristic if provider unavailable. */
 export async function generateClinicalDraft(ctx: ClinicalAiContext): Promise<ClinicalAiDraftResult> {
   const provider = providerName();
-  try {
+  // Deterministic CI acceptance uses synthetic inpatient data and must not call an external model.
+  if (process.env.MEDLUM_CASE_SUMMARY_FORCE_TIMELINE !== "YES") try {
     if (provider === "openai") {
       const sections = await callOpenAi(ctx);
       if (sections) {
