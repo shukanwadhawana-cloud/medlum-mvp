@@ -74,6 +74,14 @@ function source(label: string, at: Date | string | null | undefined, title: stri
 function noData(label: string) {
   return label + " are not documented in the available chart records. The answer cannot be determined reliably from the information currently recorded.";
 }
+function metaOf(value: { meta?: string | null } | null | undefined): Record<string, any> {
+  try {
+    const parsed = value?.meta ? JSON.parse(value.meta) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 function todayIst(): string {
   return istParts(new Date())?.date || new Date().toISOString().slice(0, 10);
 }
@@ -87,7 +95,12 @@ async function answerQuestion(
   questionId: string,
   patient: PatientContext,
 ): Promise<Answer> {
-  const [notes, encounters, prescriptions, labs, diagnostics, administrations] = await Promise.all([
+  const clinicMembers = await prisma.clinicMember.findMany({
+    where: { clinicId, isActive: true },
+    select: { doctorId: true },
+  });
+  const doctorIds = Array.from(new Set(clinicMembers.map((member) => member.doctorId)));
+  const [notes, encounters, prescriptions, labs, diagnostics, administrations, auditLogs] = await Promise.all([
     prisma.clinicalNote.findMany({
       where: { patientId, clinicId }, orderBy: { createdAt: "desc" }, take: 100,
       select: { id: true, noteType: true, title: true, content: true, status: true, createdAt: true, updatedAt: true },
@@ -126,6 +139,17 @@ async function answerQuestion(
         route: true, frequency: true, scheduledAt: true, actualAt: true, status: true,
         reason: true, notes: true, createdAt: true, prescriptionId: true,
       },
+    }),
+    prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { entityId: patientId },
+          { doctorId: { in: doctorIds }, entity: { in: ["NursingVital", "IPDHandover", "ClinicalNote", "Patient", "RoomTransfer"] } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 500,
+      select: { id: true, doctorId: true, action: true, entity: true, entityId: true, meta: true, createdAt: true },
     }),
   ]);
 
@@ -221,9 +245,8 @@ async function answerQuestion(
       : noData("Laboratory orders/results");
     rows.forEach((l) => sources.push(source("Laboratory", effectiveLabTime(l), l.testName)));
   } else if (questionId === "latest-vitals") {
-    const rows = encounters.filter((e) => e.bp || e.pulse || e.temperature || e.spo2 || e.rr || e.weight || e.height)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10);
-    answer = rows.length ? rows.map((e) => {
+    const chartRows: Array<{ at: Date; label: string; values: string }> = [];
+    for (const e of encounters) {
       const values = [
         e.bp ? "BP " + safeText(e.bp) : "",
         e.pulse ? "Pulse " + safeText(e.pulse) : "",
@@ -233,9 +256,31 @@ async function answerQuestion(
         e.weight ? "Weight " + safeText(e.weight) : "",
         e.height ? "Height " + safeText(e.height) : "",
       ].filter(Boolean).join(" · ");
-      return values + " · recorded " + dateTimeLabel(e.createdAt);
-    }).join("\n") : noData("Recorded vital signs");
-    rows.forEach((e) => sources.push(source("Encounter / vital signs", e.createdAt, "Recorded observations")));
+      if (values) chartRows.push({ at: e.createdAt, label: "Encounter vitals", values });
+    }
+    for (const log of auditLogs) {
+      const meta = metaOf(log);
+      const logClinic = safeText(meta.clinicId);
+      const belongs = log.entityId === patientId || safeText(meta.patientId) === patientId;
+      if (log.entity !== "NursingVital" || !belongs || (logClinic && logClinic !== clinicId)) continue;
+      const values = [
+        meta.bp ? "BP " + safeText(meta.bp) : "",
+        meta.pulse ? "Pulse " + safeText(meta.pulse) : "",
+        meta.rr ? "RR " + safeText(meta.rr) : "",
+        meta.spo2 ? "SpO₂ " + safeText(meta.spo2) : "",
+        meta.temperature ? "Temperature " + safeText(meta.temperature) : "",
+        meta.findings ? "Findings / precautions: " + safeText(meta.findings, 250) : "",
+        meta.assessment ? "Assessment: " + safeText(meta.assessment, 250) : "",
+      ].filter(Boolean).join(" · ");
+      if (values) chartRows.push({ at: log.createdAt, label: "Nursing observation", values });
+    }
+    chartRows.sort((a, b) => b.at.getTime() - a.at.getTime());
+    const rows = chartRows.slice(0, 10);
+    answer = rows.length
+      ? rows.map((row) => row.values + " · " + row.label + " · recorded " + dateTimeLabel(row.at)).join("\n")
+      : noData("Recorded vital signs");
+    rows.forEach((row) => sources.push(source(row.label, row.at, "Recorded observations")));
+    answer += "\n\nThese are recorded observations only. Check the original nursing/encounter chart for measurement context and any corrections.";
   } else if (questionId === "pending-investigations") {
     const pendingLabs = labs.filter((l) => {
       const status = String(l.status).toLowerCase();
@@ -290,6 +335,41 @@ async function answerQuestion(
       const at = a.actualAt || a.scheduledAt;
       if (!at || new Date(at).getTime() < cutoff) continue;
       events.push({ at: new Date(at), label: "MAR · " + safeText(a.medicationName), detail: safeText(a.dose) + " " + safeText(a.doseUnit) + " · " + safeText(a.status) + (a.reason ? " · " + safeText(a.reason, 150) : "") });
+    }
+    const canonicalNoteIds = new Set(notes.map((n) => n.id));
+    for (const log of auditLogs) {
+      if (new Date(log.createdAt).getTime() < cutoff) continue;
+      const meta = metaOf(log);
+      const logClinic = safeText(meta.clinicId);
+      if (logClinic && logClinic !== clinicId) continue;
+      const belongs = log.entityId === patientId || safeText(meta.patientId) === patientId;
+      if (!belongs) continue;
+      if (log.entity === "NursingVital") {
+        const detail = [
+          meta.bp ? "BP " + safeText(meta.bp) : "",
+          meta.pulse ? "Pulse " + safeText(meta.pulse) : "",
+          meta.rr ? "RR " + safeText(meta.rr) : "",
+          meta.spo2 ? "SpO₂ " + safeText(meta.spo2) : "",
+          meta.temperature ? "Temperature " + safeText(meta.temperature) : "",
+          meta.findings ? "Findings / precautions: " + safeText(meta.findings, 400) : "",
+          meta.assessment ? "Assessment: " + safeText(meta.assessment, 300) : "",
+          meta.notes ? "Notes: " + safeText(meta.notes, 300) : "",
+        ].filter(Boolean).join(" · ");
+        if (detail) events.push({ at: log.createdAt, label: "Nursing observation", detail });
+      } else if (log.entity === "IPDHandover") {
+        const detail = [
+          meta.receivingTeam ? "Receiving team: " + safeText(meta.receivingTeam) : "",
+          meta.receivingRole ? "Receiving role: " + safeText(meta.receivingRole) : "",
+          meta.context ? "Handover: " + safeText(meta.context, 600) : "",
+        ].filter(Boolean).join(" · ");
+        events.push({ at: log.createdAt, label: "Clinical handover", detail: detail || "Handover record" });
+      } else if (log.entity === "ClinicalNote" && typeof meta.content === "string" && meta.content.trim()) {
+        if (meta.noteId && canonicalNoteIds.has(String(meta.noteId))) continue;
+        if (/^case summary$/i.test(String(meta.noteType || ""))) continue;
+        events.push({ at: log.createdAt, label: "Legacy clinical note · " + safeText(meta.noteType || meta.title), detail: safeText(meta.content, 800) });
+      } else if (log.entity === "RoomTransfer") {
+        events.push({ at: log.createdAt, label: "Room / ward transfer", detail: safeText(meta.reason || meta.roomNumber || "Transfer recorded") });
+      }
     }
     events.sort((a, b) => b.at.getTime() - a.at.getTime());
     const rows = events.slice(0, 25);
