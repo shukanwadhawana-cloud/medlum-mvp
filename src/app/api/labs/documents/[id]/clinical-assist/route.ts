@@ -40,9 +40,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ success: false, error: "Invalid request body." }, { status: 400 });
   }
 
-  const input: { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown } =
+  const input: { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown; sourceChecksum?: unknown } =
     body && typeof body === "object"
-      ? body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown }
+      ? body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown; sourceChecksum?: unknown }
       : {};
   const text = typeof input.text === "string" ? input.text.trim().slice(0, 20_000) : "";
   if (text.length < 20) {
