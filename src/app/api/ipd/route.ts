@@ -312,7 +312,7 @@ export async function POST(req: Request) {
           }
           throw error;
         }
-        await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_SUMMARY_DRAFT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: note.status } });
+        await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_SUMMARY_DRAFT", entity: "ClinicalNote", entityId: note.id, meta: { clinicId, patientId, noteId: note.id, status: note.status, version: note.version, contentHash } });
         return NextResponse.json({ success: true, noteId: note.id, status: note.status, authorDoctorId: session.doctorId });
       }
 
@@ -345,7 +345,6 @@ export async function POST(req: Request) {
           return changed;
         }, { isolationLevel: "Serializable" });
         if (submitted.count !== 1) return NextResponse.json({ success: false, error: "The discharge summary changed while you were submitting it. Reload and try again." }, { status: 409 });
-        await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_SUMMARY_SUBMIT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: "PENDING_VERIFICATION", version } });
         return NextResponse.json({ success: true, noteId: note.id, status: "PENDING_VERIFICATION", authorDoctorId: session.doctorId });
       }
 
