@@ -7,6 +7,7 @@
 import { createRequire } from "node:module";
 import { extractClinicalOcrText } from "@/lib/clinical-ocr";
 import { extractCandidates } from "@/lib/lab-ocr-candidates";
+export { extractCandidates };
 
 const nodeRequire = createRequire(import.meta.url);
 
