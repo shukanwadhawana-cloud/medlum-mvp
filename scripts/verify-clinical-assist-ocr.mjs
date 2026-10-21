@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 /** Static regression checks only; never reads or transmits clinical documents. */
 const page = fs.readFileSync("src/app/clinical-assist/page.tsx", "utf8");
 const ocr = fs.readFileSync("src/lib/clinical-assist-ocr.ts", "utf8");
+const panel = fs.readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
 
 assert(page.includes('setScanText("");'), "new upload clears previous OCR text");
 assert(page.includes("text.length < 20"), "very short output is rejected");
