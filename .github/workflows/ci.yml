@@ -73,6 +73,10 @@ jobs:
         run: npm run test:invoice-snapshot
       - name: Verify patient portal auth and dashboard
         run: npm run test:portal-auth
+      - name: Verify privileged staff OTP login invariants
+        run: npm run test:otp-login-invariant
+      - name: Verify Telegram OTP security and linking
+        run: npm run test:telegram-otp
       - name: Verify secure password reset and staff recovery
         run: npm run test:password-reset
       - name: Verify lab document extraction and retry safety
