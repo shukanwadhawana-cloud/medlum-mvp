@@ -17,7 +17,7 @@ ok(!summary.includes('/api/patients/lifecycle'), "Legacy summaries cannot direct
 ok(!summary.includes('const discharge=async'), "Legacy summaries no longer contain a separate discharge finalization handler");
 ok(dischargeUi.includes('action("discharge-summary-draft")'), "Canonical discharge UI saves a draft");
 ok(dischargeUi.includes('action("discharge-summary-submit")'), "Canonical discharge UI submits the author draft for signing");
-ok(dischargeUi.includes('action("discharge-complete")') && dischargeUi.includes("canVerify") && dischargeUi.includes("canAuthorSign") && dischargeUi.includes("Sign & Discharge"), "Author can sign their own summary; another authorised clinician may also verify");
+ok(dischargeUi.includes('action("discharge-complete")') && dischargeUi.includes("canVerify") && dischargeUi.includes("canAuthorSign") && dischargeUi.includes("Sign & complete as author"), "Author can sign their own summary; another authorised clinician may also verify");
 ok(dischargeUi.includes('n.author?.id===doctor?.id') && dischargeUi.includes('n.author?.id!==doctor?.id'), "The UI distinguishes own and other-authored pending summaries");
 ok(ipd.includes("canViewFullClinicalChart(membership.role)"), "Discharge actions require clinical chart permissions");
 ok(ipd.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))"), "Final discharge signing is limited to authorized verifier roles");
