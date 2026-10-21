@@ -49,6 +49,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ success: false, error: "Clinical Assist returned too little readable text. Try a clearer, upright scan." }, { status: 422 });
   }
 
+  // Bind client-side OCR text to the exact saved source file. The browser checks
+  // this digest before OCR; repeat the check server-side to prevent a forged request
+  // from associating text from a different report with this document.
+  const sourceChecksum = typeof input.sourceChecksum === "string" ? input.sourceChecksum.trim().toLowerCase() : "";
+  if (!/^[a-f0-9]{64}$/.test(sourceChecksum)) {
+    return NextResponse.json({ success: false, error: "A valid source-report fingerprint is required." }, { status: 400 });
+  }
+  if (!doc.checksum || doc.checksum.toLowerCase() !== sourceChecksum) {
+    return NextResponse.json({ success: false, error: "The selected file does not match this saved report. No draft was changed." }, { status: 409 });
+  }
+
   const label = typeof input.label === "string" ? input.label.slice(0, 100) : "Clinical Assist (on-device)";
   const confidence = typeof input.confidence === "number" && Number.isFinite(input.confidence)
     ? Math.max(0, Math.min(100, Math.round(input.confidence)))
