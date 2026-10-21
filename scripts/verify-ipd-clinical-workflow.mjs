@@ -6,6 +6,8 @@ const ipdApi = fs.readFileSync("src/app/api/ipd/route.ts","utf8");
 const signingApi = fs.readFileSync("src/app/api/clinical-notes/route.ts","utf8");
 const cancelApi = fs.readFileSync("src/app/api/records/cancel/route.ts","utf8");
 const caseSummaryApi = fs.readFileSync("src/app/api/ipd/[id]/case-summary/route.ts","utf8");
+const cancelApi = fs.readFileSync("src/app/api/records/cancel/route.ts","utf8");
+const caseSummaryApi = fs.readFileSync("src/app/api/ipd/[id]/case-summary/route.ts","utf8");
 const schema = fs.readFileSync("prisma/schema.prisma","utf8");
 
 const has=(text,needle,label)=>assert.ok(text.includes(needle),label+": missing "+needle);
@@ -109,3 +111,17 @@ has(page,'cancelClinicalNote(n.id,status)',"author can cancel/remove before co-s
 has(signingApi,'status: { not: "CANCELLED" }',"default clinical-notes API hides cancelled notes");
 has(caseSummaryApi,'status: { not: "CANCELLED" }',"generated case summaries exclude cancelled notes");
 console.log("IPD direct signing, optional co-signature, and cancellation regression checks passed.");
+
+
+// Open-note cancel/remove and signature-integrity guardrails.
+has(page,'This note is saved but unsigned. Sign and complete it as the author, or submit it for optional co-signature.',"open-note guidance offers author signing and optional co-signature");
+has(page,'{canCancelOwn&&<button type="button" disabled={saving} onClick={()=>void cancelClinicalNote(n.id,status)}',"open note detail has a cancel/remove button");
+has(page,'Sign &amp; complete</button><button type="button" disabled={saving} onClick={()=>void removeLegacyDraft(n.id)',"legacy draft detail preserves sign/remove actions");
+has(cancelApi,'if (!["DRAFT", "PENDING_VERIFICATION"].includes(note.status))',"cancellation endpoint permits only draft/pending notes");
+has(cancelApi,'Signed/final notes must use an amendment workflow.',"signed/final notes are not cancellable");
+has(cancelApi,'Only the original author can cancel this unsigned note.',"only the original note author can cancel");
+has(page,'onClick={()=>setShowCancelledNotes(v=>!v)',"Note View exposes Show/Hide cancelled");
+has(page,'visibleClinicalNotes.length?visibleClinicalNotes.map',"cancelled notes are hidden in active Note View");
+has(caseSummaryApi,'status: { not: "CANCELLED" }',"generated case summaries omit cancelled notes");
+has(ipdApi,'finalHash = hashClinicalNote(`${content}\\nAUTHOR:${session.doctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${created.id}`, version);',"direct author-sign uses the canonical newline-separated hash payload");
+console.log("Open-note cancellation and signature hash checks passed.");
