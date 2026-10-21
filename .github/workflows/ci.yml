@@ -81,8 +81,8 @@ jobs:
         run: npm run test:telegram-otp
       - name: Verify secure password reset and staff recovery
         run: npm run test:password-reset
-      - name: Verify lab document extraction and retry safety
-        run: npm run test:document-intelligence
+      - name: Verify lab document upload, extraction and retry safety
+        run: npm run test:document-intelligence && npm run test:lab-ocr-behavior
       - name: Verify multi-tenant isolation (static)
         run: npm run test:tenant-isolation
       - name: Verify P1 closure (static)
