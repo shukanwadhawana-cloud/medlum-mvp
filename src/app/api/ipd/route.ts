@@ -102,6 +102,53 @@ export async function GET() {
     });
     notesMap.set(n.patientId, arr);
   }
+
+  // Backward compatibility: the older IPD save handler wrote clinical-note content
+  // only to AuditLog metadata. Surface those already-saved entries while new saves
+  // are persisted in ClinicalNote. New audit events point at note.id and are skipped
+  // here because their noteId is already present in the persisted records.
+  const patientIdSet = new Set(patientIds);
+  for (const log of logs) {
+    if (log.entity !== "ClinicalNote" || !log.entityId) continue;
+    const meta = metaOf(log);
+    const patientId = String(meta.patientId || log.entityId || "");
+    if (!patientIdSet.has(patientId)) continue;
+    if (meta.clinicId && clinicId && meta.clinicId !== clinicId) continue;
+    if (typeof meta.content !== "string" || !meta.content.trim()) continue;
+    if (typeof meta.noteType !== "string" || !meta.noteType.trim()) continue;
+    if (typeof meta.title !== "string" || !meta.title.trim()) continue;
+    if (typeof meta.authorRole !== "string" || !meta.authorRole.trim()) continue;
+
+    const arr = notesMap.get(patientId) || [];
+    if (meta.noteId && arr.some((row: any) => row.id === meta.noteId)) continue;
+    const loggedAt = new Date(log.createdAt).getTime();
+    const duplicate = arr.some((row: any) => {
+      if (row.noteType !== meta.noteType || row.title !== meta.title || row.content !== meta.content) return false;
+      const savedAt = new Date(row.createdAt || 0).getTime();
+      return Number.isFinite(loggedAt) && Number.isFinite(savedAt) && Math.abs(savedAt - loggedAt) < 120000;
+    });
+    if (duplicate) continue;
+
+    arr.push({
+      id: `legacy-audit-${log.id}`,
+      patientId,
+      noteType: meta.noteType,
+      title: meta.title,
+      content: meta.content,
+      authorRole: meta.authorRole,
+      authorName: meta.authorRole,
+      status: typeof meta.status === "string" ? meta.status : "DRAFT",
+      version: 1,
+      createdAt: log.createdAt,
+      updatedAt: log.createdAt,
+      legacyAuditRecord: true,
+    });
+    notesMap.set(patientId, arr);
+  }
+  for (const notes of notesMap.values()) {
+    notes.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }
+
   const vitalsMap = new Map<string, unknown>();
   for (const l of logs) {
     if (l.entity !== "NursingVital") continue;
@@ -407,20 +454,83 @@ export async function POST(req: Request) {
     }
 
     if (action === "clinical-note") {
-      const patientId = String(body.patientId || "");
-      const content = String(body.content || "");
-      const noteType = String(body.noteType || "Progress Note");
-      const submit = Boolean(body.submit);
-      if (!patientId || !content.trim()) return NextResponse.json({ success: false, error: "Patient and note content required" }, { status: 400 });
+      const patientId = String(body.patientId || "").trim();
+      const content = String(body.content || "").trim();
+      const noteType = String(body.noteType || "Progress Note").trim();
+      const title = String(body.title || noteType).trim();
+      const submit = body.submit === true;
+      if (!patientId || !content) return NextResponse.json({ success: false, error: "Patient and note content required" }, { status: 400 });
+      if (!noteType || !title) return NextResponse.json({ success: false, error: "Note type and title are required" }, { status: 400 });
+
       const patient = await getPatient(patientId, session.doctorId, clinicId);
       if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
+
       const allergyUpdate = String(body.allergy || body.allergies || "").trim();
-      if (allergyUpdate) await prisma.patient.update({ where: { id: patientId }, data: { allergies: allergyUpdate } });
-      await writeAudit({
-        doctorId: session.doctorId, action: "create", entity: "ClinicalNote", entityId: patientId,
-        meta: { noteType, title: String(body.title || noteType), content, authorRole: String(body.authorRole || actorRole), status:submit?"PENDING_VERIFICATION":"DRAFT", clinicId, atIst:istIsoLabel(new Date()) },
+      const now = new Date();
+      const version = 1;
+      const status = submit ? "PENDING_VERIFICATION" : "DRAFT";
+      const contentHash = hashClinicalNote(content, version);
+      const noteRecord = await prisma.$transaction(async (tx) => {
+        const created = await tx.clinicalNote.create({
+          data: {
+            clinicId,
+            patientId,
+            authorDoctorId: session.doctorId,
+            authorRole: String(actorRole || "Consultant"),
+            noteType,
+            title,
+            content,
+            status,
+            version,
+            contentHash,
+            submittedAt: submit ? now : null,
+          },
+          include: {
+            author: { select: { id: true, name: true, email: true } },
+            verifier: { select: { id: true, name: true, email: true } },
+          },
+        });
+        await tx.clinicalNoteVersion.create({
+          data: {
+            clinicalNoteId: created.id,
+            clinicId,
+            version,
+            title,
+            noteType,
+            content,
+            contentHash,
+            event: submit ? "CREATED_AND_SUBMITTED" : "CREATED_DRAFT",
+            createdByDoctorId: session.doctorId,
+            createdAt: now,
+          },
+        });
+        if (allergyUpdate) {
+          await tx.patient.update({ where: { id: patientId }, data: { allergies: allergyUpdate } });
+        }
+        return created;
       });
-      return NextResponse.json({ success: true });
+
+      await writeAudit({
+        doctorId: session.doctorId,
+        clinicId,
+        action: submit ? "SUBMIT_FOR_VERIFICATION" : "CREATE_DRAFT",
+        entity: "ClinicalNote",
+        entityId: noteRecord.id,
+        meta: {
+          noteId: noteRecord.id,
+          patientId,
+          noteType,
+          title,
+          content,
+          authorRole: String(body.authorRole || actorRole),
+          status,
+          version,
+          contentHash,
+          clinicId,
+          atIst: istIsoLabel(now),
+        },
+      });
+      return NextResponse.json({ success: true, note: { ...noteRecord, authorName: noteRecord.author?.name || "Clinician" } });
     }
 
     if (action === "vitals") {
