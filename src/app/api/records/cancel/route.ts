@@ -27,16 +27,14 @@ export async function POST(req: Request) {
       if (entity === "ClinicalNote") {
         const note = await tx.clinicalNote.findFirst({ where:{ id, clinicId:membership.clinicId } });
         if (!note) return { status:404, body:{success:false,error:"Clinical note not found"} };
+        const isUnsigned = note.status === "DRAFT" || note.status === "PENDING_VERIFICATION";
+        if (!isUnsigned) {
+          return {status:409,body:{success:false,error:"Only drafts or notes awaiting co-signature can be removed/cancelled here. Signed/final notes must use an amendment workflow."}};
+        }
         const actorIsAuthor = note.authorDoctorId === session.doctorId;
         const actorCanManage = ["Owner", "Admin"].includes(String(membership.role || ""));
-        if (note.status === "DRAFT" && !actorIsAuthor && !actorCanManage) {
-          return {status:403,body:{success:false,error:"Only the author or clinic Owner/Admin can remove this draft"}};
-        }
-        if (note.status === "PENDING_VERIFICATION" && !actorIsAuthor && !actorCanManage) {
-          return {status:403,body:{success:false,error:"Only the author or clinic Owner/Admin can cancel this submitted note"}};
-        }
-        if (note.status !== "DRAFT" && note.status !== "PENDING_VERIFICATION" && !actorCanManage) {
-          return {status:403,body:{success:false,error:"Only the clinic Owner/Admin can cancel a signed or otherwise locked clinical note"}};
+        if (!actorIsAuthor && !actorCanManage) {
+          return {status:403,body:{success:false,error:"Only the original author or clinic Owner/Admin can remove/cancel an unsigned note"}};
         }
         if (note.status === "DRAFT") {
           await tx.clinicalNote.delete({ where:{id} });
