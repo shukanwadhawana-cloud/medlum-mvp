@@ -155,7 +155,7 @@ export default function IPDPatientWorkspace(){
  const saveNote=async(submit=false,noteTypeOverride?:string)=>{if(!selected)return;const noteType=noteTypeOverride||note.noteType;if(!note.content.trim()){setError("Enter note content before saving.");return;}await run({action:"clinical-note",patientId:selected.id,noteType,title:`${department} · ${noteType}`,content:note.content,submit,authorRole:`${doctor?.name||"Clinician"} · ${noteType}`},submit?`${noteType} submitted for independent second-clinician verification`:`${noteType} saved as draft`)};
  const generateCaseSummary=async()=>{
   if(!selected||caseSummaryBusy)return;
-  if(note.content.trim()&&note.noteType==="Case Summary"&&!window.confirm("Replace the text currently in the Case Summary editor with a new generated draft? The existing saved note will not be changed."))return;
+  if(note.content.trim()&&!window.confirm("Replace the unsaved text currently in the clinical note editor with a new generated case-summary draft? Any already-saved note remains unchanged."))return;
   setCaseSummaryBusy(true);setCaseSummaryError("");setError("");setMsg("");setCaseSummaryMeta(null);
   try{
    const r=await fetch("/api/ipd/"+encodeURIComponent(selected.id)+"/case-summary",{method:"POST",credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json","X-MedLum-Requested-With":"MedLum"},body:"{}"});
