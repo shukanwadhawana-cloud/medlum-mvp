@@ -40,6 +40,24 @@ async function post(patient, cookie) {
   return { response, body };
 }
 
+
+async function postClinicalQa(patient, cookie, questionId) {
+  const headers = {
+    "content-type": "application/json",
+    origin: base,
+    "x-medlum-requested-with": "MedLum",
+  };
+  if (cookie) headers.cookie = cookie;
+  const response = await fetch(base + "/api/ipd/" + encodeURIComponent(patient) + "/clinical-qa", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ questionId }),
+    redirect: "manual",
+  });
+  const body = await response.json().catch(() => ({}));
+  return { response, body };
+}
+
 async function main() {
   const unauthenticated = await post(patientId);
   assert.equal(unauthenticated.response.status, 401, "case summary requires an authenticated session");
@@ -75,7 +93,33 @@ async function main() {
   const crossClinic = await post(otherClinicPatientId, cookie);
   assert.equal(crossClinic.response.status, 404, "summary endpoint does not expose another clinic's patient");
 
-  console.log("Longitudinal IPD case-summary HTTP acceptance: PASS (synthetic PostgreSQL; no real patient data)");
+  const qaUnauthenticated = await postClinicalQa(patientId, null, "latest-labs");
+  assert.equal(qaUnauthenticated.response.status, 401, "Clinical Q&A requires an authenticated session");
+
+  const antibioticDay = await postClinicalQa(patientId, cookie, "antibiotic-day");
+  assert.equal(antibioticDay.response.status, 200, "authorized clinician can ask a preset antibiotic-day question");
+  assert.equal(antibioticDay.body.success, true, "Clinical Q&A reports a successful response");
+  assert.match(antibioticDay.body.answer, /Synthetic ceftriaxone/i, "antibiotic-day answer comes from synthetic MAR data");
+  assert.match(antibioticDay.body.answer, /calendar day/i, "antibiotic answer explains inclusive calendar-day counting");
+  assert.ok(Array.isArray(antibioticDay.body.sources) && antibioticDay.body.sources.length > 0, "answer cites the MAR source records");
+  assert.match(antibioticDay.body.disclaimer, /read-only/i, "answer includes a read-only clinical disclaimer");
+  assert.equal(antibioticDay.response.headers.get("cache-control"), "no-store", "clinical answers are not cacheable");
+
+  const latestLabs = await postClinicalQa(patientId, cookie, "latest-labs");
+  assert.equal(latestLabs.response.status, 200, "authorized clinician can ask about lab results");
+  assert.match(latestLabs.body.answer, /Synthetic CBC/i, "lab answer comes from the selected patient's synthetic lab record");
+
+  const badQuestion = await postClinicalQa(patientId, cookie, "free-text-prompt");
+  assert.equal(badQuestion.response.status, 400, "arbitrary free-text prompts are rejected");
+
+  const qaCrossClinic = await postClinicalQa(otherClinicPatientId, cookie, "latest-labs");
+  assert.equal(qaCrossClinic.response.status, 404, "Clinical Q&A cannot access another clinic's patient");
+
+  const receptionistCookie = await sessionCookie("ci_ca_doctor_wrong_role", "clinical-assist-ci-role@example.invalid");
+  const qaWrongRole = await postClinicalQa(patientId, receptionistCookie, "latest-labs");
+  assert.equal(qaWrongRole.response.status, 403, "roles without full-chart permission are denied");
+
+  console.log("Longitudinal IPD case-summary + Clinical Q&A HTTP acceptance: PASS (synthetic PostgreSQL; no real patient data)");
 }
 main().catch((error) => {
   console.error("Longitudinal IPD case-summary runtime acceptance FAILED:", error instanceof Error ? error.stack : error);
