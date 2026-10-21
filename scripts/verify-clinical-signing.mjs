@@ -13,6 +13,9 @@ const patientUi = read("src/app/patients/[id]/page.tsx");
 const checks = [
   ["ClinicalNote Prisma model exists", /model ClinicalNote\s*\{/.test(schema)],
   ["ClinicalNote has immutable status fields", /status\s+String\s+@default\("DRAFT"\)/.test(schema) && /finalizedAt\s+DateTime\?/.test(schema)],
+  ["ClinicalNoteVersion preserves versioned content and hashes", /model ClinicalNoteVersion\s*\{/.test(schema) && /clinicalNoteId\s+String/.test(schema) && /contentHash\s+String/.test(schema)],
+  ["Draft edits are saved transactionally with a version snapshot", route.includes("tx.clinicalNoteVersion.create") && route.includes("CLINICAL_NOTE_VERSION_SAVED") && route.includes('isolationLevel: "Serializable"')],
+  ["Clinical note history is returned to the authorized chart view", route.includes('versions: { orderBy: { version: "asc" }') && route.includes("versions: Array.isArray(n.versions)") && patientUi.includes("Version history (")],
   ["Author and verifier are distinct relations", /@relation\("ClinicalNoteAuthor"\)/.test(schema) && /@relation\("ClinicalNoteVerifier"\)/.test(schema)],
   ["Clinical signing API exists", route.includes("export async function PATCH") && route.includes('action === "finalize"')],
   ["Self-verification is blocked", route.includes("current.authorDoctorId === session.doctorId")],
@@ -24,6 +27,7 @@ const checks = [
   ["API client exposes submit/finalize", api.includes("apiSubmitClinicalNote") && api.includes("apiFinalizeClinicalNote")],
   ["UI exposes second verification", patientUi.includes("Second verify + final sign") && patientUi.includes("The author cannot approve their own document")],
   ["UI exposes locked FINAL state", patientUi.includes("LOCKED FINAL") && patientUi.includes("finalHash")],
+  ["UI exposes version history with author, timestamp and hash", patientUi.includes("Version history (") && patientUi.includes("SHA-256")],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);
