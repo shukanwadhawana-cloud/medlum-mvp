@@ -83,7 +83,7 @@ export async function GET() {
   });
   const patientIds = patients.map((p) => p.id);
   const [logs, encounters, prescriptions, dispensings, labOrders, diagnosticOrders, clinicalNotes] = await Promise.all([
-    prisma.auditLog.findMany({ where: { doctorId: { in: doctorIds }, entity: { in: ["HospitalRoom", "ClinicalNote", "NursingVital"] } }, orderBy: { createdAt: "desc" }, take: 3000 }),
+    prisma.auditLog.findMany({ where: { OR: [{ doctorId: { in: doctorIds }, entity: { in: ["HospitalRoom", "ClinicalNote", "NursingVital"] } }, { entity: "ClinicalNote", entityId: { in: patientIds } }] }, orderBy: { createdAt: "desc" }, take: 5000 }),
     prisma.encounter.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.prescription.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.dispensing.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
