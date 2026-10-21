@@ -14,7 +14,7 @@ import {
 import { RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
 import { formatIst } from "@/lib/time";
 import ImagingStudiesPanel from "@/components/ImagingStudiesPanel";
-import PacsFreeSyntheticDemo from "@/components/PacsFreeSyntheticDemo";
+import PacsClinicalWorkspace from "@/components/PacsClinicalWorkspace";
 
 type Patient = { id: string; name: string; uhid?: string };
 type DiagnosticOrder = {
@@ -188,7 +188,7 @@ export default function DiagnosticsPage() {
         </button>
       </section>
 
-      <PacsFreeSyntheticDemo />
+      <PacsClinicalWorkspace orders={orders} />
 
       {error && !showAdd && !reportOrder && (
         <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
@@ -320,7 +320,6 @@ export default function DiagnosticsPage() {
                           )}
                         </div>
                       </div>
-                      <ImagingStudiesPanel patientId={g.patientId} diagnosticOrderId={o.id} />
                     </div>
                   ))}
                 </div>
