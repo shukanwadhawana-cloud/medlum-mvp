@@ -356,7 +356,9 @@ export default function WorkforcePage() {
                             </select>
                           ) : null}
                           <button type="button" disabled={saving} onClick={() => openEdit(m)} className="h-9 rounded-lg border px-2.5 text-xs font-medium">Edit details</button>
-                          <button type="button" disabled={saving || !active} onClick={() => void issueStaffPasswordResetLink(m)} className="h-9 rounded-lg border border-[#c2183a]/40 px-2.5 text-xs font-semibold text-[#c2183a]">Reset password</button>
+                          {canChangeRole && active && (currentMember?.role === "Owner" || m.role !== "Admin") ? (
+                            <button type="button" disabled={saving} onClick={() => void issueStaffPasswordResetLink(m)} className="h-9 rounded-lg border border-[#c2183a]/40 px-2.5 text-xs font-semibold text-[#c2183a]">Reset password</button>
+                          ) : null}
                           {["Owner", "Admin", "Manager"].includes(m.role) && !m.telegramLinked ? (
                             <button type="button" disabled={saving} onClick={() => void linkTelegram(m)} className="h-9 rounded-lg border border-[#229ED9] px-2.5 text-xs font-semibold text-[#1688bd]">Link Telegram</button>
                           ) : null}
