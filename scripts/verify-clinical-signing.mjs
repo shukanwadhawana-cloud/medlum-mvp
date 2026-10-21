@@ -29,7 +29,7 @@ const checks = [
   ["IPD Case Summary note list exposes author self-sign action", ipdUi.includes("Sign &amp; complete as author") && ipdUi.includes("signOwnClinicalNote(n.id)")],
   ["IPD workspace exposes reason-required note removal", ipdUi.includes("cancelClinicalNote(n.id,n.status)") && ipdUi.includes("Enter a reason to remove this draft")],
   ["API client exposes submit/finalize", api.includes("apiSubmitClinicalNote") && api.includes("apiFinalizeClinicalNote")],
-  ["UI exposes second verification", patientUi.includes("Second verify + final sign") && patientUi.includes("The author cannot approve their own document")],
+  ["Patient chart exposes author self-sign and optional independent verification", patientUi.includes("Sign & complete as author") && patientUi.includes("Final-sign as second clinician") && !patientUi.includes("Second verify + final sign")],
   ["UI exposes locked FINAL state", patientUi.includes("LOCKED FINAL") && patientUi.includes("finalHash")],
   ["UI exposes version history with author, timestamp and hash", patientUi.includes("Version history (") && patientUi.includes("SHA-256")],
 ];
