@@ -126,7 +126,7 @@ export async function GET() {
     const source = sourceAuditId ? auditById.get(sourceAuditId) : null;
     if (!source) continue;
     const sourceMeta = metaOf(source);
-    const sourcePatientId = String(sourceMeta.patientId || "");
+    const sourcePatientId = String(sourceMeta.patientId || source.entityId || "");
     if (typeof sourceMeta.content !== "string" || typeof sourceMeta.noteType !== "string" || typeof sourceMeta.title !== "string" || !sourcePatientId) continue;
     const sourceTime = new Date(source.createdAt).getTime();
     const priorCancelledCopy = clinicalNotes.some((candidate) => {
