@@ -1,4 +1,4 @@
-# ABDM / EKA Integration (MedLum MVP)
+# ABDM / EKA Integration (MedLum Health)
 
 ## Architecture integration point
 
