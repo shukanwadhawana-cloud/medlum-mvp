@@ -552,7 +552,7 @@ jobs:
         run: node scripts/seed-clinical-assist-runtime.mjs
       - name: Start local Next.js app
         run: |
-          npm run dev -- --hostname 127.0.0.1 > /tmp/medlum-next.log 2>&1 &
+          npm run dev -- --webpack --hostname 127.0.0.1 > /tmp/medlum-next.log 2>&1 &
           echo $! > /tmp/medlum-next.pid
       - name: Wait for app readiness
         run: |
