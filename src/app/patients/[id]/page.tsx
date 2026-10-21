@@ -411,7 +411,7 @@ export default function PatientDetailPage() {
                   )}
                   {n.status === "PENDING_VERIFICATION" && n.author?.id === doctor?.id && (
                     <div className="flex gap-1.5">
-                      <button type="button" onClick={() => signOwnClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Sign & complete</button>
+                      <button type="button" onClick={() => finalSignClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Sign & complete</button>
                     </div>
                   )}
                 </div>
