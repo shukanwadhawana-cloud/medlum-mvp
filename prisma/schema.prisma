@@ -710,7 +710,7 @@ model ClinicalNoteVersion {
   createdByDoctorId String
   createdAt         DateTime     @default(now())
 
-  clinicalNote      ClinicalNote @relation(fields: [clinicalNoteId], references: [id], onDelete: Restrict)
+  clinicalNote      ClinicalNote @relation(fields: [clinicalNoteId], references: [id], onDelete: Cascade)
   clinic            Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   createdBy         Doctor       @relation("ClinicalNoteVersionCreator", fields: [createdByDoctorId], references: [id], onDelete: Restrict)
 
