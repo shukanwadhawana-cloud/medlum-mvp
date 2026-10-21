@@ -137,6 +137,8 @@ jobs:
         run: npm run test:p1-authorization
       - name: Verify AI clinical draft security
         run: npm run test:clinical-ai-draft
+      - name: Verify read-only Clinical Q&A security contract
+        run: npm run test:clinical-qa
       - name: Verify PACS imaging contracts
         run: npm run test:pacs-contracts
       - name: Build application
