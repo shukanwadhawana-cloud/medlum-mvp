@@ -28,3 +28,10 @@ Do not publish an unauthenticated Orthanc endpoint just to make a demo URL avail
 The Diagnostics page includes a no-server PACS sandbox using an illustrative synthetic graphic. It supports series selection, slice navigation, zoom, window/level adjustment, and reset. It operates entirely in the browser: it makes no PACS requests, uploads no files, writes no database records, and contains no patient data. The image is not DICOM and must never be used for clinical interpretation.
 
 This provides a free interactive UI demo while infrastructure decisions are deferred. It does **not** receive, persist, or display actual imaging studies. The existing secure Orthanc import and OHIF viewer remain disabled until a production-ready server/gateway and persistent storage are configured and verified.
+
+
+## Clinical imaging workspace (current UI)
+
+The Diagnostics page now uses a clinical imaging workbench backed by the existing clinic diagnostic orders and reports. It shows the selected patient's actual order, modality/body part, indication, recorded findings and impression, and the linked ImagingStudy records for that specific patient/order. The existing authorization, identity confirmation, verification and OHIF launch checks remain in force.
+
+The previous illustrative anatomy graphic has been removed. If no verified DICOM image series is available, the viewport clearly says so instead of rendering fabricated pixels. The workspace itself uses no additional server or paid infrastructure. Actual image viewing still requires a configured secure Orthanc/OHIF endpoint; the free UI does not claim to replace a diagnostic-grade viewer.
