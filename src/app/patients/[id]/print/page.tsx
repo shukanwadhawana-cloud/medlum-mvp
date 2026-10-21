@@ -382,7 +382,7 @@ export default function OpdPatientPrintPage() {
 
         {showMedlumFooter(h) && (
           <p className="mt-8 text-center text-[9px] tracking-wide text-gray-400">
-            Powered by MedLum
+            Powered by MedLum Health
           </p>
         )}
       </article>
