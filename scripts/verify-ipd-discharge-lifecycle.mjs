@@ -18,6 +18,9 @@ const ipd = read("src/app/api/ipd/route.ts");
 assert(ipd.includes("discharge-summary-draft"), "IPD supports discharge-summary-draft");
 assert(ipd.includes("discharge-summary-submit"), "IPD supports discharge-summary-submit");
 assert(ipd.includes("discharge-complete"), "IPD supports discharge-complete");
+assert(ipd.includes('authorDoctorId: session.doctorId, noteType: "Discharge Note", status: "PENDING_VERIFICATION"'), "discharge final-sign is restricted to the original author");
+assert(ipd.includes('signatureMode: "AUTHOR"') && ipd.includes('signedByDoctorId: session.doctorId'), "discharge audit records author signature");
+assert(!ipd.includes("The author cannot be the second verifier"), "discharge does not require a second clinician");
 assert(ipd.includes('error: "Unknown action"'), "Unknown action still guarded for unsupported actions");
 assert(ipd.includes("DISCHARGE_SUMMARY_DRAFT") || ipd.includes("discharge-summary-draft"), "draft audit path");
 
