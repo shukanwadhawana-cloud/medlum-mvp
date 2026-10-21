@@ -21,13 +21,20 @@ export function createDatabaseStorageProvider(): StorageProvider {
       if (!Buffer.isBuffer(data) || data.length === 0) {
         throw new Error("Cannot store an empty lab report.");
       }
+      const clinicMatch = /^clinics\/([^/]+)\//.exec(key);
+      const clinicId = clinicMatch?.[1];
+      if (!clinicId) throw new Error("Report storage key does not include a clinic scope.");
 
       await prisma.$transaction(async (tx) => {
         const current = await tx.storedBinaryObject.findUnique({
           where: { key },
-          select: { sizeBytes: true },
+          select: { sizeBytes: true, clinicId: true },
         });
+        if (current && current.clinicId !== clinicId) {
+          throw new Error("Stored report key belongs to a different clinic.");
+        }
         const usage = await tx.storedBinaryObject.aggregate({
+          where: { clinicId },
           _sum: { sizeBytes: true },
         });
         const usedBytes = usage._sum.sizeBytes || 0;
@@ -43,11 +50,13 @@ export function createDatabaseStorageProvider(): StorageProvider {
           where: { key },
           create: {
             key,
+            clinicId,
             data,
             mimeType,
             sizeBytes: data.length,
           },
           update: {
+            clinicId,
             data,
             mimeType,
             sizeBytes: data.length,
