@@ -481,7 +481,7 @@ export default function IPDPatientWorkspace(){
        <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
         <div>
          <h4 className="text-sm font-semibold text-gray-900">Longitudinal inpatient case summary</h4>
-         <p className="mt-1 text-[11px] leading-relaxed text-gray-600">Generate a day-by-day draft from the full available admission history: clinical notes, assessments and vitals, laboratory results, imaging, prescribed medicines, pharmacy dispensing, MAR administration status, nursing observations/precautions, handovers and discharge documentation. Generated text is editable and is not saved or signed automatically.</p>
+         <p className="mt-1 text-[11px] leading-relaxed text-gray-600">Create an editable, day-by-day summary of the available inpatient chart. Review it before saving; it is never signed automatically.</p>
         </div>
         <button type="button" disabled={caseSummaryBusy||saving} onClick={()=>void generateCaseSummary()} className="min-h-10 w-full sm:w-auto rounded-lg bg-[#140a1f] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
          {caseSummaryBusy?"Pulling chart and generating…":"Generate from full admission history"}
@@ -489,15 +489,15 @@ export default function IPDPatientWorkspace(){
         {caseSummaryError&&<p role="alert" className="text-xs text-red-700">{caseSummaryError}</p>}
         {caseSummaryMeta&&(
          <div className="rounded-lg border bg-white p-3 space-y-1">
-          <p className="text-xs font-semibold text-gray-900">{caseSummaryMeta.source==="timeline"?"Structured timeline fallback":"AI-generated draft · "+String(caseSummaryMeta.source).toUpperCase()}</p>
-          <p className="text-[11px] text-gray-600">Period: {caseSummaryMeta.admissionDate||"admission date unavailable"} → {caseSummaryMeta.dischargeDate||"latest recorded day / still admitted"} · {caseSummaryMeta.dayCount} calendar day(s) · {caseSummaryMeta.eventCount} source event(s)</p>
-          {caseSummaryMeta.source==="timeline"&&<p className="text-[11px] text-amber-800">The AI provider was not configured or did not return a valid summary, so MedLum assembled a structured dated timeline instead. Review it carefully before signing.</p>}
-          {caseSummaryMeta.disclaimer&&<p className="text-[10px] text-gray-500">{caseSummaryMeta.disclaimer}</p>}
-          {caseSummaryMeta.dataWarnings?.map((warning:string,i:number)=><p key={i} className="text-[11px] text-amber-800">Review: {warning}</p>)}
-          <details className="pt-1">
-           <summary className="cursor-pointer text-[11px] font-semibold text-[#c2183a]">Source records included</summary>
-           <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">{Object.entries(caseSummaryMeta.sourceCounts||{}).map(([key,count]:[string,any])=><p key={key} className="text-[10px] text-gray-600">{key}: <b>{count}</b></p>)}</div>
-          </details>
+          <p className="text-xs font-semibold text-gray-900">{caseSummaryMeta.source==="timeline"?"Chart timeline draft":"AI-assisted draft"}</p>
+          <p className="text-[11px] text-gray-600">{caseSummaryMeta.admissionDate||"Admission date unavailable"} → {caseSummaryMeta.dischargeDate||"Still admitted / discharge not recorded"} · {caseSummaryMeta.dayCount} day(s)</p>
+          {caseSummaryMeta.source==="timeline"&&<p className="text-[11px] text-amber-800">AI summary unavailable; a dated chart timeline was generated instead.</p>}
+          <p className="text-[10px] text-gray-500">Editable draft · verify against the chart before signing.</p>
+          {(caseSummaryMeta.dataWarnings?.length>0||Object.keys(caseSummaryMeta.sourceCounts||{}).length>0)&&<details className="pt-1">
+           <summary className="cursor-pointer text-[11px] font-semibold text-[#c2183a]">Review details</summary>
+           {caseSummaryMeta.dataWarnings?.map((warning:string,i:number)=><p key={i} className="mt-1 text-[11px] text-amber-800">Review: {warning}</p>)}
+           <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">{Object.entries(caseSummaryMeta.sourceCounts||{}).map(([key,count]:[string,any])=><p key={key} className="text-[10px] text-gray-600">{key}: <b>{count}</b></p>)}</div>
+          </details>}
          </div>
         )}
        </section>
