@@ -14,7 +14,7 @@ const checks=[
  ["signed-note cancellation is blocked in this endpoint",cancel.includes("Signed/final notes must use an amendment workflow.") && cancel.includes("CLINICAL_NOTE_CANCELLED")],
  ["encounter cancellation state",schema.includes('status           String') && schema.includes('cancellationReason')],
  ["prescription cancellation state",schema.includes('model Prescription') && schema.includes('cancelledAt')],
- ["patient UI cancellation",page.includes('apiCancelRecord') && page.includes('Cancel final record') && page.includes('Cancel draft')],
+ ["patient UI cancellation preserves unsigned-note cancellation without exposing a final-note cancel shortcut",page.includes('apiCancelRecord') && page.includes('Cancel draft') && !page.includes('Cancel final record') && page.includes('LOCKED FINAL')],
  ["orders cancellation UI",page.includes('cancelRecord("LabOrder"') && page.includes('cancelRecord("DiagnosticOrder"') && page.includes('cancelRecord("Prescription"')],
  ["vitals/encounter cancellation UI",page.includes('cancelRecord("Encounter"')],
 ];
