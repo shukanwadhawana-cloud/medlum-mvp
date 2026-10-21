@@ -14,6 +14,7 @@ has(page,'noteType:"Initial Assessment"',"canonical clinical note type");
 has(page,"second-clinician verification","provisional submission");
 has(page,'action:"finalize"',"final signing action");
 has(page,'timeZone:"Asia/Kolkata"',"IST assessment clock");
+has(page,'replace(/^UHID[\\s:-]*/i, "")',"UHID display avoids repeating the stored UHID prefix");
 has(page,"Final-sign as second clinician","final signing button");
 
 const initialStart=page.indexOf('leftNav==="Initial Assessment"');
@@ -24,8 +25,12 @@ notHas(initial,'placeholder="Treatment given"',"initial assessment treatment fie
 notHas(initial,"Treatment on discharge:","initial assessment discharge treatment");
 notHas(initial,"Follow-up date/time:","initial assessment follow-up");
 
-has(ipdApi,'status:submit?"PENDING_VERIFICATION":"DRAFT"',"IPD note status");
-has(ipdApi,'atIst:istIsoLabel(new Date())',"server IST audit timestamp");
+has(ipdApi,'const status = submit ? "PENDING_VERIFICATION" : "DRAFT"',"IPD note status");
+has(ipdApi,"tx.clinicalNote.create","IPD notes persist as canonical clinical-note records");
+has(ipdApi,"tx.clinicalNoteVersion.create","IPD note creation records version history");
+has(ipdApi,"legacy-audit-","previously saved audit-only IPD notes remain visible");
+has(ipdApi,"meta.noteId","new clinical-note audit events identify the canonical note");
+has(ipdApi,"atIst: istIsoLabel(now)","server IST audit timestamp");
 has(ipdApi,'authorName:n.author?.name||"Clinician"',"server author identity");
 has(ipdApi,'verifierName:n.verifier?.name||null',"server verifier identity");
 
