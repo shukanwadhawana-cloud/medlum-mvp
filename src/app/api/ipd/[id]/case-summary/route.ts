@@ -313,17 +313,19 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       warnings.push("The admission span exceeds the one-year timeline limit; review older source chart entries before finalizing.");
     }
 
-    const grouped = new Map<string, LongitudinalCaseSummaryEvent[]>();
+    const grouped = new Map<string, Array<{ at: string; event: LongitudinalCaseSummaryEvent }>>();
     for (const item of events) {
       if (startKey && item.key < startKey) continue;
       if (endKey && item.key > endKey) continue;
       const list = grouped.get(item.key) || [];
-      list.push(item.event);
+      list.push({ at: item.at, event: item.event });
       grouped.set(item.key, list);
     }
     const dailyTimeline: LongitudinalCaseSummaryDay[] = keys.map((key) => ({
       date: dateLabel(key),
-      events: [...(grouped.get(key) || [])],
+      events: [...(grouped.get(key) || [])]
+        .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+        .map((item) => item.event),
     }));
     const meaningfulEventCount = events.filter((item) => item.key >= startKey && item.key <= endKey).length;
     if (meaningfulEventCount === 0) return fail("No dated clinical history was found for this admission. Add or verify source chart notes before generating a case summary.", 422);
