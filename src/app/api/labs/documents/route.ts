@@ -59,7 +59,7 @@ export async function GET(req: Request) {
   const provider = getStorageProvider();
   const [usage, documentCount] = await Promise.all([
     provider.name === "database"
-      ? prisma.storedBinaryObject.aggregate({ _sum: { sizeBytes: true } })
+      ? prisma.storedBinaryObject.aggregate({ where: { clinicId }, _sum: { sizeBytes: true } })
       : prisma.medicalDocument.aggregate({ where: { clinicId, deletedAt: null }, _sum: { sizeBytes: true } }),
     prisma.medicalDocument.count({ where: { clinicId, deletedAt: null } }),
   ]);
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
 
     // Only genuinely new documents consume quota; retries of duplicates must still work at quota.
     const usedUsage = provider.name === "database"
-      ? await prisma.storedBinaryObject.aggregate({ _sum: { sizeBytes: true } })
+      ? await prisma.storedBinaryObject.aggregate({ where: { clinicId }, _sum: { sizeBytes: true } })
       : await prisma.medicalDocument.aggregate({ where: { clinicId, deletedAt: null }, _sum: { sizeBytes: true } });
     const used = usedUsage._sum.sizeBytes || 0;
     const quota = storageQuotaBytes();
@@ -274,10 +274,12 @@ export async function POST(req: Request) {
       ocr: { status: "PENDING", message: ocrMessage, verified: false },
     });
   } catch (e) {
-    console.error("lab document upload", e instanceof Error ? e.message : e);
+    const message = e instanceof Error ? e.message : "Upload failed";
+    console.error("lab document upload", message);
+    const quotaExceeded = /quota exceeded/i.test(message);
     return NextResponse.json(
-      { success: false, error: e instanceof Error ? e.message : "Upload failed" },
-      { status: 500 }
+      { success: false, error: message },
+      { status: quotaExceeded ? 413 : 500 }
     );
   }
 }
