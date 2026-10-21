@@ -200,6 +200,8 @@ const specialUnauth = new Set([
   "auth/signup/route.ts",
   "auth/logout/route.ts",
   "auth/otp/verify/route.ts",
+  "auth/password-reset/request/route.ts", // public, rate-limited, non-enumerating reset request; delivery only to linked Telegram
+  "auth/password-reset/complete/route.ts", // intentionally pre-session; requires hashed single-use OTP/token proof before password mutation
   "auth/telegram/prelink/route.ts",
   "public/booking/route.ts",
   "portal/auth/login/route.ts",
