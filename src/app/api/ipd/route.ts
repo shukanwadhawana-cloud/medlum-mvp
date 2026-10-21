@@ -123,6 +123,9 @@ export async function GET() {
     if (meta.noteId && arr.some((row: any) => row.id === meta.noteId)) continue;
     const loggedAt = new Date(log.createdAt).getTime();
     const duplicate = arr.some((row: any) => {
+      // Only deduplicate against canonical database rows, never against a prior
+      // legacy audit-only note: two identical notes may legitimately be recorded.
+      if (row.legacyAuditRecord) return false;
       if (row.noteType !== meta.noteType || row.title !== meta.title || row.content !== meta.content) return false;
       const savedAt = new Date(row.createdAt || 0).getTime();
       return Number.isFinite(loggedAt) && Number.isFinite(savedAt) && Math.abs(savedAt - loggedAt) < 120000;
