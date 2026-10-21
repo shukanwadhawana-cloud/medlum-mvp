@@ -26,6 +26,8 @@ const checks = [
   ["Final notes cannot be edited", route.includes('current.status !== "DRAFT"') && route.includes("Submitted or final notes cannot be edited")],
   ["Audit trail records final sign", route.includes('action: "FINAL_SIGN"')],
   ["Author may sign own unsigned note", route.includes('action === "sign-own"') && route.includes('action: "AUTHOR_SIGN"') && route.includes('event: "AUTHOR_SIGNED"')],
+  ["IPD Case Summary note list exposes author self-sign action", ipdUi.includes("Sign &amp; complete as author") && ipdUi.includes("signOwnClinicalNote(n.id)")],
+  ["IPD workspace exposes reason-required note removal", ipdUi.includes("cancelClinicalNote(n.id,n.status)") && ipdUi.includes("Enter a reason to remove this draft")],
   ["API client exposes submit/finalize", api.includes("apiSubmitClinicalNote") && api.includes("apiFinalizeClinicalNote")],
   ["UI exposes second verification", patientUi.includes("Second verify + final sign") && patientUi.includes("The author cannot approve their own document")],
   ["UI exposes locked FINAL state", patientUi.includes("LOCKED FINAL") && patientUi.includes("finalHash")],
