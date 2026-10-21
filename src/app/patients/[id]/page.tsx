@@ -419,7 +419,15 @@ export default function PatientDetailPage() {
                 <p className="text-xs text-gray-700 mt-2 whitespace-pre-wrap">{n.content}</p>
                 <div className="text-[10px] text-gray-500 mt-2 space-y-0.5">
                   <p>Author: {n.author?.name || "Unknown"}{n.authorRole ? " · Role: " + n.authorRole : ""}</p>
-                  {n.verifier && <p>Final verifier: {n.verifier.name} · {n.finalizedAt ? new Date(n.finalizedAt).toLocaleString() : ""}</p>}
+                  {n.verifier && <p>Final verifier: {n.verifier.name} · {n.finalizedAt ? new Date(n.finalizedAt).toLocaleString() : ""}</p>
+                  {!!n.versions?.length && <details className="mt-2 rounded-lg border border-gray-200 p-2">
+                    <summary className="cursor-pointer font-medium">Version history ({n.versions.length})</summary>
+                    <div className="mt-2 space-y-2">{[...n.versions].reverse().map((v: any) => <div key={v.id} className="border-t pt-2">
+                      <p className="font-medium">v{v.version} · {v.event.replaceAll("_", " ")} · {v.createdBy?.name || "Unknown"} · {v.createdAt ? new Date(v.createdAt).toLocaleString() : ""}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-gray-700">{v.content}</p>
+                      <p className="mt-1 text-gray-400">SHA-256 {String(v.contentHash || "").slice(0, 16)}…</p>
+                    </div>)}</div>
+                  </details>}
                   {n.status === "FINAL" && <><p className="font-medium">LOCKED FINAL · hash {String(n.finalHash || "").slice(0, 16)}…</p><button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="mt-1 px-2.5 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel final record</button></>}
                 </div>
               </div>
