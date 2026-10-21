@@ -219,6 +219,50 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: true, status: "PENDING_VERIFICATION" });
     }
 
+    if (action === "sign-own") {
+      if (!canFinalizeClinicalNote(actor.normalizedRole)) {
+        return NextResponse.json({ success: false, error: "Your clinic role cannot sign clinical notes" }, { status: 403 });
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        const current = await tx.clinicalNote.findFirst({
+          where: { id, clinicId: membership.clinicId },
+          select: { id: true, patientId: true, authorDoctorId: true, content: true, version: true, status: true, contentHash: true, noteType: true },
+        });
+        if (!current) return { status: 404, body: { success: false, error: "Clinical note not found" } };
+        if (current.authorDoctorId !== session.doctorId) return { status: 403, body: { success: false, error: "Only the original author can sign this note" } };
+        if (!["DRAFT", "PENDING_VERIFICATION"].includes(current.status)) return { status: 409, body: { success: false, error: "Only an unsigned note can be signed by its author" } };
+
+        const hash = hashClinicalNote(current.content, current.version);
+        if (current.contentHash !== hash) return { status: 409, body: { success: false, error: "Clinical note integrity check failed; the note must not be signed." } };
+
+        const signedAt = new Date();
+        const finalHash = hashClinicalNote(
+          `${current.content}\\nAUTHOR:${current.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${current.id}`,
+          current.version,
+        );
+        const updated = await tx.clinicalNote.updateMany({
+          where: { id, clinicId: membership.clinicId, authorDoctorId: session.doctorId, status: current.status, verifierDoctorId: null, version: current.version },
+          data: { status: "FINAL", verifiedAt: null, finalizedAt: signedAt, finalHash },
+        });
+        if (updated.count !== 1) return { status: 409, body: { success: false, error: "This note changed concurrently; reload and try again." } };
+
+        await tx.clinicalNoteVersion.create({ data: {
+          clinicalNoteId: id, clinicId: membership.clinicId, version: current.version,
+          title: "Author-signed", noteType: current.noteType, content: current.content,
+          contentHash: current.contentHash, event: "AUTHOR_SIGNED",
+          createdByDoctorId: session.doctorId, createdAt: signedAt,
+        } });
+        await tx.auditLog.create({ data: {
+          doctorId: session.doctorId, action: "AUTHOR_SIGN",
+          entity: "ClinicalNote", entityId: id,
+          meta: JSON.stringify({ clinicId: membership.clinicId, patientId: current.patientId, noteType: current.noteType, authorDoctorId: current.authorDoctorId, signedByDoctorId: session.doctorId, version: current.version, contentHash: current.contentHash, finalHash, at: signedAt.toISOString() }),
+        } });
+        return { status: 200, body: { success: true, status: "FINAL", signedByDoctorId: session.doctorId, finalizedAt: signedAt.toISOString(), finalHash } };
+      }, { isolationLevel: "Serializable" });
+      return NextResponse.json(result.body, { status: result.status });
+    }
+
     if (action === "finalize") {
       if (!canFinalizeClinicalNote(actor.normalizedRole)) {
         return NextResponse.json({ success: false, error: "Your clinic role cannot final-sign clinical notes" }, { status: 403 });
