@@ -35,4 +35,10 @@ assert(ocr.includes("60_000"), "OCR worker initialization must have a timeout");
 assert(ocr.includes("90_000"), "OCR recognition must have a timeout");
 assert(page.includes("(status) => setScanStatus(status)"), "UI must display live OCR engine progress");
 
+assert(ocr.includes("runClinicalAssistImageOcr"), "image OCR must expose fallback flow");
+assert(ocr.includes("retrying the original image"), "preprocessed OCR failure must retry untouched source image");
+assert(page.includes("runClinicalAssistImageOcr(file"), "Clinical Assist page must use image fallback");
+assert(fs.readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8").includes("runClinicalAssistImageOcr(originalFile"), "lab result panel must use image fallback");
+
 console.log("Clinical Assist OCR CSP and worker-path checks: PASS");
+console.log("Clinical Assist original-image fallback checks: PASS");
