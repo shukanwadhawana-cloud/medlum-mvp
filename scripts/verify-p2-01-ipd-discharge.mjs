@@ -23,6 +23,8 @@ ok(ipd.includes("canViewFullClinicalChart(membership.role)"), "Discharge actions
 ok(ipd.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))"), "Final discharge signing is limited to authorized verifier roles");
 ok(ipd.includes("note.authorDoctorId === session.doctorId"), "The author cannot verify their own discharge summary");
 ok(ipd.includes('note.contentHash !== hashClinicalNote(note.content, note.version)'), "Submitted discharge content integrity is verified before final signature");
+ok(ipd.includes('event: existing ? "DRAFT_SAVED" : "CREATED_DRAFT"') && ipd.includes('event: "SUBMITTED_FOR_VERIFICATION"'), "IPD discharge draft and submitted versions are snapshotted");
+ok(ipd.includes("tx.clinicalNoteVersion.create") && ipd.includes('isolationLevel: "Serializable"'), "IPD discharge version snapshots are transactional and race-safe");
 ok(ipd.includes('status: "PENDING_VERIFICATION"') && ipd.includes('verifierDoctorId: null'), "Finalization only signs a submitted, not-yet-verified note");
 ok(ipd.includes("prisma.$transaction(async (tx) =>") && ipd.includes("tx.clinicalNote.updateMany") && ipd.includes("tx.patient.updateMany"), "Final note signature and patient discharge happen atomically");
 ok(ipd.includes("patient acknowledgement must be recorded"), "Server enforces patient acknowledgement before submit and final discharge");

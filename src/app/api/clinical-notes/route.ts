@@ -37,6 +37,12 @@ function publicNote(n: any) {
     updatedAt: n.updatedAt?.toISOString?.() || n.updatedAt,
     author: n.author ? { id: n.author.id, name: n.author.name, email: n.author.email } : null,
     verifier: n.verifier ? { id: n.verifier.id, name: n.verifier.name, email: n.verifier.email } : null,
+    versions: Array.isArray(n.versions) ? n.versions.map((v: any) => ({
+      id: v.id, version: v.version, title: v.title, noteType: v.noteType, content: v.content,
+      contentHash: v.contentHash, event: v.event,
+      createdAt: v.createdAt?.toISOString?.() || v.createdAt,
+      createdBy: v.createdBy ? { id: v.createdBy.id, name: v.createdBy.name, email: v.createdBy.email } : null,
+    })) : [],
   };
 }
 
@@ -61,6 +67,7 @@ export async function GET(req: Request) {
     include: {
       author: { select: { id: true, name: true, email: true } },
       verifier: { select: { id: true, name: true, email: true } },
+      versions: { orderBy: { version: "asc" }, include: { createdBy: { select: { id: true, name: true, email: true } } } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -104,25 +111,25 @@ export async function POST(req: Request) {
     const status = submit ? "PENDING_VERIFICATION" : "DRAFT";
     const now = new Date();
 
-    const note = await prisma.clinicalNote.create({
-      data: {
-        clinicId: membership.clinicId,
-        patientId,
-        encounterId,
-        authorDoctorId: session.doctorId,
-        authorRole: membership.role,
-        noteType,
-        title,
-        content,
-        status,
-        version,
-        contentHash,
-        submittedAt: submit ? now : null,
-      },
-      include: {
-        author: { select: { id: true, name: true, email: true } },
-        verifier: { select: { id: true, name: true, email: true } },
-      },
+    const note = await prisma.$transaction(async (tx) => {
+      const created = await tx.clinicalNote.create({
+        data: {
+          clinicId: membership.clinicId, patientId, encounterId, authorDoctorId: session.doctorId,
+          authorRole: membership.role, noteType, title, content, status, version, contentHash,
+          submittedAt: submit ? now : null,
+        },
+        include: {
+          author: { select: { id: true, name: true, email: true } },
+          verifier: { select: { id: true, name: true, email: true } },
+        },
+      });
+      await tx.clinicalNoteVersion.create({ data: {
+        clinicalNoteId: created.id, clinicId: membership.clinicId, version,
+        title, noteType, content, contentHash,
+        event: submit ? "CREATED_AND_SUBMITTED" : "CREATED_DRAFT",
+        createdByDoctorId: session.doctorId, createdAt: now,
+      } });
+      return created;
     });
 
     await writeAudit({
@@ -172,10 +179,25 @@ export async function PATCH(req: Request) {
 
       const nextVersion = current.version + 1;
       const contentHash = hashClinicalNote(content, nextVersion);
-      const updated = await prisma.clinicalNote.updateMany({
-        where: { id, clinicId: membership.clinicId, status: "DRAFT", version: current.version, authorDoctorId: session.doctorId },
-        data: { content, title, noteType, version: nextVersion, contentHash },
-      });
+      const savedAt = new Date();
+      const updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.clinicalNote.updateMany({
+          where: { id, clinicId: membership.clinicId, status: "DRAFT", version: current.version, authorDoctorId: session.doctorId },
+          data: { content, title, noteType, version: nextVersion, contentHash },
+        });
+        if (result.count !== 1) return result;
+        await tx.clinicalNoteVersion.create({ data: {
+          clinicalNoteId: id, clinicId: membership.clinicId, version: nextVersion,
+          title, noteType, content, contentHash, event: "DRAFT_SAVED",
+          createdByDoctorId: session.doctorId, createdAt: savedAt,
+        } });
+        await tx.auditLog.create({ data: {
+          doctorId: session.doctorId, action: "CLINICAL_NOTE_VERSION_SAVED", entity: "ClinicalNote", entityId: id,
+          meta: JSON.stringify({ clinicId: membership.clinicId, patientId: current.patientId, previousVersion: current.version,
+            version: nextVersion, previousContentHash: current.contentHash, contentHash, at: savedAt.toISOString() }),
+        } });
+        return result;
+      }, { isolationLevel: "Serializable" });
       if (updated.count !== 1) return NextResponse.json({ success: false, error: "Draft changed concurrently; reload and try again." }, { status: 409 });
       return NextResponse.json({ success: true, version: nextVersion, contentHash });
     }
