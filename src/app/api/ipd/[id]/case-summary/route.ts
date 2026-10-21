@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
-import { cleanPatientNotes, parsePatientProfile } from "@/lib/patient-metadata";
+import { cleanPatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 import { writeAudit } from "@/lib/audit";
 import { authBucketKey, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { generateLongitudinalCaseSummary, type LongitudinalCaseSummaryEvent, type LongitudinalCaseSummaryDay } from "@/lib/clinical-ai";
@@ -115,6 +115,9 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   try {
     const patient = await findAuthorizedPatient(membership, patientId);
     if (!patient) return fail("Patient was not found in the selected clinic.", 404);
+    if (parseCareSetting(patient.notes || "") !== "IPD") {
+      return fail("Longitudinal inpatient case summaries are available only for patients registered for IPD care.", 409);
+    }
 
     const profile = parsePatientProfile(patient.notes || "") as Record<string, any>;
     const doctorIds = (await prisma.clinicMember.findMany({
