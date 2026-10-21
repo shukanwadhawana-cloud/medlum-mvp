@@ -13,7 +13,6 @@ import {
   getStorageProvider,
   storageQuotaBytes,
 } from "@/lib/storage";
-import { extractLabOcrDraft } from "@/lib/lab-ocr";
 
 async function clinicIdFor(doctorId: string) {
   const m = await requireActiveClinicMembership(doctorId);
@@ -50,6 +49,7 @@ export async function GET(req: Request) {
       sizeBytes: true,
       checksum: true,
       ocrStatus: true,
+      storageProvider: true,
       ocrDraft: true,
       verifiedAt: true,
       createdAt: true,
@@ -57,17 +57,19 @@ export async function GET(req: Request) {
     },
   });
 
-  const usage = await prisma.medicalDocument.aggregate({
-    where: { clinicId, deletedAt: null },
-    _sum: { sizeBytes: true },
-    _count: true,
-  });
+  const provider = getStorageProvider();
+  const [usage, documentCount] = await Promise.all([
+    provider.name === "database"
+      ? prisma.storedBinaryObject.aggregate({ where: { clinicId }, _sum: { sizeBytes: true } })
+      : prisma.medicalDocument.aggregate({ where: { clinicId, deletedAt: null }, _sum: { sizeBytes: true } }),
+    prisma.medicalDocument.count({ where: { clinicId, deletedAt: null } }),
+  ]);
 
   return NextResponse.json({
     documents: docs,
     storage: {
       usedBytes: usage._sum.sizeBytes || 0,
-      fileCount: usage._count,
+      fileCount: documentCount,
       quotaBytes: storageQuotaBytes(),
     },
   });
@@ -98,81 +100,105 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Lab order not found" }, { status: 404 });
     }
 
-    const mimeType = (file.type || "").toLowerCase();
-    const normalizedMime = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
-    if (!ALLOWED_MIME.has(normalizedMime) && !ALLOWED_MIME.has(mimeType)) {
-      return NextResponse.json(
-        { success: false, error: "Unsupported file type. Allowed: PDF, JPG, PNG" },
-        { status: 400 }
-      );
-    }
     if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
-        { success: false, error: `File size must be 1 byte–${MAX_UPLOAD_BYTES} bytes` },
-        { status: 400 }
+        { success: false, error: `File size must be 1 byte–${MAX_UPLOAD_BYTES} bytes. Clinical Assist supports reports up to 8 MB.` },
+        { status: 413 }
       );
     }
 
     const buf = Buffer.from(await file.arrayBuffer());
+    const suppliedMime = String(file.type || "").toLowerCase().trim();
+    const signatureMime =
+      buf.subarray(0, 5).toString("ascii") === "%PDF-" ? "application/pdf" :
+      buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff ? "image/jpeg" :
+      buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ? "image/png" :
+      "";
+    const extensionMime = /\.pdf$/i.test(file.name) ? "application/pdf" :
+      /\.jpe?g$/i.test(file.name) ? "image/jpeg" :
+      /\.png$/i.test(file.name) ? "image/png" : "";
+    const normalizedMime = signatureMime || (suppliedMime === "image/jpg" ? "image/jpeg" : suppliedMime) || extensionMime;
+    if (!ALLOWED_MIME.has(normalizedMime)) {
+      return NextResponse.json(
+        { success: false, error: "Unsupported or unreadable file type. Upload a valid PDF, JPG/JPEG, or PNG report." },
+        { status: 400 }
+      );
+    }
     const checksum = createHash("sha256").update(buf).digest("hex");
+
+    const provider = getStorageProvider();
+    if (provider.name === "processed") {
+      return NextResponse.json({
+        success: false,
+        code: "DURABLE_STORAGE_REQUIRED",
+        error: "This storage mode does not retain report files. Configure R2 or use the durable database storage fallback before uploading clinical documents.",
+      }, { status: 503 });
+    }
 
     const existing = await prisma.medicalDocument.findFirst({
       where: { clinicId, labOrderId, checksum, deletedAt: null },
     });
     if (existing) {
-      // A checksum duplicate with FAILED OCR is a retry opportunity, not a dead end.
-      // Reuse the bytes the clinician just supplied; never create a second document.
-      if (existing.ocrStatus === "FAILED") {
-        let assist;
-        try {
-          assist = await extractLabOcrDraft(buf, normalizedMime || mimeType);
-        } catch {
-          assist = {
-            status: "FAILED" as const,
-            draft: {},
-            rawTextPreview: "",
-            message: "Extraction retry failed. The report remains unverified; try a clearer copy or enter the result manually.",
-            warnings: [],
-          };
-        }
-        const retryStatus = assist.status === "DRAFT" ? "DRAFT" : "FAILED";
-        const retryDraft = JSON.stringify({
-          candidates: assist.draft,
-          rawTextPreview: assist.rawTextPreview,
-          warnings: assist.warnings || [],
-          message: assist.message,
-          machineExtracted: true,
-          verified: false,
-          retryAttemptedAt: new Date().toISOString(),
-        });
-        const updated = await prisma.medicalDocument.update({
+      // Re-upload the exact original to restore binaries for older metadata-only
+      // records, without creating a duplicate document or modifying verified values.
+      const stored = await provider.getObject(existing.storageKey);
+      if (!stored) await provider.upload(existing.storageKey, buf, normalizedMime);
+
+      let updated = existing;
+      if (existing.ocrStatus === "NONE") {
+        updated = await prisma.medicalDocument.update({
           where: { id: existing.id },
-          data: { ocrStatus: retryStatus, ocrDraft: retryDraft, ocrExtractedAt: new Date() },
+          data: {
+            storageProvider: provider.name,
+            ocrStatus: "PENDING",
+            ocrDraft: JSON.stringify({
+              candidates: {},
+              rawTextPreview: "",
+              warnings: [],
+              message: "The original report is saved. Clinical Assist will extract an editable draft on this device.",
+              machineExtracted: false,
+              verified: false,
+            }),
+            ocrExtractedAt: null,
+          },
         });
-        await writeAudit({
-          doctorId: session.doctorId,
-          action: "LAB_DOCUMENT_OCR_RETRY",
-          entity: "MedicalDocument",
-          entityId: existing.id,
-          meta: { clinicId, labOrderId, patientId, ocrStatus: retryStatus, source: "duplicate-upload" },
-        });
-        return NextResponse.json({
-          success: true,
-          document: updated,
-          deduplicated: true,
-          retried: true,
-          ocr: { status: retryStatus, message: assist.message, verified: false },
+      } else if (existing.storageProvider !== provider.name) {
+        updated = await prisma.medicalDocument.update({
+          where: { id: existing.id },
+          data: { storageProvider: provider.name },
         });
       }
-      return NextResponse.json({ success: true, document: existing, deduplicated: true });
+
+      const needsClientExtraction = ["PENDING", "FAILED"].includes(updated.ocrStatus);
+      if (needsClientExtraction) {
+        await writeAudit({
+          doctorId: session.doctorId,
+          action: "LAB_DOCUMENT_OCR_RETRY_QUEUED",
+          entity: "MedicalDocument",
+          entityId: existing.id,
+          meta: { clinicId, labOrderId, patientId, source: "duplicate-upload", extractionMethod: "clinical-assist-on-device" },
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        document: updated,
+        deduplicated: true,
+        needsClientExtraction,
+        ocr: {
+          status: updated.ocrStatus,
+          message: needsClientExtraction
+            ? "The original report is saved. Clinical Assist will extract an editable draft on this device."
+            : "This report already exists. Its current extraction status and draft have been loaded.",
+          verified: updated.ocrStatus === "VERIFIED",
+        },
+      });
     }
 
     // Only genuinely new documents consume quota; retries of duplicates must still work at quota.
-    const usage = await prisma.medicalDocument.aggregate({
-      where: { clinicId, deletedAt: null },
-      _sum: { sizeBytes: true },
-    });
-    const used = usage._sum.sizeBytes || 0;
+    const usedUsage = provider.name === "database"
+      ? await prisma.storedBinaryObject.aggregate({ where: { clinicId }, _sum: { sizeBytes: true } })
+      : await prisma.medicalDocument.aggregate({ where: { clinicId, deletedAt: null }, _sum: { sizeBytes: true } });
+    const used = usedUsage._sum.sizeBytes || 0;
     const quota = storageQuotaBytes();
     if (used + file.size > quota) {
       return NextResponse.json(
@@ -189,80 +215,72 @@ export async function POST(req: Request) {
     const ext =
       normalizedMime.includes("pdf") ? "pdf" : normalizedMime.includes("png") ? "png" : "jpg";
     const storageKey = buildStorageKey(clinicId, patientId, labOrderId, documentId, ext);
-    const provider = getStorageProvider();
-    await provider.upload(storageKey, buf, normalizedMime || mimeType);
-
-    let ocrStatus = "NONE";
-    let ocrDraft = "";
-    let ocrExtractedAt: Date | null = null;
-    let ocrMessage = "";
+    await provider.upload(storageKey, buf, normalizedMime);
+    const ocrMessage = "Report uploaded and stored. Clinical Assist will extract an editable draft in your browser; no clinical result is written until a clinician verifies it.";
+    let doc;
     try {
-      const assist = await extractLabOcrDraft(buf, normalizedMime || mimeType);
-      ocrStatus = assist.status === "DRAFT" ? "DRAFT" : "FAILED";
-      ocrDraft = JSON.stringify({
-        candidates: assist.draft,
-        rawTextPreview: assist.rawTextPreview,
-        warnings: (assist as { warnings?: string[] }).warnings || [],
-        message: assist.message,
-        machineExtracted: true,
-        verified: false,
+      doc = await prisma.medicalDocument.create({
+        data: {
+          id: documentId,
+          clinicId,
+          patientId,
+          labOrderId,
+          encounterId: order.encounterId,
+          storageProvider: provider.name,
+          storageKey,
+          originalFileName: file.name.slice(0, 200),
+          mimeType: normalizedMime,
+          sizeBytes: buf.length,
+          checksum,
+          uploadedBy: session.doctorId,
+          ocrStatus: "PENDING",
+          ocrDraft: JSON.stringify({
+            candidates: {},
+            rawTextPreview: "",
+            warnings: [],
+            message: ocrMessage,
+            machineExtracted: false,
+            verified: false,
+            extractionMethod: "clinical-assist-on-device",
+          }),
+          ocrExtractedAt: null,
+        },
       });
-      ocrExtractedAt = new Date();
-      ocrMessage = assist.message;
-    } catch {
-      ocrStatus = "FAILED";
-      ocrDraft = JSON.stringify({ candidates: {}, warnings: [], message: ocrMessage, machineExtracted: true, verified: false });
-      ocrMessage = "OCR processing failed. The report was not converted into clinical truth; diagnostic status is retained for investigation.";
+    } catch (error) {
+      // Best-effort cleanup if metadata creation fails after the file was stored.
+      await provider.delete(storageKey).catch(() => {});
+      throw error;
     }
-
-    const doc = await prisma.medicalDocument.create({
-      data: {
-        id: documentId,
-        clinicId,
-        patientId,
-        labOrderId,
-        encounterId: order.encounterId,
-        storageProvider: provider.name,
-        storageKey,
-        originalFileName: file.name.slice(0, 200),
-        mimeType: normalizedMime || mimeType,
-        sizeBytes: buf.length,
-        checksum,
-        uploadedBy: session.doctorId,
-        ocrStatus,
-        ocrDraft,
-        ocrExtractedAt,
-      },
-    });
 
     await writeAudit({
       doctorId: session.doctorId,
       action: "LAB_DOCUMENT_UPLOADED",
       entity: "MedicalDocument",
       entityId: doc.id,
-      meta: { clinicId, labOrderId, patientId, sizeBytes: buf.length, mimeType: doc.mimeType, ocrStatus, storageProvider: provider.name },
+      meta: { clinicId, labOrderId, patientId, sizeBytes: buf.length, mimeType: doc.mimeType, ocrStatus: "PENDING", storageProvider: provider.name },
     });
-    if (ocrStatus === "DRAFT" || ocrStatus === "FAILED") {
-      await writeAudit({
-        doctorId: session.doctorId,
-        action: "LAB_DOCUMENT_OCR",
-        entity: "MedicalDocument",
-        entityId: doc.id,
-        meta: { clinicId, ocrStatus },
-      });
-    }
+    await writeAudit({
+      doctorId: session.doctorId,
+      action: "LAB_DOCUMENT_OCR_QUEUED",
+      entity: "MedicalDocument",
+      entityId: doc.id,
+      meta: { clinicId, labOrderId, patientId, ocrStatus: "PENDING", extractionMethod: "clinical-assist-on-device" },
+    });
 
     return NextResponse.json({
       success: true,
       document: doc,
       deduplicated: false,
-      ocr: { status: ocrStatus, message: ocrMessage, verified: false },
+      needsClientExtraction: true,
+      ocr: { status: "PENDING", message: ocrMessage, verified: false },
     });
   } catch (e) {
-    console.error("lab document upload", e instanceof Error ? e.message : e);
+    const message = e instanceof Error ? e.message : "Upload failed";
+    console.error("lab document upload", message);
+    const quotaExceeded = /quota exceeded/i.test(message);
     return NextResponse.json(
-      { success: false, error: e instanceof Error ? e.message : "Upload failed" },
-      { status: 500 }
+      { success: false, error: message },
+      { status: quotaExceeded ? 413 : 500 }
     );
   }
 }

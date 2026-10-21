@@ -109,7 +109,11 @@ async function clientPdfTextLayer(file: File): Promise<ScanResult | null> {
       if (line.trim()) parts.push(line.trim());
     }
     const text = parts.join("\n").trim();
-    if (text.length < 20) return null;
+    // Some scanned PDFs include a selectable footer/watermark but no usable
+    // report text. Only trust the PDF text layer as the first pass when it
+    // contains plausible analyte labels; otherwise rasterize pages for OCR.
+    const looksLikeLabReport = /\b(?:hemoglobin|haemoglobin|hgb|hb|total wbc|wbc|tlc|platelets?|rbc|creatinine|urea|sodium|potassium|chloride|glucose|hba1c|bilirubin|sgot|sgpt|alt|ast|alkaline phosphatase|tsh|ferritin|vitamin d|crp|esr|pt\s*\/\s*inr|prothrombin time|international normalized ratio|inr|aptt|ptt|fibrinogen|d-dimer|troponin|calcium|albumin|triglycerides?|cholesterol|urine protein|urine glucose)\b/i.test(text);
+    if (text.length < 20 || !looksLikeLabReport) return null;
     return { text: text.slice(0, 20_000), confidence: null, label: "pdf-text (on-device)", partial: doc.numPages > maxPages };
   } catch {
     return null;

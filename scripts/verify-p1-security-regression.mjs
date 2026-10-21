@@ -50,9 +50,13 @@ ok(storage.includes("STORAGE_PROVIDER=r2"), "production storage is fail-closed w
 ok(storage.includes("isServerlessRuntime"), "serverless local storage is blocked");
 
 const ocr = read("src/app/api/labs/documents/[id]/ocr/route.ts");
-ok(ocr.includes("ocrDraft"), "OCR writes draft output");
-ok(!ocr.includes("diagnosis"), "OCR route does not finalize diagnosis");
-ok(!ocr.includes("prescription"), "OCR route does not finalize prescription");
+ok(ocr.includes("CLIENT_EXTRACTION_REQUIRED") && !ocr.includes("extractLabOcrDraft"), "legacy server OCR route defers to browser Clinical Assist");
+ok(!ocr.includes("diagnosis"), "legacy OCR route does not finalize diagnosis");
+ok(!ocr.includes("prescription"), "legacy OCR route does not finalize prescription");
+const clinicalAssistOcr = read("src/app/api/labs/documents/[id]/clinical-assist/route.ts");
+ok(clinicalAssistOcr.includes("ocrDraft") && clinicalAssistOcr.includes("verified: false"), "Clinical Assist stores an unverified OCR draft");
+ok(!clinicalAssistOcr.includes("diagnosis"), "Clinical Assist extraction does not finalize diagnosis");
+ok(!clinicalAssistOcr.includes("prescription"), "Clinical Assist extraction does not finalize prescription");
 
 // Clinical AI assist hardening
 const aiDraft = read("src/app/api/clinical-ai/draft/route.ts");

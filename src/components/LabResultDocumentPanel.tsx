@@ -10,6 +10,7 @@ type Doc = {
   mimeType?: string;
   sizeBytes?: number;
   checksum?: string;
+  storageProvider?: string;
   ocrDraft?: string | null;
   verifiedAt?: string | null;
 };
@@ -76,24 +77,25 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const [assistSourceFile, setAssistSourceFile] = useState<File | null>(null);
   const [manualResult, setManualResult] = useState("");
 
-  async function load() {
+  async function load(preferredDocumentId?: string) {
     try {
       const res = await fetch(`/api/labs/documents?labOrderId=${encodeURIComponent(labOrderId)}`, {
         credentials: "include",
+        cache: "no-store",
       });
       const data = await res.json();
       const next = (data.documents || []) as Doc[];
       setDocs(next);
-      const latest = next[0];
-      if (latest) {
-        let rawText = "";
-        try { rawText = String(JSON.parse(latest.ocrDraft || "{}").rawTextPreview || ""); } catch { /* legacy draft format */ }
-        // Populate the retained OCR output on initial load. Keep staff edits when
-        // refreshing the same document, unless the draft text was still empty.
-        if (selectedDoc?.id !== latest.id) setManualResult(rawText);
+      // Keep the selected document stable. In particular, retrying an older
+      // checksum-deduplicated report must not silently switch to the newest row.
+      const wantedId = preferredDocumentId || selectedDoc?.id;
+      const chosen = next.find((item) => item.id === wantedId) || next[0];
+      if (chosen) {
+        const rawText = rawTextFrom(chosen);
+        if (selectedDoc?.id !== chosen.id) setManualResult(rawText);
         else setManualResult((current) => current.trim() ? current : rawText);
-        setSelectedDoc(latest);
-        setValues(candidatesFrom(latest));
+        setSelectedDoc(chosen);
+        setValues(candidatesFrom(chosen));
       }
     } catch {
       setDocs([]);
@@ -108,6 +110,11 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     setPhase("uploading");
     setError("");
     setMessage("");
+    if (file.size <= 0 || file.size > 8 * 1024 * 1024) {
+      setPhase("failed");
+      setError("Choose a non-empty PDF, JPG, or PNG up to 8 MB. Larger files cannot be processed reliably by on-device Clinical Assist.");
+      return;
+    }
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -120,110 +127,108 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
         body: fd,
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) throw new Error(data.error || "Upload failed");
+      if (!res.ok || !data.success) throw new Error(data.error || `Upload failed (HTTP ${res.status}).`);
 
       const doc = data.document as Doc;
       setSelectedDoc(doc);
-      // Keep the exact selected bytes in memory for local OCR: processed storage
-      // deliberately retains metadata/drafts, not the original binary.
+      // Retain the exact bytes for immediate browser OCR and checksum binding.
+      // The server has already stored the same original durably before returning.
       setAssistSourceFile(file);
-      const nextValues = candidatesFrom(doc);
-      setValues(nextValues);
-      setManualResult(String(data.document?.ocrDraft || "").includes("rawTextPreview")
-        ? (() => {
-            try { return String(JSON.parse(data.document.ocrDraft).rawTextPreview || ""); } catch { return ""; }
-          })()
-        : "");
-      setMessage(
-        data.retried
-          ? data.ocr?.status === "DRAFT"
-            ? "This report already existed. Extraction was retried and a draft is ready for clinician review."
-            : "This report already existed. The retry did not produce a structured draft; review the retained text or enter the result manually."
-          : data.deduplicated
-            ? "Report already exists. Its current extraction status and draft have been loaded."
-            : data.ocr?.status === "DRAFT"
-              ? "Report uploaded. OCR draft is ready for human verification."
-              : "Report uploaded, but OCR did not produce a usable structured draft. Review retained text or enter the result manually; no clinical result was written."
-      );
+      setValues(candidatesFrom(doc));
+      setManualResult(rawTextFrom(doc));
       setPhase("ready");
-      await load();
+      setMessage(
+        data.deduplicated
+          ? data.needsClientExtraction
+            ? "This report already existed. Its original file is available; Clinical Assist is retrying extraction without creating a duplicate."
+            : "Report already exists. Its current extraction and verification state has been loaded."
+          : "Report uploaded and stored. Clinical Assist is now extracting an editable draft on this device."
+      );
+      await load(doc.id);
+
+      // OCR does not run inside the upload API anymore. This prevents native
+      // WASM initialization failures and 300-second serverless timeouts from
+      // turning a successful file upload into an apparent upload failure.
+      if (data.needsClientExtraction || ["PENDING", "FAILED"].includes(String(doc.ocrStatus))) {
+        await extractWithClinicalAssist(file, doc);
+      }
     } catch (e: any) {
       setPhase("failed");
-      setError(e?.message || "Upload failed");
+      setError(e?.message || "Upload failed. The original report was not confirmed as saved.");
     }
   }
 
   async function retryExtraction() {
-    if (!selectedDoc || retrying || verifying) return;
+    if (!selectedDoc || retrying || verifying || clinicalAssistRunning) return;
     setRetrying(true);
     setError("");
     setMessage("");
     try {
-      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/retry`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "X-MedLum-Requested-With": "MedLum" },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        if (data.code === "ORIGINAL_FILE_UNAVAILABLE") {
-          // The zero-cost processed provider does not persist binaries on serverless hosts.
-          // Re-uploading the same file re-runs OCR against the supplied bytes and deduplicates.
-          setMessage("This hosting mode does not retain the original file. Choose the same report above to rerun Clinical Assist; MedLum will reuse the saved report instead of creating a duplicate.");
-          return;
-        }
-        throw new Error(data.error || "Could not retry extraction");
-      }
-      const doc = data.document as Doc;
-      setSelectedDoc(doc);
-      setValues(candidatesFrom(doc));
-      let rawText = "";
-      try { rawText = String(JSON.parse(doc.ocrDraft || "{}").rawTextPreview || ""); } catch { /* keep empty */ }
-      setManualResult(rawText);
-      setMessage(data.ocr?.status === "DRAFT"
-        ? "Extraction retry succeeded. Review every value before accepting or correcting it."
-        : "Extraction retry finished, but no structured draft was produced. You can re-upload the same report or enter/correct the result manually.");
-      await load();
-    } catch (e: any) {
-      setError(e?.message || "Could not retry extraction");
+      // Always retry in the browser; server-side Tesseract has been timing out
+      // on Vercel and is not part of the upload request anymore.
+      await extractWithClinicalAssist(assistSourceFile || undefined, selectedDoc, true);
     } finally {
       setRetrying(false);
     }
   }
 
-  async function extractWithClinicalAssist(chosenFile?: File) {
-    if (!selectedDoc || clinicalAssistRunning || verifying || retrying) return;
+  async function extractWithClinicalAssist(chosenFile?: File, documentOverride?: Doc, allowWhileRetrying = false, restoreDurability = false) {
+    const targetDoc = documentOverride || selectedDoc;
+    if (!targetDoc || clinicalAssistRunning || verifying || (retrying && !allowWhileRetrying)) return;
     setClinicalAssistRunning(true);
     setClinicalAssistProgress("Loading and validating the original report…");
     setError("");
     setMessage("");
     try {
-      // Use the exact file from the current upload when available. The zero-cost
-      // processed provider intentionally does not retain original report bytes.
       let originalFile = chosenFile || assistSourceFile;
       if (!originalFile) {
-        const source = await fetch(`/api/labs/documents/${selectedDoc.id}/view?raw=1`, {
+        const source = await fetch(`/api/labs/documents/${targetDoc.id}/view?raw=1`, {
           credentials: "include",
           cache: "no-store",
         });
         if (!source.ok) {
-          throw new Error("This hosting configuration did not retain the original file. Choose the exact same report file below; its checksum will be validated before OCR.");
+          throw new Error("The saved report bytes are unavailable. Choose the exact original report file; MedLum will validate its checksum before extraction.");
         }
         const blob = await source.blob();
         originalFile = new File(
           [blob],
-          selectedDoc.originalFileName || "lab-report",
-          { type: selectedDoc.mimeType || blob.type || "application/octet-stream" }
+          targetDoc.originalFileName || "lab-report",
+          { type: targetDoc.mimeType || blob.type || "application/octet-stream" }
         );
       }
 
+      if (originalFile.size <= 0 || originalFile.size > 8 * 1024 * 1024) {
+        throw new Error("Clinical Assist supports report files up to 8 MB. Choose a smaller PDF or image.");
+      }
       // Prevent text from another report being associated with this patient's lab order.
-      if (!selectedDoc.checksum) {
+      if (!targetDoc.checksum) {
         throw new Error("The saved document checksum is unavailable. Reload the lab panel before attempting extraction.");
       }
       const suppliedChecksum = await sha256Hex(originalFile);
-      if (suppliedChecksum.toLowerCase() !== selectedDoc.checksum.toLowerCase()) {
+      if (suppliedChecksum.toLowerCase() !== targetDoc.checksum.toLowerCase()) {
         throw new Error("This file does not exactly match the saved report. Select the original file that was uploaded for this lab order.");
+      }
+      // Some older records were saved by the historical metadata-only
+      // provider. Re-upload the exact selected bytes through the idempotent
+      // upload API so the original becomes durable before extracting it.
+      if (restoreDurability || !targetDoc.storageProvider || ["processed", "local"].includes(targetDoc.storageProvider)) {
+        setClinicalAssistProgress("Restoring the original report to durable storage…");
+        const fd = new FormData();
+        fd.append("file", originalFile);
+        fd.append("labOrderId", labOrderId);
+        fd.append("patientId", patientId);
+        const restore = await fetch("/api/labs/documents", {
+          method: "POST",
+          credentials: "include",
+          headers: { "X-MedLum-Requested-With": "MedLum" },
+          body: fd,
+        });
+        const restored = await restore.json().catch(() => ({}));
+        if (!restore.ok || !restored.success || restored.document?.id !== targetDoc.id) {
+          throw new Error(restored.error || "The original report could not be restored to durable storage.");
+        }
+        setSelectedDoc(restored.document as Doc);
+        await load(targetDoc.id);
       }
       setAssistSourceFile(originalFile);
 
@@ -239,7 +244,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       }
 
       setClinicalAssistProgress("Structuring candidate lab values…");
-      const res = await fetch(`/api/labs/documents/${selectedDoc.id}/clinical-assist`, {
+      const res = await fetch(`/api/labs/documents/${targetDoc.id}/clinical-assist`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -256,9 +261,9 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       setManualResult(rawTextFrom(doc));
       setMessage(data.ocr?.message || "Clinical Assist finished. Review every value against the original report.");
       setClinicalAssistProgress("");
-      await load();
+      await load(doc.id);
     } catch (e: any) {
-      setError(e?.message || "Clinical Assist extraction failed. You can still retry server OCR or enter findings manually.");
+      setError(e?.message || "Clinical Assist extraction failed. The report remains saved; retry extraction or enter the result manually.");
       setClinicalAssistProgress("");
     } finally {
       setClinicalAssistRunning(false);
@@ -303,7 +308,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const candidateEntries = useMemo(() => Object.entries(values), [values]);
   const selectedStatus = selectedDoc?.ocrStatus || "NONE";
   const canVerify = selectedStatus === "DRAFT" && !verifying;
-  const canManualVerify = selectedStatus === "FAILED" && !verifying && manualResult.trim().length > 0;
+  const canManualVerify = ["FAILED", "PENDING"].includes(selectedStatus) && !verifying && manualResult.trim().length > 0;
 
   return (
     <div className="space-y-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
@@ -340,7 +345,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               </p>
             </div>
             <span className="rounded border bg-gray-50 px-2 py-1 text-[10px] font-medium">
-              {selectedStatus}
+              {selectedStatus === "PENDING" ? "Extraction pending" : selectedStatus}
             </span>
           </div>
 
@@ -398,7 +403,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
             </div>
           )}
 
-          {selectedStatus === "FAILED" && (
+          {["FAILED", "PENDING"].includes(selectedStatus) && (
             <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
               <div className="rounded-lg border border-emerald-200 bg-white p-3 space-y-2">
                 <p className="text-[11px] font-semibold text-emerald-900">Extract with Clinical Assist on this device</p>
@@ -423,22 +428,24 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                     onChange={(event) => {
                       const f = event.currentTarget.files?.[0];
                       event.currentTarget.value = "";
-                      if (f) void extractWithClinicalAssist(f);
+                      if (f) void extractWithClinicalAssist(f, undefined, false, true);
                     }}
                   />
                 </label>
                 <p className="text-[10px] text-gray-500">
-                  This hosting mode may not retain original file bytes. Re-select the exact same file; MedLum checks its SHA-256 before extracting.
+                  The original report is stored with this document. If it cannot be retrieved, re-select the exact same file; MedLum checks its SHA-256 before extracting.
                 </p>
                 {clinicalAssistRunning && clinicalAssistProgress && (
                   <p className="text-[10px] text-emerald-800" role="status">{clinicalAssistProgress}</p>
                 )}
               </div>
               <p className="text-[11px] font-semibold text-amber-900">
-                Clinical Assist could not create a structured draft
+                {selectedStatus === "PENDING" ? "Clinical Assist extraction is pending" : "Clinical Assist could not create a structured draft"}
               </p>
               <p className="text-[10px] text-amber-800">
-                MedLum will retry the saved report using the enhanced Clinical Assist OCR path, including image preprocessing and alternate recognition settings. Extracted text stays a draft and must be checked against the original before verification.
+                {selectedStatus === "PENDING"
+                  ? "The report is saved. Run Clinical Assist on this device to extract candidate values; OCR is a draft only and must be checked against the source before verification."
+                  : "Retry on-device Clinical Assist with image preprocessing and alternate recognition settings. Extracted text stays a draft and must be checked against the original before verification."}
               </p>
               {(() => {
                 let diagnostic = "";

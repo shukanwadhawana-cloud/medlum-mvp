@@ -81,8 +81,8 @@ jobs:
         run: npm run test:telegram-otp
       - name: Verify secure password reset and staff recovery
         run: npm run test:password-reset
-      - name: Verify lab document extraction and retry safety
-        run: npm run test:document-intelligence
+      - name: Verify lab document upload, extraction and retry safety
+        run: npm run test:document-intelligence && npm run test:lab-ocr-behavior
       - name: Verify multi-tenant isolation (static)
         run: npm run test:tenant-isolation
       - name: Verify P1 closure (static)
@@ -254,13 +254,14 @@ jobs:
           set -euo pipefail
           createdb -h 127.0.0.1 -U p1 migrationhistorytest
 
-          # Build an isolated schema and baseline all repository migrations except the
-          # new forward reconcile migration. This test is restricted to localhost CI.
+          # Build an isolated baseline, then leave both forward migrations pending
+          # so startup must apply them through the real Render migration entrypoint.
           npx prisma db push --skip-generate
+          psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -c 'DROP TABLE IF EXISTS "StoredBinaryObject";'
           for dir in prisma/migrations/*; do
             [ -d "$dir" ] || continue
             migration_name="$(basename "$dir")"
-            if [ "$migration_name" = "20261020180000_reconcile_pharmacy_clinic_scope" ]; then
+            if [ "$migration_name" = "20261020180000_reconcile_pharmacy_clinic_scope" ] || [ "$migration_name" = "20261021150000_durable_lab_report_storage" ]; then
               continue
             fi
             npx prisma migrate resolve --applied "$migration_name"
@@ -328,9 +329,13 @@ jobs:
           set -euo pipefail
           orphan_count="$(psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE \"migration_name\"='20260923100000_pharmacy_clinic_scope' AND \"finished_at\" IS NOT NULL;")"
           forward_count="$(psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE \"migration_name\"='20261020180000_reconcile_pharmacy_clinic_scope' AND \"finished_at\" IS NOT NULL;")"
+          binary_count="$(psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE \"migration_name\"='20261021150000_durable_lab_report_storage' AND \"finished_at\" IS NOT NULL;")"
+          binary_table="$(psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -Atc "SELECT to_regclass('public.\"StoredBinaryObject\"') IS NOT NULL;")"
           [ "$orphan_count" = "1" ] || { echo "Historical orphan row was not preserved" >&2; exit 1; }
           [ "$forward_count" = "1" ] || { echo "Forward reconcile migration did not finish" >&2; exit 1; }
-          echo "Render entrypoint successfully deployed the idempotent forward migration and preserved historical migration metadata."
+          [ "$binary_count" = "1" ] || { echo "Durable report storage migration did not finish" >&2; exit 1; }
+          [ "$binary_table" = "t" ] || { echo "StoredBinaryObject table is missing after migration deploy" >&2; exit 1; }
+          echo "Render entrypoint applied both pending forward migrations and preserved historical migration metadata."
       - name: P1 RBAC tenant isolation (Postgres)
         env:
           P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public

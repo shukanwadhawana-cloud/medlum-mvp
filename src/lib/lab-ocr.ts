@@ -58,6 +58,11 @@ const LAB_ALIASES: Record<string, string[]> = {
   CRP: ["crp", "c-reactive protein", "c reactive protein"],
   ESR: ["esr", "erythrocyte sedimentation rate"],
   "Procalcitonin": ["procalcitonin", "pct"],
+  "Prothrombin Time": ["prothrombin time", "prothrombin", "pt seconds", "pt sec", "pt/sec"],
+  INR: ["international normalized ratio", "inr"],
+  APTT: ["activated partial thromboplastin time", "partial thromboplastin time", "aptt", "ptt"],
+  Fibrinogen: ["fibrinogen"],
+  "Thrombin Time": ["thrombin time"],
   "D-Dimer": ["d-dimer", "d dimer", "ddimer"],
   Troponin: ["troponin", "hs-troponin", "hs troponin"],
   "NT-proBNP": ["nt-probnp", "nt probnp", "bnp"],
@@ -80,7 +85,7 @@ function escapeRegExp(value: string) {
 }
 
 const LAB_UNITS =
-  /(?:mg\/dL|g\/dL|g\/L|mmol\/L|µmol\/L|U\/L|IU\/L|mIU\/L|ng\/mL|pg\/mL|ng\/dL|mg\/L|mm\/hr|%|fL|pg|cells\/µL|\/hpf)/i;
+  /(?:mg\/dL|g\/dL|g\/L|mmol\/L|µmol\/L|U\/L|IU\/L|mIU\/L|ng\/mL|pg\/mL|ng\/dL|mg\/L|mm\/hr|seconds?|sec|%|fL|pg|cells\/µL|\/hpf)/i;
 
 function normalizeOcrLines(text: string): string[] {
   return text
@@ -112,10 +117,40 @@ function extractValueFromSegment(segment: string): string | null {
 export function extractCandidates(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = normalizeOcrLines(text);
+
+  // PT/INR reports sometimes print both analytes after one combined label.
+  // Only split the pair when two distinct result numbers are present; if only
+  // one is visible, retain it as a generic PT/INR candidate instead of guessing
+  // whether it represents PT or INR.
+  const combinedPtInrLabel = /\b(?:prothrombin time\s*\/\s*inr|pt\s*\/\s*inr|pt\s+inr)\b/i;
+  for (const line of lines) {
+    const label = combinedPtInrLabel.exec(line);
+    if (!label) continue;
+    const segment = line.slice(label.index + label[0].length);
+    const numbers: string[] = [];
+    const numeric = /([<>]?\d+(?:[.,]\d+)?)(?:\s*(seconds?|sec))?/ig;
+    for (const match of segment.matchAll(numeric)) {
+      const start = match.index ?? 0;
+      const value = match[1];
+      const before = segment[start - 1] ?? "";
+      const after = segment[start + value.length] ?? "";
+      if (before === "-" || after === "-") continue;
+      numbers.push(value.replace(",", ".") + (match[2] ? " " + match[2] : ""));
+    }
+    if (numbers.length >= 2) {
+      out["Prothrombin Time"] ??= numbers[0];
+      out.INR ??= numbers[1];
+    } else if (numbers.length === 1) {
+      out["PT/INR"] ??= numbers[0];
+    }
+  }
+
   for (const [canonical, aliases] of Object.entries(LAB_ALIASES)) {
     const orderedAliases = [...aliases].sort((a, b) => b.length - a.length);
     for (let i = 0; i < lines.length && !out[canonical]; i += 1) {
       const line = lines[i];
+      // Do not map the single number in a combined PT/INR row to INR alone.
+      if (combinedPtInrLabel.test(line) && (canonical === "INR" || canonical === "Prothrombin Time")) continue;
       for (const alias of orderedAliases) {
         const aliasRe = new RegExp(
           "(^|[^a-z0-9])" + escapeRegExp(alias) + "([^a-z0-9]|$)",

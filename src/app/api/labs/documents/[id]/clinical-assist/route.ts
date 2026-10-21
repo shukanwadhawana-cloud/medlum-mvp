@@ -29,8 +29,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     where: { id, clinicId: membership.clinicId, deletedAt: null },
   });
   if (!doc) return NextResponse.json({ success: false, error: "Document not found" }, { status: 404 });
-  if (doc.ocrStatus !== "FAILED") {
-    return NextResponse.json({ success: false, error: "Clinical Assist retry is available only for failed extraction documents." }, { status: 409 });
+  if (!["FAILED", "PENDING"].includes(doc.ocrStatus)) {
+    return NextResponse.json({ success: false, error: "Clinical Assist accepts only pending or failed extraction documents." }, { status: 409 });
   }
 
   let body: unknown;
@@ -75,7 +75,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     ...(!hasCandidates ? ["Readable text was extracted, but no supported lab-value labels could be mapped. Review the retained text and enter or correct results manually."] : []),
   ];
   const write = await prisma.medicalDocument.updateMany({
-    where: { id: doc.id, clinicId: membership.clinicId, deletedAt: null, ocrStatus: "FAILED" },
+    where: { id: doc.id, clinicId: membership.clinicId, deletedAt: null, ocrStatus: { in: ["FAILED", "PENDING"] } },
     data: {
       ocrStatus,
       ocrDraft: JSON.stringify({
