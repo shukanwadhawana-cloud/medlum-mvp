@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.medlum.app",
-  appName: "MedLum",
+  appName: "MedLum Health",
   webDir: "out",
   server: {
     url: process.env.CAPACITOR_SERVER_URL || undefined,
