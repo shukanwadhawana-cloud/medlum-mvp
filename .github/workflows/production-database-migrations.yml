@@ -75,13 +75,18 @@ jobs:
           fi
           echo "Approval gates passed for operation: $OPERATION"
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
       - name: Install pinned repository dependencies
         run: npm install --include=dev --ignore-scripts --no-audit --no-fund
 
       - name: Inspect production migration state
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-        run: npx prisma migrate status
+        run: bash scripts/verify-prisma-migration-state.sh
 
       - name: Apply pending migrations only when explicitly confirmed
         if: inputs.operation == 'deploy'
@@ -93,4 +98,4 @@ jobs:
         if: inputs.operation == 'deploy'
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-        run: npx prisma migrate status
+        run: bash scripts/verify-prisma-migration-state.sh --require-clean
