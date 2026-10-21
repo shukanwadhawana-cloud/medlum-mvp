@@ -21,7 +21,7 @@ for (const name of ["@capacitor/core", "@capacitor/android", "@capacitor/ios"]) 
 if (!pkg.devDependencies?.["@capacitor/cli"]) throw new Error("Missing @capacitor/cli");
 
 const config = fs.readFileSync(path.join(root, "capacitor.config.ts"), "utf8");
-for (const expected of ["com.medlum.app", "MedLum", 'webDir: "out"']) {
+for (const expected of ["com.medlum.app", "MedLum Health", 'webDir: "out"']) {
   if (!config.includes(expected)) throw new Error(`Capacitor config missing: ${expected}`);
 }
 
