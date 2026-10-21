@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { writeAudit } from "@/lib/audit";
-import { hashClinicalNote } from "@/lib/clinical-signing";
 
 const cancellable = new Set([
   "ClinicalNote","Encounter","Prescription","LabOrder","DiagnosticOrder",
@@ -26,78 +25,26 @@ export async function POST(req: Request) {
 
     const result = await prisma.$transaction(async tx => {
       if (entity === "ClinicalNote") {
-        const note = await tx.clinicalNote.findFirst({ where: { id, clinicId: membership.clinicId } });
-        if (!note) return { status: 404, body: { success: false, error: "Clinical note not found" } };
-        if (!["DRAFT", "PENDING_VERIFICATION"].includes(note.status)) {
-          return { status: 409, body: { success: false, error: "Only drafts or notes awaiting co-signature can be cancelled here. Signed/final notes must use an amendment workflow." } };
+        const note = await tx.clinicalNote.findFirst({ where:{ id, clinicId:membership.clinicId } });
+        if (!note) return { status:404, body:{success:false,error:"Clinical note not found"} };
+        const isUnsigned = note.status === "DRAFT" || note.status === "PENDING_VERIFICATION";
+        if (!isUnsigned) {
+          return {status:409,body:{success:false,error:"Only drafts or notes awaiting co-signature can be removed/cancelled here. Signed/final notes must use an amendment workflow."}};
         }
-        if (note.authorDoctorId !== session.doctorId) {
-          return { status: 403, body: { success: false, error: "Only the original author can cancel this unsigned note." } };
+        const actorIsAuthor = note.authorDoctorId === session.doctorId;
+        const actorCanManage = ["Owner", "Admin"].includes(String(membership.role || ""));
+        if (!actorIsAuthor && !actorCanManage) {
+          return {status:403,body:{success:false,error:"Only the original author or clinic Owner/Admin can remove/cancel an unsigned note"}};
         }
-        if (note.verifierDoctorId) {
-          return { status: 409, body: { success: false, error: "This note has a verifier and cannot be cancelled from this workflow." } };
+        if (note.status === "DRAFT") {
+          await tx.clinicalNote.delete({ where:{id} });
+          await tx.auditLog.create({data:{doctorId:session.doctorId,action:"DELETE_CANCELLED_DRAFT",entity,entityId:id,meta:JSON.stringify({clinicId:membership.clinicId,reason})}});
+          return {status:200,body:{success:true,deleted:true,status:"DELETED"}};
         }
-
-        // Keep the clinical content and its prior versions; cancellation is a
-        // new immutable event, not a hard delete.
-        const cancelledAt = new Date();
-        const cancelledVersion = note.version + 1;
-        const cancelledHash = hashClinicalNote(note.content, cancelledVersion);
-        const updated = await tx.clinicalNote.updateMany({
-          where: {
-            id,
-            clinicId: membership.clinicId,
-            authorDoctorId: session.doctorId,
-            verifierDoctorId: null,
-            status: note.status,
-            version: note.version,
-            contentHash: note.contentHash,
-          },
-          data: {
-            status: "CANCELLED",
-            version: cancelledVersion,
-            contentHash: cancelledHash,
-            finalHash: "",
-            verifiedAt: null,
-            finalizedAt: null,
-          },
-        });
-        if (updated.count !== 1) {
-          return { status: 409, body: { success: false, error: "This note changed concurrently; reload and try again." } };
-        }
-        await tx.clinicalNoteVersion.create({
-          data: {
-            clinicalNoteId: note.id,
-            clinicId: membership.clinicId,
-            version: cancelledVersion,
-            title: note.title,
-            noteType: note.noteType,
-            content: note.content,
-            contentHash: cancelledHash,
-            event: "CANCELLED_BY_AUTHOR",
-            createdByDoctorId: session.doctorId,
-            createdAt: cancelledAt,
-          },
-        });
-        await tx.auditLog.create({
-          data: {
-            doctorId: session.doctorId,
-            action: "CLINICAL_NOTE_CANCELLED",
-            entity: "ClinicalNote",
-            entityId: note.id,
-            meta: JSON.stringify({
-              clinicId: membership.clinicId,
-              patientId: note.patientId,
-              reason,
-              previousStatus: note.status,
-              authorDoctorId: note.authorDoctorId,
-              version: cancelledVersion,
-              contentHash: cancelledHash,
-              at: cancelledAt.toISOString(),
-            }),
-          },
-        });
-        return { status: 200, body: { success: true, deleted: false, status: "CANCELLED", reflected: true, version: cancelledVersion } };
+        if (note.status === "CANCELLED") return {status:409,body:{success:false,error:"Record is already cancelled"}};
+        await tx.clinicalNote.update({where:{id},data:{status:"CANCELLED"}});
+        await tx.auditLog.create({data:{doctorId:session.doctorId,action:"CANCEL",entity,entityId:id,meta:JSON.stringify({clinicId:membership.clinicId,reason,previousStatus:note.status,authorDoctorId:note.authorDoctorId,verifierDoctorId:note.verifierDoctorId})}});
+        return {status:200,body:{success:true,status:"CANCELLED",reflected:true}};
       }
 
       if (entity === "Encounter") {
