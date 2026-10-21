@@ -49,6 +49,7 @@ export async function GET(req: Request) {
       sizeBytes: true,
       checksum: true,
       ocrStatus: true,
+      storageProvider: true,
       ocrDraft: true,
       verifiedAt: true,
       createdAt: true,
