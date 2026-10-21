@@ -115,7 +115,7 @@ async function main() {
   const ownerCookie = await sessionCookie(ids.ownerA, "password-reset-owner@example.invalid");
   const linkMember = await prisma.clinicMember.findUnique({
     where: { clinicId_doctorId: { clinicId: ids.clinicA, doctorId: ids.doctorResetLink } },
-    select: { id: true, clinicId: true },
+    select: { id: true, clinicId: true, staffCode: true, doctor: { select: { email: true } } },
   });
   assert.ok(linkMember, "synthetic target staff membership exists");
   const issued = await post(`/api/clinic/staff/${encodeURIComponent(linkMember.id)}/password-reset`, {}, ownerCookie);
@@ -148,6 +148,14 @@ async function main() {
   assert.equal(completedLink.response.status, 200, "valid one-time staff reset link completes password reset");
   assert.equal(completedLink.body.success, true, "valid staff link returns success");
   await assertPassword(ids.doctorResetLink, linkPassword);
+  const passwordLogin = await post("/api/auth/login", {
+    staffId: linkMember.staffCode || "",
+    email: linkMember.doctor.email,
+    password: linkPassword,
+  });
+  assert.equal(passwordLogin.response.status, 200, "the newly set password is accepted by the real login endpoint");
+  assert.equal(passwordLogin.body.success, true, "password reset leads to a successful login authentication step");
+  assert.equal(passwordLogin.body.doctor?.id, ids.doctorResetLink, "login authenticates the intended synthetic account");
   const reusedLink = await post("/api/auth/password-reset/complete", {
     token: issued.body.token, newPassword: linkPassword, confirmPassword: linkPassword,
   });
