@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
-import { parsePatientProfile } from "@/lib/patient-metadata";
+import { cleanPatientNotes, parsePatientProfile } from "@/lib/patient-metadata";
 import { writeAudit } from "@/lib/audit";
 import { authBucketKey, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { generateLongitudinalCaseSummary, type LongitudinalCaseSummaryEvent, type LongitudinalCaseSummaryDay } from "@/lib/clinical-ai";
@@ -187,7 +187,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       profile.workingDiagnosis ? "Working diagnosis: " + profile.workingDiagnosis : "",
       profile.diagnosis ? "Documented diagnosis: " + profile.diagnosis : "",
       profile.consultantName ? "Consultant: " + profile.consultantName + (profile.consultantSpecialty ? " (" + profile.consultantSpecialty + ")" : "") : "",
-      patient.notes ? "Additional patient chart notes: " + clip(patient.notes, 1500) : "",
+      cleanPatientNotes(patient.notes || "") ? "Additional patient chart notes: " + clip(cleanPatientNotes(patient.notes || ""), 1500) : "",
     ]);
     addEvent(admissionValue || patient.createdAt, "Admission", "Admission profile", admissionContext || "IPD admission profile was present but did not contain a structured history.", "Patient profile");
 
