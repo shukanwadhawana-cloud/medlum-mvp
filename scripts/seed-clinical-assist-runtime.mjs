@@ -21,6 +21,9 @@ const ids = {
   doctorB: "ci_ca_doctor_b",
   doctorNoClinic: "ci_ca_doctor_no_clinic",
   doctorWrongRole: "ci_ca_doctor_wrong_role",
+  ownerA: "ci_ca_owner_a",
+  doctorResetOtp: "ci_ca_password_reset_otp",
+  doctorResetLink: "ci_ca_password_reset_link",
   patientA: "ci_ca_patient_a",
   patientB: "ci_ca_patient_b",
   guardDoc: "ci_ca_guard_document",
@@ -44,6 +47,9 @@ async function main() {
     { id: ids.doctorB, name: "Synthetic Clinic B Tester", email: "clinical-assist-ci-b@example.invalid", clinicName: "Synthetic CI Clinic B", phone: "0000000002" },
     { id: ids.doctorNoClinic, name: "Synthetic No Membership", email: "clinical-assist-ci-none@example.invalid", clinicName: "No Clinic", phone: "0000000003" },
     { id: ids.doctorWrongRole, name: "Synthetic Receptionist", email: "clinical-assist-ci-role@example.invalid", clinicName: "Synthetic CI Clinic A", phone: "0000000004" },
+    { id: ids.ownerA, name: "Synthetic Password Reset Owner", email: "password-reset-owner@example.invalid", clinicName: "Synthetic CI Clinic A", phone: "0000000005" },
+    { id: ids.doctorResetOtp, name: "Synthetic Password Reset OTP User", email: "password-reset-otp@example.invalid", clinicName: "Synthetic CI Clinic B", phone: "0000000006" },
+    { id: ids.doctorResetLink, name: "Synthetic Password Reset Link User", email: "password-reset-link@example.invalid", clinicName: "Synthetic CI Clinic A", phone: "0000000007" },
   ];
   for (const doctor of doctors) {
     await prisma.doctor.upsert({
@@ -66,6 +72,22 @@ async function main() {
   await prisma.clinicMember.upsert({
     where: { clinicId_doctorId: { clinicId: ids.clinicA, doctorId: ids.doctorWrongRole } },
     create: { clinicId: ids.clinicA, doctorId: ids.doctorWrongRole, role: "Receptionist", staffCode: "CI-REC-001", isActive: true },
+    update: { role: "Receptionist", isActive: true },
+  });
+
+  await prisma.clinicMember.upsert({
+    where: { clinicId_doctorId: { clinicId: ids.clinicA, doctorId: ids.ownerA } },
+    create: { clinicId: ids.clinicA, doctorId: ids.ownerA, role: "Owner", staffCode: "CI-OWNER-001", isActive: true },
+    update: { role: "Owner", isActive: true },
+  });
+  await prisma.clinicMember.upsert({
+    where: { clinicId_doctorId: { clinicId: ids.clinicB, doctorId: ids.doctorResetOtp } },
+    create: { clinicId: ids.clinicB, doctorId: ids.doctorResetOtp, role: "Laboratory", staffCode: "CI-RESET-OTP-001", isActive: true },
+    update: { role: "Laboratory", isActive: true },
+  });
+  await prisma.clinicMember.upsert({
+    where: { clinicId_doctorId: { clinicId: ids.clinicA, doctorId: ids.doctorResetLink } },
+    create: { clinicId: ids.clinicA, doctorId: ids.doctorResetLink, role: "Receptionist", staffCode: "CI-RESET-LINK-001", isActive: true },
     update: { role: "Receptionist", isActive: true },
   });
 
