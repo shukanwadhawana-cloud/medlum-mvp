@@ -141,6 +141,8 @@ jobs:
         run: npm run test:clinical-qa
       - name: Verify PACS imaging contracts
         run: npm run test:pacs-contracts
+      - name: Verify free synthetic PACS sandbox
+        run: npm run test:pacs-free-demo
       - name: Build application
         env:
           DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build?schema=public

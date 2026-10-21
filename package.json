@@ -90,6 +90,7 @@
     "test:admission-bed-categories": "node scripts/verify-admission-bed-categories.mjs",
     "test:lab-ocr-behavior": "npx --yes tsx scripts/verify-lab-ocr-behavior.ts",
     "test:pacs-contracts": "node scripts/verify-pacs-imaging-contracts.mjs",
+    "test:pacs-free-demo": "node scripts/verify-pacs-free-demo.mjs",
     "test:password-reset": "node scripts/verify-password-reset.mjs",
     "test:password-reset-runtime": "node scripts/verify-password-reset-runtime.mjs",
     "test:ipd-case-summary-runtime": "node scripts/verify-ipd-case-summary-runtime.mjs",
