@@ -3,6 +3,20 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://medlumhealth.com"),
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "https://medlumhealth.com/",
+    siteName: "MedLum Health",
+    title: "MedLum Health – Clinical Intelligence",
+    description: "MedLum Health — secure hospital and clinic operations platform",
+  },
+  twitter: {
+    card: "summary",
+    title: "MedLum Health – Clinical Intelligence",
+    description: "MedLum Health — secure hospital and clinic operations platform",
+  },
   title: "MedLum Health – Clinical Intelligence",
   description: "MedLum Health — secure hospital and clinic operations platform",
   applicationName: "MedLum Health",
