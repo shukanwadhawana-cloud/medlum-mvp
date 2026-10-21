@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { setDoctor } = useDoctor();
   const [staffId, setStaffId] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState("");
   const [challengeId, setChallengeId] = useState("");
   const [doctorId, setDoctorId] = useState("");
@@ -213,16 +214,37 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-12 px-4 rounded-xl border border-gray-200"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                />
+                <label htmlFor="medlum-password" className="block text-sm font-medium mb-1.5">Password</label>
+                <div className="relative">
+                  <input
+                    id="medlum-password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full h-12 px-4 pr-20 rounded-xl border border-gray-200"
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-3 my-auto h-9 px-2 text-sm font-medium text-[var(--ml-primary)]"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+              <div className="-mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => setError("For a password reset, contact your clinic administrator or MedLum support. Self-service password recovery is not available yet.")}
+                  className="text-sm font-medium text-[var(--ml-primary)] hover:underline"
+                >
+                  Forgot password?
+                </button>
               </div>
               <button
                 type="submit"
