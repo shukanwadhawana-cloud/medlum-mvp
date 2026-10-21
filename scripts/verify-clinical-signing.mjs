@@ -67,3 +67,15 @@ const versionFailures = versionChecks.filter(([, ok]) => !ok);
 for (const [label, ok] of versionChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
 if (versionFailures.length) process.exit(1);
 console.log("Author-sign version uniqueness regression checks: GREEN");
+
+
+const authorSelfSignBlock = route.slice(route.indexOf('if (action === "sign-own")'), route.indexOf('if (action === "finalize")'));
+const authorRoleChecks = [
+  ["author self-sign doesn't require second-verifier role", !authorSelfSignBlock.includes("canFinalizeClinicalNote(actor.normalizedRole)")],
+  ["self-sign remains restricted to original author", authorSelfSignBlock.includes("current.authorDoctorId !== session.doctorId")],
+  ["self-sign only accepts unsigned notes", authorSelfSignBlock.includes('["DRAFT", "PENDING_VERIFICATION"].includes(current.status)')],
+];
+const authorRoleFailures = authorRoleChecks.filter(([, ok]) => !ok);
+for (const [label, ok] of authorRoleChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
+if (authorRoleFailures.length) process.exit(1);
+console.log("Clinical author-self-sign role checks: GREEN");
