@@ -386,6 +386,7 @@ export default function IPDPatientWorkspace(){
         <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Initial Assessment")}} className="h-7 px-2 rounded border">+ Initial Assessment</button>
         <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Progress Note")}} className="h-7 px-2 rounded border">+ Progress Note</button>
         <button type="button" onClick={()=>{setMainTab("Clinical Notes");setLeftNav("Consultant Note")}} className="h-7 px-2 rounded border">+ Consultant Note</button>
+         <button type="button" onClick={()=>setShowCancelledNotes(v=>!v)} className="h-7 px-2 rounded border text-gray-600">{showCancelledNotes?"Hide cancelled":"Show cancelled"} ({cancelledClinicalNoteCount})</button>
        </div>
       </div>
       {noteViewId?(
@@ -401,7 +402,7 @@ export default function IPDPatientWorkspace(){
           <th className="p-3 border-b whitespace-nowrap">Notes title</th><th className="p-3 border-b whitespace-nowrap">Date and time (IST)</th><th className="p-3 border-b whitespace-nowrap">Signature status</th><th className="p-3 border-b whitespace-nowrap">Added by</th><th className="p-3 border-b whitespace-nowrap">Action</th>
          </tr></thead>
          <tbody>
-          {(clinicalNotes||[]).length?clinicalNotes.map((n:any,i:number)=>{
+          {visibleClinicalNotes.length?visibleClinicalNotes.map((n:any,i:number)=>{
             const id=n.id||String(i);
             const status=String(n.status||"COMPLETED");
             return <tr key={id} className="hover:bg-amber-50/60">
@@ -415,7 +416,7 @@ export default function IPDPatientWorkspace(){
         </table>
        </div>
        <div className="grid gap-2 md:hidden">
-        {(clinicalNotes||[]).length?clinicalNotes.map((n:any,i:number)=>{
+        {visibleClinicalNotes.length?visibleClinicalNotes.map((n:any,i:number)=>{
           const id=n.id||String(i);
           const status=String(n.status||"COMPLETED");
           const canSubmit=!n.legacyAuditRecord&&status==="DRAFT"&&n.authorDoctorId===doctor?.id;
@@ -429,13 +430,13 @@ export default function IPDPatientWorkspace(){
            <div className="flex flex-wrap gap-2 pt-1"><button type="button" onClick={()=>setNoteViewId(id)} className="min-h-9 rounded-lg border px-3 py-2 text-xs font-semibold">Open note</button>{canSignOwn&&<button type="button" disabled={saving} onClick={()=>void signOwnClinicalNote(n.id)} className="min-h-9 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving?"Signing…":"Sign & complete"}</button>}{canSubmit&&<button type="button" disabled={saving} onClick={()=>void submitClinicalNote(n.id)} className="min-h-9 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving?"Submitting…":"Submit for verification"}</button>}{canFinalize&&<button type="button" disabled={saving} onClick={()=>void finalizeClinicalNote(n.id)} className="min-h-9 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving?"Signing…":"Final-sign"}</button>}</div>
           </article>}) : <div className="rounded-xl border bg-white p-4 text-xs text-gray-500">No clinical notes yet. Use the note types to create an entry.</div>}
        </div>
-       <p className="text-[10px] text-gray-500 px-1 pt-1">Showing {(clinicalNotes||[]).length} note{(clinicalNotes||[]).length===1?"":"s"}. Authors can sign and complete their own notes; independent co-signing is optional when required by clinic policy.</p>
+       <p className="text-[10px] text-gray-500 px-1 pt-1">Showing {visibleClinicalNotes.length} note{visibleClinicalNotes.length===1?"":"s"}. Authors can sign and complete their own notes. {cancelledClinicalNoteCount&&!showCancelledNotes?`${cancelledClinicalNoteCount} cancelled note(s) hidden.`:""}</p>
        </>
       )}
      </div>
     )}
         {mainTab==="Clinical Notes"&&leftNav==="Initial Assessment"&&(
-     <form onSubmit={saveStructured} className="space-y-3 max-w-2xl">
+     <form onSubmit={(e)=>void saveStructured(e)} className="space-y-3 max-w-2xl">
       <h3 className="font-semibold text-sm">Initial Assessment</h3>
       <div className="grid md:grid-cols-2 gap-2">
        <input value={structured.dateTime} onChange={e=>setStructured({...structured,dateTime:e.target.value})} type="datetime-local" className="h-9 px-2 rounded-lg border text-xs"/>
@@ -460,7 +461,7 @@ export default function IPDPatientWorkspace(){
        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="h-9 px-4 rounded-lg border text-xs font-semibold">{saving?"Saving…":"Save Draft"}</button><button type="button" disabled={saving} onClick={e=>void saveStructured(e as any,true)} className="h-9 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Saving…":"Submit for Verification"}</button></div>
+      <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="min-h-10 px-4 py-2 rounded-lg border text-xs font-semibold">{saving?"Saving…":"Save Draft"}</button><button type="button" disabled={saving} onClick={e=>void saveStructured(e as any,false,true)} className="min-h-10 px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold">{saving?"Signing…":"Sign & Complete"}</button><button type="button" disabled={saving} onClick={e=>void saveStructured(e as any,true,false)} className="min-h-10 px-4 py-2 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Submitting…":"Submit for Co-signature"}</button></div>
      </form>
     )}
     {mainTab==="Clinical Notes"&&leftNav==="Progress Note"&&(
@@ -480,11 +481,11 @@ export default function IPDPatientWorkspace(){
       <textarea value={structured.treatmentGiven} onChange={e=>setStructured({...structured,treatmentGiven:e.target.value})} placeholder="Current meds / treatment" className="w-full min-h-16 px-2 py-1 rounded-lg border text-xs"/>
       <textarea value={structured.course} onChange={e=>setStructured({...structured,course:e.target.value})} placeholder="Plan / course" className="w-full min-h-16 px-2 py-1 rounded-lg border text-xs"/>
       <textarea value={structured.dischargeTreatment} onChange={e=>setStructured({...structured,dischargeTreatment:e.target.value})} placeholder="Advice" className="w-full min-h-12 px-2 py-1 rounded-lg border text-xs"/>
-      <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="min-h-10 px-4 rounded-lg border text-xs font-semibold">{saving?"Saving…":"Save Draft"}</button><button type="button" disabled={saving} onClick={()=>void saveProgress(true)} className="min-h-10 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Submitting…":"Submit for Verification"}</button></div>
+      <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="min-h-10 px-4 py-2 rounded-lg border text-xs font-semibold">{saving?"Saving…":"Save Draft"}</button><button type="button" disabled={saving} onClick={()=>void saveProgress(false,true)} className="min-h-10 px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold">{saving?"Signing…":"Sign & Complete"}</button><button type="button" disabled={saving} onClick={()=>void saveProgress(true,false)} className="min-h-10 px-4 py-2 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Submitting…":"Submit for Co-signature"}</button></div>
      </form>
     )}
     {mainTab==="Clinical Notes"&&["Consultant Note","RMO Note","Nursing Care Note","Case Summary"].includes(leftNav)&&(
-     <form onSubmit={(e)=>{e.preventDefault();void saveNote(false,leftNav)}} className="space-y-3 max-w-2xl">
+     <form onSubmit={(e)=>{e.preventDefault();void saveNote(false,leftNav,false)}} className="space-y-3 max-w-2xl">
       <h3 className="font-semibold text-sm">{leftNav}</h3>
       {leftNav==="Case Summary"&&(
        <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
@@ -512,7 +513,7 @@ export default function IPDPatientWorkspace(){
        </section>
       )}
       <textarea value={note.content} onChange={e=>setNote({...note,content:e.target.value,noteType:leftNav})} placeholder={`Enter ${leftNav}…`} className="w-full min-h-40 px-2 py-1 rounded-lg border text-xs"/>
-      <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="min-h-10 px-4 rounded-lg border text-xs font-semibold">{saving?"Saving…":`Save Draft`}</button><button type="button" disabled={saving} onClick={()=>void saveNote(true,leftNav)} className="min-h-10 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Submitting…":"Submit for Verification"}</button></div>
+      <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="min-h-10 px-4 py-2 rounded-lg border text-xs font-semibold">{saving?"Saving…":"Save Draft"}</button><button type="button" disabled={saving} onClick={()=>void saveNote(false,leftNav,true)} className="min-h-10 px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold">{saving?"Signing…":"Sign & Complete"}</button><button type="button" disabled={saving} onClick={()=>void saveNote(true,leftNav,false)} className="min-h-10 px-4 py-2 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Submitting…":"Submit for Co-signature"}</button></div>
       <div className="mt-4 space-y-2 max-h-64 overflow-auto">
        {clinicalNotes.filter((n:any)=>(n.noteType||"").includes(leftNav.split(" ")[0])||leftNav==="Case Summary").map((n:any,i:number)=>(
         <div key={i} className="border rounded-lg p-2"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium text-[11px]">{n.noteType} · {n.authorName||n.authorRole||"Server-derived clinician"}</p>{n.status&&<span className="text-[9px] px-1.5 py-0.5 rounded-full border">{n.status}</span>}</div><p className="text-[10px] text-gray-500">{n.createdAt?new Date(n.createdAt).toLocaleString("en-IN",{timeZone:"Asia/Kolkata"}):""} IST</p><pre className="whitespace-pre-wrap font-sans text-[11px] mt-1">{n.content}</pre>{n.status==="PENDING_VERIFICATION"&&<button type="button" disabled={saving} onClick={()=>void finalizeClinicalNote(n.id)} className="mt-2 h-8 px-3 rounded-lg bg-[#140a1f] text-white text-[10px] font-semibold">Final-sign as second clinician</button>}{n.status==="FINAL"&&<p className="mt-1 text-[10px] text-green-700">Final verifier: {n.verifierName||"Recorded server-side"}</p>}</div>
