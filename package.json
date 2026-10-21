@@ -58,6 +58,7 @@
     "test:telegram-otp": "node scripts/verify-telegram-otp.mjs",
     "test:lab-documents": "node scripts/verify-lab-documents.mjs",
     "test:document-intelligence": "node scripts/verify-document-intelligence.mjs",
+    "test:clinical-assist-live": "node scripts/verify-clinical-assist-live.mjs",
     "test:duty": "node scripts/verify-duty.mjs",
     "test:patient-discovery": "node scripts/verify-patient-discovery.mjs",
     "test:facility-data-migration": "node scripts/verify-facility-data-migration-security.mjs",
