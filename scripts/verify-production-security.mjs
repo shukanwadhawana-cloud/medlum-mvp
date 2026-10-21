@@ -18,6 +18,7 @@ const requiredFiles = [
   "src/lib/rate-limit.ts",
   "src/lib/auth-config.ts",
   ".env.example",
+  ".github/workflows/production-database-migrations.yml",
 ];
 for (const file of requiredFiles) {
   if (!fs.existsSync(path.join(root, file))) throw new Error(`Missing security file: ${file}`);
@@ -76,6 +77,25 @@ if (!env.includes("ALLOW_PUBLIC_SIGNUP")) {
 if (!env.includes("SESSION_SECRET") || !env.includes("at-least-32-chars")) throw new Error("Secure session secret documentation missing");
 if (env.includes("NEXT_PUBLIC_EKA_CLIENT_SECRET") || env.includes("NEXT_PUBLIC_EKA_API_KEY")) {
   throw new Error("EKA secrets must not be exposed through NEXT_PUBLIC variables");
+}
+
+const migrationWorkflow = read(".github/workflows/production-database-migrations.yml");
+if (packageJson.scripts?.["vercel-build"] !== "npm run build") {
+  throw new Error("Vercel build must compile the app only; production migrations must not run during deployment builds");
+}
+for (const guard of [
+  "workflow_dispatch:",
+  "production-migrations",
+  "PRODUCTION_DATABASE_URL",
+  "PRODUCTION_MIGRATIONS_ENABLED",
+  "APPLY_PRODUCTION_MIGRATIONS",
+  "npx prisma migrate status",
+  "npx prisma migrate deploy",
+]) {
+  if (!migrationWorkflow.includes(guard)) throw new Error(`Production migration workflow gate missing: ${guard}`);
+}
+if (!migrationWorkflow.includes("github.sha")) {
+  throw new Error("Production migration workflow must operate on the exact selected commit");
 }
 
 if (packageJson.dependencies?.xlsx !== "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz") {
