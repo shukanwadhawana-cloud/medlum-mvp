@@ -279,7 +279,12 @@ export default function IPDPatientWorkspace(){
      />
     )}
 
-{/* DASHBOARD sub-panels */}
+{/* Clinical Q&A panel */}
+     {mainTab==="Clinical Q&A"&&selected&&(
+      <ClinicalQAPanel patientId={String(selected.id)} patientName={String(selected.name||"this patient")} />
+     )}
+
+     {/* DASHBOARD sub-panels */}
     {mainTab==="Dashboard"&&leftNav==="Vitals"&&(
      <form onSubmit={saveVitals} className="space-y-3 max-w-xl">
       <h3 className="font-semibold text-sm">Vitals</h3>
