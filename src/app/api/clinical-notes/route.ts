@@ -63,7 +63,7 @@ export async function GET(req: Request) {
   if (!patient) return NextResponse.json({ error: "Patient not found" }, { status: 404 });
 
   const notes = await prisma.clinicalNote.findMany({
-    where: { clinicId: membership.clinicId, patientId },
+    where: { clinicId: membership.clinicId, patientId, status: { not: "CANCELLED" } },
     include: {
       author: { select: { id: true, name: true, email: true } },
       verifier: { select: { id: true, name: true, email: true } },
