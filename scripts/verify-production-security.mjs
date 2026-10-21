@@ -103,6 +103,7 @@ for (const guard of [
   "sha256sum",
   "--require-clean",
   "DATABASE_URL",
+  "A-Za-z0-9_-",
 ]) {
   if (!migrationStateCheck.includes(guard)) throw new Error(`Migration history verifier guard missing: ${guard}`);
 }
