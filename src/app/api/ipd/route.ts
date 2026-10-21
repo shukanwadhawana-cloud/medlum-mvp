@@ -107,9 +107,17 @@ export async function GET() {
   // only to AuditLog metadata. Surface those already-saved entries while new saves
   // are persisted in ClinicalNote. New audit events point at note.id and are skipped
   // here because their noteId is already present in the persisted records.
+  const activatedLegacySourceAuditIds = new Set<string>();
+  for (const log of logs) {
+    if (log.entity !== "ClinicalNote" || log.action !== "LEGACY_DRAFT_ACTIVATED") continue;
+    const meta = metaOf(log);
+    const sourceAuditId = String(meta.sourceAuditId || "").trim();
+    if (sourceAuditId) activatedLegacySourceAuditIds.add(sourceAuditId);
+  }
   const patientIdSet = new Set(patientIds);
   for (const log of logs) {
     if (log.entity !== "ClinicalNote" || !log.entityId) continue;
+    if (activatedLegacySourceAuditIds.has(log.id)) continue;
     const meta = metaOf(log);
     const patientId = String(meta.patientId || log.entityId || "");
     if (!patientIdSet.has(patientId)) continue;
