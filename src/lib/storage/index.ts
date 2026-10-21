@@ -4,11 +4,11 @@ import { createLocalStorageProvider } from "./local";
 /** Application storage quota, aligned with the durable provider in use. */
 export function storageQuotaBytes(): number {
   const raw = process.env.STORAGE_QUOTA_BYTES;
-  if (raw && /^\\d+$/.test(raw)) return parseInt(raw, 10);
+  if (raw && /^\d+$/.test(raw)) return parseInt(raw, 10);
   const provider = (process.env.STORAGE_PROVIDER || "local").toLowerCase();
   if (provider === "database" || (provider !== "r2" && isServerlessRuntime())) {
     const databaseQuota = process.env.DATABASE_STORAGE_QUOTA_BYTES || "";
-    if (databaseQuota && /^\\d+$/.test(databaseQuota)) return parseInt(databaseQuota, 10);
+    if (databaseQuota && /^\d+$/.test(databaseQuota)) return parseInt(databaseQuota, 10);
     return 256 * 1024 * 1024;
   }
   return 8 * 1024 * 1024 * 1024;
