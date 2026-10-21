@@ -373,7 +373,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
         gender: patient.gender || "",
         uhid: patient.uhid || "",
         allergies: patient.allergies || "Unknown / not assessed",
-        status: patient.status,
+        status: patient.status || "UNKNOWN",
         admissionDate: admissionKey ? dateLabel(admissionKey) : "Not recorded",
         dischargeDate: dischargeDate ? dateLabel(dischargeDate) : patient.status === "DISCHARGED" ? "Not recorded" : "Still admitted / no discharge record",
       },
