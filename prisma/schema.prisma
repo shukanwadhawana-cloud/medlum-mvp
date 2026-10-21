@@ -374,6 +374,7 @@ model LabOrder {
 model PharmacyItem {
   id           String   @id @default(cuid())
   doctorId     String
+  clinicId     String?
   name         String
   genericName  String   @default("")
   form         String   @default("")
@@ -385,8 +386,10 @@ model PharmacyItem {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   doctor       Doctor   @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  clinic       Clinic?  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@index([doctorId])
+  @@index([clinicId])
   @@index([name])
 }
 
