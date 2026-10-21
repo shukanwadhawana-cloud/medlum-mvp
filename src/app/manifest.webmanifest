@@ -1,7 +1,7 @@
 {
-  "name": "MedLum Healthcare",
-  "short_name": "MedLum",
-  "description": "MedLum Healthcare — secure hospital and clinic operations platform",
+  "name": "MedLum Health",
+  "short_name": "MedLum Health",
+  "description": "MedLum Health — secure hospital and clinic operations platform",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#fbf5f6",
