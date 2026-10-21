@@ -5,6 +5,7 @@ const page = fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
 const ipdApi = fs.readFileSync("src/app/api/ipd/route.ts","utf8");
 const signingApi = fs.readFileSync("src/app/api/clinical-notes/route.ts","utf8");
 const cancelApi = fs.readFileSync("src/app/api/records/cancel/route.ts","utf8");
+const legacyActivationApi = fs.readFileSync("src/app/api/clinical-notes/legacy/route.ts","utf8");
 const caseSummaryApi = fs.readFileSync("src/app/api/ipd/[id]/case-summary/route.ts","utf8");
 const schema = fs.readFileSync("prisma/schema.prisma","utf8");
 
@@ -31,6 +32,9 @@ has(ipdApi,'const status = sign ? "FINAL" : submit ? "PENDING_VERIFICATION" : "D
 has(ipdApi,"tx.clinicalNote.create","IPD notes persist as canonical clinical-note records");
 has(ipdApi,"tx.clinicalNoteVersion.create","IPD note creation records version history");
 has(ipdApi,"legacy-audit-","previously saved audit-only IPD notes remain visible");
+has(ipdApi,"activatedLegacySourceAuditIds","activated legacy notes cannot remain as duplicate actionable source rows");
+has(ipdApi,"if (activatedLegacySourceAuditIds.has(log.id)) continue;","activated legacy audit row is hidden after canonical activation");
+has(legacyActivationApi,"sourceAuditId:log.id","legacy activation retains the source-audit reference for deduplication");
 has(ipdApi,"meta.noteId","new clinical-note audit events identify the canonical note");
 has(ipdApi,"atIst: istIsoLabel(now)","server IST audit timestamp");
 has(ipdApi,'authorName:n.author?.name||"Clinician"',"server author identity");
@@ -82,6 +86,10 @@ has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(curre
 has(page,"Sign &amp; complete as author","IPD note list offers author self-signing");
 has(page,"cancelClinicalNote(n.id,status)","IPD note list offers audited cancellation/removal for unsigned notes");
 has(page,"Remove draft","legacy draft removal affordance is explicit");
+has(page,"const submitLegacyDraft=async(id:string)=>","legacy draft can be submitted for optional co-signature");
+has(page,"submitLegacyDraft(n.id)","legacy co-signature action is wired in Note View and note lists");
+has(page,"canActOnLegacyDraft","legacy signing, co-sign submission, and removal are limited to the original author");
+has(page,"onClick={()=>void removeLegacyDraft(n.id)}","legacy draft removal is available from the list and the open note");
 notHas(page,'(n.status==="FINAL"&&["Owner","Admin"].includes(currentRole))',"signed final notes are not offered the cancel/remove shortcut");
 console.log("IPD list-level author signing, cancellation, and role visibility checks passed.");
 
