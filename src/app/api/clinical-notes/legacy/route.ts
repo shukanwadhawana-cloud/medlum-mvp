@@ -31,8 +31,54 @@ export async function POST(req: Request) {
       if (status !== "DRAFT") return {status:409,body:{success:false,error:"Only legacy drafts can be activated. Submitted or signed records must retain their original verification history."}};
       const patient = await tx.patient.findFirst({where:{id:patientId,clinicId:membership.clinicId,deletedAt:null},select:{id:true}});
       if (!patient) return {status:404,body:{success:false,error:"Patient not found in your active clinic"}};
+
+      // A legacy audit entry is a stable source identity. Once linked to a
+      // canonical ClinicalNote, later clicks must reuse that identity rather
+      // than creating another note after the first one is cancelled.
+      const activationLogs = await tx.auditLog.findMany({
+        where:{doctorId:session.doctorId,entity:"ClinicalNote",action:"LEGACY_DRAFT_ACTIVATED"},
+        orderBy:{createdAt:"desc"},take:1000,select:{entityId:true,meta:true},
+      });
+      const priorActivation = activationLogs.find((entry:any) => String(parseMeta(entry.meta).sourceAuditId||"") === log.id);
+      if (priorActivation?.entityId) {
+        const linked = await tx.clinicalNote.findFirst({
+          where:{id:priorActivation.entityId,clinicId:membership.clinicId,patientId},
+          select:{id:true,status:true},
+        });
+        if (!linked) return {status:409,body:{success:false,error:"This legacy draft is already linked to a note that is no longer available. It will not be recreated."}};
+        if (linked.status === "CANCELLED") {
+          return {status:409,body:{success:false,error:"This legacy draft was already cancelled. It cannot be reactivated; its cancellation history is retained."}};
+        }
+        if (linked.status !== "DRAFT") {
+          return {status:409,body:{success:false,error:"This legacy draft has already moved to another workflow state and will not be recreated."}};
+        }
+        return {status:200,body:{success:true,noteId:linked.id,alreadyActivated:true}};
+      }
+
       const existing = await tx.clinicalNote.findFirst({where:{clinicId:membership.clinicId,patientId,authorDoctorId:session.doctorId,noteType,title,content,status:"DRAFT"}});
-      if (existing) return {status:200,body:{success:true,noteId:existing.id,alreadyActivated:true}};
+      if (existing) {
+        // Link the legacy source even when an equivalent draft pre-existed.
+        // Without this audit link, a later cancellation leaves the old legacy
+        // row visible, allowing the same source to be activated/cancelled again.
+        await tx.auditLog.create({data:{doctorId:session.doctorId,action:"LEGACY_DRAFT_ACTIVATED",entity:"ClinicalNote",entityId:existing.id,meta:JSON.stringify({clinicId:membership.clinicId,patientId,sourceAuditId:log.id,source:"legacy-audit-log",alreadyActivated:true})}});
+        return {status:200,body:{success:true,noteId:existing.id,alreadyActivated:true}};
+      }
+
+      // If the original legacy timestamp matches a cancelled canonical copy,
+      // link the source to it instead of producing a second cancelled row.
+      const sourceTime = new Date(log.createdAt).getTime();
+      const cancelledMatches = await tx.clinicalNote.findMany({
+        where:{clinicId:membership.clinicId,patientId,authorDoctorId:session.doctorId,noteType,title,content,status:"CANCELLED"},
+        orderBy:{createdAt:"desc"},take:20,select:{id:true,createdAt:true},
+      });
+      const priorCancelled = cancelledMatches.find((candidate:any) => {
+        const createdAt = new Date(candidate.createdAt).getTime();
+        return Number.isFinite(sourceTime) && Number.isFinite(createdAt) && Math.abs(createdAt-sourceTime)<120000;
+      });
+      if (priorCancelled) {
+        await tx.auditLog.create({data:{doctorId:session.doctorId,action:"LEGACY_DRAFT_ACTIVATED",entity:"ClinicalNote",entityId:priorCancelled.id,meta:JSON.stringify({clinicId:membership.clinicId,patientId,sourceAuditId:log.id,source:"legacy-audit-log",alreadyCancelled:true})}});
+        return {status:409,body:{success:false,error:"This legacy draft was already cancelled. It will not be recreated; the original cancellation remains in history."}};
+      }
       const now = new Date();
       const note = await tx.clinicalNote.create({data:{clinicId:membership.clinicId,patientId,authorDoctorId:session.doctorId,authorRole:String(meta.authorRole || membership.role || "Clinician"),noteType,title,content,status:"DRAFT",version:1,contentHash:hashClinicalNote(content,1)}});
       await tx.clinicalNoteVersion.create({data:{clinicalNoteId:note.id,clinicId:membership.clinicId,version:1,title,noteType,content,contentHash:hashClinicalNote(content,1),event:"LEGACY_DRAFT_ACTIVATED",createdByDoctorId:session.doctorId,createdAt:now}});

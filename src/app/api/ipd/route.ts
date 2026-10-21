@@ -89,16 +89,71 @@ export async function GET() {
     prisma.dispensing.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.labOrder.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
     prisma.diagnosticOrder.findMany({ where: { patientId: { in: patientIds } }, orderBy: { createdAt: "desc" } }),
-    prisma.clinicalNote.findMany({ where: { patientId: { in: patientIds }, clinicId: clinicId || undefined }, include: { author: { select: { id: true, name: true } }, verifier: { select: { id: true, name: true } } }, orderBy: { createdAt: "desc" } }),
+    prisma.clinicalNote.findMany({ where: { patientId: { in: patientIds }, clinicId: clinicId || undefined }, include: { author: { select: { id: true, name: true } }, verifier: { select: { id: true, name: true } }, versions: { where: { event: "CANCELLED_BY_AUTHOR" }, orderBy: { version: "desc" }, take: 1, select: { createdAt: true, createdBy: { select: { id: true, name: true } } } } }, orderBy: { createdAt: "desc" } }),
   ]);
   const dispensingByPrescriptionId = new Map(dispensings.map((d) => [d.prescriptionId, d]));
+
+  // Resolve the cancellation actor/reason from the immutable audit entry. The
+  // note version also records the acting doctor and timestamp, so attribution
+  // remains available even if that doctor is no longer an active clinic member.
+  const cancellationLogs = clinicalNotes.length ? await prisma.auditLog.findMany({
+    where: { entity: "ClinicalNote", action: "CLINICAL_NOTE_CANCELLED", entityId: { in: clinicalNotes.map((n) => n.id) } },
+    orderBy: { createdAt: "desc" },
+    include: { doctor: { select: { id: true, name: true } } },
+  }) : [];
+  const cancellationByNoteId = new Map<string, any>();
+  for (const log of cancellationLogs) {
+    if (!log.entityId || cancellationByNoteId.has(log.entityId)) continue;
+    const meta = metaOf(log);
+    if (meta.clinicId && clinicId && meta.clinicId !== clinicId) continue;
+    cancellationByNoteId.set(log.entityId, { log, meta });
+  }
+
+  // Old legacy drafts could be mapped to an already-existing canonical draft
+  // without a source-link event. Cancelling that draft and then pressing
+  // "Remove draft" again could create a second canonical copy. If an activation
+  // event points to a cancelled copy while the original source timestamp matches
+  // an earlier cancelled note, keep only the original list entry; both audit
+  // histories remain in the database.
+  const auditById = new Map(logs.map((log) => [log.id, log] as const));
+  const noteById = new Map(clinicalNotes.map((n) => [n.id, n] as const));
+  const duplicateCancelledActivationIds = new Set<string>();
+  for (const activation of logs) {
+    if (activation.entity !== "ClinicalNote" || activation.action !== "LEGACY_DRAFT_ACTIVATED" || !activation.entityId) continue;
+    const activatedNote = noteById.get(activation.entityId);
+    if (!activatedNote || activatedNote.status !== "CANCELLED") continue;
+    const sourceAuditId = String(metaOf(activation).sourceAuditId || "").trim();
+    const source = sourceAuditId ? auditById.get(sourceAuditId) : null;
+    if (!source) continue;
+    const sourceMeta = metaOf(source);
+    const sourcePatientId = String(sourceMeta.patientId || source.entityId || "");
+    if (typeof sourceMeta.content !== "string" || typeof sourceMeta.noteType !== "string" || typeof sourceMeta.title !== "string" || !sourcePatientId) continue;
+    const sourceTime = new Date(source.createdAt).getTime();
+    const priorCancelledCopy = clinicalNotes.some((candidate) => {
+      if (candidate.id === activatedNote.id || candidate.status !== "CANCELLED") return false;
+      if (candidate.patientId !== sourcePatientId || candidate.authorDoctorId !== source.doctorId) return false;
+      if (candidate.noteType !== sourceMeta.noteType || candidate.title !== sourceMeta.title || candidate.content !== sourceMeta.content) return false;
+      const createdAt = new Date(candidate.createdAt).getTime();
+      return Number.isFinite(sourceTime) && Number.isFinite(createdAt) && Math.abs(createdAt - sourceTime) < 120000;
+    });
+    if (priorCancelledCopy) duplicateCancelledActivationIds.add(activatedNote.id);
+  }
+
   const notesMap = new Map<string, unknown[]>();
   for (const n of clinicalNotes) {
+    if (duplicateCancelledActivationIds.has(n.id)) continue;
     const arr = notesMap.get(n.patientId) || [];
+    const cancellation = cancellationByNoteId.get(n.id);
+    const cancelledVersion = (n as any).versions?.[0];
+    const { versions: _versions, ...noteWithoutCancellationVersions } = n as any;
     arr.push({
-      ...n,
+      ...noteWithoutCancellationVersions,
       authorName:n.author?.name||"Clinician",
       verifierName:n.verifier?.name||null,
+      cancelledByDoctorId: cancelledVersion?.createdBy?.id || cancellation?.log?.doctorId || null,
+      cancelledByName: cancelledVersion?.createdBy?.name || cancellation?.log?.doctor?.name || null,
+      cancelledAt: cancelledVersion?.createdAt || cancellation?.log?.createdAt || null,
+      cancellationReason: typeof cancellation?.meta?.reason === "string" ? cancellation.meta.reason : null,
     });
     notesMap.set(n.patientId, arr);
   }
