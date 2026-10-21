@@ -322,7 +322,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
               </p>
             </div>
             <span className="rounded border bg-gray-50 px-2 py-1 text-[10px] font-medium">
-              {selectedStatus}
+              {selectedStatus === "PENDING" ? "Extraction pending" : selectedStatus}
             </span>
           </div>
 
