@@ -9,6 +9,7 @@ const route = read("src/app/api/clinical-notes/route.ts");
 const helper = read("src/lib/clinical-signing.ts");
 const api = read("src/lib/api.ts");
 const patientUi = read("src/app/patients/[id]/page.tsx");
+const ipdUi = read("src/app/ipd/[id]/page.tsx");
 
 const checks = [
   ["ClinicalNote Prisma model exists", /model ClinicalNote\s*\{/.test(schema)],
@@ -43,9 +44,9 @@ const authorSelfSignChecks = [
   ["self-sign only accepts unsigned notes", route.includes('["DRAFT", "PENDING_VERIFICATION"].includes(current.status)')],
   ["author signature is version-audited", route.includes('event: "AUTHOR_SIGNED"')],
   ["author signing has a dedicated audit event", route.includes('action: "AUTHOR_SIGN"')],
-  ["IPD UI calls the author-sign endpoint", patientUi.includes('action:"sign-own"')],
-  ["author can sign and complete from note detail", patientUi.includes("Sign & complete as author")],
-  ["final status label no longer implies mandatory co-signing", patientUi.includes('FINAL:"Signed / completed"')],
+  ["IPD UI calls the author-sign endpoint", ipdUi.includes('action:"sign-own"')],
+  ["author can sign and complete from note detail", ipdUi.includes("Sign & complete as author")],
+  ["final status label no longer implies mandatory co-signing", ipdUi.includes('FINAL:"Signed / completed"')],
 ];
 const authorSelfSignFailures = authorSelfSignChecks.filter(([, ok]) => !ok);
 for (const [label, ok] of authorSelfSignChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
