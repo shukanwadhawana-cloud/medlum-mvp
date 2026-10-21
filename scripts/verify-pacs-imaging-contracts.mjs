@@ -112,10 +112,24 @@ mustContain("src/components/ImagingStudiesPanel.tsx", [
   "Patient identity could not be confirmed from the DICOM PatientID.",
   'importNotice.kind === "warning"',
 ]);
-mustContain("src/app/diagnostics/page.tsx", [
+mustContain("src/components/PacsClinicalWorkspace.tsx", [
   "ImagingStudiesPanel",
-  "diagnosticOrderId={o.id}",
+  "diagnosticOrderId={selected.id}",
+  "patientId={selected.patientId}",
+  "No verified image series in this viewport",
+  "Clinical indication",
+  "Findings",
+  "Impression",
+  "No illustrative or fabricated scan is shown here",
 ]);
+mustContain("src/app/diagnostics/page.tsx", [
+  'import PacsClinicalWorkspace from "@/components/PacsClinicalWorkspace";',
+  "<PacsClinicalWorkspace orders={orders} />",
+]);
+const workspaceSource = fs.readFileSync(path.join(root, "src/components/PacsClinicalWorkspace.tsx"), "utf8");
+if (workspaceSource.includes("SyntheticSlice") || workspaceSource.includes("radialGradient")) {
+  failures.push("clinical workspace must not render fabricated anatomy");
+}
 mustContain("prisma/migrations/20261012080000_imaging_study/migration.sql", [
   'CREATE TABLE IF NOT EXISTS "ImagingStudy"',
   "studyInstanceUid",
