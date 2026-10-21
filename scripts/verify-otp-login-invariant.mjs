@@ -8,7 +8,9 @@ const loginPage = fs.readFileSync("src/app/login/page.tsx", "utf8");
 
 const checks = [
   ["OTP_REQUIRED includes Owner", /OTP_REQUIRED_ROLES\s*=\s*new Set\(\[[\s\S]*"Owner"/.test(otp)],
-  ["roleRequiresOtp used without !isOwner gate", /if\s*\(\s*roleRequiresOtp\s*\(\s*primaryRole\s*\)\s*\)/.test(login)],
+  ["role-based OTP gate covers owner and privileged memberships", /const roleNeedsOtp\s*=\s*isOwner\s*\|\|\s*memberships\.some\(\(m\)\s*=>\s*roleRequiresOtp/.test(login)],
+  ["production fails closed when Telegram OTP is not configured", /roleNeedsOtp\s*&&\s*!telegramConfigured\s*&&\s*process\.env\.NODE_ENV\s*===\s*"production"/.test(login)],
+  ["OTP delivery failure cannot fall through to password-only session", login.includes("TELEGRAM_OTP_LINK_REQUIRED") && !login.includes("continuing with password session")],
   ["login does NOT skip OTP for isOwner", !/if\s*\(\s*!isOwner\s*&&\s*roleRequiresOtp/.test(login)],
   ["login issues OTP before any createSession for privileged", login.indexOf("issueLoginOtp") < login.indexOf("createSession") || login.includes("roleRequiresOtp(primaryRole)")],
   ["otp verify creates session", verify.includes("createSession")],
