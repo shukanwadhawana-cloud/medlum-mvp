@@ -284,6 +284,11 @@ jobs:
           [ "$orphan_count" = "1" ] || { echo "Historical orphan row was not created" >&2; exit 1; }
           echo "Disposable DB prepared with pending forward migration and an orphaned applied row."
 
+      - name: Verify migration-history preflight allows only the reviewed orphan and reports pending migrations
+        env:
+          DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/migrationhistorytest?schema=public
+        run: bash scripts/verify-prisma-migration-state.sh
+
       - name: Build Render container for startup smoke test
         run: |
           # Earlier npm install in this job creates a transient lockfile when none is tracked.
@@ -342,6 +347,12 @@ jobs:
           [ "$binary_count" = "1" ] || { echo "Durable report storage migration did not finish" >&2; exit 1; }
           [ "$binary_table" = "t" ] || { echo "StoredBinaryObject table is missing after migration deploy" >&2; exit 1; }
           echo "Render entrypoint applied both pending forward migrations and preserved historical migration metadata."
+
+      - name: Verify migration history is clean after startup migration deploy
+        env:
+          DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/migrationhistorytest?schema=public
+        run: bash scripts/verify-prisma-migration-state.sh --require-clean
+
       - name: P1 RBAC tenant isolation (Postgres)
         env:
           P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
