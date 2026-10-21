@@ -509,3 +509,64 @@ jobs:
         run: |
           docker rm -f medlum-pacs-proxy-ci medlum-ohif-ci medlum-orthanc-ci || true
           docker network rm medlum-pacs-ci || true
+
+  clinical-assist-runtime:
+    name: Clinical Assist runtime acceptance (synthetic PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: medlum
+          POSTGRES_PASSWORD: medlum_test_only
+          POSTGRES_DB: medlum_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U medlum -d medlum_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://medlum:medlum_test_only@127.0.0.1:5432/medlum_test?schema=public
+      SESSION_SECRET: ephemeral-ci-only-session-secret-never-use-in-production-2026-001
+      MEDLUM_CI_SYNTHETIC_FIXTURE: "YES"
+      MEDLUM_RUNTIME_TEST_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Create ephemeral schema
+        run: npx prisma db push --skip-generate
+      - name: Seed synthetic clinic and failed lab documents
+        run: node scripts/seed-clinical-assist-runtime.mjs
+      - name: Start local Next.js app
+        run: |
+          npm run dev -- --hostname 127.0.0.1 > /tmp/medlum-next.log 2>&1 &
+          echo $! > /tmp/medlum-next.pid
+      - name: Wait for app readiness
+        run: |
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/api/auth/login >/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/medlum-next.log
+            exit 1
+          fi
+      - name: Run authenticated Clinical Assist route acceptance
+        run: npm run test:clinical-assist-runtime
+      - name: Print application logs on failure
+        if: failure()
+        run: cat /tmp/medlum-next.log
