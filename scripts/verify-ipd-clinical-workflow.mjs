@@ -65,3 +65,11 @@ notHas(page,"MedLum ID:","IPD demographics show one primary patient-facing ident
 notHas(page,"MedLum Record ID:","internal MedLum record key is not exposed as a duplicate patient identifier");
 
 console.log("IPD note signing and mobile layout regression checks passed.");
+
+has(page,'X-MedLum-Requested-With":"MedLum"', "clinical note signing calls carry the same-origin request header");
+has(page,'UNSIGNED:"Unsigned"', "legacy unsigned status is human-readable");
+has(ipdApi,'authorName: String(meta.authorRole).split(/\\s+·\\s+/)[0].trim()', "legacy audit note author display excludes the duplicated note title");
+has(page,'n.authorDoctorId===doctor?.id', "only the note author can submit an existing draft");
+has(page,'n.authorDoctorId!==doctor?.id', "the author cannot use the second-clinician action");
+
+console.log("IPD note author, signing-header, and status compatibility checks passed.");
