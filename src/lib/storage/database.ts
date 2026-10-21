@@ -4,7 +4,7 @@ import type { StorageProvider, StoredObjectMeta } from "./types";
 const DEFAULT_DATABASE_STORAGE_QUOTA_BYTES = 256 * 1024 * 1024;
 
 function quotaBytes(): number {
-  const raw = process.env.DATABASE_STORAGE_QUOTA_BYTES || "";
+  const raw = process.env.STORAGE_QUOTA_BYTES || process.env.DATABASE_STORAGE_QUOTA_BYTES || "";
   return /^\d+$/.test(raw) ? Number.parseInt(raw, 10) : DEFAULT_DATABASE_STORAGE_QUOTA_BYTES;
 }
 
