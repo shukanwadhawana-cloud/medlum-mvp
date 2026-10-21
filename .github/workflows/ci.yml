@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
@@ -169,7 +169,7 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
@@ -355,7 +355,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Start isolated Orthanc with DICOMweb
         run: |
           set -euo pipefail
@@ -556,7 +556,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
