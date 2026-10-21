@@ -199,6 +199,36 @@ jobs:
             exit 1
           fi
           echo "ImagingStudy migration default verified: $status"
+      - name: Validate PharmacyItem reconciliation migration on disposable PostgreSQL
+        env:
+          PGPASSWORD: p1
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          createdb -h 127.0.0.1 -U p1 pharmacyreconciletest
+
+          # Exercise the forward repair against a clean, minimal schema. This database
+          # is disposable CI state, not the production Neon database.
+          psql -h 127.0.0.1 -U p1 -d pharmacyreconciletest -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE "Clinic" ("id" TEXT PRIMARY KEY);
+          CREATE TABLE "PharmacyItem" ("id" TEXT PRIMARY KEY, "doctorId" TEXT NOT NULL);
+          SQL
+
+          migration="prisma/migrations/20261021070000_reconcile_pharmacy_clinic_scope/migration.sql"
+          psql -h 127.0.0.1 -U p1 -d pharmacyreconciletest -v ON_ERROR_STOP=1 -f "$migration"
+          # A second run must be a no-op, matching production's existing objects.
+          psql -h 127.0.0.1 -U p1 -d pharmacyreconciletest -v ON_ERROR_STOP=1 -f "$migration"
+
+          column_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyreconciletest -v ON_ERROR_STOP=1 -Atc "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='PharmacyItem' AND column_name='clinicId';")"
+          index_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyreconciletest -v ON_ERROR_STOP=1 -Atc "SELECT COUNT(*) FROM pg_indexes WHERE schemaname='public' AND tablename='PharmacyItem' AND indexname='PharmacyItem_clinicId_idx';")"
+          fk_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyreconciletest -v ON_ERROR_STOP=1 -Atc "SELECT COUNT(*) FROM pg_constraint WHERE conrelid='public.\"PharmacyItem\"'::regclass AND conname='PharmacyItem_clinicId_fkey' AND contype='f';")"
+
+          if [ "$column_count" != "1" ] || [ "$index_count" != "1" ] || [ "$fk_count" != "1" ]; then
+            echo "PharmacyItem reconciliation invariant failed: column=$column_count index=$index_count fk=$fk_count" >&2
+            exit 1
+          fi
+          echo "PharmacyItem reconciliation migration is idempotent: column=$column_count index=$index_count fk=$fk_count"
       - name: P1 RBAC tenant isolation (Postgres)
         env:
           P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public
