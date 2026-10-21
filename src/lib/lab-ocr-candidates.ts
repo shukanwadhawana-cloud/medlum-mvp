@@ -100,7 +100,7 @@ function extractValueFromSegment(segment: string): string | null {
   return null;
 }
 
-export export function extractCandidates(text: string): Record<string, string> {
+export function extractCandidates(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   const lines = normalizeOcrLines(text);
   for (const [canonical, aliases] of Object.entries(LAB_ALIASES)) {
