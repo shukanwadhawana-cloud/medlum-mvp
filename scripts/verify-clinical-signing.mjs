@@ -19,15 +19,15 @@ const checks = [
   ["Clinical note history is returned to the authorized chart view", route.includes('versions: { orderBy: { version: "asc" }') && route.includes("versions: Array.isArray(n.versions)") && patientUi.includes("Version history (")],
   ["Author and verifier are distinct relations", /@relation\("ClinicalNoteAuthor"\)/.test(schema) && /@relation\("ClinicalNoteVerifier"\)/.test(schema)],
   ["Clinical signing API exists", route.includes("export async function PATCH") && route.includes('action === "finalize"') && route.includes('action === "sign-own"')],
-  ["Self-verification is blocked for second-verifier action", route.includes("current.authorDoctorId === session.doctorId")],
+  ["Author-only final-sign action is enforced", route.includes("current.authorDoctorId !== session.doctorId") && route.includes('action: "AUTHOR_SIGN"')],
   ["Final signer role is restricted", helper.includes("CLINICAL_VERIFIER_ROLES") && route.includes("canFinalizeClinicalNote")],
   ["Final note integrity is hashed", route.includes("contentHash") && route.includes("finalHash") && helper.includes("createHash")],
   ["Finalization is race-safe", route.includes("Serializable") && route.includes("verifierDoctorId: null") && route.includes("version: current.version")],
   ["Final notes cannot be edited", route.includes('current.status !== "DRAFT"') && route.includes("Submitted or final notes cannot be edited")],
-  ["Audit trail records final sign", route.includes('action: "FINAL_SIGN"')],
+  ["Audit trail records author final sign", route.includes('action: "AUTHOR_SIGN"')],
   ["Author may sign own unsigned note", route.includes('action === "sign-own"') && route.includes('action: "AUTHOR_SIGN"') && route.includes('event: "AUTHOR_SIGNED"')],
   ["API client exposes submit/finalize", api.includes("apiSubmitClinicalNote") && api.includes("apiFinalizeClinicalNote")],
-  ["UI exposes second verification", patientUi.includes("Second verify + final sign") && patientUi.includes("The author cannot approve their own document")],
+  ["UI removes second-verifier workflow", !patientUi.includes("Second verify + final sign") && !patientUi.includes("The author cannot approve their own document") && patientUi.includes("Sign & complete")],
   ["UI exposes locked FINAL state", patientUi.includes("LOCKED FINAL") && patientUi.includes("finalHash")],
   ["UI exposes version history with author, timestamp and hash", patientUi.includes("Version history (") && patientUi.includes("SHA-256")],
 ];
@@ -35,7 +35,7 @@ const checks = [
 const failed = checks.filter(([, ok]) => !ok);
 for (const [label, ok] of checks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
 if (failed.length) process.exit(1);
-console.log("Clinical double-verification/final-signing verifier: GREEN");
+console.log("Author-only clinical final-signing verifier: GREEN");
 
 
 const authorSelfSignChecks = [
@@ -46,7 +46,7 @@ const authorSelfSignChecks = [
   ["author signing has a dedicated audit event", route.includes('action: "AUTHOR_SIGN"')],
   ["IPD UI calls the author-sign endpoint", ipdUi.includes('action:"sign-own"')],
   ["author can sign and complete from note detail", ipdUi.includes("Sign & complete as author")],
-  ["final status label no longer implies mandatory co-signing", ipdUi.includes('FINAL:"Signed / completed"')],
+  ["final status label no longer implies mandatory co-signing", ipdUi.includes('FINAL:"Signed / completed"') && !ipdUi.includes("Final-sign as second clinician")],
 ];
 const authorSelfSignFailures = authorSelfSignChecks.filter(([, ok]) => !ok);
 for (const [label, ok] of authorSelfSignChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
