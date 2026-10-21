@@ -285,7 +285,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
   const candidateEntries = useMemo(() => Object.entries(values), [values]);
   const selectedStatus = selectedDoc?.ocrStatus || "NONE";
   const canVerify = selectedStatus === "DRAFT" && !verifying;
-  const canManualVerify = selectedStatus === "FAILED" && !verifying && manualResult.trim().length > 0;
+  const canManualVerify = ["FAILED", "PENDING"].includes(selectedStatus) && !verifying && manualResult.trim().length > 0;
 
   return (
     <div className="space-y-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
@@ -380,7 +380,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
             </div>
           )}
 
-          {selectedStatus === "FAILED" && (
+          {["FAILED", "PENDING"].includes(selectedStatus) && (
             <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
               <div className="rounded-lg border border-emerald-200 bg-white p-3 space-y-2">
                 <p className="text-[11px] font-semibold text-emerald-900">Extract with Clinical Assist on this device</p>
@@ -410,17 +410,19 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                   />
                 </label>
                 <p className="text-[10px] text-gray-500">
-                  This hosting mode may not retain original file bytes. Re-select the exact same file; MedLum checks its SHA-256 before extracting.
+                  The original report is stored with this document. If it cannot be retrieved, re-select the exact same file; MedLum checks its SHA-256 before extracting.
                 </p>
                 {clinicalAssistRunning && clinicalAssistProgress && (
                   <p className="text-[10px] text-emerald-800" role="status">{clinicalAssistProgress}</p>
                 )}
               </div>
               <p className="text-[11px] font-semibold text-amber-900">
-                Clinical Assist could not create a structured draft
+                {selectedStatus === "PENDING" ? "Clinical Assist extraction is pending" : "Clinical Assist could not create a structured draft"}
               </p>
               <p className="text-[10px] text-amber-800">
-                MedLum will retry the saved report using the enhanced Clinical Assist OCR path, including image preprocessing and alternate recognition settings. Extracted text stays a draft and must be checked against the original before verification.
+                {selectedStatus === "PENDING"
+                  ? "The report is saved. Run Clinical Assist on this device to extract candidate values; OCR is a draft only and must be checked against the source before verification."
+                  : "Retry on-device Clinical Assist with image preprocessing and alternate recognition settings. Extracted text stays a draft and must be checked against the original before verification."}
               </p>
               {(() => {
                 let diagnostic = "";
