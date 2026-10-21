@@ -112,14 +112,14 @@ export default function LoginPage() {
     <div className="medlum-canva-auth">
       <div className="medlum-canva-auth-brand">
         <div>
-          <div><p className="medlum-canva-eyebrow text-white/60">CLINICAL PWA</p><h1>MedLum Healthcare</h1><p className="mt-3">Connected care. Smarter workflows.</p></div>
+          <div><p className="medlum-canva-eyebrow text-white/60">CLINICAL PWA</p><h1>MedLum Health</h1><p className="mt-3">Connected care. Smarter workflows.</p></div>
           <p className="mt-3 text-white/70 text-sm leading-relaxed">Hospital & clinic operations — secure privileged access.</p>
         </div>
         <p className="text-white/40 text-xs">OTP for privileged administrative and clinical staff is delivered on Telegram.</p>
       </div>
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
         <div className="medlum-canva-auth-card">
-          <p className="medlum-canva-eyebrow">WELCOME BACK</p><h2 className="mt-1">Sign in to MedLum Healthcare</h2>
+          <p className="medlum-canva-eyebrow">WELCOME BACK</p><h2 className="mt-1">Sign in to MedLum Health</h2>
           <p className="mt-1 text-sm text-gray-500">Doctor and hospital staff access</p>
           {otpStep ? (
             <form onSubmit={handleOtpSubmit} className="mt-10 space-y-5">
