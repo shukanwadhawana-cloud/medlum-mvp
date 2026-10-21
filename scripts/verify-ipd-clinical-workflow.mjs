@@ -6,8 +6,6 @@ const ipdApi = fs.readFileSync("src/app/api/ipd/route.ts","utf8");
 const signingApi = fs.readFileSync("src/app/api/clinical-notes/route.ts","utf8");
 const cancelApi = fs.readFileSync("src/app/api/records/cancel/route.ts","utf8");
 const caseSummaryApi = fs.readFileSync("src/app/api/ipd/[id]/case-summary/route.ts","utf8");
-const cancelApi = fs.readFileSync("src/app/api/records/cancel/route.ts","utf8");
-const caseSummaryApi = fs.readFileSync("src/app/api/ipd/[id]/case-summary/route.ts","utf8");
 const schema = fs.readFileSync("prisma/schema.prisma","utf8");
 
 const has=(text,needle,label)=>assert.ok(text.includes(needle),label+": missing "+needle);
