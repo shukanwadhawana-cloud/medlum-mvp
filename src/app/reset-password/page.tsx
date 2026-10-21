@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
     <main className="min-h-screen medlum-canva-auth flex flex-col">
       <header className="medlum-canva-auth-brand">
         <p className="medlum-canva-eyebrow text-white/60">SECURE STAFF RECOVERY</p>
-        <h1>MedLum Healthcare</h1>
+        <h1>MedLum Health</h1>
         <p className="mt-3 text-white/70 text-sm">Complete your password reset.</p>
       </header>
       <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
