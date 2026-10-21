@@ -6,6 +6,9 @@ import { writeAudit } from "@/lib/audit";
 
 const MAX_ROWS = 5000;
 const MAX_BODY_CHARS = 2_000_000;
+const MAX_EXCEL_BYTES = 1_400_000;
+const MAX_COLUMNS = 100;
+const MAX_CELLS = 250_000;
 
 type MappedRow = {
   code?: string;
@@ -57,6 +60,17 @@ function sheetToMatrix(sheet: any): string[][] {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const XLSX = require("xlsx");
   const range = XLSX.utils.decode_range(ref);
+  const rowCount = range.e.r - range.s.r + 1;
+  const columnCount = range.e.c - range.s.c + 1;
+  if (!Number.isSafeInteger(rowCount) || rowCount < 1 || rowCount > MAX_ROWS + 1) {
+    throw new Error(`Excel sheet exceeds the maximum of ${MAX_ROWS} data rows`);
+  }
+  if (!Number.isSafeInteger(columnCount) || columnCount < 1 || columnCount > MAX_COLUMNS) {
+    throw new Error(`Excel sheet exceeds the maximum of ${MAX_COLUMNS} columns`);
+  }
+  if (rowCount * columnCount > MAX_CELLS) {
+    throw new Error(`Excel sheet exceeds the maximum of ${MAX_CELLS} cells`);
+  }
   const out: string[][] = [];
   for (let r = range.s.r; r <= range.e.r; r++) {
     const row: string[] = [];
@@ -77,7 +91,19 @@ function sheetToMatrix(sheet: any): string[][] {
 function parseExcelBase64(b64: string, preferredSheet?: string): { sheets: string[]; matrix: string[][]; usedSheet: string } {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const XLSX = require("xlsx");
-  const buf = Buffer.from(b64.replace(/^data:.*?;base64,/, ""), "base64");
+  const encoded = b64.replace(/^data:.*?;base64,/, "").replace(/\s/g, "");
+  if (!encoded || encoded.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+    throw new Error("Invalid Excel base64 payload");
+  }
+  const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+  const estimatedBytes = (encoded.length / 4) * 3 - padding;
+  if (estimatedBytes > MAX_EXCEL_BYTES) {
+    throw new Error(`Excel file exceeds the maximum size of ${MAX_EXCEL_BYTES} bytes`);
+  }
+  const buf = Buffer.from(encoded, "base64");
+  if (buf.length > MAX_EXCEL_BYTES) {
+    throw new Error(`Excel file exceeds the maximum size of ${MAX_EXCEL_BYTES} bytes`);
+  }
   const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
   const sheets = wb.SheetNames || [];
   if (!sheets.length) throw new Error("Workbook has no sheets");
