@@ -25,7 +25,7 @@ const DISCLAIMER =
 
 type Source = { label: string; at: string; title: string };
 type Answer = { answer: string; sources: Source[]; disclaimer: string; generatedAt: string };
-type PatientContext = { notes: string; allergies: string };
+type PatientContext = { notes: string; allergies: string; status: string };
 
 function fail(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, {
@@ -211,8 +211,11 @@ async function answerQuestion(
           dateLabel(first.actualAt) + "); " + items.length + " administered MAR record(s) across " +
           distinctDays.size + " retrieved date(s); latest administration " + dateTimeLabel(last.actualAt) + ".";
       });
+      const historicDischarge = patient.status.trim().toUpperCase() === "DISCHARGED";
       answer = lines.join("\n") +
-        "\n\nThis is an inclusive calendar-day count from the earliest matching administered MAR record retrieved by this query, not proof of uninterrupted therapy or antibiotic appropriateness. Verify the complete MAR, medication changes, transfer records, and any outside-hospital doses before documenting the antibiotic day.";
+        (historicDischarge
+          ? "\n\nThe patient is currently marked DISCHARGED. These are historic calendar-day counts from recorded MAR data, not a claim that antibiotic treatment is still ongoing. Verify the course-specific order, documented stop/change date, complete MAR, transfer records, and outside-hospital doses before documenting a therapy day."
+          : "\n\nThis is an inclusive calendar-day count from the earliest matching administered MAR record retrieved by this query, not proof of uninterrupted therapy or antibiotic appropriateness. Verify the course-specific order, documented stop/change date, complete MAR, transfer records, and any outside-hospital doses before documenting the antibiotic day.");
     }
   } else if (questionId === "missed-doses") {
     const nowMs = now.getTime();
@@ -445,7 +448,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
 
   try {
     const result = await answerQuestion(patientId, membership.clinicId, questionId, {
-      notes: patient.notes || "", allergies: patient.allergies || "",
+      notes: patient.notes || "", allergies: patient.allergies || "", status: patient.status || "UNKNOWN",
     });
     await writeAudit({
       doctorId: session.doctorId,
