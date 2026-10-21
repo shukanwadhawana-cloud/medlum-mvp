@@ -1156,11 +1156,12 @@ model ImagingStudy {
 // through clinic-scoped MedicalDocument routes; payloads are never returned in JSON.
 model StoredBinaryObject {
   key       String   @id
+  clinicId  String
   data      Bytes
   mimeType  String   @default("application/octet-stream")
   sizeBytes Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([createdAt])
+  @@index([clinicId, createdAt])
 }
