@@ -13,7 +13,6 @@ import {
 } from "@/lib/api";
 import { RADIOLOGY_CATALOG } from "@/lib/diagnostic-catalog";
 import { formatIst } from "@/lib/time";
-import ImagingStudiesPanel from "@/components/ImagingStudiesPanel";
 import PacsClinicalWorkspace from "@/components/PacsClinicalWorkspace";
 
 type Patient = { id: string; name: string; uhid?: string };
