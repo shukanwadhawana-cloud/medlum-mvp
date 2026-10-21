@@ -1,0 +1,40 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import assert from "node:assert/strict";
+
+const read = (path) => fs.readFileSync(path, "utf8");
+const login = read("src/app/login/page.tsx");
+const request = read("src/app/api/auth/password-reset/request/route.ts");
+const complete = read("src/app/api/auth/password-reset/complete/route.ts");
+const forgotPage = read("src/app/forgot-password/page.tsx");
+const resetPage = read("src/app/reset-password/page.tsx");
+const staffRoute = read("src/app/api/clinic/staff/[id]/password-reset/route.ts");
+const workforce = read("src/app/workforce/page.tsx");
+
+assert(login.includes('href="/forgot-password"'), "staff login links to a real forgot-password page");
+assert(login.includes("showPassword ? \"text\" : \"password\""), "staff login exposes accessible show/hide password control");
+assert(request.includes('purpose: "password_reset"'), "self-service reset uses a distinct OTP purpose");
+assert(request.includes("sendTelegramMessage"), "reset codes are delivered only through a linked personal Telegram identity");
+assert(request.includes("authBucketKey(\"password-reset-request\""), "reset requests are rate limited by identifier and IP");
+assert(request.includes("GENERIC_MESSAGE"), "reset request response is non-enumerating");
+assert(complete.includes('purpose: "password_reset_link"'), "admin reset links have a distinct purpose");
+assert(complete.includes("createHash(\"sha256\")"), "reset links are stored as token hashes");
+assert(complete.includes("verifyOtpHash(code, challenge.codeHash)"), "Telegram reset codes are verified against a hash");
+assert(complete.includes("newPassword.length < 12"), "new password minimum length is enforced server-side");
+assert(complete.includes("confirmPassword !== newPassword"), "password confirmation is enforced server-side");
+assert(complete.includes("tx.doctor.update"), "reset updates the account password transactionally");
+assert(complete.includes("sessionInvalidatedAt: now"), "reset invalidates prior sessions");
+assert(complete.includes("consumedAt: now"), "reset challenge is one-time use");
+assert(forgotPage.includes("/api/auth/password-reset/request"), "forgot-password UI calls request endpoint");
+assert(forgotPage.includes("/api/auth/password-reset/complete"), "forgot-password UI calls completion endpoint");
+assert(forgotPage.includes("autoComplete=\"one-time-code\""), "reset code supports OTP autofill");
+assert(resetPage.includes("window.location.hash"), "staff reset link token is taken from URL fragment, not sent in initial HTTP request");
+assert(resetPage.includes('window.history.replaceState(null, "", window.location.pathname)'), "reset token is removed from the address bar after load");
+assert(staffRoute.includes('["Owner", "Admin"].includes(actor.role)'), "staff reset endpoint requires clinic owner/admin role");
+assert(staffRoute.includes("clinicId: actor.clinicId"), "staff reset is scoped to the current clinic");
+assert(staffRoute.includes("randomBytes(32)"), "admin links use high-entropy random tokens");
+assert(staffRoute.includes("expiresAt = new Date(now.getTime() + 30 * 60 * 1000)"), "admin reset links expire after 30 minutes");
+assert(workforce.includes("Reset password"), "staff directory exposes reset action");
+assert(workforce.includes("/password-reset"), "staff directory uses the authorized reset endpoint");
+assert(workforce.includes("Copy reset link"), "admin can copy the issued reset link");
+console.log("Password reset and workforce recovery checks: PASS");
