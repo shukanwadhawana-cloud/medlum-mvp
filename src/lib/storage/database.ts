@@ -25,6 +25,11 @@ export function createDatabaseStorageProvider(): StorageProvider {
       const clinicId = clinicMatch?.[1];
       if (!clinicId) throw new Error("Report storage key does not include a clinic scope.");
 
+      // Prisma Bytes expects a standalone ArrayBuffer-backed Uint8Array;
+      // Node Buffer may be backed by ArrayBufferLike/SharedArrayBuffer.
+      const bytes = new Uint8Array(new ArrayBuffer(data.length));
+      bytes.set(data);
+
       await prisma.$transaction(async (tx) => {
         const current = await tx.storedBinaryObject.findUnique({
           where: { key },
@@ -51,13 +56,13 @@ export function createDatabaseStorageProvider(): StorageProvider {
           create: {
             key,
             clinicId,
-            data,
+            data: bytes,
             mimeType,
             sizeBytes: data.length,
           },
           update: {
             clinicId,
-            data,
+            data: bytes,
             mimeType,
             sizeBytes: data.length,
           },
