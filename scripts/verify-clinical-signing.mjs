@@ -10,6 +10,8 @@ const helper = read("src/lib/clinical-signing.ts");
 const api = read("src/lib/api.ts");
 const patientUi = read("src/app/patients/[id]/page.tsx");
 const ipdUi = read("src/app/ipd/[id]/page.tsx");
+const ipdRoute = read("src/app/api/ipd/route.ts");
+const legacyRoute = read("src/app/api/clinical-notes/legacy/route.ts");
 
 const checks = [
   ["ClinicalNote Prisma model exists", /model ClinicalNote\s*\{/.test(schema)],
@@ -79,3 +81,18 @@ const authorRoleFailures = authorRoleChecks.filter(([, ok]) => !ok);
 for (const [label, ok] of authorRoleChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
 if (authorRoleFailures.length) process.exit(1);
 console.log("Author-sign role separation checks: GREEN");
+
+
+const cancellationHistoryChecks = [
+  ["legacy source activation is reused instead of recreated", legacyRoute.includes("priorActivation") && legacyRoute.includes("sourceAuditId:log.id")],
+  ["already-cancelled legacy drafts cannot be reactivated", legacyRoute.includes("This legacy draft was already cancelled") && legacyRoute.includes('status:"CANCELLED"')],
+  ["equivalent pre-existing drafts are linked to their legacy source", legacyRoute.includes("Link the legacy source even when an equivalent draft pre-existed")],
+  ["cancelled note actor is retained via immutable version creator", ipdRoute.includes('event: "CANCELLED_BY_AUTHOR"') && ipdRoute.includes("cancelledVersion?.createdBy?.name")],
+  ["cancellation time and reason are exposed from audit history", ipdRoute.includes("cancelledAt: cancelledVersion?.createdAt") && ipdRoute.includes("cancellationReason: typeof cancellation?.meta?.reason")],
+  ["duplicate cancelled legacy activation is excluded from the note list", ipdRoute.includes("duplicateCancelledActivationIds.add(activatedNote.id)") && ipdRoute.includes("if (duplicateCancelledActivationIds.has(n.id)) continue")],
+  ["cancelled note detail shows actor and reason", ipdUi.includes("Cancelled by:") && ipdUi.includes("n.cancellationReason")],
+];
+const cancellationHistoryFailures = cancellationHistoryChecks.filter(([, ok]) => !ok);
+for (const [label, ok] of cancellationHistoryChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
+if (cancellationHistoryFailures.length) process.exit(1);
+console.log("IPD cancellation de-duplication and attribution checks: GREEN");
