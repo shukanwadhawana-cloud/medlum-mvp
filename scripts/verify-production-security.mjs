@@ -7,6 +7,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const middleware = read("src/middleware.ts");
 const session = read("src/lib/session.ts");
 const env = read(".env.example");
+const tariffImport = read("src/app/api/tariffs/import/route.ts");
+const packageJson = JSON.parse(read("package.json"));
 
 const requiredFiles = [
   "src/middleware.ts",
@@ -74,6 +76,19 @@ if (!env.includes("ALLOW_PUBLIC_SIGNUP")) {
 if (!env.includes("SESSION_SECRET") || !env.includes("at-least-32-chars")) throw new Error("Secure session secret documentation missing");
 if (env.includes("NEXT_PUBLIC_EKA_CLIENT_SECRET") || env.includes("NEXT_PUBLIC_EKA_API_KEY")) {
   throw new Error("EKA secrets must not be exposed through NEXT_PUBLIC variables");
+}
+
+if (packageJson.dependencies?.xlsx !== "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz") {
+  throw new Error("Tariff Excel parser must use the official patched SheetJS 0.20.3 release");
+}
+for (const guard of [
+  "MAX_EXCEL_BYTES",
+  "Invalid Excel base64 payload",
+  "MAX_COLUMNS",
+  "MAX_CELLS",
+  "MAX_ROWS + 1",
+]) {
+  if (!tariffImport.includes(guard)) throw new Error(`Tariff Excel parser guard missing: ${guard}`);
 }
 
 console.log("Phase 14 production security verification passed.");
