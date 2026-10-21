@@ -1,0 +1,96 @@
+name: Production Database Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "status only inspects migration state; deploy applies pending migrations"
+        required: true
+        type: choice
+        options:
+          - status
+          - deploy
+        default: status
+      confirmation:
+        description: "For deploy only, type APPLY_PRODUCTION_MIGRATIONS"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: medlum-production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Inspect or apply reviewed Prisma migrations
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Repository owners must configure this environment with required reviewers,
+    # PRODUCTION_DATABASE_URL secret, and PRODUCTION_MIGRATIONS_ENABLED=true.
+    environment:
+      name: production-migrations
+    steps:
+      - name: Checkout the exact selected commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Configure Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Validate manual approval gates
+        shell: bash
+        env:
+          OPERATION: ${{ inputs.operation }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          MIGRATION_WORKFLOW_ENABLED: ${{ vars.PRODUCTION_MIGRATIONS_ENABLED }}
+        run: |
+          set -euo pipefail
+          if [[ "${MIGRATION_WORKFLOW_ENABLED:-}" != "true" ]]; then
+            echo "::error::Fail-closed: configure environment 'production-migrations' with required reviewers and set PRODUCTION_MIGRATIONS_ENABLED=true before use."
+            exit 1
+          fi
+          if [[ -z "${DATABASE_URL:-}" ]]; then
+            echo "::error::Missing PRODUCTION_DATABASE_URL in the protected production-migrations environment."
+            exit 1
+          fi
+          if [[ "$DATABASE_URL" != postgresql://* && "$DATABASE_URL" != postgres://* ]]; then
+            echo "::error::PRODUCTION_DATABASE_URL must be a PostgreSQL connection URL."
+            exit 1
+          fi
+          if [[ "$OPERATION" != "status" && "$OPERATION" != "deploy" ]]; then
+            echo "::error::Unsupported migration operation."
+            exit 1
+          fi
+          if [[ "$OPERATION" == "deploy" && "$CONFIRMATION" != "APPLY_PRODUCTION_MIGRATIONS" ]]; then
+            echo "::error::Applying migrations requires the exact confirmation APPLY_PRODUCTION_MIGRATIONS."
+            exit 1
+          fi
+          echo "Approval gates passed for operation: $OPERATION"
+
+      - name: Install pinned repository dependencies
+        run: npm install --include=dev --ignore-scripts --no-audit --no-fund
+
+      - name: Inspect production migration state
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx prisma migrate status
+
+      - name: Apply pending migrations only when explicitly confirmed
+        if: inputs.operation == 'deploy'
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Verify migration state after operation
+        if: inputs.operation == 'deploy'
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx prisma migrate status
