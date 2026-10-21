@@ -21,7 +21,7 @@ const DoctorContext = createContext<Ctx>({
   setDoctor: () => {},
 });
 
-const PUBLIC = ["/login", "/signup", "/join", "/book", "/help", "/pricing", "/privacy", "/terms"];
+const PUBLIC = ["/login", "/signup", "/forgot-password", "/reset-password", "/join", "/book", "/help", "/pricing", "/privacy", "/terms"];
 
 function isPublicPath(pathname: string) {
   if (PUBLIC.includes(pathname)) return true;
