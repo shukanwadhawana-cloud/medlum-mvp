@@ -91,7 +91,7 @@ function sheetToMatrix(sheet: any): string[][] {
 function parseExcelBase64(b64: string, preferredSheet?: string): { sheets: string[]; matrix: string[][]; usedSheet: string } {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const XLSX = require("xlsx");
-  const encoded = b64.replace(/^data:.*?;base64,/, "").replace(/\\s/g, "");
+  const encoded = b64.replace(/^data:.*?;base64,/, "").replace(/\s/g, "");
   if (!encoded || encoded.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
     throw new Error("Invalid Excel base64 payload");
   }
