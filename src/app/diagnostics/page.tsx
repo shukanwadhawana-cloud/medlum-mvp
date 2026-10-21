@@ -65,9 +65,16 @@ export default function DiagnosticsPage() {
   const [report, setReport] = useState({ findings: "", impression: "", notes: "" });
 
   const load = useCallback(async () => {
-    const [pts, list] = await Promise.all([apiGetPatients(), apiGetDiagnostics()]);
-    setPatients(pts as Patient[]);
-    setOrders(list as DiagnosticOrder[]);
+    setError("");
+    try {
+      const [pts, list] = await Promise.all([apiGetPatients(), apiGetDiagnostics()]);
+      setPatients(pts as Patient[]);
+      setOrders(list as DiagnosticOrder[]);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Diagnostics could not be loaded. Please retry.";
+      setError(message);
+      throw cause;
+    }
   }, []);
 
   useEffect(() => {
@@ -76,7 +83,9 @@ export default function DiagnosticsPage() {
       router.replace("/login");
       return;
     }
-    void load();
+    void load().catch(() => {
+      // The load function exposes a visible error; avoid an unhandled promise rejection.
+    });
   }, [doctor, authLoading, router, load]);
 
   const filtered = useMemo(() => {
@@ -125,13 +134,18 @@ export default function DiagnosticsPage() {
     e.preventDefault();
     setError("");
     setSaving(true);
-    const r = await apiCreateDiagnosticOrder(form);
-    if (r.success) {
-      setShowAdd(false);
-      setForm({ patientId: "", studyName: "", modality: "Other", bodyPart: "", indication: "", notes: "" });
-      await load();
-    } else setError(r.error || "Could not create diagnostic order");
-    setSaving(false);
+    try {
+      const r = await apiCreateDiagnosticOrder(form);
+      if (r.success) {
+        setShowAdd(false);
+        setForm({ patientId: "", studyName: "", modality: "Other", bodyPart: "", indication: "", notes: "" });
+        await load();
+      } else setError(r.error || "Could not create diagnostic order");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create diagnostic order. Please retry.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveReport = async (e: React.FormEvent) => {
@@ -143,19 +157,24 @@ export default function DiagnosticsPage() {
     }
     setSaving(true);
     setError("");
-    const r = await apiUpdateDiagnosticOrder({
-      id: reportOrder.id,
-      status: "Reported",
-      findings: report.findings,
-      impression: report.impression,
-      notes: report.notes,
-    });
-    if (r.success) {
-      setReportOrder(null);
-      setReport({ findings: "", impression: "", notes: "" });
-      await load();
-    } else setError(r.error || "Could not save report");
-    setSaving(false);
+    try {
+      const r = await apiUpdateDiagnosticOrder({
+        id: reportOrder.id,
+        status: "Reported",
+        findings: report.findings,
+        impression: report.impression,
+        notes: report.notes,
+      });
+      if (r.success) {
+        setReportOrder(null);
+        setReport({ findings: "", impression: "", notes: "" });
+        await load();
+      } else setError(r.error || "Could not save report");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save report. Please retry.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (authLoading) {
@@ -280,8 +299,20 @@ export default function DiagnosticsPage() {
                             <button
                               type="button"
                               onClick={async () => {
-                                await apiUpdateDiagnosticOrder({ id: o.id, status: "Performed" });
-                                await load();
+                                setError("");
+                                setSaving(true);
+                                try {
+                                  const result = await apiUpdateDiagnosticOrder({ id: o.id, status: "Performed" });
+                                  if (!result.success) {
+                                    setError(result.error || "Could not mark this study as performed.");
+                                    return;
+                                  }
+                                  await load();
+                                } catch (cause) {
+                                  setError(cause instanceof Error ? cause.message : "Could not mark this study as performed.");
+                                } finally {
+                                  setSaving(false);
+                                }
                               }}
                               className="rounded-md border bg-white px-2 py-1 text-[11px] font-medium"
                             >
@@ -309,8 +340,20 @@ export default function DiagnosticsPage() {
                             <button
                               type="button"
                               onClick={async () => {
-                                await apiUpdateDiagnosticOrder({ id: o.id, status: "Cancelled" });
-                                await load();
+                                setError("");
+                                setSaving(true);
+                                try {
+                                  const result = await apiUpdateDiagnosticOrder({ id: o.id, status: "Cancelled" });
+                                  if (!result.success) {
+                                    setError(result.error || "Could not cancel this study.");
+                                    return;
+                                  }
+                                  await load();
+                                } catch (cause) {
+                                  setError(cause instanceof Error ? cause.message : "Could not cancel this study.");
+                                } finally {
+                                  setSaving(false);
+                                }
                               }}
                               className="rounded-md px-2 py-1 text-[11px] text-red-600"
                             >
