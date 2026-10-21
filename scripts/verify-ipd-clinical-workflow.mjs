@@ -25,7 +25,7 @@ notHas(initial,'placeholder="Treatment given"',"initial assessment treatment fie
 notHas(initial,"Treatment on discharge:","initial assessment discharge treatment");
 notHas(initial,"Follow-up date/time:","initial assessment follow-up");
 
-has(ipdApi,'const status = submit ? "PENDING_VERIFICATION" : "DRAFT"',"IPD note status");
+has(ipdApi,'const status = sign ? "FINAL" : submit ? "PENDING_VERIFICATION" : "DRAFT"',"IPD note supports draft, direct author-sign, and co-sign submission");
 has(ipdApi,"tx.clinicalNote.create","IPD notes persist as canonical clinical-note records");
 has(ipdApi,"tx.clinicalNoteVersion.create","IPD note creation records version history");
 has(ipdApi,"legacy-audit-","previously saved audit-only IPD notes remain visible");
@@ -49,7 +49,7 @@ console.log("IPD clinical workflow verification passed.");
 
 // Clinical Notes signing and phone-width regression checks.
 has(page,'DRAFT:"Draft · not signed"',"human-readable draft state must be explicit");
-has(page,'PENDING_VERIFICATION:"Awaiting second signature"',"pending verification label must be explicit");
+has(page,'PENDING_VERIFICATION:"Awaiting co-signature"',"pending co-signature state is explicit");
 has(page,'FINAL:"Signed / completed"',"final signed status is explicit without implying mandatory co-signing");
 has(page,'timeZone:"Asia/Kolkata"',"note timestamps must use IST");
 has(page,"clinicalNoteDateTime(n.createdAt)","note creation time is shown");
@@ -59,8 +59,8 @@ has(page,'hidden md:block overflow-x-auto border rounded-xl',"desktop notes tabl
 has(page,'flex flex-col md:flex-row min-w-0 min-h-[520px]',"IPD navigation and content stack on phones");
 has(page,'action:"submit"',"existing author drafts can be submitted for verification from Note View");
 has(page,'action:"finalize"',"eligible second clinician can final-sign from Note View");
-has(page,'onClick={()=>void saveProgress(true)}',"Progress Note offers submit-for-verification action");
-has(page,'onClick={()=>void saveNote(true,leftNav)}',"Consultant/RMO/Nursing/Case Summary forms offer submit-for-verification");
+has(page,'onClick={()=>void saveProgress(true,false)}',"Progress Note offers optional co-signature action");
+has(page,'onClick={()=>void saveNote(true,leftNav,false)}',"Consultant/RMO/Nursing/Case Summary forms offer optional co-signature");
 notHas(page,"MedLum ID:","IPD demographics show one primary patient-facing identifier");
 notHas(page,"MedLum Record ID:","internal MedLum record key is not exposed as a duplicate patient identifier");
 
@@ -74,10 +74,28 @@ has(page,'n.authorDoctorId!==doctor?.id', "the author cannot use the second-clin
 
 console.log("IPD note author, signing-header, and status compatibility checks passed.");
 
-has(page,'>Submit</button>',"author can submit an existing draft directly from the desktop note list");
+has(page,'Submit for co-signature</button>',"author can submit an existing draft for optional co-signature from the desktop note list");
 has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can final-sign directly from the mobile note list");
 has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
 console.log("IPD list-level signature actions and role visibility checks passed.");
 
 has(signingApi,'const signedVersion = current.version + 1',"author sign creates a unique version instead of a duplicate version row");
 has(signingApi,'contentHash: signedContentHash',"signed note content hash is updated for the new version");
+
+
+// Complete note workflow: sign immediately, submit optionally, or cancel unsigned work.
+has(ipdApi,'const sign = body.sign === true',"IPD note creation accepts author-sign intent");
+has(ipdApi,'finalizedAt: sign ? now : null',"directly signed notes record their finalization time");
+has(ipdApi,'event: sign ? "CREATED_AND_AUTHOR_SIGNED" : submit ? "CREATED_AND_SUBMITTED" : "CREATED_DRAFT"',"directly signed creation is version-audited");
+has(ipdApi,'action: sign ? "AUTHOR_SIGN" : submit ? "SUBMIT_FOR_VERIFICATION" : "CREATE_DRAFT"',"directly signed creation produces an author-sign audit event");
+has(page,'onClick={e=>void saveStructured(e as any,false,true)}',"Initial Assessment can be signed and completed while being saved");
+has(page,'onClick={()=>void saveProgress(false,true)}',"Progress Note can be signed and completed while being saved");
+has(page,'onClick={()=>void saveNote(false,leftNav,true)}',"Consultant/RMO/Nursing/Case Summary can be signed and completed while being saved");
+has(signingApi,'if (action === "cancel")',"clinical note cancellation endpoint exists");
+has(signingApi,'Only the original author can cancel this note',"only original author may cancel their note");
+has(signingApi,'event: "CANCELLED_BY_AUTHOR"',"cancellation increments and retains the note version history");
+has(signingApi,'action: "CLINICAL_NOTE_CANCELLED"',"cancellation reason is retained in the audit trail");
+has(page,'showCancelledNotes?clinicalNotes:clinicalNotes.filter((n:any)=>n.status!=="CANCELLED")',"cancelled notes are removed from the active list by default");
+has(page,"Cancel / remove","author has an explicit cancel/remove action before signing");
+has(page,'Submit for co-signature',"co-signing is an explicit option, not the default completion path");
+console.log("IPD sign, optional co-sign, and cancellation regression checks passed.");
