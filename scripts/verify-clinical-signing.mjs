@@ -37,12 +37,17 @@ if (failed.length) process.exit(1);
 console.log("Clinical double-verification/final-signing verifier: GREEN");
 
 
-// Author self-signing is permitted only for the original author and an unsigned note.
-has(route,'action === "sign-own"',"author self-sign endpoint");
-has(signingApi,'current.authorDoctorId !== session.doctorId',"self-sign endpoint enforces note authorship");
-has(signingApi,'["DRAFT", "PENDING_VERIFICATION"].includes(current.status)',"self-sign only accepts unsigned notes");
-has(signingApi,'event: "AUTHOR_SIGNED"',"author signature is version-audited");
-has(signingApi,'action: "AUTHOR_SIGN"',"author signing has a dedicated audit event");
-has(patientUi,'action:"sign-own"',"IPD UI calls the author-sign endpoint");
-has(page,"Sign & complete as author","author can sign and complete from note detail");
-has(page,'FINAL:"Signed / completed"',"final status label no longer implies mandatory co-signing");
+const authorSelfSignChecks = [
+  ["author self-sign endpoint", route.includes('action === "sign-own"')],
+  ["self-sign endpoint enforces note authorship", route.includes("current.authorDoctorId !== session.doctorId")],
+  ["self-sign only accepts unsigned notes", route.includes('["DRAFT", "PENDING_VERIFICATION"].includes(current.status)')],
+  ["author signature is version-audited", route.includes('event: "AUTHOR_SIGNED"')],
+  ["author signing has a dedicated audit event", route.includes('action: "AUTHOR_SIGN"')],
+  ["IPD UI calls the author-sign endpoint", patientUi.includes('action:"sign-own"')],
+  ["author can sign and complete from note detail", patientUi.includes("Sign & complete as author")],
+  ["final status label no longer implies mandatory co-signing", patientUi.includes('FINAL:"Signed / completed"')],
+];
+const authorSelfSignFailures = authorSelfSignChecks.filter(([, ok]) => !ok);
+for (const [label, ok] of authorSelfSignChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
+if (authorSelfSignFailures.length) process.exit(1);
+console.log("Author self-signing regression checks: GREEN");
