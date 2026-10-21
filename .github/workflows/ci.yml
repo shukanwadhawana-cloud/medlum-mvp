@@ -77,6 +77,8 @@ jobs:
         run: npm run test:document-intelligence
       - name: Verify lab OCR candidate extraction fallback
         run: npm run test:lab-ocr-behavior
+      - name: Verify on-device Clinical Assist OCR worker and CSP
+        run: npm run test:clinical-assist-ocr
       - name: Verify multi-tenant isolation (static)
         run: npm run test:tenant-isolation
       - name: Verify P1 closure (static)
