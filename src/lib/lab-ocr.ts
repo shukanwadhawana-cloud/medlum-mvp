@@ -271,15 +271,16 @@ export async function extractLabOcrDraft(
     // If the first pass cannot map values, reuse the stronger Clinical Assist OCR
     // pipeline: contrast preprocessing, alternate Tesseract segmentation, and
     // PDF text-layer/scanned-page fallback. This remains a draft, never a result.
-    if (Object.keys(draft).length === 0) {
+    // A partial first-pass parse can still miss most of a panel/table. Invoke Clinical Assist
+    // whenever fewer than three canonical values were found, then merge candidates so the
+    // stronger pass can fill gaps without discarding values already parsed.
+    if (Object.keys(draft).length < 3) {
       try {
         const enhanced = await extractClinicalOcrText(data, mimeType);
         const enhancedText = String(enhanced.text || "").trim();
         const enhancedDraft = extractCandidates(enhancedText);
         if (enhancedText.length > text.length) text = enhancedText;
-        if (Object.keys(enhancedDraft).length > Object.keys(draft).length) {
-          draft = enhancedDraft;
-        }
+        draft = { ...enhancedDraft, ...draft };
         warnings.push("Enhanced OCR fallback used " + enhanced.method + (enhanced.confidence == null ? "" : " (confidence " + Math.round(enhanced.confidence) + "%)") + ".");
         if (enhanced.pageLimitReached) warnings.push("Only the supported first pages of this PDF were OCR processed.");
       } catch (fallbackError) {
