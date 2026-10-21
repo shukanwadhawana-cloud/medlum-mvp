@@ -399,10 +399,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, noteId: note.id, status: "PENDING_VERIFICATION", authorDoctorId: session.doctorId });
       }
 
-      if (!canFinalizeClinicalNote(normalizeClinicRole(membership.role))) {
-        return NextResponse.json({ success: false, error: "Your clinic role cannot sign and complete a discharge summary.", code: "RBAC_DENIED" }, { status: 403 });
-      }
-
+      // Resolve the pending summary first: its original author may self-sign,
+      // while independent verification remains restricted to authorised roles.
       // Prefer the requesting clinician's own submitted summary. The canonical UI
       // sends noteId so the signature is applied to the exact reviewed note.
       const requestedNoteId = String(body.noteId || "").trim();
@@ -419,6 +417,9 @@ export async function POST(req: Request) {
 
       if (!note) return NextResponse.json({ success: false, error: "Save and submit a discharge summary before signing and completing discharge." }, { status: 409 });
       const isAuthorSigner = note.authorDoctorId === session.doctorId;
+      if (!isAuthorSigner && !canFinalizeClinicalNote(normalizeClinicRole(membership.role))) {
+        return NextResponse.json({ success: false, error: "Your clinic role cannot independently verify a discharge summary.", code: "RBAC_DENIED" }, { status: 403 });
+      }
       if (!/Acknowledgement of receipt:\s*Yes/i.test(note.content)) {
         return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before discharge." }, { status: 409 });
       }
