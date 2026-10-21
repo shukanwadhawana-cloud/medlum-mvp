@@ -52,3 +52,9 @@ const authorSelfSignFailures = authorSelfSignChecks.filter(([, ok]) => !ok);
 for (const [label, ok] of authorSelfSignChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
 if (authorSelfSignFailures.length) process.exit(1);
 console.log("Author self-signing regression checks: GREEN");
+
+const authorSignBlock = route.slice(route.indexOf('if (action === "sign-own")'), route.indexOf('if (action === "finalize")'));
+has(authorSignBlock,'const signedVersion = current.version + 1',"author signing advances the immutable note version");
+has(authorSignBlock,'version: signedVersion',"author-sign history row uses a unique next version");
+has(authorSignBlock,'version: signedVersion, contentHash: signedContentHash',"signed note stores matching signed version and content hash");
+notHas(authorSignBlock,'version: current.version,\n          title: "Author-signed"',"author signing must not insert a duplicate version row");
