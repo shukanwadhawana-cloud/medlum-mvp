@@ -37,6 +37,16 @@ const cases: Array<{ name: string; input: string; expected: Record<string, strin
     input: "Prothrombin Time 13.8 seconds 11-15\\nINR 1.12 0.8-1.2\\nAPTT 31 sec 25-35",
     expected: { "Prothrombin Time": "13.8 seconds", INR: "1.12", APTT: "31 sec" },
   },
+  {
+    name: "combined PT/INR line maps both values without guessing",
+    input: "PT/INR 13.8 seconds (11-15) / 1.12 (0.8-1.2)",
+    expected: { "Prothrombin Time": "13.8 seconds", INR: "1.12" },
+  },
+  {
+    name: "combined PT/INR line with a single result stays generic",
+    input: "PT/INR 1.12",
+    expected: { "PT/INR": "1.12" },
+  },
 ];
 
 for (const testCase of cases) {
