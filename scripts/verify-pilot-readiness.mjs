@@ -41,7 +41,16 @@ if (!patientDetail.includes(consultReset)) throw new Error("Successful consultat
 if (!patientDetail.includes("setSelectedLabs([])") || !patientDetail.includes("setSelectedDiagnostics([])")) throw new Error("Successful consultation save must clear selected lab/diagnostic orders");
 
 const deployment = read("docs/DEPLOYMENT_RENDER.md");
-if (!deployment.includes("medlum-mvp.onrender.com")) throw new Error("Canonical Render deployment is not documented");
+if (!deployment.includes("medlum-mvp.onrender.com")) throw new Error("Render fallback URL is missing from the Render-specific deployment guide");
+
+const productionSmoke = read("scripts/verify-production-pilot.mjs");
+if (!productionSmoke.includes('process.env.PILOT_BASE_URL || "https://medlumhealth.com"')) {
+  throw new Error("Production smoke test must default to the canonical Vercel app");
+}
+const packageJson = JSON.parse(read("package.json"));
+if (packageJson.scripts?.["test:production-pilot"] !== "node scripts/verify-production-pilot.mjs") {
+  throw new Error("Production pilot smoke test must be exposed via npm run test:production-pilot");
+}
 
 console.log("Phase 15 pilot readiness verification passed.");
 console.log("- Production deployment and safety documentation present");
