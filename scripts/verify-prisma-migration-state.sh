@@ -34,8 +34,8 @@ psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -qAt -F $'\t' \
   -c 'SELECT DISTINCT ON ("migration_name")
         "migration_name",
         "checksum",
-        ("finished_at" IS NOT NULL)::text,
-        ("rolled_back_at" IS NOT NULL)::text
+        ("finished_at" IS NOT NULL),
+        ("rolled_back_at" IS NOT NULL)
       FROM public."_prisma_migrations"
       ORDER BY "migration_name", "started_at" DESC, "id" DESC' > "$tmp"
 
