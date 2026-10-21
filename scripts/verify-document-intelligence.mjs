@@ -84,6 +84,8 @@ ok(clinicalAssistRoute.includes("requireActiveClinicMembership") && clinicalAssi
 ok(clinicalAssistRoute.includes("extractCandidates(text)"), "Clinical Assist OCR text is parsed into candidate lab values");
 ok(clinicalAssistRoute.includes('verified: false') && clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_RETRY"), "Clinical Assist output remains an audited draft");
 ok(clinicalAssistRoute.includes('ocrStatus: "FAILED"') && clinicalAssistRoute.includes("updateMany"), "Clinical Assist uses a compare-and-set guard to avoid overwriting concurrent verification");
+ok(clinicalAssistRoute.includes("A valid source-report fingerprint is required") && clinicalAssistRoute.includes("doc.checksum.toLowerCase() !== sourceChecksum"), "Clinical Assist server binds OCR drafts to the saved report checksum");
+ok(panelClinicalAssist.includes("sourceChecksum: suppliedChecksum"), "Clinical Assist sends the validated source checksum to the server");
 
 ok(view.includes('searchParams.get("raw") === "1"'), "authenticated document viewer supports same-origin raw bytes for local OCR");
 const documentRoute = readFileSync("src/app/api/labs/documents/route.ts", "utf8");
