@@ -419,7 +419,7 @@ export default function PatientDetailPage() {
                 <p className="text-xs text-gray-700 mt-2 whitespace-pre-wrap">{n.content}</p>
                 <div className="text-[10px] text-gray-500 mt-2 space-y-0.5">
                   <p>Author: {n.author?.name || "Unknown"}{n.authorRole ? " · Role: " + n.authorRole : ""}</p>
-                  {n.verifier && <p>Final verifier: {n.verifier.name} · {n.finalizedAt ? new Date(n.finalizedAt).toLocaleString() : ""}</p>
+                  {n.verifier && <p>Final verifier: {n.verifier.name} · {n.finalizedAt ? new Date(n.finalizedAt).toLocaleString() : ""}</p>}
                   {Array.isArray(n.versions) && n.versions.length > 0 ? (<details className="mt-2 rounded-lg border border-gray-200 p-2">
                     <summary className="cursor-pointer font-medium">Version history ({n.versions.length})</summary>
                     <div className="mt-2 space-y-2">{[...n.versions].reverse().map((v: any) => <div key={v.id} className="border-t pt-2">
