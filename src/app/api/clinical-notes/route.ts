@@ -219,10 +219,45 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: true, status: "PENDING_VERIFICATION" });
     }
 
+    if (action === "cancel") {
+      const reason = String(body.reason || "").trim();
+      if (!reason) return NextResponse.json({ success: false, error: "A cancellation reason is required so the audit trail stays clear." }, { status: 400 });
+      if (reason.length > 500) return NextResponse.json({ success: false, error: "Cancellation reason must be 500 characters or fewer." }, { status: 400 });
+
+      const result = await prisma.$transaction(async (tx) => {
+        const current = await tx.clinicalNote.findFirst({
+          where: { id, clinicId: membership.clinicId },
+          select: { id: true, patientId: true, authorDoctorId: true, title: true, noteType: true, content: true, version: true, status: true, contentHash: true, verifierDoctorId: true },
+        });
+        if (!current) return { status: 404, body: { success: false, error: "Clinical note not found" } };
+        if (current.authorDoctorId !== session.doctorId) return { status: 403, body: { success: false, error: "Only the original author can cancel this note" } };
+        if (!["DRAFT", "PENDING_VERIFICATION"].includes(current.status)) return { status: 409, body: { success: false, error: "Only an unsigned note can be cancelled. Signed or final notes must use an amendment workflow." } };
+        if (current.verifierDoctorId) return { status: 409, body: { success: false, error: "This note already has a verifier and cannot be cancelled from this workflow." } };
+
+        const cancelledAt = new Date();
+        const cancelledVersion = current.version + 1;
+        const cancelledHash = hashClinicalNote(current.content, cancelledVersion);
+        const updated = await tx.clinicalNote.updateMany({
+          where: { id, clinicId: membership.clinicId, authorDoctorId: session.doctorId, status: current.status, verifierDoctorId: null, version: current.version, contentHash: current.contentHash },
+          data: { status: "CANCELLED", version: cancelledVersion, contentHash: cancelledHash, finalHash: "", verifiedAt: null, finalizedAt: null },
+        });
+        if (updated.count !== 1) return { status: 409, body: { success: false, error: "This note changed concurrently; reload and try again." } };
+
+        await tx.clinicalNoteVersion.create({ data: {
+          clinicalNoteId: id, clinicId: membership.clinicId, version: cancelledVersion,
+          title: current.title, noteType: current.noteType, content: current.content, contentHash: cancelledHash,
+          event: "CANCELLED_BY_AUTHOR", createdByDoctorId: session.doctorId, createdAt: cancelledAt,
+        } });
+        await tx.auditLog.create({ data: {
+          doctorId: session.doctorId, action: "CLINICAL_NOTE_CANCELLED", entity: "ClinicalNote", entityId: id,
+          meta: JSON.stringify({ clinicId: membership.clinicId, patientId: current.patientId, noteType: current.noteType, authorDoctorId: current.authorDoctorId, reason, previousStatus: current.status, version: cancelledVersion, contentHash: cancelledHash, at: cancelledAt.toISOString() }),
+        } });
+        return { status: 200, body: { success: true, status: "CANCELLED", version: cancelledVersion, cancelledAt: cancelledAt.toISOString() } };
+      }, { isolationLevel: "Serializable" });
+      return NextResponse.json(result.body, { status: result.status });
+    }
+
     if (action === "sign-own") {
-      if (!canFinalizeClinicalNote(actor.normalizedRole)) {
-        return NextResponse.json({ success: false, error: "Your clinic role cannot sign clinical notes" }, { status: 403 });
-      }
 
       const result = await prisma.$transaction(async (tx) => {
         const current = await tx.clinicalNote.findFirst({
