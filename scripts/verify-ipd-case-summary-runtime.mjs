@@ -103,6 +103,7 @@ async function main() {
   assert.match(antibioticDay.body.answer, /calendar day/i, "antibiotic answer explains inclusive calendar-day counting");
   assert.ok(Array.isArray(antibioticDay.body.sources) && antibioticDay.body.sources.length > 0, "answer cites the MAR source records");
   assert.match(antibioticDay.body.disclaimer, /read-only/i, "answer includes a read-only clinical disclaimer");
+  assert.match(antibioticDay.body.answer, /DISCHARGED/i, "historic MAR dates are not represented as ongoing therapy for discharged patients");
   assert.match(String(antibioticDay.response.headers.get("cache-control") || ""), /no-store/i, "clinical answers are not cacheable");
 
   const latestLabs = await postClinicalQa(patientId, cookie, "latest-labs");
