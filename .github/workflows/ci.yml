@@ -573,6 +573,8 @@ jobs:
           fi
       - name: Run authenticated Clinical Assist route acceptance
         run: npm run test:clinical-assist-runtime
+      - name: Run password reset HTTP runtime acceptance
+        run: npm run test:password-reset-runtime
       - name: Print application logs on failure
         if: failure()
         run: cat /tmp/medlum-next.log
