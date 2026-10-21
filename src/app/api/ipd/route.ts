@@ -539,6 +539,8 @@ export async function POST(req: Request) {
       const noteType = String(body.noteType || "Progress Note").trim();
       const title = String(body.title || noteType).trim();
       const submit = body.submit === true;
+      const sign = body.sign === true;
+      if (submit && sign) return NextResponse.json({ success: false, error: "Choose author signing or co-signature submission, not both." }, { status: 400 });
       if (!patientId || !content) return NextResponse.json({ success: false, error: "Patient and note content required" }, { status: 400 });
       if (!noteType || !title) return NextResponse.json({ success: false, error: "Note type and title are required" }, { status: 400 });
 
@@ -548,7 +550,7 @@ export async function POST(req: Request) {
       const allergyUpdate = String(body.allergy || body.allergies || "").trim();
       const now = new Date();
       const version = 1;
-      const status = submit ? "PENDING_VERIFICATION" : "DRAFT";
+      const status = sign ? "FINAL" : submit ? "PENDING_VERIFICATION" : "DRAFT";
       const contentHash = hashClinicalNote(content, version);
       const noteRecord = await prisma.$transaction(async (tx) => {
         const created = await tx.clinicalNote.create({
@@ -563,6 +565,7 @@ export async function POST(req: Request) {
             status,
             version,
             contentHash,
+            finalizedAt: sign ? now : null,
             submittedAt: submit ? now : null,
           },
           include: {
@@ -570,6 +573,11 @@ export async function POST(req: Request) {
             verifier: { select: { id: true, name: true, email: true } },
           },
         });
+        let finalHash = "";
+        if (sign) {
+          finalHash = hashClinicalNote(`${content}\\nAUTHOR:${session.doctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${created.id}`, version);
+          await tx.clinicalNote.update({ where: { id: created.id }, data: { finalHash } });
+        }
         await tx.clinicalNoteVersion.create({
           data: {
             clinicalNoteId: created.id,
@@ -579,7 +587,7 @@ export async function POST(req: Request) {
             noteType,
             content,
             contentHash,
-            event: submit ? "CREATED_AND_SUBMITTED" : "CREATED_DRAFT",
+            event: sign ? "CREATED_AND_AUTHOR_SIGNED" : submit ? "CREATED_AND_SUBMITTED" : "CREATED_DRAFT",
             createdByDoctorId: session.doctorId,
             createdAt: now,
           },
@@ -587,13 +595,13 @@ export async function POST(req: Request) {
         if (allergyUpdate) {
           await tx.patient.update({ where: { id: patientId }, data: { allergies: allergyUpdate } });
         }
-        return created;
+        return { ...created, finalHash };
       });
 
       await writeAudit({
         doctorId: session.doctorId,
         clinicId,
-        action: submit ? "SUBMIT_FOR_VERIFICATION" : "CREATE_DRAFT",
+        action: sign ? "AUTHOR_SIGN" : submit ? "SUBMIT_FOR_VERIFICATION" : "CREATE_DRAFT",
         entity: "ClinicalNote",
         entityId: noteRecord.id,
         meta: {
@@ -606,6 +614,8 @@ export async function POST(req: Request) {
           status,
           version,
           contentHash,
+          finalHash: noteRecord.finalHash,
+          signedByDoctorId: sign ? session.doctorId : null,
           clinicId,
           atIst: istIsoLabel(now),
         },
