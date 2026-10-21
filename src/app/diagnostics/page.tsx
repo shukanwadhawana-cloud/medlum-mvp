@@ -299,8 +299,20 @@ export default function DiagnosticsPage() {
                             <button
                               type="button"
                               onClick={async () => {
-                                await apiUpdateDiagnosticOrder({ id: o.id, status: "Performed" });
-                                await load();
+                                setError("");
+                                setSaving(true);
+                                try {
+                                  const result = await apiUpdateDiagnosticOrder({ id: o.id, status: "Performed" });
+                                  if (!result.success) {
+                                    setError(result.error || "Could not mark this study as performed.");
+                                    return;
+                                  }
+                                  await load();
+                                } catch (cause) {
+                                  setError(cause instanceof Error ? cause.message : "Could not mark this study as performed.");
+                                } finally {
+                                  setSaving(false);
+                                }
                               }}
                               className="rounded-md border bg-white px-2 py-1 text-[11px] font-medium"
                             >
@@ -328,8 +340,20 @@ export default function DiagnosticsPage() {
                             <button
                               type="button"
                               onClick={async () => {
-                                await apiUpdateDiagnosticOrder({ id: o.id, status: "Cancelled" });
-                                await load();
+                                setError("");
+                                setSaving(true);
+                                try {
+                                  const result = await apiUpdateDiagnosticOrder({ id: o.id, status: "Cancelled" });
+                                  if (!result.success) {
+                                    setError(result.error || "Could not cancel this study.");
+                                    return;
+                                  }
+                                  await load();
+                                } catch (cause) {
+                                  setError(cause instanceof Error ? cause.message : "Could not cancel this study.");
+                                } finally {
+                                  setSaving(false);
+                                }
                               }}
                               className="rounded-md px-2 py-1 text-[11px] text-red-600"
                             >
