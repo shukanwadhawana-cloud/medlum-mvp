@@ -172,7 +172,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
     }
   }
 
-  async function extractWithClinicalAssist(chosenFile?: File, documentOverride?: Doc, allowWhileRetrying = false) {
+  async function extractWithClinicalAssist(chosenFile?: File, documentOverride?: Doc, allowWhileRetrying = false, restoreDurability = false) {
     const targetDoc = documentOverride || selectedDoc;
     if (!targetDoc || clinicalAssistRunning || verifying || (retrying && !allowWhileRetrying)) return;
     setClinicalAssistRunning(true);
@@ -211,7 +211,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
       // Some older records were saved by the historical metadata-only
       // provider. Re-upload the exact selected bytes through the idempotent
       // upload API so the original becomes durable before extracting it.
-      if (!targetDoc.storageProvider || ["processed", "local"].includes(targetDoc.storageProvider)) {
+      if (restoreDurability || !targetDoc.storageProvider || ["processed", "local"].includes(targetDoc.storageProvider)) {
         setClinicalAssistProgress("Restoring the original report to durable storage…");
         const fd = new FormData();
         fd.append("file", originalFile);
@@ -428,7 +428,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
                     onChange={(event) => {
                       const f = event.currentTarget.files?.[0];
                       event.currentTarget.value = "";
-                      if (f) void extractWithClinicalAssist(f);
+                      if (f) void extractWithClinicalAssist(f, undefined, false, true);
                     }}
                   />
                 </label>
