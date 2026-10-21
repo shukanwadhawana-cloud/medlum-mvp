@@ -31,6 +31,6 @@ assert.ok(!workspace.includes("SyntheticSlice"), "Workspace does not generate fa
 assert.ok(!workspace.includes("radialGradient"), "Workspace does not draw a faux radiology scan");
 assert.equal(packageJson.scripts["test:pacs-free-demo"], "node scripts/verify-pacs-free-demo.mjs", "regression script remains registered");
 assert.ok(workflow.includes("npm run test:pacs-free-demo"), "CI runs the workspace regression check");
-assert.ok(docs.includes("clinical imaging workspace"), "deployment docs describe the real-record workspace");
+assert.ok(docs.includes("clinical imaging workbench"), "deployment docs describe the real-record workspace");
 
 console.log("Clinical imaging workspace contract checks: PASS");
