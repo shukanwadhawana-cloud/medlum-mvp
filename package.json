@@ -33,6 +33,7 @@
     "test:telemedicine-clinical": "node scripts/verify-telemedicine-clinical-workflow.mjs",
     "test:responsive-ui": "node scripts/verify-responsive-ui.mjs",
     "test:mobile-packaging": "node scripts/verify-mobile-packaging.mjs",
+    "test:branding": "node scripts/verify-branding.mjs",
     "test:desktop-packaging": "node scripts/verify-desktop-packaging.mjs",
     "test:multi-device-role-workflow": "node scripts/verify-multi-device-role-workflow.mjs",
     "test:production-security": "node scripts/verify-production-security.mjs",
