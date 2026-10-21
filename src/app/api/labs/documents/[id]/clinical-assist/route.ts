@@ -40,13 +40,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ success: false, error: "Invalid request body." }, { status: 400 });
   }
 
-  const input: { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown } =
+  const input: { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown; sourceChecksum?: unknown } =
     body && typeof body === "object"
-      ? body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown }
+      ? body as { text?: unknown; label?: unknown; confidence?: unknown; partial?: unknown; sourceChecksum?: unknown }
       : {};
   const text = typeof input.text === "string" ? input.text.trim().slice(0, 20_000) : "";
   if (text.length < 20) {
     return NextResponse.json({ success: false, error: "Clinical Assist returned too little readable text. Try a clearer, upright scan." }, { status: 422 });
+  }
+
+  // Bind client-side OCR text to the exact saved source file. The browser checks
+  // this digest before OCR; repeat the check server-side to prevent a forged request
+  // from associating text from a different report with this document.
+  const sourceChecksum = typeof input.sourceChecksum === "string" ? input.sourceChecksum.trim().toLowerCase() : "";
+  if (!/^[a-f0-9]{64}$/.test(sourceChecksum)) {
+    return NextResponse.json({ success: false, error: "A valid source-report fingerprint is required." }, { status: 400 });
+  }
+  if (!doc.checksum || doc.checksum.toLowerCase() !== sourceChecksum) {
+    return NextResponse.json({ success: false, error: "The selected file does not match this saved report. No draft was changed." }, { status: 409 });
   }
 
   const label = typeof input.label === "string" ? input.label.slice(0, 100) : "Clinical Assist (on-device)";

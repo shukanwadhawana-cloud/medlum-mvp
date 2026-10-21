@@ -84,11 +84,13 @@ ok(clinicalAssistRoute.includes("requireActiveClinicMembership") && clinicalAssi
 ok(clinicalAssistRoute.includes("extractCandidates(text)"), "Clinical Assist OCR text is parsed into candidate lab values");
 ok(clinicalAssistRoute.includes('verified: false') && clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_RETRY"), "Clinical Assist output remains an audited draft");
 ok(clinicalAssistRoute.includes('ocrStatus: "FAILED"') && clinicalAssistRoute.includes("updateMany"), "Clinical Assist uses a compare-and-set guard to avoid overwriting concurrent verification");
+ok(clinicalAssistRoute.includes("A valid source-report fingerprint is required") && clinicalAssistRoute.includes("doc.checksum.toLowerCase() !== sourceChecksum"), "Clinical Assist server binds OCR drafts to the saved report checksum");
 
 ok(view.includes('searchParams.get("raw") === "1"'), "authenticated document viewer supports same-origin raw bytes for local OCR");
 const documentRoute = readFileSync("src/app/api/labs/documents/route.ts", "utf8");
 ok(documentRoute.includes("checksum: true"), "document list exposes stored report checksum for source matching");
 const panelClinicalAssist = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
+ok(panelClinicalAssist.includes("sourceChecksum: suppliedChecksum"), "Clinical Assist sends the validated source checksum to the server");
 ok(panelClinicalAssist.includes("runClinicalAssistOcr") && panelClinicalAssist.includes("Extract with Clinical Assist"), "failed report panel invokes the on-device Clinical Assist OCR engine");
 ok(panelClinicalAssist.includes("sha256Hex") && panelClinicalAssist.includes("selectedDoc.checksum"), "OCR source file checksum is validated before association");
 ok(panelClinicalAssist.includes("Choose the original report file"), "staff can reselect the same report when the provider did not retain original bytes");
