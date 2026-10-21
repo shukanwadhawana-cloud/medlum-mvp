@@ -56,17 +56,19 @@ export async function GET(req: Request) {
     },
   });
 
-  const usage = await prisma.medicalDocument.aggregate({
-    where: { clinicId, deletedAt: null },
-    _sum: { sizeBytes: true },
-    _count: true,
-  });
+  const provider = getStorageProvider();
+  const [usage, documentCount] = await Promise.all([
+    provider.name === "database"
+      ? prisma.storedBinaryObject.aggregate({ _sum: { sizeBytes: true } })
+      : prisma.medicalDocument.aggregate({ where: { clinicId, deletedAt: null }, _sum: { sizeBytes: true } }),
+    prisma.medicalDocument.count({ where: { clinicId, deletedAt: null } }),
+  ]);
 
   return NextResponse.json({
     documents: docs,
     storage: {
       usedBytes: usage._sum.sizeBytes || 0,
-      fileCount: usage._count,
+      fileCount: documentCount,
       quotaBytes: storageQuotaBytes(),
     },
   });
@@ -254,7 +256,7 @@ export async function POST(req: Request) {
       action: "LAB_DOCUMENT_UPLOADED",
       entity: "MedicalDocument",
       entityId: doc.id,
-      meta: { clinicId, labOrderId, patientId, sizeBytes: buf.length, mimeType: doc.mimeType, ocrStatus, storageProvider: provider.name },
+      meta: { clinicId, labOrderId, patientId, sizeBytes: buf.length, mimeType: doc.mimeType, ocrStatus: "PENDING", storageProvider: provider.name },
     });
     await writeAudit({
       doctorId: session.doctorId,
