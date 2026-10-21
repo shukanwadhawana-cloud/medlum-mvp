@@ -74,7 +74,7 @@ has(page,'n.authorDoctorId!==doctor?.id', "the author cannot use the second-clin
 
 console.log("IPD note author, signing-header, and status compatibility checks passed.");
 
-has(page,'Submit for co-signature</button>',"author can submit an existing draft for optional co-signature from the desktop note list");
+has(page,'Submit for co-signature"',"author can submit an existing draft for optional co-signature from the desktop note list");
 has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can final-sign directly from the mobile note list");
 has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
 console.log("IPD list-level signature actions and role visibility checks passed.");
