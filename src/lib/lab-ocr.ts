@@ -122,13 +122,13 @@ export function extractCandidates(text: string): Record<string, string> {
   // Only split the pair when two distinct result numbers are present; if only
   // one is visible, retain it as a generic PT/INR candidate instead of guessing
   // whether it represents PT or INR.
-  const combinedPtInrLabel = /\\b(?:prothrombin time\\s*\\/\\s*inr|pt\\s*\\/\\s*inr|pt\\s+inr)\\b/i;
+  const combinedPtInrLabel = /\b(?:prothrombin time\s*\/\s*inr|pt\s*\/\s*inr|pt\s+inr)\b/i;
   for (const line of lines) {
     const label = combinedPtInrLabel.exec(line);
     if (!label) continue;
     const segment = line.slice(label.index + label[0].length);
     const numbers: string[] = [];
-    const numeric = /([<>]?\\d+(?:[.,]\\d+)?)(?:\\s*(seconds?|sec))?/ig;
+    const numeric = /([<>]?\d+(?:[.,]\d+)?)(?:\s*(seconds?|sec))?/ig;
     for (const match of segment.matchAll(numeric)) {
       const start = match.index ?? 0;
       const value = match[1];
