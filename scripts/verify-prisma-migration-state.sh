@@ -28,9 +28,28 @@ readonly LEGACY_ORPHAN_CHECKSUM="07d7fbd76100ec1005e009cd640ea2134a56402cb66bb5a
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
+# Prisma URLs may include query parameters (such as schema=public) that libpq/psql
+# does not understand. Preserve PostgreSQL/libpq options while stripping only
+# Prisma-specific parameters; do not print the credential-bearing URL.
+psql_url="$(DATABASE_URL="$DATABASE_URL" node - <<'NODE'
+const url = new URL(process.env.DATABASE_URL);
+for (const key of [
+  "schema",
+  "connection_limit",
+  "pool_timeout",
+  "pgbouncer",
+  "statement_cache_size",
+  "socket_timeout",
+  "sslaccept",
+  "sslidentity",
+]) url.searchParams.delete(key);
+process.stdout.write(url.toString());
+NODE
+)"
+
 # Read only the most recent attempt for each migration. Query output contains
 # migration metadata only, never clinical rows or connection credentials.
-psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -qAt -F $'\t' \
+psql "$psql_url" -X -v ON_ERROR_STOP=1 -qAt -F $'\t' \
   -c 'SELECT DISTINCT ON ("migration_name")
         "migration_name",
         "checksum",
