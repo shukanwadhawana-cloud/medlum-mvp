@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { apiCreateEncounter } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { apiCreateEncounter, apiGetClinicalNotes } from "@/lib/api";
 import { formatIst } from "@/lib/time";
 
 const NOTE_TYPES = [
@@ -79,8 +79,33 @@ export function ClinicalNotesPanel({
   const [pullProblems, setPullProblems] = useState(true);
   const [pullRecentNotes, setPullRecentNotes] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savedClinicalNotes, setSavedClinicalNotes] = useState<any[]>([]);
+  const [clinicalNotesLoadError, setClinicalNotesLoadError] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+
+  const refreshSavedClinicalNotes = async () => {
+    try {
+      const notes = await apiGetClinicalNotes(patientId);
+      setSavedClinicalNotes(notes);
+      setClinicalNotesLoadError("");
+    } catch {
+      setClinicalNotesLoadError("Saved clinical note records could not be loaded.");
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    apiGetClinicalNotes(patientId).then((notes) => {
+      if (active) {
+        setSavedClinicalNotes(notes);
+        setClinicalNotesLoadError("");
+      }
+    }).catch(() => {
+      if (active) setClinicalNotesLoadError("Saved clinical note records could not be loaded.");
+    });
+    return () => { active = false; };
+  }, [patientId]);
 
   const latestVitals = useMemo(
     () =>
@@ -227,6 +252,7 @@ export function ClinicalNotesPanel({
       setSelectedDiagnostics([]);
       setSelectedPrescriptions([]);
       await onSaved();
+      await refreshSavedClinicalNotes();
     } catch {
       setErr("Network error while saving note");
     } finally {
@@ -362,6 +388,50 @@ export function ClinicalNotesPanel({
                 {e.assessment && <p className="mt-1 whitespace-pre-wrap"><b>Assessment:</b> {e.assessment}</p>}
                 {e.diagnosis && <p className="mt-1"><b>Diagnosis:</b> {e.diagnosis}</p>}
                 {e.plan && <p className="mt-1 whitespace-pre-wrap"><b>Plan:</b> {e.plan}</p>}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-xl border bg-white">
+          <div className="border-b bg-[#f8f6fa] px-3 py-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">Saved clinical note records</h3>
+            <p className="mt-0.5 text-[11px] text-gray-500">Clinical-note records, status and preserved versions.</p>
+          </div>
+          <div className="max-h-[28rem] space-y-2 overflow-auto p-3">
+            {clinicalNotesLoadError && <p role="alert" className="text-xs text-red-700">{clinicalNotesLoadError}</p>}
+            {!clinicalNotesLoadError && savedClinicalNotes.length === 0 ? (
+              <p className="py-2 text-xs text-gray-400">No saved clinical note records for this patient yet.</p>
+            ) : savedClinicalNotes.map((note: any) => (
+              <article key={note.id} className="rounded-lg border p-3 text-xs">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{note.title || note.noteType || "Clinical note"}</p>
+                    <p className="mt-0.5 text-[11px] text-gray-500">
+                      {note.noteType || "Clinical note"} · {formatIst(note.updatedAt || note.createdAt)}
+                    </p>
+                  </div>
+                  <span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{String(note.status || "DRAFT").replaceAll("_", " ")}</span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap break-words text-gray-700">{note.content || "No note content."}</p>
+                <p className="mt-2 text-[10px] text-gray-500">
+                  Version {note.version || 1}{note.author?.name ? ` · By ${note.author.name}` : ""}
+                  {Array.isArray(note.versions) ? ` · ${note.versions.length} saved version(s)` : ""}
+                </p>
+                {Array.isArray(note.versions) && note.versions.length > 0 && (
+                  <details className="mt-2 border-t pt-2">
+                    <summary className="cursor-pointer text-[11px] font-medium text-[#c2183a]">View version history</summary>
+                    <div className="mt-2 space-y-2">
+                      {note.versions.map((version: any) => (
+                        <div key={version.id} className="rounded-md bg-gray-50 p-2">
+                          <p className="font-medium">Version {version.version} · {String(version.event || "SAVED").replaceAll("_", " ")}</p>
+                          <p className="mt-0.5 text-[10px] text-gray-500">{formatIst(version.createdAt)}{version.createdBy?.name ? ` · By ${version.createdBy.name}` : ""}</p>
+                          <p className="mt-1 whitespace-pre-wrap break-words">{version.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </article>
             ))}
           </div>
