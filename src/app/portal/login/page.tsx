@@ -43,7 +43,7 @@ export default function PortalLogin() {
         className="w-full max-w-sm bg-white rounded-2xl border border-gray-200 p-6 shadow-sm"
         aria-label="Patient portal sign in"
       >
-        <div className="text-2xl font-bold text-[#140a1f]">MedLum</div>
+        <div className="text-2xl font-bold text-[#140a1f]">MedLum Health</div>
         <div className="font-semibold mt-1 text-[#140a1f]">Patient Portal</div>
         <p className="text-xs text-gray-500 mt-1 mb-5">
           Securely view your appointments, prescriptions, reports, and bills.

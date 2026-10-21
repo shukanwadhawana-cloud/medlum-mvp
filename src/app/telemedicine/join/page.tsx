@@ -161,7 +161,7 @@ export default function TelemedicineJoinPage() {
 
         <div className="telemedicine-video-frame hidden" aria-hidden />
         <p className="mt-4 text-center text-[11px] text-gray-400">
-          Do not share this consultation link. Powered by MedLum.
+          Do not share this consultation link. Powered by MedLum Health.
         </p>
       </section>
     </main>

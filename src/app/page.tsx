@@ -17,7 +17,7 @@ export default function Home() {
   if (loading || doctor) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--ml-canvas)] text-[var(--ml-ink)] text-sm">
-        Loading MedLum Healthcare...
+        Loading MedLum Health...
       </div>
     );
   }
@@ -26,7 +26,7 @@ export default function Home() {
     <main className="min-h-screen bg-[#140a1f] text-white flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-5xl">
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold tracking-tight">MedLum Healthcare</h1>
+          <h1 className="text-5xl font-bold tracking-tight">MedLum Health</h1>
           <p className="mt-3 text-lg text-[var(--ml-primary)]">Clinical Intelligence</p>
           <p className="mt-4 text-[var(--ml-muted)] max-w-xl mx-auto">
             Secure access for clinical teams and a dedicated, separate portal for patients.
@@ -40,7 +40,7 @@ export default function Home() {
             </div>
             <h2 className="mt-2 text-2xl font-semibold">Doctors, Staff & Admin</h2>
             <p className="mt-3 text-gray-500">
-              Sign in to manage patients, prescriptions, clinical workflows and the MedLum Healthcare platform.
+              Sign in to manage patients, prescriptions, clinical workflows and the MedLum Health platform.
             </p>
             <Link
               href="/login"

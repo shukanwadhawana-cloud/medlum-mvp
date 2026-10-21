@@ -115,7 +115,7 @@ function PrintInner() {
       </div>
 
       {showMedlumFooter(h) && (
-        <p className="mt-6 text-center text-[9px] tracking-wide text-gray-400">Powered by MedLum</p>
+        <p className="mt-6 text-center text-[9px] tracking-wide text-gray-400">Powered by MedLum Health</p>
       )}
     </div>
   );

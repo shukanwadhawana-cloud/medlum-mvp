@@ -150,7 +150,7 @@ function PrintInner() {
       {inv.tariffVersionName && <p className="mt-2 text-[10px] text-gray-400">Tariff: {inv.tariffVersionName}</p>}
 
       {showMedlumFooter && (
-        <p className="mt-6 text-center text-[9px] tracking-wide text-gray-400">Powered by MedLum</p>
+        <p className="mt-6 text-center text-[9px] tracking-wide text-gray-400">Powered by MedLum Health</p>
       )}
     </div>
   );

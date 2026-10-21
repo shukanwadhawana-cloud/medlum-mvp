@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MedLum",
+  "productName": "MedLum Health",
   "version": "0.2.1",
   "identifier": "com.medlum.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "MedLum",
+        "title": "MedLum Health",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,
@@ -36,8 +36,8 @@
       "icons/icon.ico"
     ],
     "category": "Medical",
-    "shortDescription": "MedLum clinical operations platform",
-    "longDescription": "MedLum clinical operations and telemedicine platform.",
+    "shortDescription": "MedLum Health clinical operations platform",
+    "longDescription": "MedLum Health clinical operations and telemedicine platform.",
     "windows": {
       "nsis": {
         "installMode": "perMachine"

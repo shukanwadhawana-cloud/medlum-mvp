@@ -1,10 +1,10 @@
-# MedLum MVP
+# MedLum Health
 
 Multi-doctor clinical platform — Phase 12 packaging and cross-device deployment.
 
 ## Production
 
-**Live application:** https://medlum-mvp.vercel.app/
+**Live application:** https://medlumhealth.com/
 
 MedLum's production web deployment is hosted on **Vercel**. The packaged desktop and mobile clients should connect to this production application/backend.
 
@@ -41,7 +41,7 @@ npm run dev
 - `SESSION_SECRET` — long random string
 - `VIDEO_PROVIDER` — video provider selection (`jitsi` by default)
 - `VIDEO_BASE_URL` — video provider base URL
-- `MEDLUM_APP_URL` — production application URL used by desktop packaging workflows (use the Vercel production URL)
+- `MEDLUM_APP_URL` — production application URL used by desktop packaging workflows (use https://medlumhealth.com)
 
 ## Verify isolation
 
@@ -53,7 +53,7 @@ npm run dev
 
 **Vercel is the canonical production deployment** for this repository. CI deploys and verifies production against Vercel on every push to `main`. Confirm the live SHA via `GET /api/health` (`gitSha` must match `main`).
 
-[Open MedLum production on Vercel](https://medlum-mvp.vercel.app/)
+[Open MedLum Health](https://medlumhealth.com/)
 
 ## Runner diagnostic
 
