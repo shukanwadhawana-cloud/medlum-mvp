@@ -65,6 +65,8 @@ jobs:
         run: npm run test:mobile-packaging
       - name: Verify Windows macOS Linux packaging configuration
         run: npm run test:desktop-packaging
+      - name: Verify MedLum Health brand consistency
+        run: npm run test:branding
       - name: Verify multi-device and role workflows
         run: npm run test:multi-device-role-workflow
       - name: Verify hospital foundation (OTP tariff lab lifecycle)
