@@ -22,6 +22,6 @@ ALTER TABLE "ClinicalNoteVersion" ADD CONSTRAINT "ClinicalNoteVersion_createdByD
 -- Backfill a truthful baseline for every existing note. Earlier versions cannot be reconstructed.
 INSERT INTO "ClinicalNoteVersion" ("id","clinicalNoteId","clinicId","version","title","noteType","content","contentHash","event","createdByDoctorId","createdAt")
 SELECT md5(random()::text || clock_timestamp()::text || n."id"), n."id", n."clinicId", n."version", n."title", n."noteType", n."content",
-  CASE WHEN n."contentHash" = '' THEN md5('baseline:' || n."content" || ':' || n."version") ELSE n."contentHash" END,
+  n."contentHash",
   'BASELINE_MIGRATION', n."authorDoctorId", COALESCE(n."updatedAt", n."createdAt", CURRENT_TIMESTAMP)
 FROM "ClinicalNote" n;
