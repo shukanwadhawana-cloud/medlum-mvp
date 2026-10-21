@@ -119,6 +119,7 @@ export default function IPDPatientWorkspace(){
  const[patients,setPatients]=useState<any[]>([]),[history,setHistory]=useState<any[]>([]),[rooms,setRooms]=useState<any[]>([]),[selected,setSelected]=useState<any>(null),[form,setForm]=useState(empty);
  const[showRegister,setShowRegister]=useState(false),[showRoom,setShowRoom]=useState(false),[showHandover,setShowHandover]=useState(false),[room,setRoom]=useState({roomNumber:"",roomCategory:"General",unitType:"Ward"});
  const[note,setNote]=useState({noteType:"Consultant Note",content:""}),[investigation,setInvestigation]=useState({testName:"CBC",custom:"",notes:""}),[handover,setHandover]=useState({receivingMemberId:"",context:""}),[handoverOptions,setHandoverOptions]=useState<any[]>([]);
+ const[caseSummaryBusy,setCaseSummaryBusy]=useState(false),[caseSummaryError,setCaseSummaryError]=useState(""),[caseSummaryMeta,setCaseSummaryMeta]=useState<any>(null);
  const[contact,setContact]=useState({name:"",relationship:"",phone:"",alternatePhone:""}); const[vitals,setVitals]=useState({bp:"",pulse:"",rr:"",spo2:"",temperature:""});
  const[structured,setStructured]=useState({dateTime:istDateTimeLocal(),diagnosis:"",hpi:"",allergy:"",examTime:"",cns:"",cvs:"",rs:"",perAbdomen:"",assessment:"",workingDiagnosis:"",treatmentGiven:"",course:"",procedures:"",investigations:"",dischargeTreatment:"",followUpDate:"",followUpConsultant:""});
  const[mainTab,setMainTab]=useState<MainTab>("Cover Sheet"),[leftNav,setLeftNav]=useState("Overview");
@@ -152,6 +153,21 @@ export default function IPDPatientWorkspace(){
  const submitClinicalNote=async(id:string)=>{if(!id||saving)return;setSaving(true);setError("");setMsg("");try{const r=await fetch("/api/clinical-notes",{method:"PATCH",credentials:"include",headers:{"Content-Type":"application/json","X-MedLum-Requested-With":"MedLum"},body:JSON.stringify({id,action:"submit"})});const d=await r.json().catch(()=>({}));if(!r.ok||d.success!==true)throw new Error(d.error||"Could not submit clinical note");setMsg("Clinical note submitted for independent second-clinician verification.");await load();}catch(e:any){setError(e.message||"Could not submit clinical note")}finally{setSaving(false)}};
  const finalizeClinicalNote=async(id:string)=>{if(!id||saving)return;setSaving(true);setError("");try{const r=await fetch("/api/clinical-notes",{method:"PATCH",credentials:"include",headers:{"Content-Type":"application/json","X-MedLum-Requested-With":"MedLum"},body:JSON.stringify({id,action:"finalize"})});const d=await r.json().catch(()=>({}));if(!r.ok||d.success!==true)throw new Error(d.error||"Could not final-sign clinical note");setMsg("Clinical note final-signed by a second clinician.");await load();}catch(e:any){setError(e.message||"Could not final-sign clinical note")}finally{setSaving(false)}};
  const saveNote=async(submit=false,noteTypeOverride?:string)=>{if(!selected)return;const noteType=noteTypeOverride||note.noteType;if(!note.content.trim()){setError("Enter note content before saving.");return;}await run({action:"clinical-note",patientId:selected.id,noteType,title:`${department} · ${noteType}`,content:note.content,submit,authorRole:`${doctor?.name||"Clinician"} · ${noteType}`},submit?`${noteType} submitted for independent second-clinician verification`:`${noteType} saved as draft`)};
+ const generateCaseSummary=async()=>{
+  if(!selected||caseSummaryBusy)return;
+  if(note.content.trim()&&!window.confirm("Replace the unsaved text currently in the clinical note editor with a new generated case-summary draft? Any already-saved note remains unchanged."))return;
+  setCaseSummaryBusy(true);setCaseSummaryError("");setError("");setMsg("");setCaseSummaryMeta(null);
+  try{
+   const r=await fetch("/api/ipd/"+encodeURIComponent(selected.id)+"/case-summary",{method:"POST",credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json","X-MedLum-Requested-With":"MedLum"},body:"{}"});
+   const d=await r.json().catch(()=>({}));
+   if(!r.ok||d.success!==true||!d.draft?.content)throw new Error(d.error||"Could not generate the longitudinal case summary.");
+   setMainTab("Clinical Notes");setLeftNav("Case Summary");
+   setNote({noteType:"Case Summary",content:String(d.draft.content)});
+   setCaseSummaryMeta({source:d.draft.source||"timeline",dayCount:d.draft.dayCount||0,eventCount:d.draft.eventCount||0,sourceCounts:d.draft.sourceCounts||{},dataWarnings:d.draft.dataWarnings||[],disclaimer:d.draft.disclaimer||"",admissionDate:d.admissionDate||"",dischargeDate:d.dischargeDate||""});
+   setMsg("A date-wise case summary draft has been generated. Review it and the source warnings below, then save or submit it when satisfied.");
+  }catch(e:any){setCaseSummaryError(e?.message||"Could not generate the longitudinal case summary.");}
+  finally{setCaseSummaryBusy(false);}
+ };
  const saveProgress=async(submit=false)=>{if(!selected)return;const content=`Progress Note\nAssessment: ${structured.assessment}\nCurrent meds / treatment: ${structured.treatmentGiven}\nPlan / course: ${structured.course}\nAdvice: ${structured.dischargeTreatment}\nVitals: BP ${vitals.bp} | Pulse ${vitals.pulse} | RR ${vitals.rr} | SpO₂ ${vitals.spo2} | Temp ${vitals.temperature}\nAllergy: ${selected.allergies||"Unknown / not assessed"}\nDiagnosis: ${selected.diagnosis||selected.workingDiagnosis||"—"}`;await run({action:"clinical-note",patientId:selected.id,noteType:"Progress Note",title:`${department} · Progress Note`,content,submit,authorRole:`${doctor?.name||"Clinician"} · Progress Note`,vitals},submit?"Progress Note submitted for independent second-clinician verification":"Progress Note saved as draft")};
  const saveDiagnosis=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;await run({action:"update-diagnosis",patientId:selected.id,...dxForm},`Diagnosis / ICD saved`)};
  const saveConsultant=async(e:React.FormEvent)=>{e.preventDefault();if(!selected)return;if(!consultantForm.consultantName.trim()||!consultantForm.consultantSpecialty.trim()){setError("Enter both consultant name and specialty.");return;}await run({action:"update-admission-details",patientId:selected.id,...consultantForm},`Consultant assignment saved`)};
@@ -457,6 +473,31 @@ export default function IPDPatientWorkspace(){
     {mainTab==="Clinical Notes"&&["Consultant Note","RMO Note","Nursing Care Note","Case Summary"].includes(leftNav)&&(
      <form onSubmit={(e)=>{e.preventDefault();void saveNote(false,leftNav)}} className="space-y-3 max-w-2xl">
       <h3 className="font-semibold text-sm">{leftNav}</h3>
+      {leftNav==="Case Summary"&&(
+       <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+        <div>
+         <h4 className="text-sm font-semibold text-gray-900">Longitudinal inpatient case summary</h4>
+         <p className="mt-1 text-[11px] leading-relaxed text-gray-600">Generate a day-by-day draft from the full available admission history: clinical notes, assessments and vitals, laboratory results, imaging, prescribed medicines, pharmacy dispensing, MAR administration status, nursing observations/precautions, handovers and discharge documentation. Generated text is editable and is not saved or signed automatically.</p>
+        </div>
+        <button type="button" disabled={caseSummaryBusy||saving} onClick={()=>void generateCaseSummary()} className="min-h-10 w-full sm:w-auto rounded-lg bg-[#140a1f] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
+         {caseSummaryBusy?"Pulling chart and generating…":"Generate from full admission history"}
+        </button>
+        {caseSummaryError&&<p role="alert" className="text-xs text-red-700">{caseSummaryError}</p>}
+        {caseSummaryMeta&&(
+         <div className="rounded-lg border bg-white p-3 space-y-1">
+          <p className="text-xs font-semibold text-gray-900">{caseSummaryMeta.source==="timeline"?"Structured timeline fallback":"AI-generated draft · "+String(caseSummaryMeta.source).toUpperCase()}</p>
+          <p className="text-[11px] text-gray-600">Period: {caseSummaryMeta.admissionDate||"admission date unavailable"} → {caseSummaryMeta.dischargeDate||"latest recorded day / still admitted"} · {caseSummaryMeta.dayCount} calendar day(s) · {caseSummaryMeta.eventCount} source event(s)</p>
+          {caseSummaryMeta.source==="timeline"&&<p className="text-[11px] text-amber-800">The AI provider was not configured or did not return a valid summary, so MedLum assembled a structured dated timeline instead. Review it carefully before signing.</p>}
+          {caseSummaryMeta.disclaimer&&<p className="text-[10px] text-gray-500">{caseSummaryMeta.disclaimer}</p>}
+          {caseSummaryMeta.dataWarnings?.map((warning:string,i:number)=><p key={i} className="text-[11px] text-amber-800">Review: {warning}</p>)}
+          <details className="pt-1">
+           <summary className="cursor-pointer text-[11px] font-semibold text-[#c2183a]">Source records included</summary>
+           <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">{Object.entries(caseSummaryMeta.sourceCounts||{}).map(([key,count]:[string,any])=><p key={key} className="text-[10px] text-gray-600">{key}: <b>{count}</b></p>)}</div>
+          </details>
+         </div>
+        )}
+       </section>
+      )}
       <textarea value={note.content} onChange={e=>setNote({...note,content:e.target.value,noteType:leftNav})} placeholder={`Enter ${leftNav}…`} className="w-full min-h-40 px-2 py-1 rounded-lg border text-xs"/>
       <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="min-h-10 px-4 rounded-lg border text-xs font-semibold">{saving?"Saving…":`Save Draft`}</button><button type="button" disabled={saving} onClick={()=>void saveNote(true,leftNav)} className="min-h-10 px-4 rounded-lg bg-[#c2183a] text-white text-xs font-semibold">{saving?"Submitting…":"Submit for Verification"}</button></div>
       <div className="mt-4 space-y-2 max-h-64 overflow-auto">
