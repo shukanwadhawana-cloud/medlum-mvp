@@ -28,7 +28,7 @@ check((pharmacy.match(/if \(!canManagePharmacy\(membership\.role\)\)/g) || []).l
 check(prescriptionPrint.includes("canViewClinicalChart(membership.role)") && prescriptionPrint.includes("canManagePharmacy(membership.role)"), "Prescription printing is limited to clinical-chart or pharmacy roles");
 check(labPrint.includes("canViewClinicalChart(membership.role)") && labPrint.includes("canManageLab(membership.role)"), "Lab printing is limited to clinical-chart or lab-management roles");
 check(ipdPrint.includes("canViewClinicalChart(membership.role)"), "Discharge summary printing enforces clinical-chart access");
-check(ipdApi.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))") && ipdApi.includes("verifierDoctorId: null"), "Discharge finalization requires a distinct authorized verifier");
+check(ipdApi.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))") && ipdApi.includes("verifierDoctorId: null") && ipdApi.includes('signatureMode: "AUTHOR"'), "Discharge finalization is authorized and records the author signature without a second verifier");
 check(owner.includes("const isOwner = Boolean(doctor.isOwner)") && !owner.includes('primaryRole === "Owner"'), "Owner dashboard UI does not substitute a facility role for platform-owner entitlement");
 check(!ownerHospitals.includes('primaryRole!=="Owner"'), "Hospital-owner screen matches platform-owner authorization");
 check(docker.includes('ENTRYPOINT ["sh", "/app/scripts/render-entrypoint.sh"]'), "Render startup uses an explicit entrypoint script rather than inline shell quoting");
