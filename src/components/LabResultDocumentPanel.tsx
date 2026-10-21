@@ -246,7 +246,7 @@ export default function LabResultDocumentPanel({ labOrderId, patientId, onVerifi
           "Content-Type": "application/json",
           "X-MedLum-Requested-With": "MedLum",
         },
-        body: JSON.stringify({ text, label: scan.label, confidence: scan.confidence, partial: scan.partial === true }),
+        body: JSON.stringify({ text, sourceChecksum: suppliedChecksum, label: scan.label, confidence: scan.confidence, partial: scan.partial === true }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) throw new Error(data.error || "Clinical Assist could not save its draft.");
