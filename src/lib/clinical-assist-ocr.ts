@@ -218,6 +218,32 @@ async function clientScannedPdfOcr(file: File, onProgress?: OcrProgress): Promis
   }
 }
 
+/** Try the normalized image first, then the untouched original if preprocessing/OCR fails. */
+export async function runClinicalAssistImageOcr(file: File, onProgress?: OcrProgress): Promise<ScanResult> {
+  if (isPdf(file)) return runClinicalAssistOcr(file, onProgress);
+  let preparedError: unknown;
+  try {
+    onProgress?.("Preparing photo for OCR…");
+    const prepared = await prepareClinicalAssistImage(file);
+    try {
+      return await runClinicalAssistOcr(prepared, onProgress);
+    } catch (error) {
+      preparedError = error;
+      onProgress?.("Preprocessed scan failed; retrying the original image…");
+    }
+  } catch (error) {
+    preparedError = error;
+    onProgress?.("Image preparation failed; trying the original image…");
+  }
+  try {
+    return await runClinicalAssistOcr(file, onProgress);
+  } catch (originalError) {
+    const detail = originalError instanceof Error ? originalError.message : String(originalError || "Unknown OCR error");
+    const first = preparedError instanceof Error ? preparedError.message : String(preparedError || "Image preprocessing failed");
+    throw new Error("OCR failed on both the prepared and original image. Prepared image: " + first + ". Original image: " + detail);
+  }
+}
+
 export async function runClinicalAssistOcr(file: File, onProgress?: OcrProgress): Promise<ScanResult> {
   if (file.size <= 0) throw new Error("The selected document is empty.");
   if (file.size > MAX_BYTES) {
