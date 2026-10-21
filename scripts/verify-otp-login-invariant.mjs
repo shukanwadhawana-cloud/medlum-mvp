@@ -12,7 +12,7 @@ const checks = [
   ["production fails closed when Telegram OTP is not configured", /roleNeedsOtp\s*&&\s*!telegramConfigured\s*&&\s*process\.env\.NODE_ENV\s*===\s*"production"/.test(login)],
   ["OTP delivery failure cannot fall through to password-only session", login.includes("TELEGRAM_OTP_LINK_REQUIRED") && !login.includes("continuing with password session")],
   ["login does NOT skip OTP for isOwner", !/if\s*\(\s*!isOwner\s*&&\s*roleRequiresOtp/.test(login)],
-  ["login issues OTP before any createSession for privileged", login.indexOf("issueLoginOtp") < login.indexOf("createSession") || login.includes("roleRequiresOtp(primaryRole)")],
+  ["OTP branch executes before session creation", login.indexOf("const roleNeedsOtp") < login.indexOf("await issueLoginOtp(") && login.indexOf("await issueLoginOtp(") < login.indexOf("await createSession(")],
   ["otp verify creates session", verify.includes("createSession")],
   ["login page handles requiresOtp", loginPage.includes("requiresOtp")],
   ["login page calls apiVerifyOtp", loginPage.includes("apiVerifyOtp")],
