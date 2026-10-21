@@ -31,9 +31,11 @@ cp .env.example .env
 # Set DATABASE_URL and SESSION_SECRET
 
 npm install
-npx prisma db push
+npm run db:migrate:deploy
 npm run dev
 ```
+
+Use a dedicated development database for local work. Do not run schema-changing commands against production without an approved migration, a verified backup, and a reviewed rollback plan.
 
 ## Env vars (never commit real values)
 
@@ -41,7 +43,7 @@ npm run dev
 - `SESSION_SECRET` — long random string
 - `VIDEO_PROVIDER` — video provider selection (`jitsi` by default)
 - `VIDEO_BASE_URL` — video provider base URL
-- `MEDLUM_APP_URL` — production application URL used by desktop packaging workflows (use https://medlumhealth.com)
+- `MEDLUM_APP_URL` — canonical application URL used by callbacks and packaging workflows (https://medlumhealth.com)
 
 ## Verify isolation
 
@@ -54,10 +56,6 @@ npm run dev
 **Vercel is the canonical production deployment** for this repository. CI deploys and verifies production against Vercel on every push to `main`. Confirm the live SHA via `GET /api/health` (`gitSha` must match `main`).
 
 [Open MedLum Health](https://medlumhealth.com/)
-
-## Runner diagnostic
-
-This harmless marker is used to verify that GitHub-hosted Actions can execute a public-repository workflow independently of private-repository billing configuration.
 
 Record lifecycle: clinical records require explicit confirmation; drafts may be deleted on cancellation, while submitted/final records are cancelled with an auditable retained state.
 
