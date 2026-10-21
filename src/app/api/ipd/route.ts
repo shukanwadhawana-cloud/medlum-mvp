@@ -399,23 +399,40 @@ export async function POST(req: Request) {
       }
 
       if (!canFinalizeClinicalNote(normalizeClinicRole(membership.role))) {
-        return NextResponse.json({ success: false, error: "Your clinic role cannot final-sign a discharge summary.", code: "RBAC_DENIED" }, { status: 403 });
+        return NextResponse.json({ success: false, error: "Your clinic role cannot sign and complete a discharge summary.", code: "RBAC_DENIED" }, { status: 403 });
       }
-      const note = await prisma.clinicalNote.findFirst({
-        where: { clinicId, patientId, noteType: "Discharge Note", status: "PENDING_VERIFICATION", authorDoctorId: { not: session.doctorId } },
-        orderBy: { updatedAt: "desc" },
-      });
-      if (!note) return NextResponse.json({ success: false, error: "No discharge summary is awaiting independent verification." }, { status: 409 });
-      if (note.authorDoctorId === session.doctorId) {
-        return NextResponse.json({ success: false, error: "The author cannot be the second verifier. A different clinician must final-sign this discharge summary." }, { status: 409 });
+
+      // Prefer the requesting clinician's own submitted summary. The canonical UI
+      // sends noteId so the signature is applied to the exact reviewed note.
+      const requestedNoteId = String(body.noteId || "").trim();
+      const pendingWhere = { clinicId, patientId, noteType: "Discharge Note", status: "PENDING_VERIFICATION" };
+      const note = requestedNoteId
+        ? await prisma.clinicalNote.findFirst({ where: { ...pendingWhere, id: requestedNoteId } })
+        : (await prisma.clinicalNote.findFirst({
+            where: { ...pendingWhere, authorDoctorId: session.doctorId },
+            orderBy: { updatedAt: "desc" },
+          })) || await prisma.clinicalNote.findFirst({
+            where: pendingWhere,
+            orderBy: { updatedAt: "desc" },
+          });
+
+      if (!note) return NextResponse.json({ success: false, error: "Save and submit a discharge summary before signing and completing discharge." }, { status: 409 });
+      const isAuthorSigner = note.authorDoctorId === session.doctorId;
+      if (!/Acknowledgement of receipt:\s*Yes/i.test(note.content)) {
+        return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before discharge." }, { status: 409 });
       }
-      if (!/Acknowledgement of receipt:\s*Yes/i.test(note.content)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before final discharge." }, { status: 409 });
       if (note.contentHash !== hashClinicalNote(note.content, note.version)) {
         return NextResponse.json({ success: false, error: "Discharge summary integrity check failed. Do not sign this version; ask the author to review it." }, { status: 409 });
       }
       if (patient.status === "DISCHARGED") return NextResponse.json({ success: false, error: "Patient is already discharged." }, { status: 409 });
 
-      const finalHash = hashClinicalNote(`${note.content}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`, note.version);
+      // Signing is a new, immutable note-version event; never reuse the version
+      // number occupied by the submitted draft (the DB enforces uniqueness).
+      const signedVersion = note.version + 1;
+      const signedContentHash = hashClinicalNote(note.content, signedVersion);
+      const finalHash = isAuthorSigner
+        ? hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${note.id}`, signedVersion)
+        : hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nVERIFIER:${session.doctorId}\\nNOTE:${note.id}`, signedVersion);
       try {
         await prisma.$transaction(async (tx) => {
           const currentPatient = await tx.patient.findFirst({
@@ -428,14 +445,52 @@ export async function POST(req: Request) {
             throw error;
           }
           const signed = await tx.clinicalNote.updateMany({
-            where: { id: note.id, clinicId, patientId, status: "PENDING_VERIFICATION", verifierDoctorId: null, version: note.version, contentHash: note.contentHash },
-            data: { status: "FINAL", verifierDoctorId: session.doctorId, verifiedAt: now, finalizedAt: now, finalHash },
+            where: {
+              id: note.id, clinicId, patientId, status: "PENDING_VERIFICATION",
+              verifierDoctorId: null, version: note.version, contentHash: note.contentHash,
+              authorDoctorId: isAuthorSigner ? session.doctorId : { not: session.doctorId },
+            },
+            data: {
+              status: "FINAL",
+              version: signedVersion,
+              contentHash: signedContentHash,
+              verifierDoctorId: isAuthorSigner ? null : session.doctorId,
+              verifiedAt: isAuthorSigner ? null : now,
+              finalizedAt: now,
+              finalHash,
+            },
           });
           if (signed.count !== 1) {
-            const error = new Error("The discharge summary changed or was verified by another clinician.");
+            const error = new Error("The discharge summary changed or was signed concurrently. Reload and try again.");
             (error as Error & { code?: string }).code = "NOTE_CHANGED";
             throw error;
           }
+          await tx.clinicalNoteVersion.create({ data: {
+            clinicalNoteId: note.id,
+            clinicId,
+            version: signedVersion,
+            title: note.title || "Discharge Summary",
+            noteType: "Discharge Note",
+            content: note.content,
+            contentHash: signedContentHash,
+            event: isAuthorSigner ? "AUTHOR_SIGNED" : "FINAL_SIGNED",
+            createdByDoctorId: session.doctorId,
+            createdAt: now,
+          } });
+          await tx.auditLog.create({ data: {
+            doctorId: session.doctorId,
+            action: isAuthorSigner ? "AUTHOR_SIGN" : "FINAL_SIGN",
+            entity: "ClinicalNote",
+            entityId: note.id,
+            meta: JSON.stringify({
+              clinicId, patientId, noteId: note.id,
+              authorDoctorId: note.authorDoctorId,
+              signedByDoctorId: session.doctorId,
+              signingMode: isAuthorSigner ? "AUTHOR_SIGNATURE" : "INDEPENDENT_VERIFICATION",
+              submittedVersion: note.version, signedVersion,
+              contentHash: signedContentHash, finalHash, at: now.toISOString(),
+            }),
+          } });
           const discharged = await tx.patient.updateMany({
             where: { id: patient.id, clinicId, deletedAt: null, status: "ACTIVE" },
             data: { status: "DISCHARGED" },
@@ -449,11 +504,33 @@ export async function POST(req: Request) {
       } catch (error: unknown) {
         const code = error && typeof error === "object" && "code" in error ? String((error as { code?: string }).code) : "";
         if (code === "ALREADY_DISCHARGED") return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Patient is already discharged." }, { status: 409 });
-        if (code === "NOTE_CHANGED" || code === "P2034") return NextResponse.json({ success: false, error: "Discharge summary changed concurrently. Reload and verify the latest version." }, { status: 409 });
+        if (code === "NOTE_CHANGED" || code === "P2034") return NextResponse.json({ success: false, error: "Discharge summary changed concurrently. Reload and try again." }, { status: 409 });
         throw error;
       }
-      await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_COMPLETE", entity: "Patient", entityId: patient.id, meta: { clinicId, noteId: note.id, authorDoctorId: note.authorDoctorId, verifierDoctorId: session.doctorId, status: "DISCHARGED" } });
-      return NextResponse.json({ success: true, noteId: note.id, status: "FINAL", patientStatus: "DISCHARGED", verifierDoctorId: session.doctorId });
+      await writeAudit({
+        doctorId: session.doctorId,
+        clinicId,
+        action: "DISCHARGE_COMPLETE",
+        entity: "Patient",
+        entityId: patient.id,
+        meta: {
+          clinicId, noteId: note.id, authorDoctorId: note.authorDoctorId,
+          finalizedByDoctorId: session.doctorId,
+          verifierDoctorId: isAuthorSigner ? null : session.doctorId,
+          signingMode: isAuthorSigner ? "AUTHOR_SIGNATURE" : "INDEPENDENT_VERIFICATION",
+          signedVersion, status: "DISCHARGED",
+        },
+      });
+      return NextResponse.json({
+        success: true,
+        noteId: note.id,
+        version: signedVersion,
+        status: "FINAL",
+        patientStatus: "DISCHARGED",
+        authorDoctorId: note.authorDoctorId,
+        authorSignedByDoctorId: isAuthorSigner ? session.doctorId : null,
+        verifierDoctorId: isAuthorSigner ? null : session.doctorId,
+      });
     }
 
     if (action === "clinical-note") {

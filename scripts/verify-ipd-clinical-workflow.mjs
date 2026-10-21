@@ -11,11 +11,11 @@ const notHas=(text,needle,label)=>assert.ok(!text.includes(needle),label+": unex
 
 has(page,'leftNav==="Initial Assessment"',"initial assessment UI");
 has(page,'noteType:"Initial Assessment"',"canonical clinical note type");
-has(page,"second-clinician verification","provisional submission");
+has(page,"Sign & complete as author","author can sign and complete their own clinical note");
 has(page,'action:"finalize"',"final signing action");
 has(page,'timeZone:"Asia/Kolkata"',"IST assessment clock");
 has(page,'UHID: {selected.uhid||selected.registrationNo||"Not assigned"}',"IPD clinical workspace shows a single patient-facing UHID");
-has(page,"Final-sign as second clinician","final signing button");
+has(page,"Final-sign as second clinician","optional alternate-clinician final signing remains available");
 
 const initialStart=page.indexOf('leftNav==="Initial Assessment"');
 const progressStart=page.indexOf('mainTab==="Clinical Notes"&&leftNav==="Progress Note"');
@@ -77,7 +77,10 @@ console.log("IPD note author, signing-header, and status compatibility checks pa
 has(page,'Submit for co-signature"',"author can submit an existing draft for optional co-signature from the desktop note list");
 has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can final-sign directly from the mobile note list");
 has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
-console.log("IPD list-level signature actions and role visibility checks passed.");
+has(page,"Sign & complete","IPD note list offers author self-signing");
+has(page,'cancelClinicalNote(n.id,n.noteType||"clinical note")',"IPD note list offers author-only audited cancellation/removal");
+has(page,"Cancel / remove","draft cancellation affordance is explicit");
+console.log("IPD list-level author signing, cancellation, and role visibility checks passed.");
 
 has(signingApi,'const signedVersion = current.version + 1',"author sign creates a unique version instead of a duplicate version row");
 has(signingApi,'contentHash: signedContentHash',"signed note content hash is updated for the new version");
