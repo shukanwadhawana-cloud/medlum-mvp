@@ -21,7 +21,17 @@ export default function ResetPasswordPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true); setError(""); setMessage("");
+    setError("");
+    setMessage("");
+    if (password.length < 12) {
+      setError("Your new password must be at least 12 characters long.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("The passwords do not match. Please enter the same password in both fields.");
+      return;
+    }
+    setBusy(true);
     try {
       const res = await fetch("/api/auth/password-reset/complete", {
         method: "POST",
@@ -56,6 +66,7 @@ export default function ResetPasswordPage() {
               <form onSubmit={submit} className="mt-7 space-y-4">
                 <label className="block text-sm font-medium">
                   New password
+                  <span className="mt-1 block text-xs font-normal text-gray-500">Use at least 12 characters. Both password fields must match.</span>
                   <div className="relative mt-1.5">
                     <input required minLength={12} maxLength={128} type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="h-12 w-full rounded-xl border px-4 pr-20" placeholder="At least 12 characters" />
                     <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute inset-y-0 right-3 text-sm font-medium text-[var(--ml-primary)]">{showPassword ? "Hide" : "Show"}</button>
@@ -65,7 +76,8 @@ export default function ResetPasswordPage() {
                   Confirm new password
                   <input required minLength={12} maxLength={128} type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" className="mt-1.5 h-12 w-full rounded-xl border px-4" />
                 </label>
-                <button disabled={busy || password.length < 12 || password !== confirmPassword} className="w-full h-12 rounded-xl bg-[#c2183a] font-semibold text-white disabled:opacity-60">{busy ? "Updating password…" : "Reset password"}</button>
+                <button type="submit" disabled={busy} aria-describedby="reset-password-requirements" className="w-full h-12 rounded-xl bg-[#c2183a] font-semibold text-white disabled:cursor-wait disabled:opacity-60">{busy ? "Updating password…" : "Reset password"}</button>
+                <p id="reset-password-requirements" className="text-xs text-gray-500">Minimum 12 characters. After a successful reset, sign in using this new password.</p>
               </form>
             ) : (
               <p className="mt-6 text-sm text-gray-600">This reset link is missing or invalid. Ask your clinic administrator for a new link.</p>
