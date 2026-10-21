@@ -43,7 +43,18 @@ ok(retry.includes("verified: false"), "retry output remains an unverified draft"
 
 const retryPanel = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
 ok(retryPanel.includes("retryExtraction"), "report panel exposes retry extraction action");
-ok(retryPanel.includes("Retry report extraction"), "retry action has clear UI label");
+ok(retryPanel.includes("Retry Clinical Assist extraction"), "retry action clearly identifies Clinical Assist");
+ok(retryPanel.includes("rawTextPreview"), "report panel restores retained OCR text on initial load");
+ok(retryPanel.includes("Clinical Assist could not create a structured draft"), "failed state explains the enhanced extraction path");
+ok(retryPanel.includes("This hosting configuration did not retain the original file"), "panel handles non-durable processed storage without a misleading retry failure");
+ok(retryPanel.includes("Choose the exact same report file below; its checksum will be validated before OCR"), "panel explains and validates re-upload retry for existing failed reports");
+const assistOcr = readFileSync("src/lib/clinical-assist-ocr.ts", "utf8");
+ok(assistOcr.includes("export async function prepareClinicalAssistImage"), "shared on-device image preprocessor exists");
+ok(retryPanel.includes("prepareClinicalAssistImage(originalFile)"), "report panel preprocesses report photos before local OCR");
+const clinicalAssistPage = readFileSync("src/app/clinical-assist/page.tsx", "utf8");
+ok(clinicalAssistPage.includes("prepareClinicalAssistImage(file)"), "standalone Clinical Assist uses the same image preprocessor");
+ok(ocrLib.includes("primaryFailed || Object.keys(draft).length < 4"), "Clinical Assist fallback runs when primary OCR errors or finds too few values");
+ok(ocrLib.includes("Initial lab OCR pass failed:"), "primary OCR errors are retained as diagnostics instead of skipping fallback");
 
 ok(existsSync("src/app/api/labs/documents/[id]/verify/route.ts"), "verify route exists");
 const verify = readFileSync("src/app/api/labs/documents/[id]/verify/route.ts", "utf8");
@@ -65,6 +76,23 @@ ok(storage.includes("processed"), "processed provider wired");
 
 const view = readFileSync("src/app/api/labs/documents/[id]/view/route.ts", "utf8");
 ok(view.includes("clinicId: membership.clinicId"), "view tenant-scoped");
+
+const clinicalAssistRoutePath = "src/app/api/labs/documents/[id]/clinical-assist/route.ts";
+ok(existsSync(clinicalAssistRoutePath), "Clinical Assist retry endpoint exists");
+const clinicalAssistRoute = readFileSync(clinicalAssistRoutePath, "utf8");
+ok(clinicalAssistRoute.includes("requireActiveClinicMembership") && clinicalAssistRoute.includes("clinicId: membership.clinicId"), "Clinical Assist retry is clinic-scoped");
+ok(clinicalAssistRoute.includes("extractCandidates(text)"), "Clinical Assist OCR text is parsed into candidate lab values");
+ok(clinicalAssistRoute.includes('verified: false') && clinicalAssistRoute.includes("LAB_DOCUMENT_CLINICAL_ASSIST_RETRY"), "Clinical Assist output remains an audited draft");
+ok(clinicalAssistRoute.includes('ocrStatus: "FAILED"') && clinicalAssistRoute.includes("updateMany"), "Clinical Assist uses a compare-and-set guard to avoid overwriting concurrent verification");
+
+ok(view.includes('searchParams.get("raw") === "1"'), "authenticated document viewer supports same-origin raw bytes for local OCR");
+const documentRoute = readFileSync("src/app/api/labs/documents/route.ts", "utf8");
+ok(documentRoute.includes("checksum: true"), "document list exposes stored report checksum for source matching");
+const panelClinicalAssist = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
+ok(panelClinicalAssist.includes("runClinicalAssistOcr") && panelClinicalAssist.includes("Extract with Clinical Assist"), "failed report panel invokes the on-device Clinical Assist OCR engine");
+ok(panelClinicalAssist.includes("sha256Hex") && panelClinicalAssist.includes("selectedDoc.checksum"), "OCR source file checksum is validated before association");
+ok(panelClinicalAssist.includes("Choose the original report file"), "staff can reselect the same report when the provider did not retain original bytes");
+ok(panelClinicalAssist.includes("setAssistSourceFile(file)"), "the exact just-uploaded file is retained in memory for immediate local extraction");
 
 if (fails.length) {
   console.error("FAIL document-intelligence:");

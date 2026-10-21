@@ -4,9 +4,9 @@ import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientProfile } from "@/lib/patient-metadata";
 import { requireClinicalModule } from "@/lib/clinic-products";
-import { normalizeClinicRole, requireActiveClinicMembership } from "@/lib/clinic-auth";
+import { canViewFullClinicalChart, normalizeClinicRole, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
-import { hashClinicalNote } from "@/lib/clinical-signing";
+import { canFinalizeClinicalNote, hashClinicalNote } from "@/lib/clinical-signing";
 
 function metaOf(l: { meta?: string | null } | null | undefined) {
   try { return l?.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
@@ -260,19 +260,23 @@ export async function POST(req: Request) {
     }
 
     if (action === "discharge-summary-draft" || action === "discharge-summary-submit" || action === "discharge-complete") {
+      if (!canViewFullClinicalChart(membership.role)) {
+        return NextResponse.json({ success: false, error: "Clinical chart permissions are required for discharge summaries.", code: "RBAC_DENIED" }, { status: 403 });
+      }
       if (!clinicId) return NextResponse.json({ success: false, error: "An active clinic membership is required for discharge summary signing." }, { status: 403 });
       const patientId = String(body.patientId || "").trim();
       const content = String(body.content || "").trim();
+      if (!patientId) return NextResponse.json({ success: false, error: "Patient ID is required." }, { status: 400 });
       const patient = await getPatient(patientId, session.doctorId, clinicId);
-      if (!patient) return NextResponse.json({ success: false, error: "Patient not found" }, { status: 404 });
-      if (parseCareSetting(patient.notes) !== "IPD") return NextResponse.json({ success: false, error: "Patient is not an IPD admission" }, { status: 409 });
+      if (!patient) return NextResponse.json({ success: false, error: "Patient not found in this clinic." }, { status: 404 });
+      if (parseCareSetting(patient.notes) !== "IPD") return NextResponse.json({ success: false, error: "Patient is not an IPD admission." }, { status: 409 });
       const now = new Date();
 
       if (action === "discharge-summary-draft") {
-        if (!content) return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
+        if (!content) return NextResponse.json({ success: false, error: "Discharge summary content required." }, { status: 400 });
         const existing = await prisma.clinicalNote.findFirst({
-          where: { clinicId: clinicId || undefined, patientId, authorDoctorId: session.doctorId, noteType: "Discharge Note", status: "DRAFT" },
-          orderBy: { createdAt: "desc" },
+          where: { clinicId, patientId, authorDoctorId: session.doctorId, noteType: "Discharge Note", status: "DRAFT" },
+          orderBy: { updatedAt: "desc" },
         });
         const version = (existing?.version || 0) + 1;
         const note = existing
@@ -294,70 +298,85 @@ export async function POST(req: Request) {
                 contentHash: hashClinicalNote(content, version),
               },
             });
-        await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_SUMMARY_DRAFT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: note.status } });
-        return NextResponse.json({ success: true, noteId: note.id, status: note.status });
+        await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_SUMMARY_DRAFT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: note.status } });
+        return NextResponse.json({ success: true, noteId: note.id, status: note.status, authorDoctorId: session.doctorId });
       }
-
-      const note = await prisma.clinicalNote.findFirst({
-        where: { clinicId: clinicId || undefined, patientId, noteType: "Discharge Note", authorDoctorId: session.doctorId },
-        orderBy: { createdAt: "desc" },
-      });
-      if (!note) return NextResponse.json({ success: false, error: "No saved discharge summary draft exists." }, { status: 409 });
 
       if (action === "discharge-summary-submit") {
+        const note = await prisma.clinicalNote.findFirst({
+          where: { clinicId, patientId, authorDoctorId: session.doctorId, noteType: "Discharge Note", status: "DRAFT" },
+          orderBy: { updatedAt: "desc" },
+        });
+        if (!note) return NextResponse.json({ success: false, error: "Save your own discharge summary draft before submitting it for independent verification." }, { status: 409 });
         const nextContent = content || note.content;
-        if (!nextContent.trim()) return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
+        if (!nextContent.trim()) return NextResponse.json({ success: false, error: "Discharge summary content required." }, { status: 400 });
+        if (!/Acknowledgement of receipt:\s*Yes/i.test(nextContent)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before submitting the discharge summary." }, { status: 400 });
         const version = note.version + 1;
-        const updated = await prisma.clinicalNote.update({
-          where: { id: note.id },
+        const submitted = await prisma.clinicalNote.updateMany({
+          where: { id: note.id, clinicId, patientId, authorDoctorId: session.doctorId, status: "DRAFT", version: note.version },
           data: { content: nextContent, version, contentHash: hashClinicalNote(nextContent, version), status: "PENDING_VERIFICATION", submittedAt: now },
         });
-        await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_SUMMARY_SUBMIT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: updated.id, status: updated.status } });
-        return NextResponse.json({ success: true, noteId: updated.id, status: updated.status });
+        if (submitted.count !== 1) return NextResponse.json({ success: false, error: "The discharge summary changed while you were submitting it. Reload and try again." }, { status: 409 });
+        await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_SUMMARY_SUBMIT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: "PENDING_VERIFICATION", version } });
+        return NextResponse.json({ success: true, noteId: note.id, status: "PENDING_VERIFICATION", authorDoctorId: session.doctorId });
       }
 
-      if (patient.status === "DISCHARGED") {
-        return NextResponse.json({ success: false, error: "Patient is already discharged" }, { status: 409 });
+      if (!canFinalizeClinicalNote(normalizeClinicRole(membership.role))) {
+        return NextResponse.json({ success: false, error: "Your clinic role cannot final-sign a discharge summary.", code: "RBAC_DENIED" }, { status: 403 });
       }
-      const nextContent = (content || note.content || "").trim();
-      if (!nextContent) {
-        return NextResponse.json({ success: false, error: "Discharge summary content required" }, { status: 400 });
+      const note = await prisma.clinicalNote.findFirst({
+        where: { clinicId, patientId, noteType: "Discharge Note", status: "PENDING_VERIFICATION", authorDoctorId: { not: session.doctorId } },
+        orderBy: { updatedAt: "desc" },
+      });
+      if (!note) return NextResponse.json({ success: false, error: "No discharge summary is awaiting independent verification." }, { status: 409 });
+      if (note.authorDoctorId === session.doctorId) {
+        return NextResponse.json({ success: false, error: "The author cannot be the second verifier. A different clinician must final-sign this discharge summary." }, { status: 409 });
       }
-      const finalHash = hashClinicalNote(
-        `${nextContent}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`,
-        note.version,
-      );
-      let updatedPatient;
+      if (!/Acknowledgement of receipt:\s*Yes/i.test(note.content)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before final discharge." }, { status: 409 });
+      if (note.contentHash !== hashClinicalNote(note.content, note.version)) {
+        return NextResponse.json({ success: false, error: "Discharge summary integrity check failed. Do not sign this version; ask the author to review it." }, { status: 409 });
+      }
+      if (patient.status === "DISCHARGED") return NextResponse.json({ success: false, error: "Patient is already discharged." }, { status: 409 });
+
+      const finalHash = hashClinicalNote(`${note.content}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`, note.version);
       try {
-        updatedPatient = await prisma.$transaction(async (tx) => {
-          const current = await tx.patient.findFirst({ where: { id: patient.id }, select: { status: true } });
-          if (!current || current.status === "DISCHARGED") {
-            const err = new Error("Patient is already discharged");
-            (err as Error & { code?: string }).code = "ALREADY_DISCHARGED";
-            throw err;
-          }
-          await tx.clinicalNote.update({
-            where: { id: note.id },
-            data: {
-              content: nextContent,
-              status: "FINAL",
-              verifierDoctorId: session.doctorId,
-              verifiedAt: now,
-              finalizedAt: now,
-              finalHash,
-            },
+        await prisma.$transaction(async (tx) => {
+          const currentPatient = await tx.patient.findFirst({
+            where: { id: patient.id, clinicId, deletedAt: null },
+            select: { status: true },
           });
-          return tx.patient.update({ where: { id: patient.id }, data: { status: "DISCHARGED" } });
-        });
-      } catch (e: unknown) {
-        const code = e && typeof e === "object" && "code" in e ? String((e as { code?: string }).code) : "";
-        if (code === "ALREADY_DISCHARGED") {
-          return NextResponse.json({ success: false, error: "Patient is already discharged" }, { status: 409 });
-        }
-        throw e;
+          if (!currentPatient || currentPatient.status !== "ACTIVE") {
+            const error = new Error("Patient is already discharged or no longer active in IPD.");
+            (error as Error & { code?: string }).code = "ALREADY_DISCHARGED";
+            throw error;
+          }
+          const signed = await tx.clinicalNote.updateMany({
+            where: { id: note.id, clinicId, patientId, status: "PENDING_VERIFICATION", verifierDoctorId: null, version: note.version, contentHash: note.contentHash },
+            data: { status: "FINAL", verifierDoctorId: session.doctorId, verifiedAt: now, finalizedAt: now, finalHash },
+          });
+          if (signed.count !== 1) {
+            const error = new Error("The discharge summary changed or was verified by another clinician.");
+            (error as Error & { code?: string }).code = "NOTE_CHANGED";
+            throw error;
+          }
+          const discharged = await tx.patient.updateMany({
+            where: { id: patient.id, clinicId, deletedAt: null, status: "ACTIVE" },
+            data: { status: "DISCHARGED" },
+          });
+          if (discharged.count !== 1) {
+            const error = new Error("Patient is already discharged or no longer active in IPD.");
+            (error as Error & { code?: string }).code = "ALREADY_DISCHARGED";
+            throw error;
+          }
+        }, { isolationLevel: "Serializable" });
+      } catch (error: unknown) {
+        const code = error && typeof error === "object" && "code" in error ? String((error as { code?: string }).code) : "";
+        if (code === "ALREADY_DISCHARGED") return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Patient is already discharged." }, { status: 409 });
+        if (code === "NOTE_CHANGED" || code === "P2034") return NextResponse.json({ success: false, error: "Discharge summary changed concurrently. Reload and verify the latest version." }, { status: 409 });
+        throw error;
       }
-      await writeAudit({ doctorId: session.doctorId, action: "DISCHARGE_COMPLETE", entity: "Patient", entityId: patient.id, meta: { clinicId, noteId: note.id, status: "DISCHARGED" } });
-      return NextResponse.json({ success: true, noteId: note.id, status: "FINAL", patientStatus: updatedPatient.status });
+      await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_COMPLETE", entity: "Patient", entityId: patient.id, meta: { clinicId, noteId: note.id, authorDoctorId: note.authorDoctorId, verifierDoctorId: session.doctorId, status: "DISCHARGED" } });
+      return NextResponse.json({ success: true, noteId: note.id, status: "FINAL", patientStatus: "DISCHARGED", verifierDoctorId: session.doctorId });
     }
 
     if (action === "clinical-note") {

@@ -91,6 +91,8 @@ jobs:
         run: npm run test:facility-data-migration
       - name: Verify patient discovery facility scope
         run: npm run test:patient-discovery
+      - name: Verify server-side workflow permissions
+        run: npm run test:workflow-permissions
       - name: Verify P2-01 IPD discharge lifecycle
         run: npm run test:p2-01
       - name: Verify owner full-access entitlement
@@ -199,6 +201,126 @@ jobs:
             exit 1
           fi
           echo "ImagingStudy migration default verified: $status"
+
+      - name: Validate PharmacyItem clinic scope reconciliation on disposable PostgreSQL database
+        env:
+          PGPASSWORD: p1
+        run: |
+          set -euo pipefail
+          createdb -h 127.0.0.1 -U p1 pharmacyscopetest
+
+          # Start from the pre-reconciliation shape, with an existing stock row.
+          psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE "Clinic" ("id" TEXT PRIMARY KEY);
+          CREATE TABLE "PharmacyItem" (
+            "id" TEXT PRIMARY KEY,
+            "doctorId" TEXT NOT NULL,
+            "name" TEXT NOT NULL
+          );
+          INSERT INTO "Clinic" ("id") VALUES ('clinic-test');
+          INSERT INTO "PharmacyItem" ("id", "doctorId", "name")
+            VALUES ('stock-test', 'doctor-test', 'Test medicine');
+          SQL
+
+          # Apply twice to prove idempotence, as well as preservation of existing stock rows.
+          psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -f prisma/migrations/20261020180000_reconcile_pharmacy_clinic_scope/migration.sql
+          psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -f prisma/migrations/20261020180000_reconcile_pharmacy_clinic_scope/migration.sql
+
+          nullable="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='PharmacyItem' AND column_name='clinicId';")"
+          stock_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"PharmacyItem\" WHERE \"id\"='stock-test';")"
+          index_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='PharmacyItem' AND indexname='PharmacyItem_clinicId_idx';")"
+          fk_count="$(psql -h 127.0.0.1 -U p1 -d pharmacyscopetest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM pg_constraint WHERE conname='PharmacyItem_clinicId_fkey' AND conrelid='\"PharmacyItem\"'::regclass;")"
+
+          [ "$nullable" = "YES" ] || { echo "Expected nullable clinicId, got: $nullable" >&2; exit 1; }
+          [ "$stock_count" = "1" ] || { echo "Existing PharmacyItem row was not preserved" >&2; exit 1; }
+          [ "$index_count" = "1" ] || { echo "Expected PharmacyItem clinicId index" >&2; exit 1; }
+          [ "$fk_count" = "1" ] || { echo "Expected PharmacyItem clinicId FK" >&2; exit 1; }
+          echo "PharmacyItem clinic scope migration is idempotent and preserves existing stock."
+      - name: Prepare orphaned migration history on disposable PostgreSQL
+        env:
+          PGPASSWORD: p1
+          DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/migrationhistorytest?schema=public
+        run: |
+          set -euo pipefail
+          createdb -h 127.0.0.1 -U p1 migrationhistorytest
+
+          # Build an isolated schema and baseline all repository migrations except the
+          # new forward reconcile migration. This test is restricted to localhost CI.
+          npx prisma db push --skip-generate
+          for dir in prisma/migrations/*; do
+            [ -d "$dir" ] || continue
+            migration_name="$(basename "$dir")"
+            if [ "$migration_name" = "20261020180000_reconcile_pharmacy_clinic_scope" ]; then
+              continue
+            fi
+            npx prisma migrate resolve --applied "$migration_name"
+          done
+
+          # Model the already-finished historical migration row seen in Neon but
+          # absent from repository history. Do not invent or execute its original SQL.
+          psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO "_prisma_migrations"
+            ("id", "checksum", "finished_at", "migration_name", "started_at", "applied_steps_count")
+          VALUES
+            (gen_random_uuid()::text,
+             '07d7fbd76100ec1005e009cd640ea2134a56402cb66bb5a64565f2ae878e2093',
+             CURRENT_TIMESTAMP,
+             '20260923100000_pharmacy_clinic_scope',
+             CURRENT_TIMESTAMP,
+             1);
+          SQL
+          orphan_count="$(psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE \"migration_name\"='20260923100000_pharmacy_clinic_scope' AND \"finished_at\" IS NOT NULL;")"
+          [ "$orphan_count" = "1" ] || { echo "Historical orphan row was not created" >&2; exit 1; }
+          echo "Disposable DB prepared with pending forward migration and an orphaned applied row."
+
+      - name: Build Render container for startup smoke test
+        run: docker build --pull=false -t medlum-render-smoke .
+
+      - name: Smoke-test Render startup, migration deploy, and HTTP port
+        env:
+          DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/migrationhistorytest?schema=public
+          SESSION_SECRET: ci-render-smoke-test-not-production
+        run: |
+          set -euo pipefail
+          docker rm -f medlum-render-smoke >/dev/null 2>&1 || true
+          trap 'docker rm -f medlum-render-smoke >/dev/null 2>&1 || true' EXIT
+          docker run -d --name medlum-render-smoke --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SESSION_SECRET="$SESSION_SECRET" \
+            -e PORT=10000 \
+            medlum-render-smoke >/dev/null
+
+          healthy=0
+          for i in $(seq 1 60); do
+            if curl --silent --show-error --fail http://127.0.0.1:10000/api/health >/tmp/medlum-render-health.json; then
+              healthy=1
+              break
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' medlum-render-smoke)" != "true" ]; then
+              docker logs medlum-render-smoke >&2 || true
+              echo "Render container exited before opening port 10000" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$healthy" != "1" ]; then
+            docker logs medlum-render-smoke >&2 || true
+            echo "Render container did not answer /api/health on port 10000" >&2
+            exit 1
+          fi
+          cat /tmp/medlum-render-health.json
+          grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' /tmp/medlum-render-health.json
+
+      - name: Verify Render startup migration results on disposable PostgreSQL
+        env:
+          PGPASSWORD: p1
+        run: |
+          set -euo pipefail
+          orphan_count="$(psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE \"migration_name\"='20260923100000_pharmacy_clinic_scope' AND \"finished_at\" IS NOT NULL;")"
+          forward_count="$(psql -h 127.0.0.1 -U p1 -d migrationhistorytest -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM \"_prisma_migrations\" WHERE \"migration_name\"='20261020180000_reconcile_pharmacy_clinic_scope' AND \"finished_at\" IS NOT NULL;")"
+          [ "$orphan_count" = "1" ] || { echo "Historical orphan row was not preserved" >&2; exit 1; }
+          [ "$forward_count" = "1" ] || { echo "Forward reconcile migration did not finish" >&2; exit 1; }
+          echo "Render entrypoint successfully deployed the idempotent forward migration and preserved historical migration metadata."
       - name: P1 RBAC tenant isolation (Postgres)
         env:
           P1_TEST_DATABASE_URL: postgresql://p1:p1@127.0.0.1:5432/p1test?schema=public

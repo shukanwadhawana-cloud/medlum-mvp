@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 import { requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { getStorageProvider } from "@/lib/storage";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const membership = await requireActiveClinicMembership(session.doctorId);
@@ -17,7 +17,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const provider = getStorageProvider();
-  if (provider.getSignedUrl && doc.storageProvider === "r2") {
+  // Clinical Assist can request the bytes same-origin for local OCR instead of receiving
+  // a signed-URL JSON payload. The document has already been checked against this clinic.
+  const raw = new URL(req.url).searchParams.get("raw") === "1";
+  if (!raw && provider.getSignedUrl && doc.storageProvider === "r2") {
     try {
       const url = await provider.getSignedUrl(doc.storageKey, 120);
       if (url) {
