@@ -52,6 +52,7 @@ model Clinic {
   abdmEvents         AbdmEvent[]
   emergencyCases     EmergencyCase[]
   medicalDocuments   MedicalDocument[]
+  clinicalNoteVersions ClinicalNoteVersion[]
   medicationAdministrations MedicationAdministration[]
   telegramIntegration FacilityTelegramIntegration?
   clinicalNotes      ClinicalNote[]
@@ -128,6 +129,7 @@ model Doctor {
   uploadedDocuments      MedicalDocument[]
   authoredClinicalNotes   ClinicalNote[]      @relation("ClinicalNoteAuthor")
   verifiedClinicalNotes   ClinicalNote[]      @relation("ClinicalNoteVerifier")
+  clinicalNoteVersionsCreated ClinicalNoteVersion[] @relation("ClinicalNoteVersionCreator")
 
   @@index([isActive])
 }
@@ -685,12 +687,36 @@ model ClinicalNote {
   encounter         Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
   author            Doctor    @relation("ClinicalNoteAuthor", fields: [authorDoctorId], references: [id], onDelete: Restrict)
   verifier          Doctor?   @relation("ClinicalNoteVerifier", fields: [verifierDoctorId], references: [id], onDelete: Restrict)
+  versions          ClinicalNoteVersion[]
 
   @@index([clinicId, patientId, createdAt])
   @@index([authorDoctorId])
   @@index([verifierDoctorId])
   @@index([status])
   @@index([encounterId])
+}
+
+
+model ClinicalNoteVersion {
+  id                String       @id @default(cuid())
+  clinicalNoteId    String
+  clinicId          String
+  version           Int
+  title             String       @default("")
+  noteType          String
+  content           String
+  contentHash       String
+  event             String       @default("DRAFT_SAVED")
+  createdByDoctorId String
+  createdAt         DateTime     @default(now())
+
+  clinicalNote      ClinicalNote @relation(fields: [clinicalNoteId], references: [id], onDelete: Restrict)
+  clinic            Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  createdBy         Doctor       @relation("ClinicalNoteVersionCreator", fields: [createdByDoctorId], references: [id], onDelete: Restrict)
+
+  @@unique([clinicalNoteId, version])
+  @@index([clinicId, clinicalNoteId, version])
+  @@index([createdByDoctorId, createdAt])
 }
 
 model AuditLog {
