@@ -35,6 +35,7 @@ model Clinic {
   updatedAt          DateTime               @updatedAt
   members            ClinicMember[]
   patients           Patient[]
+  pharmacyItems      PharmacyItem[]
   invoices           Invoice[]
   bloodInventory     BloodInventory[]
   bloodDonors        BloodDonor[]
