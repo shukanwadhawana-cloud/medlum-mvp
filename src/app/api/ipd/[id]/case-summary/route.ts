@@ -341,6 +341,15 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       "Nursing observations": logs.filter((log) => log.entity === "NursingVital" && (log.entityId === patientId || String(metaOf(log).patientId || "") === patientId)).length,
       "Clinical handovers": handoverLogs.length,
     };
+    await writeAudit({
+      doctorId: session.doctorId,
+      clinicId: membership.clinicId,
+      action: "IPD_LONGITUDINAL_CASE_SUMMARY_REQUESTED",
+      entity: "ClinicalAiDraft",
+      entityId: patientId,
+      meta: { patientId, admissionDate: admissionKey || null, dischargeDate: dischargeDate || null, sourceCounts },
+    });
+
     const generated = await generateLongitudinalCaseSummary({
       patient: {
         name: patient.name,
@@ -361,7 +370,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     await writeAudit({
       doctorId: session.doctorId,
       clinicId: membership.clinicId,
-      action: "IPD_LONGITUDINAL_CASE_SUMMARY_REQUESTED",
+      action: "IPD_LONGITUDINAL_CASE_SUMMARY_GENERATED",
       entity: "ClinicalAiDraft",
       entityId: patientId,
       meta: {
