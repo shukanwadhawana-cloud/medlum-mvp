@@ -10,8 +10,10 @@ const forgotPage = read("src/app/forgot-password/page.tsx");
 const resetPage = read("src/app/reset-password/page.tsx");
 const staffRoute = read("src/app/api/clinic/staff/[id]/password-reset/route.ts");
 const workforce = read("src/app/workforce/page.tsx");
+const doctorProvider = read("src/components/DoctorProvider.tsx");
 
 assert(login.includes('href="/forgot-password"'), "staff login links to a real forgot-password page");
+assert(doctorProvider.includes('"/forgot-password", "/reset-password"'), "password recovery pages are public to signed-out users");
 assert(login.includes("showPassword ? \"text\" : \"password\""), "staff login exposes accessible show/hide password control");
 assert(request.includes('purpose: "password_reset"'), "self-service reset uses a distinct OTP purpose");
 assert(request.includes("sendTelegramMessage"), "reset codes are delivered only through a linked personal Telegram identity");
