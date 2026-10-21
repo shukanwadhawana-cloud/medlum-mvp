@@ -1,14 +1,20 @@
 import type { StorageProvider } from "./types";
 import { createLocalStorageProvider } from "./local";
 
-/** Application hard ceiling (bytes). Default 8 GiB — below typical 10 GB free-tier R2. */
+/** Application storage quota, aligned with the durable provider in use. */
 export function storageQuotaBytes(): number {
   const raw = process.env.STORAGE_QUOTA_BYTES;
-  if (raw && /^\d+$/.test(raw)) return parseInt(raw, 10);
+  if (raw && /^\\d+$/.test(raw)) return parseInt(raw, 10);
+  const provider = (process.env.STORAGE_PROVIDER || "local").toLowerCase();
+  if (provider === "database" || (provider !== "r2" && isServerlessRuntime())) {
+    const databaseQuota = process.env.DATABASE_STORAGE_QUOTA_BYTES || "";
+    if (databaseQuota && /^\\d+$/.test(databaseQuota)) return parseInt(databaseQuota, 10);
+    return 256 * 1024 * 1024;
+  }
   return 8 * 1024 * 1024 * 1024;
 }
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per file
+export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // Match the on-device Clinical Assist OCR limit
 export const ALLOWED_MIME = new Set(["application/pdf", "image/jpeg", "image/png", "image/jpg"]);
 
 function isServerlessRuntime(): boolean {
