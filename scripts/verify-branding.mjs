@@ -36,6 +36,8 @@ assert.deepEqual(
 );
 
 const layout = read("src/app/layout.tsx");
+assert.ok(layout.includes('metadataBase: new URL("https://medlumhealth.com")'));
+assert.ok(layout.includes('siteName: "MedLum Health"'));
 assert.match(layout, /title:\s*"MedLum Health\s+[–-]\s+Clinical Intelligence"/);
 assert.match(layout, /applicationName:\s*"MedLum Health"/);
 assert.match(layout, /description:\s*"MedLum Health/);
