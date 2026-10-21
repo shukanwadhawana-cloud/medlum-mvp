@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
@@ -169,7 +169,7 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
@@ -285,7 +285,13 @@ jobs:
           echo "Disposable DB prepared with pending forward migration and an orphaned applied row."
 
       - name: Build Render container for startup smoke test
-        run: docker build --pull=false -t medlum-render-smoke .
+        run: |
+          # Earlier npm install in this job creates a transient lockfile when none is tracked.
+          # Do not let that generated file accidentally switch the clean-checkout Docker build to npm ci.
+          if ! git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            rm -f package-lock.json
+          fi
+          docker build --pull=false -t medlum-render-smoke .
 
       - name: Smoke-test Render startup, migration deploy, and HTTP port
         env:
@@ -355,7 +361,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Start isolated Orthanc with DICOMweb
         run: |
           set -euo pipefail
@@ -556,7 +562,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
