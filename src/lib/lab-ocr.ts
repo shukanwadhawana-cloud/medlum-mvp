@@ -85,7 +85,7 @@ function escapeRegExp(value: string) {
 }
 
 const LAB_UNITS =
-  /(?:mg\/dL|g\/dL|g\/L|mmol\/L|µmol\/L|U\/L|IU\/L|mIU\/L|ng\/mL|pg\/mL|ng\/dL|mg\/L|mm\/hr|%|fL|pg|cells\/µL|\/hpf)/i;
+  /(?:mg\\/dL|g\\/dL|g\\/L|mmol\\/L|µmol\\/L|U\\/L|IU\\/L|mIU\\/L|ng\\/mL|pg\\/mL|ng\\/dL|mg\\/L|mm\\/hr|seconds?|sec|%|fL|pg|cells\\/µL|\\/hpf)/i;
 
 function normalizeOcrLines(text: string): string[] {
   return text
