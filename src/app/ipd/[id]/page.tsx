@@ -420,7 +420,7 @@ export default function IPDPatientWorkspace(){
            <div className="flex flex-wrap gap-2 pt-1"><button type="button" onClick={()=>setNoteViewId(id)} className="min-h-9 rounded-lg border px-3 py-2 text-xs font-semibold">Open note</button>{canSignOwn&&<button type="button" disabled={saving} onClick={()=>void signOwnClinicalNote(n.id)} className="min-h-9 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving?"Signing…":"Sign & complete"}</button>}{canSubmit&&<button type="button" disabled={saving} onClick={()=>void submitClinicalNote(n.id)} className="min-h-9 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving?"Submitting…":"Submit for verification"}</button>}{canFinalize&&<button type="button" disabled={saving} onClick={()=>void finalizeClinicalNote(n.id)} className="min-h-9 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving?"Signing…":"Final-sign"}</button>}</div>
           </article>}) : <div className="rounded-xl border bg-white p-4 text-xs text-gray-500">No clinical notes yet. Use the note types to create an entry.</div>}
        </div>
-       <p className="text-[10px] text-gray-500 px-1 pt-1">Showing {(clinicalNotes||[]).length} note{(clinicalNotes||[]).length===1?"":"s"}. Drafts are unsigned; final signatures require a different authorised clinician.</p>
+       <p className="text-[10px] text-gray-500 px-1 pt-1">Showing {(clinicalNotes||[]).length} note{(clinicalNotes||[]).length===1?"":"s"}. Authors can sign and complete their own notes; independent co-signing is optional when required by clinic policy.</p>
        </>
       )}
      </div>
