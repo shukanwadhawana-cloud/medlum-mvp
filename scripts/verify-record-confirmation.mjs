@@ -10,6 +10,8 @@ const checks=[
  ["generic cancellation API",cancel.includes('const cancellable') && cancel.includes('DELETE_CANCELLED_DRAFT') && cancel.includes('reflected:true')],
  ["final clinical cancellation is retained",cancel.includes('status:"CANCELLED"') && cancel.includes('previousStatus')],
  ["draft clinical cancellation deletes",cancel.includes('tx.clinicalNote.delete')],
+ ["draft cancellation is restricted to author/Owner/Admin",cancel.includes("actorIsAuthor") && cancel.includes("Only the author or clinic Owner/Admin can remove this draft")],
+ ["signed-note cancellation is restricted to Owner/Admin",cancel.includes("Only the clinic Owner/Admin can cancel a signed or otherwise locked clinical note")],
  ["encounter cancellation state",schema.includes('status           String') && schema.includes('cancellationReason')],
  ["prescription cancellation state",schema.includes('model Prescription') && schema.includes('cancelledAt')],
  ["patient UI cancellation",page.includes('apiCancelRecord') && page.includes('Cancel final record') && page.includes('Cancel draft')],
