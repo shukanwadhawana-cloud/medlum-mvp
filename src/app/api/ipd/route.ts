@@ -576,7 +576,7 @@ export async function POST(req: Request) {
         });
         let finalHash = "";
         if (sign) {
-          finalHash = hashClinicalNote(`${content}\\nAUTHOR:${session.doctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${created.id}`, version);
+          finalHash = hashClinicalNote(`${content}\nAUTHOR:${session.doctorId}\nAUTHOR_SIGNATURE:${session.doctorId}\nNOTE:${created.id}`, version);
           await tx.clinicalNote.update({ where: { id: created.id }, data: { finalHash } });
         }
         await tx.clinicalNoteVersion.create({
