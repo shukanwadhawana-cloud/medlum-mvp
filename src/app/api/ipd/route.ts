@@ -115,8 +115,8 @@ export async function GET() {
   // event points to a cancelled copy while the original source timestamp matches
   // an earlier cancelled note, keep only the original list entry; both audit
   // histories remain in the database.
-  const auditById = new Map(logs.map((log) => [log.id, log]));
-  const noteById = new Map(clinicalNotes.map((n) => [n.id, n]));
+  const auditById = new Map(logs.map((log) => [log.id, log] as const));
+  const noteById = new Map(clinicalNotes.map((n) => [n.id, n] as const));
   const duplicateCancelledActivationIds = new Set<string>();
   for (const activation of logs) {
     if (activation.entity !== "ClinicalNote" || activation.action !== "LEGACY_DRAFT_ACTIVATED" || !activation.entityId) continue;
