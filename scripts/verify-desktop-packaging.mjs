@@ -19,7 +19,8 @@ for (const file of required) {
 
 const config = JSON.parse(fs.readFileSync(path.join(root, "src-tauri/tauri.conf.json"), "utf8"));
 if (config.identifier !== "com.medlum.desktop") throw new Error("Desktop identifier mismatch (expected com.medlum.desktop)");
-if (config.productName !== "MedLum") throw new Error("Desktop product name mismatch");
+if (config.productName !== "MedLum Health") throw new Error("Desktop product name mismatch");
+if (config.app?.windows?.[0]?.title !== "MedLum Health") throw new Error("Desktop window title mismatch");
 if (config.build?.frontendDist !== "../out") throw new Error("Tauri frontendDist must point to Next export");
 if (!Array.isArray(config.bundle?.icon) || config.bundle.icon.length < 1) {
   throw new Error("Tauri bundle.icon must list icon assets");
