@@ -19,6 +19,7 @@ const requiredFiles = [
   "src/lib/auth-config.ts",
   ".env.example",
   ".github/workflows/production-database-migrations.yml",
+  "scripts/verify-prisma-migration-state.sh",
 ];
 for (const file of requiredFiles) {
   if (!fs.existsSync(path.join(root, file))) throw new Error(`Missing security file: ${file}`);
@@ -89,11 +90,23 @@ for (const guard of [
   "PRODUCTION_DATABASE_URL",
   "PRODUCTION_MIGRATIONS_ENABLED",
   "APPLY_PRODUCTION_MIGRATIONS",
-  "npx prisma migrate status",
+  "bash scripts/verify-prisma-migration-state.sh",
+  "bash scripts/verify-prisma-migration-state.sh --require-clean",
   "npx prisma migrate deploy",
 ]) {
   if (!migrationWorkflow.includes(guard)) throw new Error(`Production migration workflow gate missing: ${guard}`);
 }
+const migrationStateCheck = read("scripts/verify-prisma-migration-state.sh");
+for (const guard of [
+  "20260923100000_pharmacy_clinic_scope",
+  "07d7fbd76100ec1005e009cd640ea2134a56402cb66bb5a64565f2ae878e2093",
+  "sha256sum",
+  "--require-clean",
+  "DATABASE_URL",
+]) {
+  if (!migrationStateCheck.includes(guard)) throw new Error(`Migration history verifier guard missing: ${guard}`);
+}
+
 if (!migrationWorkflow.includes("github.sha")) {
   throw new Error("Production migration workflow must operate on the exact selected commit");
 }
