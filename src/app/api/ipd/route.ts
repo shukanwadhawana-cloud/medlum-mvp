@@ -398,14 +398,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, noteId: note.id, status: "PENDING_VERIFICATION", authorDoctorId: session.doctorId });
       }
 
-      if (!canFinalizeClinicalNote(normalizeClinicRole(membership.role))) {
-        return NextResponse.json({ success: false, error: "Your clinic role cannot final-sign a discharge summary.", code: "RBAC_DENIED" }, { status: 403 });
-      }
       const note = await prisma.clinicalNote.findFirst({
         where: { clinicId, patientId, authorDoctorId: session.doctorId, noteType: "Discharge Note", status: "PENDING_VERIFICATION" },
         orderBy: { updatedAt: "desc" },
       });
-      if (!note) return NextResponse.json({ success: false, error: "No submitted discharge summary is awaiting your signature." }, { status: 409 });
+      if (!note) return NextResponse.json({ success: false, error: "No submitted discharge summary authored by you is awaiting your signature." }, { status: 409 });
       if (note.authorDoctorId !== session.doctorId) return NextResponse.json({ success: false, error: "Only the original author can sign this discharge summary." }, { status: 403 });
       if (!/Acknowledgement of receipt:\s*Yes/i.test(note.content)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before final discharge." }, { status: 409 });
       if (note.contentHash !== hashClinicalNote(note.content, note.version)) {
