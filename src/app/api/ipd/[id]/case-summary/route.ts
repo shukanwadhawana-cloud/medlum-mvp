@@ -57,7 +57,20 @@ function timestampLabel(value: Date | string | null | undefined): string {
 }
 function extractDischargeDate(content: string): string {
   const match = content.match(/(?:date and time of discharge|discharge date(?:\/time)?)\s*:\s*([^\n\r]+)/i);
-  return match ? clip(match[1], 120) : "";
+  if (!match) return "";
+  const raw = clip(match[1], 120);
+  // Indian discharge summaries commonly store DD/MM/YYYY. Parse explicitly as
+  // day-first so 03/10/2026 is not accidentally interpreted as March 10 by JS.
+  const dayFirst = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
+  if (dayFirst) {
+    const day = Number(dayFirst[1]), month = Number(dayFirst[2]), year = Number(dayFirst[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day, 12));
+    if (parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day) {
+      return year + "-" + String(month).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+    }
+    return "";
+  }
+  return dateKey(raw);
 }
 function nonEmpty(parts: Array<string | null | undefined>): string {
   return parts.map((part) => String(part || "").trim()).filter(Boolean).join(" | ");
