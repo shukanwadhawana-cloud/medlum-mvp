@@ -191,6 +191,19 @@ export default function PatientDetailPage() {
     setClinicalNotes(await apiGetClinicalNotes(id));
   };
 
+  const signOwnClinicalNote = async (noteId: string) => {
+    const res = await fetch("/api/clinical-notes", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
+      body: JSON.stringify({ id: noteId, action: "sign-own" }),
+    });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok || result.success !== true) { setMsg(result.error || "Could not sign note as author"); return; }
+    setMsg("Clinical note signed and completed by its author. The final version is locked.");
+    setClinicalNotes(await apiGetClinicalNotes(id));
+  };
+
   const cancelRecord = async (entity: string, recordId: string) => {
     const reason = window.prompt("Enter the reason for cancellation:");
     if (!reason?.trim()) return;
@@ -390,7 +403,7 @@ export default function PatientDetailPage() {
 
           <Sec title="Clinical Notes & Final Signing">
             <div className="px-3 py-3 border-b">
-              <p className="text-xs text-gray-500 mb-2">Every clinical action requires confirmation. Drafts can be cancelled and deleted; submitted/final records can be cancelled with an audit trail.</p>
+              <p className="text-xs text-gray-500 mb-2">The original author can sign and complete their own note. Independent verification is optional. Unsigned notes can be cancelled with a reason and an audit trail; final notes remain locked.</p>
               <button type="button" onClick={() => { setEditingNoteId(null); setNoteType("Progress Note"); setNoteTitle(""); setNoteContent(""); setNoteError(""); setShowNoteComposer(true); }} className="h-9 px-3 rounded-lg bg-[#140a1f] text-white text-xs font-medium">
                 + New clinical note / summary
               </button>
@@ -403,16 +416,22 @@ export default function PatientDetailPage() {
                     <p className="text-[11px] text-gray-400">{n.status} · {n.authorRole || "Clinical staff"} · {new Date(n.createdAt).toLocaleString()}</p>
                   </div>
                   {n.status === "DRAFT" && n.author?.id === doctor?.id && (
-                    <div className="flex gap-1.5">
+                    <div className="flex flex-wrap gap-1.5">
                       <button type="button" onClick={() => { setEditingNoteId(n.id); setNoteType(n.noteType); setNoteTitle(n.title || ""); setNoteContent(n.content); setNoteError(""); setShowNoteComposer(true); }} className="px-2.5 py-1.5 rounded-lg border text-[11px]">Edit draft</button>
-                      <button type="button" onClick={() => submitClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Submit for verification</button>
+                      <button type="button" onClick={() => signOwnClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white text-[11px]">Sign & complete as author</button>
+                      <button type="button" onClick={() => submitClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Submit for optional co-signature</button>
                       <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel draft</button>
+                    </div>
+                  )}
+                  {n.status === "PENDING_VERIFICATION" && n.author?.id === doctor?.id && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <button type="button" onClick={() => signOwnClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white text-[11px]">Sign & complete as author</button>
+                      <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>
                     </div>
                   )}
                   {n.status === "PENDING_VERIFICATION" && n.author?.id !== doctor?.id && (
                     <div className="flex gap-1.5">
-                      <button type="button" onClick={() => finalSignClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Second verify + final sign</button>
-                      <button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel</button>
+                      <button type="button" onClick={() => finalSignClinicalNote(n.id)} className="px-2.5 py-1.5 rounded-lg bg-[#c2183a] text-white text-[11px]">Final-sign as second clinician</button>
                     </div>
                   )}
                 </div>
@@ -428,7 +447,7 @@ export default function PatientDetailPage() {
                       <p className="mt-1 text-gray-400">{v.contentHash ? "SHA-256 " + String(v.contentHash).slice(0, 16) + "…" : "Hash unavailable for this legacy version"}</p>
                     </div>)}</div>
                   </details>) : null}
-                  {n.status === "FINAL" && <><p className="font-medium">LOCKED FINAL · hash {String(n.finalHash || "").slice(0, 16)}…</p><button type="button" onClick={() => cancelRecord("ClinicalNote", n.id)} className="mt-1 px-2.5 py-1 rounded-lg border border-red-200 text-red-700 text-[11px]">Cancel final record</button></>}
+                  {n.status === "FINAL" && <p className="font-medium">LOCKED FINAL · hash {String(n.finalHash || "").slice(0, 16)}… · corrections require an addendum.</p>}
                 </div>
               </div>
             ))}
