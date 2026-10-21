@@ -37,6 +37,8 @@ ok(lib?.includes("generateHeuristicDraft"), "heuristic draft generator present")
 ok(lib?.includes("validateDraftSections"), "structured output validation present");
 ok(lib?.includes("server-only"), "clinical-ai is server-only");
 ok(lib?.includes("AI-generated draft for clinician review"), "disclaimer present");
+ok(lib?.includes('process.env.CLINICAL_AI_EXTERNAL_PROCESSING_ENABLED !== "true"'), "external clinical AI is disabled unless explicitly enabled");
+ok(lib?.includes("Sending clinical context to an external AI service is disabled"), "external clinical AI gate documents privacy requirement");
 ok(!lib?.includes("OPENAI_API_KEY") || lib?.includes("process.env.OPENAI_API_KEY"), "provider keys only via env");
 
 ok(route?.includes("getSession"), "draft route requires session");
