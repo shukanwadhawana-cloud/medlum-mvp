@@ -187,7 +187,7 @@ export default function IPDPatientWorkspace(){
     <div className="p-3 border-r bg-emerald-50/40">
      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Patient Demographic Details</p>
      <p className="font-semibold text-sm mt-1">{selected.name}</p>
-     <p className="text-gray-600 mt-0.5">{selected.age} yrs · {selected.gender} · UHID {selected.uhid||selected.registrationNo||"Not assigned"}</p>
+     <p className="text-gray-600 mt-0.5">{selected.age} yrs · {selected.gender} · UHID {String(selected.uhid||selected.registrationNo||"Not assigned").replace(/^UHID[\s:-]*/i, "")}</p>
      <p className="text-gray-500">MedLum ID: {selected.medlumId||"—"} · Phone: {selected.phone||"—"}</p>
     </div>
     <div className="p-3 border-r bg-sky-50/40">
@@ -354,7 +354,7 @@ export default function IPDPatientWorkspace(){
             return <tr key={id} className="hover:bg-amber-50/60 cursor-pointer" onClick={()=>setNoteViewId(id)}>
              <td className="p-2 border-b font-medium">{n.noteType||n.title||"Clinical note"}</td>
              <td className="p-2 border-b">{n.createdAt?new Date(n.createdAt).toLocaleString("en-IN"):"—"}</td>
-             <td className="p-2 border-b"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${(n.status||"COMPLETED")==="UNSIGNED"||(n.status||"")==="UNCOSIGNED"?"bg-amber-100 text-amber-800":"bg-green-50 text-green-700"}`}>{n.status||"COMPLETED"}</span></td>
+             <td className="p-2 border-b"><span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${["DRAFT","PENDING_VERIFICATION","UNSIGNED","UNCOSIGNED"].includes(String(n.status||""))?"bg-amber-100 text-amber-800":["FINAL","COMPLETED"].includes(String(n.status||""))?"bg-green-50 text-green-700":"bg-slate-100 text-slate-700"}`}>{n.status||"COMPLETED"}</span></td>
              <td className="p-2 border-b">{n.authorName||n.authorRole||"—"}</td>
              <td className="p-2 border-b"><button type="button" className="text-[#c2183a] font-medium" onClick={(e)=>{e.stopPropagation();setNoteViewId(id)}}>Open</button></td>
             </tr>}) : <tr><td colSpan={5} className="p-4 text-gray-500">No clinical notes yet. Use left nav to add Initial Assessment, Progress Note, or Consultant Note.</td></tr>}
