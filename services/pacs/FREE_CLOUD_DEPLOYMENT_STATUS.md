@@ -1,6 +1,6 @@
 # Free-cloud PACS deployment gate
 
-**Status: not deployed. Synthetic-only deployment remains blocked pending a safe same-origin access design.**
+**Status: a free, browser-only synthetic viewer sandbox is available inside Diagnostics. Real PACS hosting remains unprovisioned.**
 
 This repository already has an isolated Orthanc synthetic E2E workflow. That workflow proves the Orthanc/DICOMweb data path in CI; it does not prove a public deployment, OHIF rendering, or secure browser access.
 
@@ -21,3 +21,10 @@ A public Orthanc endpoint must not expose unauthenticated administrative REST or
 ## Stop condition
 
 Do not publish an unauthenticated Orthanc endpoint just to make a demo URL available. If the selected free host cannot provide the gateway and storage properties above, leave the demo undeployed and retain the existing isolated CI test. This is safer than an apparently working but exposed PACS endpoint.
+
+
+## Free browser-only demo (current)
+
+The Diagnostics page includes a no-server PACS sandbox using an illustrative synthetic graphic. It supports series selection, slice navigation, zoom, window/level adjustment, and reset. It operates entirely in the browser: it makes no PACS requests, uploads no files, writes no database records, and contains no patient data. The image is not DICOM and must never be used for clinical interpretation.
+
+This provides a free interactive UI demo while infrastructure decisions are deferred. It does **not** receive, persist, or display actual imaging studies. The existing secure Orthanc import and OHIF viewer remain disabled until a production-ready server/gateway and persistent storage are configured and verified.
