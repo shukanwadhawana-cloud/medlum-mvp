@@ -279,25 +279,39 @@ export async function POST(req: Request) {
           orderBy: { updatedAt: "desc" },
         });
         const version = (existing?.version || 0) + 1;
-        const note = existing
-          ? await prisma.clinicalNote.update({
-              where: { id: existing.id },
-              data: { content, title: "Discharge Summary", contentHash: hashClinicalNote(content, version), version, updatedAt: now },
-            })
-          : await prisma.clinicalNote.create({
-              data: {
-                clinicId,
-                patientId,
-                authorDoctorId: session.doctorId,
-                authorRole: actorRole,
-                noteType: "Discharge Note",
-                title: "Discharge Summary",
-                content,
-                status: "DRAFT",
-                version,
-                contentHash: hashClinicalNote(content, version),
-              },
-            });
+        const contentHash = hashClinicalNote(content, version);
+        let note;
+        try {
+          note = await prisma.$transaction(async (tx) => {
+            let saved;
+            if (existing) {
+              const changed = await tx.clinicalNote.updateMany({
+                where: { id: existing.id, clinicId, patientId, authorDoctorId: session.doctorId, status: "DRAFT", version: existing.version },
+                data: { content, title: "Discharge Summary", contentHash, version, updatedAt: now },
+              });
+              if (changed.count !== 1) throw new Error("DISCHARGE_DRAFT_CHANGED");
+              saved = await tx.clinicalNote.findUniqueOrThrow({ where: { id: existing.id } });
+            } else {
+              saved = await tx.clinicalNote.create({ data: {
+                clinicId, patientId, authorDoctorId: session.doctorId, authorRole: actorRole,
+                noteType: "Discharge Note", title: "Discharge Summary", content,
+                status: "DRAFT", version, contentHash,
+              } });
+            }
+            await tx.clinicalNoteVersion.create({ data: {
+              clinicalNoteId: saved.id, clinicId, version, title: "Discharge Summary",
+              noteType: "Discharge Note", content, contentHash,
+              event: existing ? "DRAFT_SAVED" : "CREATED_DRAFT",
+              createdByDoctorId: session.doctorId, createdAt: now,
+            } });
+            return saved;
+          }, { isolationLevel: "Serializable" });
+        } catch (error: any) {
+          if (error?.code === "P2034" || error?.message === "DISCHARGE_DRAFT_CHANGED") {
+            return NextResponse.json({ success: false, error: "The discharge summary changed while saving. Reload and try again." }, { status: 409 });
+          }
+          throw error;
+        }
         await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_SUMMARY_DRAFT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: note.status } });
         return NextResponse.json({ success: true, noteId: note.id, status: note.status, authorDoctorId: session.doctorId });
       }
@@ -312,10 +326,24 @@ export async function POST(req: Request) {
         if (!nextContent.trim()) return NextResponse.json({ success: false, error: "Discharge summary content required." }, { status: 400 });
         if (!/Acknowledgement of receipt:\s*Yes/i.test(nextContent)) return NextResponse.json({ success: false, error: "The patient acknowledgement must be recorded before submitting the discharge summary." }, { status: 400 });
         const version = note.version + 1;
-        const submitted = await prisma.clinicalNote.updateMany({
-          where: { id: note.id, clinicId, patientId, authorDoctorId: session.doctorId, status: "DRAFT", version: note.version },
-          data: { content: nextContent, version, contentHash: hashClinicalNote(nextContent, version), status: "PENDING_VERIFICATION", submittedAt: now },
-        });
+        const contentHash = hashClinicalNote(nextContent, version);
+        const submitted = await prisma.$transaction(async (tx) => {
+          const changed = await tx.clinicalNote.updateMany({
+            where: { id: note.id, clinicId, patientId, authorDoctorId: session.doctorId, status: "DRAFT", version: note.version },
+            data: { content: nextContent, version, contentHash, status: "PENDING_VERIFICATION", submittedAt: now },
+          });
+          if (changed.count !== 1) return changed;
+          await tx.clinicalNoteVersion.create({ data: {
+            clinicalNoteId: note.id, clinicId, version, title: note.title || "Discharge Summary",
+            noteType: "Discharge Note", content: nextContent, contentHash,
+            event: "SUBMITTED_FOR_VERIFICATION", createdByDoctorId: session.doctorId, createdAt: now,
+          } });
+          await tx.auditLog.create({ data: {
+            doctorId: session.doctorId, action: "DISCHARGE_SUMMARY_SUBMIT", entity: "ClinicalNote", entityId: note.id,
+            meta: JSON.stringify({ clinicId, patientId, noteId: note.id, status: "PENDING_VERIFICATION", version, contentHash, at: now.toISOString() }),
+          } });
+          return changed;
+        }, { isolationLevel: "Serializable" });
         if (submitted.count !== 1) return NextResponse.json({ success: false, error: "The discharge summary changed while you were submitting it. Reload and try again." }, { status: 409 });
         await writeAudit({ doctorId: session.doctorId, clinicId, action: "DISCHARGE_SUMMARY_SUBMIT", entity: "ClinicalNote", entityId: patientId, meta: { clinicId, noteId: note.id, status: "PENDING_VERIFICATION", version } });
         return NextResponse.json({ success: true, noteId: note.id, status: "PENDING_VERIFICATION", authorDoctorId: session.doctorId });
