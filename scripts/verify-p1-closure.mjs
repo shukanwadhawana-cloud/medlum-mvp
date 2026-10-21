@@ -100,11 +100,13 @@ ok(!prescriptions.includes("body.staffCode"), "prescription does not trust body.
 const labsApi = read("src/app/api/labs/route.ts");
 ok(labsApi.includes("session.doctorId") || labsApi.includes("getSession"), "labs uses session");
 
-// Storage fail-closed
+// Storage safety: durable fallback on serverless; explicitly reject metadata-only storage for clinical uploads.
 const storage = read("src/lib/storage/index.ts");
 ok(storage.includes("STORAGE_PROVIDER"), "storage provider env");
 ok(storage.includes("isServerlessRuntime") || storage.includes("VERCEL"), "serverless guard");
-ok(storage.includes("not available on production"), "production fail-closed message");
+ok(storage.includes("createDatabaseStorageProvider"), "production durable binary-storage fallback");
+const labUploadRoute = read("src/app/api/labs/documents/route.ts");
+ok(labUploadRoute.includes("DURABLE_STORAGE_REQUIRED") && labUploadRoute.includes('provider.name === "processed"'), "metadata-only report storage is rejected");
 
 if (fails.length) {
   console.error("FAIL:\n" + fails.map((f) => " - " + f).join("\n"));
