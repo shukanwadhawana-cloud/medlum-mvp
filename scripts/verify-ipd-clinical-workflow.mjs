@@ -14,7 +14,7 @@ has(page,'noteType:"Initial Assessment"',"canonical clinical note type");
 has(page,"second-clinician verification","provisional submission");
 has(page,'action:"finalize"',"final signing action");
 has(page,'timeZone:"Asia/Kolkata"',"IST assessment clock");
-has(page,'replace(/^UHID[\\s:-]*/i, "")',"UHID display avoids repeating the stored UHID prefix");
+has(page,'UHID: {selected.uhid||selected.registrationNo||"Not assigned"}',"IPD clinical workspace shows a single patient-facing UHID");
 has(page,"Final-sign as second clinician","final signing button");
 
 const initialStart=page.indexOf('leftNav==="Initial Assessment"');
@@ -45,3 +45,36 @@ has(schema,"verifierDoctorId","clinical verifier field");
 has(schema,'status            String    @default("DRAFT")',"clinical note status");
 
 console.log("IPD clinical workflow verification passed.");
+
+
+// Clinical Notes signing and phone-width regression checks.
+has(page,'DRAFT:"Draft · not signed"',"human-readable draft state must be explicit");
+has(page,'PENDING_VERIFICATION:"Awaiting second signature"',"pending verification label must be explicit");
+has(page,'FINAL:"Final-signed"',"final signature label must be explicit");
+has(page,'timeZone:"Asia/Kolkata"',"note timestamps must use IST");
+has(page,"clinicalNoteDateTime(n.createdAt)","note creation time is shown");
+has(page,"Added by","note author is labelled in the list");
+has(page,'className="grid gap-2 md:hidden"',"mobile note cards are present");
+has(page,'hidden md:block overflow-x-auto border rounded-xl',"desktop notes table is hidden on small screens");
+has(page,'flex flex-col md:flex-row min-w-0 min-h-[520px]',"IPD navigation and content stack on phones");
+has(page,'action:"submit"',"existing author drafts can be submitted for verification from Note View");
+has(page,'action:"finalize"',"eligible second clinician can final-sign from Note View");
+has(page,'onClick={()=>void saveProgress(true)}',"Progress Note offers submit-for-verification action");
+has(page,'onClick={()=>void saveNote(true,leftNav)}',"Consultant/RMO/Nursing/Case Summary forms offer submit-for-verification");
+notHas(page,"MedLum ID:","IPD demographics show one primary patient-facing identifier");
+notHas(page,"MedLum Record ID:","internal MedLum record key is not exposed as a duplicate patient identifier");
+
+console.log("IPD note signing and mobile layout regression checks passed.");
+
+has(page,'X-MedLum-Requested-With":"MedLum"', "clinical note signing calls carry the same-origin request header");
+has(page,'UNSIGNED:"Unsigned"', "legacy unsigned status is human-readable");
+has(ipdApi,'authorName: String(meta.authorRole).split(/\\s+·\\s+/)[0].trim()', "legacy audit note author display excludes the duplicated note title");
+has(page,'n.authorDoctorId===doctor?.id', "only the note author can submit an existing draft");
+has(page,'n.authorDoctorId!==doctor?.id', "the author cannot use the second-clinician action");
+
+console.log("IPD note author, signing-header, and status compatibility checks passed.");
+
+has(page,'>Submit</button>',"author can submit an existing draft directly from the desktop note list");
+has(page,'>{saving?"Signing…":"Final-sign"}</button>',"a second verifier can final-sign directly from the mobile note list");
+has(page,'["Owner","Admin","Manager","Consultant","Doctor","RMO"].includes(currentRole)',"final-sign action is exposed only for eligible clinical verifier roles");
+console.log("IPD list-level signature actions and role visibility checks passed.");
