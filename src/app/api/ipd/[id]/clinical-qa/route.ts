@@ -100,7 +100,7 @@ async function answerQuestion(
     select: { doctorId: true },
   });
   const doctorIds = Array.from(new Set(clinicMembers.map((member) => member.doctorId)));
-  const [notes, encounters, prescriptions, labs, diagnostics, administrations, auditLogs] = await Promise.all([
+  const [notes, encounters, prescriptions, labs, diagnostics, recentAdministrations, earliestAdministrations, auditLogs] = await Promise.all([
     prisma.clinicalNote.findMany({
       where: { patientId, clinicId }, orderBy: { createdAt: "desc" }, take: 100,
       select: { id: true, noteType: true, title: true, content: true, status: true, createdAt: true, updatedAt: true },
@@ -140,6 +140,18 @@ async function answerQuestion(
         reason: true, notes: true, createdAt: true, prescriptionId: true,
       },
     }),
+    questionId === "antibiotic-day"
+      ? prisma.medicationAdministration.findMany({
+          where: { patientId, clinicId, status: "ADMINISTERED", actualAt: { not: null } },
+          orderBy: { actualAt: "asc" },
+          take: 2000,
+          select: {
+            id: true, medicationText: true, medicationName: true, dose: true, doseUnit: true,
+            route: true, frequency: true, scheduledAt: true, actualAt: true, status: true,
+            reason: true, notes: true, createdAt: true, prescriptionId: true,
+          },
+        })
+      : Promise.resolve([]),
     prisma.auditLog.findMany({
       where: {
         OR: [
@@ -153,6 +165,9 @@ async function answerQuestion(
     }),
   ]);
 
+  const administrations = questionId === "antibiotic-day"
+    ? [...new Map([...earliestAdministrations, ...recentAdministrations].map((row) => [row.id, row])).values()]
+    : recentAdministrations;
   const sources: Source[] = [];
   let answer = "";
   const now = new Date();
@@ -192,12 +207,12 @@ async function answerQuestion(
         sources.push(source("Medication Administration Record", first.actualAt, "First documented: " + safeText(first.medicationName)));
         sources.push(source("Medication Administration Record", last.actualAt, "Latest documented: " + safeText(last.medicationName)));
         return safeText(first.medicationName || first.medicationText) + ": calendar day " +
-          (days === null ? "undetermined" : String(days)) + " from first recorded administered dose (" +
+          (days === null ? "undetermined" : String(days)) + " from the earliest recorded administered dose available in the MAR query (" +
           dateLabel(first.actualAt) + "); " + items.length + " administered MAR record(s) across " +
-          distinctDays.size + " recorded date(s); latest administration " + dateTimeLabel(last.actualAt) + ".";
+          distinctDays.size + " retrieved date(s); latest administration " + dateTimeLabel(last.actualAt) + ".";
       });
       answer = lines.join("\n") +
-        "\n\nThis is a calendar-day count from the earliest recorded administration, inclusive—not proof of uninterrupted therapy. Check the complete MAR and any transfers or outside-hospital doses before documenting the antibiotic day.";
+        "\n\nThis is an inclusive calendar-day count from the earliest matching administered MAR record retrieved by this query, not proof of uninterrupted therapy or antibiotic appropriateness. Verify the complete MAR, medication changes, transfer records, and any outside-hospital doses before documenting the antibiotic day.";
     }
   } else if (questionId === "missed-doses") {
     const nowMs = now.getTime();
