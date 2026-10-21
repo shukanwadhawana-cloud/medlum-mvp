@@ -238,13 +238,9 @@ export default function LoginPage() {
                 </div>
               </div>
               <div className="-mt-2 text-right">
-                <button
-                  type="button"
-                  onClick={() => setError("For a password reset, contact your clinic administrator or MedLum support. Self-service password recovery is not available yet.")}
-                  className="text-sm font-medium text-[var(--ml-primary)] hover:underline"
-                >
+                <Link href="/forgot-password" className="text-sm font-medium text-[var(--ml-primary)] hover:underline">
                   Forgot password?
-                </button>
+                </Link>
               </div>
               <button
                 type="submit"

@@ -154,9 +154,21 @@ export async function POST(req: Request) {
     const telegramConfigured = Boolean(String(process.env.TELEGRAM_BOT_TOKEN || "").trim());
     const roleNeedsOtp =
       isOwner || memberships.some((m) => roleRequiresOtp(normalizeClinicRole(m.role)));
-    const requiresPrivilegedOtp = roleNeedsOtp && telegramConfigured;
 
-    if (requiresPrivilegedOtp) {
+    // Privileged production access must never fall back to password-only login.
+    if (roleNeedsOtp && !telegramConfigured && process.env.NODE_ENV === "production") {
+      console.error("login otp unavailable: TELEGRAM_BOT_TOKEN is not configured");
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Privileged staff login requires Telegram OTP, but verification delivery is not configured. Contact MedLum support.",
+          code: "TELEGRAM_OTP_NOT_CONFIGURED",
+        },
+        { status: 503 }
+      );
+    }
+
+    if (roleNeedsOtp) {
       try {
         const issued = await issueLoginOtp({ doctorId: doctor.id, clinicId: membership?.clinicId });
         return NextResponse.json({
@@ -177,19 +189,18 @@ export async function POST(req: Request) {
       } catch (otpErr) {
         const otpMessage = otpErr instanceof Error ? otpErr.message : String(otpErr || "error");
         console.error("login otp issue failed", otpMessage);
-        // Telegram not linked must not hard-block password login.
-        if (!/not linked/i.test(otpMessage)) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Unable to send verification code. Contact MedLum support if this continues.",
-              code: "TELEGRAM_OTP",
-              reason: otpMessage.slice(0, 180),
-            },
-            { status: 503 }
-          );
-        }
-        console.warn("login otp skipped: telegram not linked; continuing with password session");
+        const requiresTelegramLink = /not linked/i.test(otpMessage);
+        return NextResponse.json(
+          {
+            success: false,
+            error: requiresTelegramLink
+              ? "Link Telegram to this account before privileged login."
+              : "Unable to send verification code. Contact MedLum support if this continues.",
+            code: requiresTelegramLink ? "TELEGRAM_OTP_LINK_REQUIRED" : "TELEGRAM_OTP",
+            reason: otpMessage.slice(0, 180),
+          },
+          { status: 503 }
+        );
       }
     }
 

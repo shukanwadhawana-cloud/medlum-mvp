@@ -53,6 +53,9 @@ export default function WorkforcePage() {
   const [editPhone, setEditPhone] = useState("");
   const [editDesignation, setEditDesignation] = useState("");
   const [editDepartment, setEditDepartment] = useState("");
+  const [resetLink, setResetLink] = useState("");
+  const [resetLinkName, setResetLinkName] = useState("");
+  const [resetLinkExpiresAt, setResetLinkExpiresAt] = useState("");
 
   const canManageStaff = useMemo(() => ["Owner", "Admin", "Manager"].includes(currentMember?.role || ""), [currentMember]);
   const canChangeRole = useMemo(() => ["Owner", "Admin"].includes(currentMember?.role || ""), [currentMember]);
@@ -137,6 +140,39 @@ export default function WorkforcePage() {
       await loadStaff();
     } catch (err) { setError(err instanceof Error ? err.message : "Action failed."); }
     finally { setSaving(false); }
+  }
+
+  async function issueStaffPasswordResetLink(member: StaffMember) {
+    if (!window.confirm(`Issue a one-time, 30-minute password reset link for ${member.doctor?.name || member.staffCode}?`)) return;
+    setSaving(true); setError(""); setMessage(""); setResetLink("");
+    try {
+      const res = await fetch(`/api/clinic/staff/${encodeURIComponent(member.id)}/password-reset`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-MedLum-Requested-With": "MedLum" },
+        body: JSON.stringify({}),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.success || !body.token) throw new Error(body.error || "Could not issue reset link.");
+      const url = `${window.location.origin}/reset-password#token=${encodeURIComponent(body.token)}`;
+      setResetLink(url);
+      setResetLinkName(body.staffName || member.doctor?.name || member.staffCode);
+      setResetLinkExpiresAt(body.expiresAt || "");
+      setMessage("One-time reset link created. Copy it and give it directly to the staff member; it expires in 30 minutes.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not issue reset link.");
+    } finally { setSaving(false); }
+  }
+
+  async function copyStaffResetLink() {
+    if (!resetLink) return;
+    try {
+      await navigator.clipboard.writeText(resetLink);
+      setMessage("Reset link copied. Share it directly with the intended staff member; do not post it in a group.");
+    } catch {
+      setError("Clipboard access was blocked. Select and copy the reset link from the field below.");
+    }
   }
 
   function openEdit(m: StaffMember) {
@@ -241,6 +277,17 @@ export default function WorkforcePage() {
 
       {error ? <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
       {message ? <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</div> : null}
+      {resetLink ? (
+        <section className="mb-4 space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="font-semibold text-sm text-[#140a1f]">One-time password reset link · {resetLinkName}</div>
+          <p className="text-xs text-gray-700">Anyone with this link can set this staff member’s password. Give it only to the intended person. It can be used once and expires {resetLinkExpiresAt ? new Date(resetLinkExpiresAt).toLocaleString("en-IN") : "in 30 minutes"}.</p>
+          <input aria-label="One-time staff password reset link" readOnly value={resetLink} onFocus={(e) => e.currentTarget.select()} className="h-11 w-full rounded-lg border bg-white px-3 text-xs" />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void copyStaffResetLink()} className="h-10 rounded-lg bg-[#140a1f] px-4 text-sm font-semibold text-white">Copy reset link</button>
+            <button type="button" onClick={() => { setResetLink(""); setResetLinkName(""); setResetLinkExpiresAt(""); }} className="h-10 rounded-lg border bg-white px-4 text-sm">Dismiss</button>
+          </div>
+        </section>
+      ) : null}
 
       {tab === "staff" && (
         <section className="space-y-4">
@@ -309,6 +356,9 @@ export default function WorkforcePage() {
                             </select>
                           ) : null}
                           <button type="button" disabled={saving} onClick={() => openEdit(m)} className="h-9 rounded-lg border px-2.5 text-xs font-medium">Edit details</button>
+                          {canChangeRole && active && (currentMember?.role === "Owner" || m.role !== "Admin") ? (
+                            <button type="button" disabled={saving} onClick={() => void issueStaffPasswordResetLink(m)} className="h-9 rounded-lg border border-[#c2183a]/40 px-2.5 text-xs font-semibold text-[#c2183a]">Reset password</button>
+                          ) : null}
                           {["Owner", "Admin", "Manager"].includes(m.role) && !m.telegramLinked ? (
                             <button type="button" disabled={saving} onClick={() => void linkTelegram(m)} className="h-9 rounded-lg border border-[#229ED9] px-2.5 text-xs font-semibold text-[#1688bd]">Link Telegram</button>
                           ) : null}

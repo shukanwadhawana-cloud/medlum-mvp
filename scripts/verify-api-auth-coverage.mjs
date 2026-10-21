@@ -5,6 +5,8 @@ const ROOT = join(process.cwd(), "src", "app", "api");
 const SPECIAL_CASES = new Set([
   "auth/login/route.ts", "auth/signup/route.ts", "auth/logout/route.ts",
   "auth/otp/verify/route.ts", // pre-session OTP verification (rate-limited)
+  "auth/password-reset/request/route.ts", // non-enumerating, rate-limited recovery-code issuance to linked Telegram
+  "auth/password-reset/complete/route.ts", // pre-session single-use reset proof: hashed link token or expiring Telegram OTP
   "auth/telegram/prelink/route.ts", // email+password ownership proof; does not create session
   "public/booking/route.ts", "portal/auth/login/route.ts", "portal/auth/logout/route.ts",
   "portal/auth/reset/route.ts", "portal/auth/me/route.ts",
