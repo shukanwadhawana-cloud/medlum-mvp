@@ -99,7 +99,7 @@ ok(documentRoute.includes("checksum: true"), "document list exposes stored repor
 const panelClinicalAssist = readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8");
 ok(panelClinicalAssist.includes("sourceChecksum: suppliedChecksum"), "Clinical Assist sends the validated source checksum to the server");
 ok(panelClinicalAssist.includes("runClinicalAssistOcr") && panelClinicalAssist.includes("Extract with Clinical Assist") && panelClinicalAssist.includes("await extractWithClinicalAssist(file, doc)"), "uploaded report automatically runs on-device Clinical Assist without blocking storage upload");
-ok(panelClinicalAssist.includes("sha256Hex") && panelClinicalAssist.includes("selectedDoc.checksum"), "OCR source file checksum is validated before association");
+ok(panelClinicalAssist.includes("sha256Hex") && (panelClinicalAssist.includes("selectedDoc.checksum") || panelClinicalAssist.includes("targetDoc.checksum")), "OCR source file checksum is validated before association");
 ok(panelClinicalAssist.includes("Choose the original report file"), "staff can reselect the same report when the provider did not retain original bytes");
 ok(panelClinicalAssist.includes("setAssistSourceFile(file)"), "the exact just-uploaded file is retained in memory for immediate local extraction");
 
