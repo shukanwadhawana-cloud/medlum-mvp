@@ -34,7 +34,7 @@ const cases: Array<{ name: string; input: string; expected: Record<string, strin
   },
   {
     name: "coagulation report extracts prothrombin time and INR separately",
-    input: "Prothrombin Time 13.8 seconds 11-15\\nINR 1.12 0.8-1.2\\nAPTT 31 sec 25-35",
+    input: "Prothrombin Time 13.8 seconds 11-15\nINR 1.12 0.8-1.2\nAPTT 31 sec 25-35",
     expected: { "Prothrombin Time": "13.8 seconds", INR: "1.12", APTT: "31 sec" },
   },
   {
