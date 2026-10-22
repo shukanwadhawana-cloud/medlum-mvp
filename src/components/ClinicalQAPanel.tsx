@@ -14,16 +14,191 @@ type AnswerPayload = {
 };
 
 const QUESTIONS: Question[] = [
-  { id: "antibiotic-day", label: "What day of antibiotic therapy is this?", group: "Medication & MAR" },
-  { id: "last-antibiotic-dose", label: "When was the last antibiotic dose administered?", group: "Medication & MAR" },
-  { id: "missed-doses", label: "Were any doses held, omitted, refused or delayed?", group: "Medication & MAR" },
-  { id: "current-medications", label: "What medications are currently prescribed?", group: "Medication & MAR" },
-  { id: "creatinine-trend", label: "Show the creatinine trend since admission", group: "Investigations" },
-  { id: "latest-labs", label: "What are the latest laboratory results?", group: "Investigations" },
-  { id: "pending-investigations", label: "Which investigations are still pending?", group: "Investigations" },
-  { id: "latest-vitals", label: "Show the latest recorded vital signs", group: "Patient progress" },
-  { id: "last-24-hours", label: "Summarize the documented events in the last 24 hours", group: "Patient progress" },
-  { id: "allergies-diagnosis", label: "What allergies and diagnoses are documented?", group: "Patient progress" },
+  {
+    "id": "antibiotic-day",
+    "label": "What day of antibiotic therapy is this?",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "last-antibiotic-dose",
+    "label": "When was the last antibiotic dose administered?",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "missed-doses",
+    "label": "Were any doses held, omitted, refused or delayed?",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "current-medications",
+    "label": "What medications are currently prescribed?",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "mar-last-24h",
+    "label": "Which medications were actually administered in the last 24 hours?",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "pending-doses",
+    "label": "Which medication doses are overdue or still unconfirmed?",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "antibiotic-review",
+    "label": "Summarize antibiotic orders, administered doses and related culture results",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "medication-reconciliation",
+    "label": "Compare prescription orders with MAR documentation for review",
+    "group": "Medication & MAR"
+  },
+  {
+    "id": "creatinine-trend",
+    "label": "Show the creatinine trend since admission",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "latest-labs",
+    "label": "What are the latest laboratory results?",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "pending-investigations",
+    "label": "Which investigations are still pending?",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "cbc-results",
+    "label": "Show the latest documented CBC / blood count results",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "hemoglobin-trend",
+    "label": "Show the hemoglobin / Hb trend",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "wbc-trend",
+    "label": "Show the WBC / TLC trend",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "electrolyte-trend",
+    "label": "Show recorded sodium, potassium and other electrolyte results",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "glucose-results",
+    "label": "Show recent glucose / blood sugar results",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "abnormal-labs",
+    "label": "Which results are explicitly flagged high, low, abnormal or critical?",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "latest-imaging",
+    "label": "Summarize the latest imaging / diagnostic reports",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "microbiology-results",
+    "label": "Show documented cultures, microbiology and sensitivity results",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "infection-workup",
+    "label": "Summarize the documented infection work-up and antibiotic records",
+    "group": "Investigations & diagnostics"
+  },
+  {
+    "id": "latest-vitals",
+    "label": "Show the latest recorded vital signs",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "last-24-hours",
+    "label": "Summarize the documented events in the last 24 hours",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "allergies-diagnosis",
+    "label": "What allergies and diagnoses are documented?",
+    "group": "Safety & care planning"
+  },
+  {
+    "id": "latest-assessment-plan",
+    "label": "What is the latest documented clinical assessment and plan?",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "latest-note",
+    "label": "Show the most recent clinical notes and their recorded status",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "nursing-observations",
+    "label": "What nursing observations were recorded in the last 24 hours?",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "latest-handover",
+    "label": "Show the latest documented clinical handover",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "patient-round-summary",
+    "label": "Prepare a chart-only summary for the next ward round",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "cognition-delirium",
+    "label": "What confusion, cognition or consciousness observations are documented?",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "goals-escalation",
+    "label": "What escalation, resuscitation or goals-of-care documentation is present?",
+    "group": "Patient progress & handover"
+  },
+  {
+    "id": "discharge-plan",
+    "label": "What discharge, transfer or follow-up plans are documented?",
+    "group": "Safety & care planning"
+  },
+  {
+    "id": "devices-lines",
+    "label": "What lines, tubes, catheters or respiratory support are mentioned in notes?",
+    "group": "Safety & care planning"
+  },
+  {
+    "id": "urine-output",
+    "label": "What urine-output or fluid-balance information is documented?",
+    "group": "Safety & care planning"
+  },
+  {
+    "id": "nutrition-plan",
+    "label": "What diet, feeding or nutrition plan is documented?",
+    "group": "Supportive care"
+  },
+  {
+    "id": "mobility-safety",
+    "label": "What mobility, falls or pressure-injury prevention notes are documented?",
+    "group": "Supportive care"
+  },
+  {
+    "id": "pain-assessment",
+    "label": "What pain assessments and pain-management notes are documented?",
+    "group": "Supportive care"
+  },
+  {
+    "id": "vte-prophylaxis",
+    "label": "Is VTE prophylaxis mentioned in the chart or medication orders?",
+    "group": "Safety & care planning"
+  }
 ];
 
 export default function ClinicalQAPanel({ patientId, patientName }: { patientId: string; patientName: string }) {
@@ -31,6 +206,7 @@ export default function ClinicalQAPanel({ patientId, patientName }: { patientId:
   const [activeQuestion, setActiveQuestion] = useState("");
   const [result, setResult] = useState<AnswerPayload | null>(null);
   const [error, setError] = useState("");
+  const [questionSearch, setQuestionSearch] = useState("");
 
   useEffect(() => {
     setResult(null);
@@ -63,7 +239,11 @@ export default function ClinicalQAPanel({ patientId, patientName }: { patientId:
     }
   }
 
-  const groups = [...new Set(QUESTIONS.map((question) => question.group))];
+  const normalizedSearch = questionSearch.trim().toLowerCase();
+  const visibleQuestions = QUESTIONS.filter((question) =>
+    !normalizedSearch || (question.label + " " + question.group).toLowerCase().includes(normalizedSearch),
+  );
+  const groups = [...new Set(visibleQuestions.map((question) => question.group))];
 
   return (
     <section className="space-y-4" aria-labelledby="clinical-qa-heading">
@@ -81,11 +261,17 @@ export default function ClinicalQAPanel({ patientId, patientName }: { patientId:
         </p>
       </div>
 
+      <div className="space-y-1">
+        <label htmlFor="clinical-qa-question-search" className="block text-[11px] font-semibold text-gray-700">Find a clinical question</label>
+        <input id="clinical-qa-question-search" type="search" value={questionSearch} onChange={(event) => setQuestionSearch(event.target.value)} placeholder="Search medication, labs, handover, discharge…" className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-900 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200" />
+        <p className="text-[10px] text-gray-500" aria-live="polite">{visibleQuestions.length} of {QUESTIONS.length} questions</p>
+      </div>
+
       {groups.map((group) => (
         <div key={group} className="space-y-2">
           <h4 className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{group}</h4>
           <div className="grid gap-2 sm:grid-cols-2">
-            {QUESTIONS.filter((question) => question.group === group).map((question) => (
+            {visibleQuestions.filter((question) => question.group === group).map((question) => (
               <button
                 key={question.id}
                 type="button"
@@ -101,6 +287,8 @@ export default function ClinicalQAPanel({ patientId, patientName }: { patientId:
           </div>
         </div>
       ))}
+
+      {visibleQuestions.length === 0 && <p className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">No questions match that search. Try a medicine, investigation or care-plan keyword.</p>}
 
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">{error}</div>}
 
