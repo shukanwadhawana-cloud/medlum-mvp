@@ -466,7 +466,7 @@ async function answerQuestion(
       textRecords.filter((item) => pattern.test(item.title + " " + item.text)).slice(0, limit);
     const showNarratives = (rows: typeof textRecords, notFound: string) => {
       if (!rows.length) return notFound;
-      rows.forEach((item) => sources.push(source(item.kind, item.at, item.title + (item.status ? " · " + item.status : "")));
+      rows.forEach((item) => sources.push(source(item.kind, item.at, item.title + (item.status ? " · " + item.status : ""))));
       return rows.map((item) => dateTimeLabel(item.at) + " · " + item.kind + (item.status ? " · " + item.status : "") +
         " · " + (item.text || "No note content recorded").slice(0, 700)).join("\n");
     };
