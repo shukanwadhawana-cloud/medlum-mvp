@@ -17,7 +17,7 @@ has(page,'noteType:"Initial Assessment"',"canonical clinical note type");
 has(page,"Sign & complete as author","author can sign and complete their own clinical note");
 has(page,'action:"finalize"',"final signing action");
 has(page,'timeZone:"Asia/Kolkata"',"IST assessment clock");
-has(page,'UHID: {selected.uhid||selected.registrationNo||"Not assigned"}',"IPD clinical workspace shows a single patient-facing UHID");
+has(page,'UHID: {displayUhid(selected.uhid||selected.registrationNo)||"Not assigned"}',"IPD clinical workspace shows one normalized patient-facing UHID");
 has(page,"Final-sign as second clinician","optional alternate-clinician final signing remains available");
 
 const initialStart=page.indexOf('leftNav==="Initial Assessment"');
