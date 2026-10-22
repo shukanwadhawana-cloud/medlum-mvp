@@ -17,6 +17,32 @@ async function owner() {
   return doctor;
 }
 
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ clinicId: string }> }
+) {
+  const { clinicId } = await params;
+  const user = await owner();
+  if (!user) return NextResponse.json({ success: false, error: "Master Owner access required." }, { status: 403 });
+
+  const integration = await prisma.facilityTelegramIntegration.findUnique({
+    where: { clinicId },
+    select: { botUsername: true, chatId: true, enabled: true, status: true, lastVerifiedAt: true, connectionExpiresAt: true },
+  });
+
+  const configured = Boolean(integration?.enabled);
+  const connected = Boolean(configured && integration?.chatId && integration.status === "CONNECTED");
+  return NextResponse.json({
+    success: true,
+    configured,
+    connected,
+    botUsername: integration?.botUsername || null,
+    status: configured ? integration?.status || "PENDING" : "NOT_CONFIGURED",
+    lastVerifiedAt: integration?.lastVerifiedAt?.toISOString() || null,
+    connectionExpiresAt: integration?.connectionExpiresAt?.toISOString() || null,
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ clinicId: string }> }
@@ -42,6 +68,16 @@ export async function POST(
       clinicId,
       reason: error instanceof Error ? error.message : "unknown",
     });
-    return NextResponse.json({ success: false, error: "Could not prepare the Telegram connection. Check the facility Telegram configuration." }, { status: 500 });
+    const reason = error instanceof Error ? error.message : "unknown";
+    const publicError = reason === "TELEGRAM_WEBHOOK_SECRET_MISSING"
+      ? "Telegram webhook security is not configured on the server. Configure TELEGRAM_WEBHOOK_SECRET and redeploy."
+      : reason === "FACILITY_TELEGRAM_NOT_CONFIGURED"
+        ? "This facility has no Telegram bot configured. The existing facility's bot configuration must be restored."
+        : /unauthorized|invalid token/i.test(reason)
+          ? "Telegram rejected the bot token. Re-enter a valid token from BotFather for this facility."
+          : /webhook|url/i.test(reason)
+            ? "Telegram rejected the webhook URL or settings. Confirm MEDLUM_APP_URL points to https://medlumhealth.com, then retry."
+            : "Could not prepare the Telegram connection. Check the facility bot token and server configuration, then retry.";
+    return NextResponse.json({ success: false, error: publicError }, { status: 500 });
   }
 }
