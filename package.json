@@ -86,6 +86,7 @@
     "test:clinical-ai-draft": "node scripts/verify-clinical-ai-draft.mjs",
     "test:pilot-access": "node scripts/verify-pilot-access.mjs",
     "test:owner-facility-onboarding": "node scripts/verify-owner-facility-onboarding.mjs",
+    "test:secret-crypto": "npx --yes tsx scripts/verify-secret-crypto.ts",
     "test:owner-facility-onboarding-runtime": "node scripts/verify-owner-facility-onboarding-runtime.mjs",
     "test:clinic-setup-license": "node scripts/verify-clinic-setup-license-optional.mjs",
     "prebuild": "node scripts/copy-pdf-worker.mjs",
