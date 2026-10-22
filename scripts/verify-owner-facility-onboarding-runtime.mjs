@@ -175,7 +175,7 @@ try {
   assert.equal(login.data?.doctor?.primaryRole, "Owner", "Login must resolve the newly assigned facility Owner role.");
   assert.ok(login.data?.challengeId && login.data?.devOtp, "Synthetic CI should receive a development OTP for verification.");
 
-  const verify = await requestJson("/api/auth/verify-otp", {
+  const verify = await requestJson("/api/auth/otp/verify", {
     method: "POST",
     body: {
       doctorId: login.data.doctor.id,
