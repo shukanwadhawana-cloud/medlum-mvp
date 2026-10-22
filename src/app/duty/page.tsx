@@ -173,44 +173,41 @@ export default function DutyPage() {
     setError("");
     setMsg("");
     try {
-      if (!geoForm.dutyEnabled) {
-        const res = await fetch(`/api/duty${selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : ""}`, {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            clinicId: selectedClinicId || data?.selectedClinicId,
-            dutyEnabled: false,
-            dutyLat: null,
-            dutyLng: null,
-            dutyRadiusMeters: 200,
-          }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || "Save failed");
-      } else {
-        const pos = await getPosition();
-        const radius = Math.max(100, Math.min(300, Number(geoForm.dutyRadiusMeters) || 200));
-        const res = await fetch(`/api/duty${selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : ""}`, {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            clinicId: selectedClinicId || data?.selectedClinicId,
-            dutyEnabled: true,
-            dutyLat: pos.lat,
-            dutyLng: pos.lng,
-            dutyRadiusMeters: radius,
-            currentLat: pos.lat,
-            currentLng: pos.lng,
-          }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || "Save failed");
-        setGeoForm((f) => ({ ...f, dutyLat: String(pos.lat), dutyLng: String(pos.lng), dutyRadiusMeters: String(radius) }));
+      const radius = Math.max(100, Math.min(300, Number(geoForm.dutyRadiusMeters) || 200));
+      const formLat = geoForm.dutyLat.trim() ? Number(geoForm.dutyLat) : null;
+      const formLng = geoForm.dutyLng.trim() ? Number(geoForm.dutyLng) : null;
+      if (geoForm.dutyEnabled && (!Number.isFinite(formLat) || !Number.isFinite(formLng) || formLat == null || formLng == null || formLat < -90 || formLat > 90 || formLng < -180 || formLng > 180)) {
+        throw new Error("Choose coordinates from the saved facility address or use GPS while physically at this hospital.");
       }
-      setMsg(geoForm.dutyEnabled ? "Hospital geofence saved from your current on-site GPS location." : "Hospital geofence disabled.");
-      await load(selectedClinicId || data?.selectedClinicId);
+      let currentLat: number | null = null;
+      let currentLng: number | null = null;
+      if (geoForm.dutyEnabled) {
+        const pos = await getPosition();
+        currentLat = pos.lat;
+        currentLng = pos.lng;
+      }
+      const query = selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : "";
+      const res = await fetch(`/api/duty${query}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clinicId: selectedClinicId || data?.selectedClinicId,
+          dutyEnabled: Boolean(geoForm.dutyEnabled),
+          dutyLat: formLat,
+          dutyLng: formLng,
+          dutyRadiusMeters: radius,
+          currentLat,
+          currentLng,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Save failed");
+      setGeoForm((f) => ({ ...f, dutyLat: formLat == null ? "" : String(formLat), dutyLng: formLng == null ? "" : String(formLng), dutyRadiusMeters: String(radius) }));
+      setMsg(geoForm.dutyEnabled
+        ? "Hospital geofence saved and verified against your current on-site GPS location."
+        : "Hospital geofence disabled. Saved coordinates were preserved for later reactivation.");
+    
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -236,7 +233,7 @@ export default function DutyPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-[#140a1f]">MedLum Duty</h1>
-            <p className="text-sm text-gray-500">Hospital attendance · shared geofence · IST</p>
+            <p className="text-sm text-gray-500">Hospital-specific attendance geofence · IST</p>
           </div>
           <Link href="/dashboard" className="text-sm text-[#c2183a]">Dashboard</Link>
         </div>
@@ -302,6 +299,8 @@ export default function DutyPage() {
             {data.isAdmin && (
               <section className="rounded-2xl border bg-white p-4 shadow-sm">
                 <h2 className="text-sm font-semibold">Hospital geofence</h2>
+                <p className="mt-1 text-xs text-gray-500">This boundary belongs only to the selected facility. Staff must be within its saved campus radius when geofencing is enabled.</p>
+                {!data.clinic.dutyEnabled && data.clinic.dutyLat != null && data.clinic.dutyLng != null && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Coordinates are saved, but enforcement is off. Verify the centre on-site and save to activate attendance geofencing.</p>}
                 <label className="mt-2 flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={geoForm.dutyEnabled} onChange={(e) => setGeoForm((f) => ({ ...f, dutyEnabled: e.target.checked }))} />
                   Require campus location for punch
@@ -312,7 +311,7 @@ export default function DutyPage() {
                 </div>
                 <input className="mt-2 w-full rounded-lg border px-3 py-2 text-sm" inputMode="numeric" min="100" max="300" placeholder="Punch radius (100–300 m)" value={geoForm.dutyRadiusMeters} onChange={(e) => setGeoForm((f) => ({ ...f, dutyRadiusMeters: e.target.value }))} />
                 <div className="mt-2 flex gap-2">
-                  <button type="button" onClick={useMyLocation} className="rounded-lg border px-3 py-2 text-xs">Use my GPS (required)</button>
+                  <button type="button" onClick={useMyLocation} className="rounded-lg border px-3 py-2 text-xs">Use my GPS (on-site)</button>
                   <button type="button" disabled={busy} onClick={saveGeofence} className="rounded-lg bg-[#140a1f] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Save geofence</button>
                 </div>
               </section>
