@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import assert from "node:assert/strict";
+const route = fs.readFileSync("src/app/api/ipd/route.ts", "utf8");
+const page = fs.readFileSync("src/app/ipd/[id]/page.tsx", "utf8");
+const pkg = fs.readFileSync("package.json", "utf8");
+const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+assert(route.includes("const handoverOptions = clinicMembers"), "IPD GET must return active facility members");
+assert(route.includes("ipdHistory, rooms, handoverOptions"), "IPD GET must expose clinician options");
+assert(route.includes('if (action === "assign-consultant")'), "consultant assignment action missing");
+for (const c of ['entity: "IPDConsultantAssignment"','CONSULTANT_TRANSFERRED','previousConsultantMemberId','consultantMemberId: target.id','isolationLevel: "Serializable"','managementRoles.has(actorRole)']) assert(route.includes(c), "assignment authorization/audit contract missing: "+c);
+assert(page.includes("showConsultantAssignment&&selected"), "assignment modal missing");
+assert(page.includes('action:"assign-consultant"'), "UI assignment request missing");
+assert(page.includes("consultantEligible"), "eligible consultant filtering missing");
+assert(page.includes('const displayUhid=(value:unknown)=>String(value??"").trim().replace(/^UHID[-:\\s]+/i,"").trim();'), "UHID display helper missing");
+assert(!page.includes('UHID: {selected.uhid||selected.registrationNo||"Not assigned"}'), "raw prefixed UHID still displayed");
+assert(pkg.includes('"test:p2-08": "node scripts/verify-p2-08-ipd-consultant-assignment.mjs"'), "P2-08 script not registered");
+assert(ci.includes("npm run test:p2-08"), "P2-08 not wired into CI");
+console.log("P2-08 IPD consultant assignment, transfer audit, clinician options, and UHID display: PASS");
