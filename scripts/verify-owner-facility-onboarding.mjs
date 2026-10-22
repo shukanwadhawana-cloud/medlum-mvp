@@ -10,6 +10,7 @@ function assert(condition, message) {
 }
 
 const page = read("src/app/owner/hospitals/new/page.tsx");
+const loginPage = read("src/app/login/page.tsx");
 const provision = read("src/app/api/owner/facilities/route.ts");
 const staff = read("src/app/api/clinic/staff/route.ts");
 const login = read("src/app/api/auth/login/route.ts");
@@ -83,7 +84,7 @@ assert(
   "Privileged login must retain OTP delivery gate",
 );
 assert(
-  page.includes("MedLum Staff ID or Gmail") &&
+  loginPage.includes("MedLum Staff ID or Gmail") &&
     telegramPrelink.includes("loginIdentifier.includes(\"@\")") &&
     telegramPrelink.includes("where: { email: loginIdentifier.toLowerCase() }"),
   "A first-time owner must be able to use their Gmail to link Telegram before the first privileged login",
