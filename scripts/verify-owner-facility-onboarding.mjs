@@ -14,6 +14,7 @@ const loginPage = read("src/app/login/page.tsx");
 const provision = read("src/app/api/owner/facilities/route.ts");
 const staff = read("src/app/api/clinic/staff/route.ts");
 const login = read("src/app/api/auth/login/route.ts");
+const secretCrypto = read("src/lib/secret-crypto.ts");
 const telegramPrelink = read("src/app/api/auth/telegram/prelink/route.ts");
 
 assert(
@@ -66,6 +67,15 @@ assert(
 assert(
   provision.includes("encryptSecret(telegramToken)"),
   "A supplied facility bot token must be encrypted before storage",
+);
+assert(
+  provision.includes("!process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY && !process.env.NEXTAUTH_SECRET && !process.env.SESSION_SECRET"),
+  "Facility creation must recognize the configured production session secret as an encryption fallback",
+);
+assert(
+  secretCrypto.includes("process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET") &&
+    secretCrypto.includes('update("medlum:telegram:" + fallback)'),
+  "Telegram encryption must derive a domain-separated fallback key while preserving the legacy NEXTAUTH_SECRET priority",
 );
 assert(
   provision.includes('fetch("https://api.telegram.org/bot" + telegramToken + "/getMe"'),
