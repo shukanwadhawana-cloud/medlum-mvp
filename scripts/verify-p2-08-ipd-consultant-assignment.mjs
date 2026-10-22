@@ -12,7 +12,9 @@ for (const c of ['entity: "IPDConsultantAssignment"','CONSULTANT_TRANSFERRED','p
 assert(page.includes("showConsultantAssignment&&selected"), "assignment modal missing");
 assert(page.includes('action:"assign-consultant"'), "UI assignment request missing");
 assert(page.includes("consultantEligible"), "eligible consultant filtering missing");
-assert(page.includes('const displayUhid=(value:unknown)=>String(value??"").trim().replace(/^UHID[-:\\s]+/i,"").trim();'), "UHID display helper missing");
+assert(page.includes("while(/^UHID") && page.includes("return raw;};"), "UHID helper strips repeated prefixes");
+assert((page.match(/displayUhid\(selected\.uhid/g)||[]).length===2, "UHID appears only in the one patient identifier field per view");
+assert(!page.includes('Patient: <b>{selected.name}</b> · UHID:'), "consultant modal does not repeat the page header UHID");
 assert(!page.includes('UHID: {selected.uhid||selected.registrationNo||"Not assigned"}'), "raw prefixed UHID still displayed");
 assert(pkg.includes('"test:p2-08": "node scripts/verify-p2-08-ipd-consultant-assignment.mjs"'), "P2-08 script not registered");
 assert(ci.includes("npm run test:p2-08"), "P2-08 not wired into CI");
