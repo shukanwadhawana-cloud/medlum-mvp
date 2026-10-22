@@ -48,8 +48,12 @@ async function signedSession(doctorId, email) {
 }
 
 async function requestJson(path, options = {}) {
-  const headers = { ...(options.cookie ? { cookie: options.cookie } : {}) };
-  if (options.body !== undefined) headers["content-type"] = "application/json";
+  const headers = {
+    ...(options.cookie ? { cookie: options.cookie } : {}),
+    ...(options.body !== undefined
+      ? { "content-type": "application/json", origin: baseUrl, "x-medlum-requested-with": "MedLum" }
+      : {}),
+  };
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method || "GET",
     headers,
