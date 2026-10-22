@@ -50,8 +50,13 @@ export async function POST(req: Request) {
 
   if (!name || !ownerName || !facilityOwnerEmail || !doctorInCharge || !address || !city || !state || !pincode)
     return NextResponse.json({ success: false, error: "Facility name, facility owner email, doctor in charge and complete address are required." }, { status: 400 });
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(facilityOwnerEmail))
+    return NextResponse.json({ success: false, error: "Enter a valid email address that the facility owner controls." }, { status: 400 });
   if (isMedlumOwnerEmail(facilityOwnerEmail) && facilityOwnerEmail !== user.email.toLowerCase())
     return NextResponse.json({ success: false, error: "The Enterprise Master Owner cannot be assigned as owner of another person's facility." }, { status: 400 });
+  const existingFacilityOwner = await prisma.doctor.findUnique({ where: { email: facilityOwnerEmail }, select: { id: true, isActive: true } });
+  if (existingFacilityOwner && !existingFacilityOwner.isActive)
+    return NextResponse.json({ success: false, error: "This email belongs to an inactive MedLum account. Contact MedLum support before assigning facility ownership." }, { status: 409 });
   if (facilityType === "HOSPITAL" && !registrationNumber)
     return NextResponse.json({ success: false, error: "Hospital registration number is required." }, { status: 400 });
   if (telegramToken && !process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY)
@@ -120,9 +125,6 @@ export async function POST(req: Request) {
       });
     }
     return { clinic, facilityOwner, createdOwnerAccount };
-  }).catch(error => {
-    if (error instanceof Error && error.message === "FACILITY_OWNER_ACCOUNT_INACTIVE") throw error;
-    throw error;
   });
 
   const { clinic, facilityOwner, createdOwnerAccount } = provisioned;
