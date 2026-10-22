@@ -5,6 +5,7 @@ import { isMedlumOwnerEmail } from "@/lib/owner";
 import { getClinicSetup } from "@/lib/clinic-products";
 import { geocodeFacilityAddress } from "@/lib/facility-geocoding";
 import { writeAudit } from "@/lib/audit";
+import { evaluateGeofence } from "@/lib/duty";
 
 export const runtime = "nodejs";
 
@@ -41,15 +42,52 @@ export async function GET(_req: Request, { params }: { params: Promise<{ clinicI
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
-export async function POST(_req: Request, { params }: { params: Promise<{ clinicId: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ clinicId: string }> }) {
   const user = await masterOwner();
   if (!user) return NextResponse.json({ success: false, error: "Master Owner access required." }, { status: 403 });
   const { clinicId } = await params;
+  const body = await req.json().catch(() => ({}));
+  const action = String(body.action || "geocode");
   const clinic = await prisma.clinic.findUnique({
     where: { id: clinicId },
     select: { id: true, name: true, address: true, dutyEnabled: true, dutyLat: true, dutyLng: true, dutyRadiusMeters: true },
   });
   if (!clinic) return NextResponse.json({ success: false, error: "Facility not found." }, { status: 404 });
+
+  if (action === "activate-address") {
+    if (clinic.dutyLat == null || clinic.dutyLng == null) {
+      return NextResponse.json({ success: false, error: "Locate the saved facility address first, or use GPS while physically at the hospital." }, { status: 409 });
+    }
+    const currentLat = Number(body.currentLat);
+    const currentLng = Number(body.currentLng);
+    const check = evaluateGeofence({ enabled: true, lat: clinic.dutyLat, lng: clinic.dutyLng, radiusMeters: 300 }, currentLat, currentLng);
+    if (!check.ok) return NextResponse.json({ success: false, error: check.error || "You must be within 300 m of this hospital to verify its address coordinates.", distanceMeters: check.distanceMeters }, { status: 403 });
+    const radius = Math.max(100, Math.min(300, Math.round(Number(body.radiusMeters) || clinic.dutyRadiusMeters || 200)));
+    const updated = await prisma.clinic.update({
+      where: { id: clinicId },
+      data: { dutyEnabled: true, dutyRadiusMeters: radius },
+      select: { dutyEnabled: true, dutyLat: true, dutyLng: true, dutyRadiusMeters: true },
+    });
+    await writeAudit({ doctorId: user.id, action: "DUTY_GEOFENCE_ENABLED", entity: "Clinic", entityId: clinicId, clinicId, meta: { source: "ADDRESS_VERIFIED_ON_SITE", ...updated, currentLat, currentLng, checkedDistanceMeters: check.distanceMeters } });
+    return NextResponse.json({ success: true, status: "ACTIVE", ...updated, message: "Address coordinates verified on-site. Attendance geofencing is now active for this hospital." });
+  }
+
+  if (action === "activate-gps") {
+    const currentLat = Number(body.currentLat);
+    const currentLng = Number(body.currentLng);
+    if (!Number.isFinite(currentLat) || !Number.isFinite(currentLng) || currentLat < -90 || currentLat > 90 || currentLng < -180 || currentLng > 180) {
+      return NextResponse.json({ success: false, error: "A valid device GPS fix is required. Allow location access and retry while at the hospital." }, { status: 400 });
+    }
+    const radius = Math.max(100, Math.min(300, Math.round(Number(body.radiusMeters) || clinic.dutyRadiusMeters || 200)));
+    const updated = await prisma.clinic.update({
+      where: { id: clinicId },
+      data: { dutyEnabled: true, dutyLat: currentLat, dutyLng: currentLng, dutyRadiusMeters: radius },
+      select: { dutyEnabled: true, dutyLat: true, dutyLng: true, dutyRadiusMeters: true },
+    });
+    await writeAudit({ doctorId: user.id, action: "DUTY_GEOFENCE_ENABLED", entity: "Clinic", entityId: clinicId, clinicId, meta: { source: "GPS_ON_SITE", ...updated } });
+    return NextResponse.json({ success: true, status: "ACTIVE", ...updated, message: "Geofence anchored to your current GPS location. Attendance geofencing is now active for this hospital." });
+  }
+
   if (clinic.dutyEnabled && clinic.dutyLat != null && clinic.dutyLng != null) {
     return NextResponse.json({
       success: true,
@@ -75,7 +113,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ clinic
       return NextResponse.json({
         success: false,
         status: "ADDRESS_NOT_RESOLVED",
-        error: "The saved address could not be located precisely enough. An Owner/Admin must open Duty while physically at this hospital and use “Use my GPS” before saving the geofence.",
+        error: "The saved address could not be located precisely enough. Use “Use current GPS & activate” while physically at this hospital to set its own attendance boundary.",
       }, { status: 422 });
     }
 
@@ -111,7 +149,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ clinic
       confidence: result.confidence,
       ...updated,
       message: result.confidence === "high"
-        ? "Address coordinates saved for this hospital. Have an Owner/Admin verify the location on-site before enabling attendance geofencing."
+        ? "Address coordinates saved for this hospital. Verify them on-site before enabling attendance geofencing."
         : "A possible address match was saved as a disabled candidate. Verify it on-site; use GPS to replace it if it is not the hospital campus.",
     });
   } catch (error) {
@@ -122,7 +160,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ clinic
     return NextResponse.json({
       success: false,
       status: "ADDRESS_LOOKUP_FAILED",
-      error: "Could not look up this facility address right now. Retry later or use an Owner/Admin device GPS while physically at the hospital.",
+      error: "Could not look up this facility address right now. Retry later or use GPS while physically at the hospital.",
     }, { status: 502 });
   }
 }
