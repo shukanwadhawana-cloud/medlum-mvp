@@ -59,8 +59,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: "This email belongs to an inactive MedLum account. Contact MedLum support before assigning facility ownership." }, { status: 409 });
   if (facilityType === "HOSPITAL" && !registrationNumber)
     return NextResponse.json({ success: false, error: "Hospital registration number is required." }, { status: 400 });
-  if (telegramToken && !process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY)
-    return NextResponse.json({ success: false, error: "Telegram encryption is not configured on the server." }, { status: 500 });
+  if (telegramToken && !process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY && !process.env.NEXTAUTH_SECRET && !process.env.SESSION_SECRET)
+    return NextResponse.json({ success: false, error: "Telegram encryption is not configured on the server. Configure MEDLUM_TELEGRAM_ENCRYPTION_KEY or the server session secret." }, { status: 500 });
 
   let telegram: { username: string; verified: boolean } | null = null;
   if (telegramToken) {
