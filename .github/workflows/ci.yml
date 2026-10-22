@@ -613,3 +613,66 @@ jobs:
       - name: Print application logs on failure
         if: failure()
         run: cat /tmp/medlum-next.log
+
+  owner-facility-onboarding-runtime:
+    name: Owner facility onboarding runtime (synthetic PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: medlum
+          POSTGRES_PASSWORD: medlum_test_only
+          POSTGRES_DB: owner_onboarding_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U medlum -d owner_onboarding_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://medlum:medlum_test_only@127.0.0.1:5432/owner_onboarding_test?schema=public
+      SESSION_SECRET: facility-onboarding-runtime-ci-session-secret-2026-never-use-in-production
+      MEDLUM_OWNER_EMAIL: ci-platform-owner@example.invalid
+      MEDLUM_CI_SYNTHETIC_FIXTURE: "YES"
+      MEDLUM_RUNTIME_TEST_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout exact triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci --include=dev --ignore-scripts; else npm install --include=dev --ignore-scripts; fi
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Create disposable PostgreSQL schema
+        run: npx prisma db push --skip-generate
+      - name: Start isolated MedLum application
+        run: |
+          npm run dev -- --webpack --hostname 127.0.0.1 > /tmp/medlum-owner-facility.log 2>&1 &
+          echo $! > /tmp/medlum-owner-facility.pid
+      - name: Wait for application readiness
+        run: |
+          set -euo pipefail
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --max-time 5 http://127.0.0.1:3000/api/health >/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then cat /tmp/medlum-owner-facility.log; exit 1; fi
+      - name: Verify Add Facility → Owner login/OTP → staff creation
+        run: npm run test:owner-facility-onboarding-runtime
+      - name: Print application logs on failure
+        if: failure()
+        run: cat /tmp/medlum-owner-facility.log
+      - name: Stop isolated application
+        if: always()
+        run: |
+          if [ -f /tmp/medlum-owner-facility.pid ]; then kill "$(cat /tmp/medlum-owner-facility.pid)" >/dev/null 2>&1 || true; fi
+
