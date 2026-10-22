@@ -7,6 +7,7 @@ import { encryptSecret } from "@/lib/secret-crypto";
 import { hashPassword } from "@/lib/password";
 import { saveClinicSetup } from "@/lib/clinic-products";
 import { ensureFacilityTelegramWebhook } from "@/lib/facility-telegram";
+import { geocodeFacilityAddress } from "@/lib/facility-geocoding";
 import { writeAudit } from "@/lib/audit";
 
 async function owner() {
@@ -130,6 +131,43 @@ export async function POST(req: Request) {
   const { clinic, facilityOwner, createdOwnerAccount } = provisioned;
   await saveClinicSetup(clinic.id, { facilityType, subscriptionModel, licenseNumber, registrationNumber, ownerName, doctorInCharge, address, city, state, pincode, phone, email, onboardingCompleted: true });
 
+  // Resolve a facility's own address once during creation; never geocode on each punch.
+  // Coordinates remain disabled until an administrator verifies them while physically
+  // at that facility. A weak/ambiguous match cannot silently activate attendance enforcement.
+  let geofenceSetup: {
+    status: "ADDRESS_LOCATED_REQUIRES_ON_SITE_VERIFICATION" | "ADDRESS_MATCH_NEEDS_REVIEW" | "ADDRESS_NOT_RESOLVED";
+    label?: string;
+    confidence?: "high" | "review";
+    lat?: number;
+    lng?: number;
+  } = { status: "ADDRESS_NOT_RESOLVED" };
+  try {
+    const location = await geocodeFacilityAddress({ name, address, city, state, pincode });
+    if (location) {
+      await prisma.clinic.update({
+        where: { id: clinic.id },
+        data: {
+          dutyLat: location.lat,
+          dutyLng: location.lng,
+          dutyRadiusMeters: 200,
+          dutyEnabled: false,
+        },
+      });
+      geofenceSetup = {
+        status: location.confidence === "high" ? "ADDRESS_LOCATED_REQUIRES_ON_SITE_VERIFICATION" : "ADDRESS_MATCH_NEEDS_REVIEW",
+        label: location.label,
+        confidence: location.confidence,
+        lat: location.lat,
+        lng: location.lng,
+      };
+    }
+  } catch (error) {
+    console.error("[MedLum geofence] address lookup deferred", {
+      clinicId: clinic.id,
+      reason: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+    });
+  }
+
   if (createdOwnerAccount) {
     await writeAudit({
       doctorId: user.id,
@@ -166,7 +204,8 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     success: true,
-    facility: { ...clinic, facilityType, subscriptionModel, ownerName, facilityOwnerEmail: facilityOwner.email, doctorInCharge, licenseNumber, registrationNumber, telegram: telegram ? { botUsername: telegram.username, chatId: telegramChatId, status: telegramChatId ? "CONNECTED" : "PENDING" } : null },
+    facility: { ...clinic, dutyLat: geofenceSetup.lat ?? clinic.dutyLat, dutyLng: geofenceSetup.lng ?? clinic.dutyLng, dutyRadiusMeters: 200, dutyEnabled: false, facilityType, subscriptionModel, ownerName, facilityOwnerEmail: facilityOwner.email, doctorInCharge, licenseNumber, registrationNumber, telegram: telegram ? { botUsername: telegram.username, chatId: telegramChatId, status: telegramChatId ? "CONNECTED" : "PENDING" } : null },
     ownerSetup,
+    geofenceSetup,
   }, { status: 201, headers: { "Cache-Control": "no-store" } });
 }

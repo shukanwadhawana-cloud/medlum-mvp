@@ -45,7 +45,11 @@ export function evaluateGeofence(
   if (cfg.lat == null || cfg.lng == null) {
     return { ok: false, within: false, distanceMeters: null, error: "Hospital geofence is enabled but not configured." };
   }
-  if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+  if (!Number.isFinite(cfg.lat) || !Number.isFinite(cfg.lng) ||
+      cfg.lat < -90 || cfg.lat > 90 || cfg.lng < -180 || cfg.lng > 180) {
+    return { ok: false, within: false, distanceMeters: null, error: "Saved hospital coordinates are invalid. Ask the hospital admin to correct the geofence." };
+  }
+  if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
     return { ok: false, within: false, distanceMeters: null, error: "Location is required for geofenced punch-in/out." };
   }
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
