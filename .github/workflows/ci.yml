@@ -39,6 +39,8 @@ jobs:
         run: npm run test:csrf
       - name: Verify pilot readiness
         run: npm run test:pilot-readiness
+      - name: Verify optional hospital licence number validation
+        run: npm run test:clinic-setup-license
       - name: Verify OPD and IPD pilot UI
         run: npm run test:ipd-pilot-ui
       - name: Verify EKA ABDM onboarding
