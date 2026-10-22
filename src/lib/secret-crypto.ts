@@ -3,9 +3,12 @@ import crypto from "node:crypto";
 function key(): Buffer {
   const raw = String(process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY || "");
   if (!raw) {
-    const fallback = String(process.env.NEXTAUTH_SECRET || "");
+    // Prefer the legacy key source first to preserve compatibility with values already encrypted under it.
+    // SESSION_SECRET is the configured production session key; the separate context prefix keeps
+    // this derived key distinct from the signing key for cryptographic domain separation.
+    const fallback = String(process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET || "");
     if (fallback) return crypto.createHash("sha256").update("medlum:telegram:" + fallback).digest();
-    throw new Error("Telegram encryption requires MEDLUM_TELEGRAM_ENCRYPTION_KEY or NEXTAUTH_SECRET");
+    throw new Error("Telegram encryption requires MEDLUM_TELEGRAM_ENCRYPTION_KEY, NEXTAUTH_SECRET, or SESSION_SECRET");
   }
   const decoded = Buffer.from(raw, "base64");
   if (decoded.length === 32) return decoded;
