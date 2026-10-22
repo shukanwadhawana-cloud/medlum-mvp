@@ -6,9 +6,7 @@ const endpoint = readFileSync("src/app/api/ipd/[id]/clinical-qa/route.ts", "utf8
 const component = readFileSync("src/components/ClinicalQAPanel.tsx", "utf8");
 const ipd = readFileSync("src/app/ipd/[id]/page.tsx", "utf8");
 const questions = [
-  "antibiotic-day", "last-antibiotic-dose", "missed-doses", "current-medications",
-  "creatinine-trend", "latest-labs", "latest-vitals", "pending-investigations",
-  "last-24-hours", "allergies-diagnosis",
+  "antibiotic-day", "last-antibiotic-dose", "missed-doses", "current-medications", "creatinine-trend", "latest-labs", "latest-vitals", "pending-investigations", "last-24-hours", "allergies-diagnosis", "mar-last-24h", "pending-doses", "antibiotic-review", "medication-reconciliation", "vte-prophylaxis", "cbc-results", "hemoglobin-trend", "wbc-trend", "electrolyte-trend", "glucose-results", "abnormal-labs", "latest-imaging", "microbiology-results", "infection-workup", "latest-assessment-plan", "latest-note", "nursing-observations", "latest-handover", "patient-round-summary", "cognition-delirium", "goals-escalation", "discharge-plan", "devices-lines", "urine-output", "nutrition-plan", "mobility-safety", "pain-assessment"
 ];
 
 for (const question of questions) {
@@ -27,6 +25,11 @@ assert.match(endpoint, /QUESTION_IDS\.has\(questionId\)/, "only preset questions
 assert.doesNotMatch(endpoint, /chatwoot|api\.openai\.com|generativelanguage\.googleapis\.com|generateClinicalDraft/i, "patient Q&A does not use support chat or external model APIs");
 assert.match(component, /Read-only · no external AI call/, "UI explains the processing mode");
 assert.match(component, /Source records/, "answers expose chart source records");
+assert.match(component, /clinical-qa-question-search/, "question library has a searchable control");
+assert.match(component, /visibleQuestions/, "question search filters the displayed library");
+assert.match(endpoint, /ADDITIONAL_QUESTION_IDS\.has\(questionId\)/, "expanded preset questions have a dedicated answer path");
+assert.match(endpoint, /Structured intake\/output or fluid-balance observations are not queried/, "unavailable structured I/O data is disclosed rather than inferred");
+assert.match(endpoint, /does not automatically declare them equivalent/, "prescription/MAR review avoids claiming an automatic reconciliation");
 assert.match(ipd, /ClinicalQAPanel/, "IPD workspace integrates the question panel");
 assert.match(ipd, /Clinical Q&A/, "IPD workspace exposes a dedicated Clinical Q&A tab");
 console.log("Clinical Q&A security contract: PASS (static checks only; runtime acceptance runs separately)");
