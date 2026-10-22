@@ -13,6 +13,7 @@ const page = read("src/app/owner/hospitals/new/page.tsx");
 const provision = read("src/app/api/owner/facilities/route.ts");
 const staff = read("src/app/api/clinic/staff/route.ts");
 const login = read("src/app/api/auth/login/route.ts");
+const telegramPrelink = read("src/app/api/auth/telegram/prelink/route.ts");
 
 assert(
   page.includes('field("licenseNumber","License number",false)'),
@@ -80,6 +81,12 @@ assert(
 assert(
   login.includes('const roleNeedsOtp =') && login.includes("TELEGRAM_OTP_NOT_CONFIGURED"),
   "Privileged login must retain OTP delivery gate",
+);
+assert(
+  page.includes("MedLum Staff ID or Gmail") &&
+    telegramPrelink.includes("loginIdentifier.includes(\"@\")") &&
+    telegramPrelink.includes("where: { email: loginIdentifier.toLowerCase() }"),
+  "A first-time owner must be able to use their Gmail to link Telegram before the first privileged login",
 );
 
 console.log("Owner facility onboarding contract verified: optional licence, required registration, first-time owner account setup link, facility-scoped Owner membership, encrypted/verified optional bot token, and scoped staff roles.");
