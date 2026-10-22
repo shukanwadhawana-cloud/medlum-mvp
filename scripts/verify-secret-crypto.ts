@@ -7,7 +7,10 @@ const original = {
   nextAuth: process.env.NEXTAUTH_SECRET,
   session: process.env.SESSION_SECRET,
 };
-const restore = (key, value) => value === undefined ? delete process.env[key] : process.env[key] = value;
+const restore = (key: string, value: string | undefined): void => {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+};
 
 try {
   const plaintext = "synthetic-telegram-token-never-real";
