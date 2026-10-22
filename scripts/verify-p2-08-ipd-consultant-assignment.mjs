@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import assert from "node:assert/strict";
+const route=fs.readFileSync("src/app/api/ipd/route.ts","utf8");
+const page=fs.readFileSync("src/app/ipd/[id]/page.tsx","utf8");
+const pkg=fs.readFileSync("package.json","utf8");
+const ci=fs.readFileSync(".github/workflows/ci.yml","utf8");
+assert(route.includes("const handoverOptions = clinicMembers"),"IPD API returns active facility clinicians");
+assert(route.includes("rooms, handoverOptions }"),"IPD API exposes clinician options");
+assert(route.includes('if (action === "assign-consultant")'),"assignment endpoint exists");
+assert(route.includes('entity: "IPDConsultantAssignment"'),"assignment and transfers are audited");
+assert(route.includes('action: isTransfer ? "CONSULTANT_TRANSFERRED" : "CONSULTANT_ASSIGNED"'),"initial assignment and transfer are distinguished");
+assert(route.includes("previousConsultantMemberId: previousMemberId || null"),"previous assignment is recorded");
+assert(route.includes('where: { id: consultantMemberId, clinicId, isActive: true, doctor: { isActive: true } }'),"only active same-facility clinician may be assigned");
+assert(route.includes('parseCareSetting(patient.notes) !== "IPD"'),"assignment limited to active IPD admission");
+assert(route.includes('isolationLevel: "Serializable"'),"assignment is transactional");
+assert(page.includes("showConsultantAssignment&&selected"),"assignment modal exists");
+assert(page.includes('action:"assign-consultant"'),"UI calls assignment endpoint");
+assert(page.includes("consultantEligible"),"UI filters for eligible clinicians");
+assert(page.includes('required={Boolean(selected.consultantMemberId||String(selected.consultantName||"").trim())}'),"transfer requires reason");
+assert((page.match(/displayUhid\(selected\.uhid/g)||[]).length===3,"all visible identifier displays are normalized");
+assert(!page.includes("saveConsultant")&&!page.includes("consultantForm"),"unaudited text editor removed");
+assert(pkg.includes('"test:p2-08": "node scripts/verify-p2-08-ipd-consultant-assignment.mjs"'),"P2-08 test registered");
+assert(ci.includes("npm run test:p2-08"),"P2-08 test runs in CI");
+console.log("P2-08 IPD consultant assignment, transfer audit, and UHID display: PASS");
