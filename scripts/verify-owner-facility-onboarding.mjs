@@ -23,8 +23,12 @@ assert(
   "Add Facility must require registration number for hospitals",
 );
 assert(
-  page.includes("Enter an email that already has a MedLum account"),
-  "UI must clearly explain that facility owner account must pre-exist",
+  page.includes("Use the hospital owner’s Gmail address for their MedLum login"),
+  "UI must permit the hospital's own Gmail as owner login and explain first-time setup",
+);
+assert(
+  page.includes("Copy owner setup link") && page.includes("link privately"),
+  "UI must let the Master Owner securely share the one-time owner password setup link",
 );
 assert(
   provision.includes("if (facilityType === \"HOSPITAL\" && !registrationNumber)"),
@@ -35,8 +39,19 @@ assert(
   "Provisioning API must not require licence number when registration number is present",
 );
 assert(
-  provision.includes("if (!facilityOwner)"),
-  "Provisioning must fail clearly when the facility owner account does not exist",
+  provision.includes('passwordHash: temporaryPasswordHash') &&
+    provision.includes('purpose: "password_reset_link"') &&
+    provision.includes("createdOwnerAccount"),
+  "Provisioning must create a first-time owner account with a hashed temporary password and a one-time reset-link challenge",
+);
+assert(
+  provision.includes('setupLink: setupUrl.toString()') &&
+    provision.includes('setupUrl.hash = "token="'),
+  "Provisioning must return the one-time setup token in the URL fragment, not the query string",
+);
+assert(
+  provision.includes('action: "FACILITY_OWNER_ACCOUNT_CREATED"'),
+  "First-time facility owner account creation must be audited",
 );
 assert(
   provision.includes('role: "Owner", designation: "Facility Owner"'),
@@ -67,4 +82,4 @@ assert(
   "Privileged login must retain OTP delivery gate",
 );
 
-console.log("Owner facility onboarding contract verified: optional licence, required registration, explicit existing-account prerequisite, facility-scoped Owner membership, encrypted/verified optional bot token, and scoped staff roles.");
+console.log("Owner facility onboarding contract verified: optional licence, required registration, first-time owner account setup link, facility-scoped Owner membership, encrypted/verified optional bot token, and scoped staff roles.");
