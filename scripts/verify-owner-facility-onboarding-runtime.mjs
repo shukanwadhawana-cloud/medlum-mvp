@@ -6,6 +6,7 @@
  * This test must run only against the isolated CI PostgreSQL service.
  */
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
@@ -25,11 +26,9 @@ assert.ok(platformOwnerEmail, "MEDLUM_OWNER_EMAIL must name the synthetic platfo
 
 const prisma = new PrismaClient();
 const facilityOwnerEmail = "ci-facility-owner@example.invalid";
-const ownerPassword = "ci-facility-owner-password-123";
+const ownerPassword = "Synthetic-Facility-Owner-Password-2026!";
 const platformPasswordHash = await bcrypt.hash("unused-platform-ci-password", 10);
-const ownerPasswordHash = await bcrypt.hash(ownerPassword, 10);
 const platformOwnerId = "ci_onboarding_platform_owner";
-const facilityOwnerId = "ci_onboarding_facility_owner";
 const suffix = Date.now().toString();
 const facilityName = `SYNTHETIC CI Facility Onboarding Hospital ${suffix}`;
 const registrationNumber = `CI-HOSP-REG-${suffix}`;
@@ -84,24 +83,8 @@ try {
       sessionInvalidatedAt: null,
     },
   });
-  await prisma.doctor.upsert({
-    where: { id: facilityOwnerId },
-    create: {
-      id: facilityOwnerId,
-      name: "Synthetic CI Facility Owner",
-      email: facilityOwnerEmail,
-      passwordHash: ownerPasswordHash,
-      clinicName: "Facility Owner Pre-existing Account",
-      phone: "0000000002",
-      isActive: true,
-    },
-    update: {
-      email: facilityOwnerEmail,
-      passwordHash: ownerPasswordHash,
-      isActive: true,
-      sessionInvalidatedAt: null,
-    },
-  });
+  // The facility owner deliberately does not exist yet: provisioning must create it.
+  await prisma.doctor.deleteMany({ where: { email: facilityOwnerEmail } });
 
   // Confirm the management API is not anonymously accessible.
   const anonymousFacilities = await requestJson("/api/owner/facilities");
@@ -135,17 +118,53 @@ try {
   assert.equal(create.data?.success, true, "Facility creation should return success.");
   const facility = create.data.facility;
   assert.ok(facility?.id, "Facility response must include its created ID.");
+  assert.equal(create.data.ownerSetup?.expiresAt ? true : false, true, "First-time owner account must receive an expiring setup link.");
+  const setupLink = create.data.ownerSetup.setupLink;
+  const setupUrl = new URL(setupLink);
+  assert.equal(setupUrl.pathname, "/reset-password", "Owner setup link must open the existing password-reset page.");
+  assert.equal(setupUrl.search, "", "One-time reset token must not be placed in the URL query string.");
+  const setupToken = setupUrl.hash.startsWith("#token=") ? decodeURIComponent(setupUrl.hash.slice(7)) : "";
+  assert.ok(setupToken.length >= 40, "One-time owner setup link must include a high-entropy token in its URL fragment.");
+  const setupChallenge = await prisma.otpChallenge.findFirst({
+    where: { purpose: "password_reset_link", clinicId: facility.id, consumedAt: null },
+    select: { id: true, doctorId: true, codeHash: true, expiresAt: true, maxAttempts: true },
+  });
+  assert.ok(setupChallenge, "A hashed setup challenge must be persisted for the new owner.");
+  assert.equal(setupChallenge.codeHash, createHash("sha256").update(setupToken).digest("hex"), "Only the hash of the setup token must be stored.");
+  assert.equal(setupChallenge.maxAttempts, 1, "Owner setup token must be one-time use.");
+  assert.ok(setupChallenge.expiresAt.getTime() > Date.now(), "Owner setup token must not be expired.");
   assert.equal(facility.facilityOwnerEmail, facilityOwnerEmail, "Facility owner email must remain linked.");
   assert.equal(facility.licenseNumber, "", "Blank licence value must remain blank, not fabricated.");
   assert.equal(facility.registrationNumber, registrationNumber, "Registration number must be preserved.");
   assert.equal(facility.telegram, null, "Facility Telegram integration must remain optional.");
   assert.ok(!JSON.stringify(facility).includes("telegramToken"), "Bot token must never be returned to the caller.");
 
+  const setupPassword = await requestJson("/api/auth/password-reset/complete", {
+    method: "POST",
+    body: { token: setupToken, newPassword: ownerPassword, confirmPassword: ownerPassword },
+  });
+  assert.equal(setupPassword.status, 200, `New owner should be able to set their own password through the setup link; got ${setupPassword.status}: ${setupPassword.raw}`);
+  assert.equal(setupPassword.data?.success, true, "Owner password setup should succeed.");
+  const facilityOwner = await prisma.doctor.findUnique({
+    where: { email: facilityOwnerEmail },
+    select: { id: true, passwordHash: true, isActive: true, sessionInvalidatedAt: true },
+  });
+  assert.ok(facilityOwner?.id, "Facility owner account must be created from the supplied Gmail/login email.");
+  assert.equal(await bcrypt.compare(ownerPassword, facilityOwner.passwordHash), true, "Chosen owner password must be stored as a hash.");
+  assert.ok(facilityOwner.sessionInvalidatedAt, "Password setup must invalidate existing sessions.");
+  const facilityOwnerId = facilityOwner.id;
+
+  const reusedSetupToken = await requestJson("/api/auth/password-reset/complete", {
+    method: "POST",
+    body: { token: setupToken, newPassword: ownerPassword, confirmPassword: ownerPassword },
+  });
+  assert.equal(reusedSetupToken.status, 400, "Owner setup link must not be reusable.");
+
   const ownerMembership = await prisma.clinicMember.findUnique({
     where: { clinicId_doctorId: { clinicId: facility.id, doctorId: facilityOwnerId } },
   });
   assert.ok(ownerMembership, "Facility owner membership must be created.");
-  assert.equal(ownerMembership.role, "Owner", "Existing account must receive facility-scoped Owner role.");
+  assert.equal(ownerMembership.role, "Owner", "Newly created account must receive facility-scoped Owner role.");
   assert.equal(ownerMembership.isActive, true, "Facility owner membership must be active.");
 
   const setupRows = await prisma.$queryRawUnsafe(
@@ -165,7 +184,7 @@ try {
   assert.ok(overview.data.hospitals.some((x) => x.id === facility.id && x.name === facilityName),
     "Created hospital must appear in the Owner dashboard overview.");
 
-  // Exercise the owner using the pre-existing MedLum account: password -> OTP challenge -> verified session.
+  // Exercise the new MedLum account: chosen password -> OTP challenge -> verified session.
   const login = await requestJson("/api/auth/login", {
     method: "POST",
     body: { email: facilityOwnerEmail, password: ownerPassword },
