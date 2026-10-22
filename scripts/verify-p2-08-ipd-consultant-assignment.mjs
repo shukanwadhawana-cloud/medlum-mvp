@@ -18,7 +18,7 @@ assert(page.includes("showConsultantAssignment&&selected"),"assignment modal exi
 assert(page.includes('action:"assign-consultant"'),"UI calls assignment endpoint");
 assert(page.includes("consultantEligible"),"UI filters for eligible clinicians");
 assert(page.includes('required={Boolean(selected.consultantMemberId||String(selected.consultantName||"").trim())}'),"transfer requires reason");
-assert((page.match(/displayUhid\(selected\.uhid/g)||[]).length===3,"all visible identifier displays are normalized");
+assert((page.match(/displayUhid\(selected\.uhid/g)||[]).length===2,"all visible identifier displays are normalized");
 assert(!page.includes("saveConsultant")&&!page.includes("consultantForm"),"unaudited text editor removed");
 assert(pkg.includes('"test:p2-08": "node scripts/verify-p2-08-ipd-consultant-assignment.mjs"'),"P2-08 test registered");
 assert(ci.includes("npm run test:p2-08"),"P2-08 test runs in CI");

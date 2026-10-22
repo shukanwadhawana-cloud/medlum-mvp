@@ -221,7 +221,7 @@ export default function IPDPatientWorkspace(){
    <Link href={`/ipd/${patientId}`} className="text-xs text-[#c2183a] font-medium">← Back to IPD patient</Link>
    <div className="flex gap-2">
     <button type="button" onClick={()=>{setError("");setShowRoom(true)}} className="h-8 px-3 rounded-lg border text-xs">+ Room</button>
-    <button type="button" onClick={()=>{setError("");setConsultantAssignment({consultantMemberId:selected?.consultantMemberId||"",context:""});setShowConsultantAssignment(true)}} className="h-8 px-3 rounded-lg border border-[#c2183a] text-[#c2183a] text-xs font-semibold">{selected?.consultantMemberId||String(selected?.consultantName||"").trim()?"Transfer consultant":"Assign consultant"}</button>
+    {selected&&<button type="button" onClick={()=>{setError("");setConsultantAssignment({consultantMemberId:selected?.consultantMemberId||"",context:""});setShowConsultantAssignment(true)}} className="h-8 px-3 rounded-lg border border-[#c2183a] text-[#c2183a] text-xs font-semibold">{selected?.consultantMemberId||String(selected?.consultantName||"").trim()?"Transfer consultant":"Assign consultant"}</button>}
     <button type="button" onClick={()=>{setError("");setShowRegister(true)}} className="h-8 px-3 rounded-lg bg-[#c2183a] text-white text-xs font-medium">+ Register Patient</button>
    </div>
   </div>
@@ -610,7 +610,7 @@ export default function IPDPatientWorkspace(){
    {showConsultantAssignment&&selected&&<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
     <form onSubmit={assignConsultant} className="bg-white rounded-xl max-w-md w-full p-4 space-y-3 max-h-[90vh] overflow-auto">
      <h3 className="font-semibold text-base">{selected.consultantMemberId||String(selected.consultantName||"").trim()?"Transfer consultant":"Assign consultant"}</h3>
-     <p className="text-[11px] text-gray-600">Patient: <b>{selected.name}</b> · UHID: {displayUhid(selected.uhid||selected.registrationNo)||"Not assigned"}</p>
+     <p className="text-[11px] text-gray-600">Patient: <b>{selected.name}</b></p>
      <p className="text-[11px] text-gray-600">Currently assigned: <b>{selected.consultantName||"Not assigned"}</b>{selected.consultantSpecialty ? " · " + selected.consultantSpecialty : ""}</p>
      <label className="block text-[11px] text-gray-600">Consultant / receiving clinician
       <select required value={consultantAssignment.consultantMemberId} onChange={e=>setConsultantAssignment({...consultantAssignment,consultantMemberId:e.target.value})} className="mt-1 w-full h-10 px-2 rounded-lg border text-xs">
