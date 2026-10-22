@@ -11,6 +11,13 @@ function assert(condition, message) {
 
 const page = read("src/app/clinic/setup/page.tsx");
 const route = read("src/app/api/clinic/setup/route.ts");
+
+assert(
+  page.includes("This page only updates the existing workspace") &&
+    page.includes("It does not create a separate facility") &&
+    page.includes('href="/owner/hospitals/new"'),
+  "Clinical setup must direct Master Owners to Add Facility instead of implying that this form creates a hospital",
+);
 const licenseInput = page.match(/<input name="licenseNumber"[\s\S]*?\/>/)?.[0];
 
 assert(licenseInput, "Clinical setup licence input must exist");
