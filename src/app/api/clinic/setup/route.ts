@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   const subscriptionModel = body.subscriptionModel === "OPD" || body.subscriptionModel === "IPD" ? body.subscriptionModel : "BOTH";
   const values = { ...body, facilityType, subscriptionModel, onboardingCompleted: true };
   if (!String(values.ownerName || "").trim() || !String(values.doctorInCharge || "").trim() || !String(values.address || "").trim() || !String(values.city || "").trim() || !String(values.state || "").trim() || !String(values.pincode || "").trim()) return NextResponse.json({ success: false, error: "Owner, doctor in charge and complete address details are required." }, { status: 400 });
-  if (facilityType === "HOSPITAL" && (!String(values.licenseNumber || "").trim() || !String(values.registrationNumber || "").trim())) return NextResponse.json({ success: false, error: "Hospital license and registration numbers are required." }, { status: 400 });
+  if (facilityType === "HOSPITAL" && !String(values.registrationNumber || "").trim()) return NextResponse.json({ success: false, error: "Hospital registration number is required." }, { status: 400 });
   const setup = await saveClinicSetup(ctx.membership.clinicId, values);
   return NextResponse.json({ success: true, setup });
 }
