@@ -52,7 +52,17 @@ export async function POST(
       expiresAt.getTime() > Date.now() &&
       suppliedHash === expectedHash
     );
-    if (!valid) return NextResponse.json({ ok: true });
+    if (!valid) {
+      try {
+        const guidance = suppliedCode
+          ? "This MedLum connection link is invalid or expired. Return to MedLum Owner → Hospitals, select this hospital, and generate a fresh Telegram link."
+          : "This bot is not connected to the hospital yet. Open MedLum Owner → Hospitals, select this hospital, tap Connect Telegram, then open the generated link and tap Start. A plain Start button cannot link the hospital securely.";
+        await send(decryptSecret(integration.encryptedToken), chatId, guidance);
+      } catch {
+        // Never save an unverified chat ID; the owner must use a valid one-time link.
+      }
+      return NextResponse.json({ ok: true });
+    }
 
     await prisma.facilityTelegramIntegration.update({
       where: { clinicId },
