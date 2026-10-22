@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
   if (!name || !ownerName || !facilityOwnerEmail || !doctorInCharge || !address || !city || !state || !pincode)
     return NextResponse.json({ success: false, error: "Facility name, facility owner email, doctor in charge and complete address are required." }, { status: 400 });
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(facilityOwnerEmail))
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(facilityOwnerEmail))
     return NextResponse.json({ success: false, error: "Enter a valid email address that the facility owner controls." }, { status: 400 });
   if (isMedlumOwnerEmail(facilityOwnerEmail) && facilityOwnerEmail !== user.email.toLowerCase())
     return NextResponse.json({ success: false, error: "The Enterprise Master Owner cannot be assigned as owner of another person's facility." }, { status: 400 });
