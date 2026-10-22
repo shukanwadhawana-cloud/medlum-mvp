@@ -53,8 +53,8 @@ export async function POST(req: Request) {
   const facilityOwner = await prisma.doctor.findUnique({ where: { email: facilityOwnerEmail }, select: { id: true, email: true } });
   if (!facilityOwner)
     return NextResponse.json({ success: false, error: "Facility owner must already have a MedLum doctor account. Create/sign in that doctor account first, then provision the facility." }, { status: 400 });
-  if (facilityType === "HOSPITAL" && (!licenseNumber || !registrationNumber))
-    return NextResponse.json({ success: false, error: "Hospital license and registration numbers are required." }, { status: 400 });
+  if (facilityType === "HOSPITAL" && !registrationNumber)
+    return NextResponse.json({ success: false, error: "Hospital registration number is required." }, { status: 400 });
   if (telegramToken && !process.env.MEDLUM_TELEGRAM_ENCRYPTION_KEY)
     return NextResponse.json({ success: false, error: "Telegram encryption is not configured on the server." }, { status: 500 });
 
