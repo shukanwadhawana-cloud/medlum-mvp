@@ -19,7 +19,7 @@ const pharmacyApi = read("../src/app/api/pharmacy/route.ts");
 
 assert.match(ipdApi, /roomDirectory/);
 assert.match(ipdApi, /occupiedByPatientId/);
-assert.match(ipdApi, /return NextResponse\.json\(\{ patients: result, ipdHistory, rooms \}/);
+assert.match(ipdApi, /return NextResponse\.json\(\{ patients: result, ipdHistory, rooms(?:, handoverOptions)? \}/);
 assert.match(ipdApi, /Destination room is already occupied by another active IPD patient/);
 assert.match(ipdUi, /rooms\.filter\(\(r:any\)=>!r\.occupied/);
 assert.match(ipdUi, /Select an available bed/);

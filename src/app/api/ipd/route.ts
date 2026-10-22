@@ -265,7 +265,21 @@ export async function GET() {
     const occupant = result.find((patient: any) => String(patient.roomNumber || "").trim() === room.roomNumber);
     return { ...room, occupied: Boolean(occupant), occupiedByPatientId: occupant?.id || null };
   }).sort((a, b) => a.unitType.localeCompare(b.unitType) || a.roomCategory.localeCompare(b.roomCategory) || a.roomNumber.localeCompare(b.roomNumber));
-  return NextResponse.json({ patients: result, ipdHistory, rooms }, { headers: { "Cache-Control": "no-store" } });
+  const consultantRoles = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"]);
+  const handoverRoles = new Set([...consultantRoles, "Nurse"]);
+  const clinicMembers = clinicId ? await prisma.clinicMember.findMany({
+    where: { clinicId, isActive: true, doctor: { isActive: true } },
+    select: { id: true, doctorId: true, role: true, staffCode: true, designation: true, department: true, doctor: { select: { name: true, email: true } } },
+  }) : [];
+  const handoverOptions = clinicMembers
+    .map((member) => ({ ...member, normalizedRole: normalizeClinicRole(member.role) }))
+    .filter((member) => handoverRoles.has(member.normalizedRole))
+    .map((member) => ({
+      id: member.id, doctorId: member.doctorId, role: member.normalizedRole, staffCode: member.staffCode,
+      designation: member.designation, department: member.department, name: member.doctor.name,
+      email: member.doctor.email, consultantEligible: consultantRoles.has(member.normalizedRole),
+    }));
+  return NextResponse.json({ patients: result, ipdHistory, rooms, handoverOptions }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -301,6 +315,62 @@ export async function POST(req: Request) {
       }
       await writeAudit({ doctorId: session.doctorId, action: "create", entity: "ClinicalNote", entityId: patientId, meta: { noteType: "Investigation Indent", content: testNames.join(", "), orderIds: orders.map((o) => o.id), status: "Pending", clinicId } });
       return NextResponse.json({ success: true, orders, order: orders[0] });
+    }
+
+    if (action === "assign-consultant") {
+      const patientId = String(body.patientId || "").trim();
+      const consultantMemberId = String(body.consultantMemberId || "").trim();
+      const context = String(body.context || "").trim().slice(0, 1000);
+      if (!patientId || !consultantMemberId) return NextResponse.json({ success: false, error: "Patient and consultant are required." }, { status: 400 });
+      const actorRole = normalizeClinicRole(membership.role);
+      const managementRoles = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"]);
+      if (!managementRoles.has(actorRole)) return NextResponse.json({ success: false, error: "Your role cannot assign or transfer an IPD consultant." }, { status: 403 });
+      if (!clinicId) return NextResponse.json({ success: false, error: "An active facility is required for consultant assignment." }, { status: 403 });
+      const consultantRoles = new Set(["Owner", "Admin", "Manager", "Consultant", "Doctor", "RMO"]);
+      try {
+        const outcome = await prisma.$transaction(async (tx) => {
+          const patient = await tx.patient.findFirst({ where: { id: patientId, clinicId, deletedAt: null } });
+          if (!patient) return { status: 404, body: { success: false, error: "Patient was not found in this clinic." } };
+          if (patient.status !== "ACTIVE" || parseCareSetting(patient.notes) !== "IPD") return { status: 409, body: { success: false, error: "A consultant can only be assigned to an active IPD admission." } };
+          const target = await tx.clinicMember.findFirst({
+            where: { id: consultantMemberId, clinicId, isActive: true, doctor: { isActive: true } },
+            select: { id: true, doctorId: true, role: true, designation: true, department: true, doctor: { select: { name: true, email: true } } },
+          });
+          if (!target) return { status: 404, body: { success: false, error: "Selected consultant is not an active member of this facility." } };
+          const targetRole = normalizeClinicRole(target.role);
+          if (!consultantRoles.has(targetRole)) return { status: 403, body: { success: false, error: "Choose an active doctor or consultant account, not an operational-only staff member." } };
+          const profile = parsePatientProfile(patient.notes);
+          const previousMemberId = String(profile.consultantMemberId || "").trim();
+          const previousName = String(profile.consultantName || "").trim();
+          if (previousMemberId && previousMemberId === target.id) return { status: 409, body: { success: false, error: "This consultant is already assigned to the admission." } };
+          const sameLegacyName = !previousMemberId && previousName && previousName.toLocaleLowerCase() === target.doctor.name.trim().toLocaleLowerCase();
+          const isTransfer = Boolean(previousMemberId || (previousName && !sameLegacyName));
+          if (isTransfer && !context) return { status: 400, body: { success: false, error: "Enter a reason before transferring an existing consultant assignment." } };
+          const consultantSpecialty = String(target.department || target.designation || "").trim();
+          const nextProfile = { ...profile, consultantMemberId: target.id, consultantName: target.doctor.name, consultantSpecialty };
+          await tx.patient.update({ where: { id: patientId }, data: { notes: encodePatientNotes(cleanPatientNotes(patient.notes), "IPD", nextProfile) } });
+          await tx.auditLog.create({
+            data: {
+              doctorId: session.doctorId, action: isTransfer ? "CONSULTANT_TRANSFERRED" : "CONSULTANT_ASSIGNED",
+              entity: "IPDConsultantAssignment", entityId: patientId,
+              meta: JSON.stringify({
+                clinicId, patientId,
+                previousConsultantMemberId: previousMemberId || null, previousConsultantName: previousName || null,
+                consultantMemberId: target.id, consultantDoctorId: target.doctorId, consultantName: target.doctor.name,
+                consultantSpecialty, reason: context || "Initial consultant assignment", actorRole, at: new Date().toISOString(),
+              }),
+            },
+          });
+          return {
+            status: 200,
+            body: { success: true, patientId, consultant: { memberId: target.id, doctorId: target.doctorId, name: target.doctor.name, specialty: consultantSpecialty }, transferred: isTransfer },
+          };
+        }, { isolationLevel: "Serializable" });
+        return NextResponse.json(outcome.body, { status: outcome.status });
+      } catch (e: unknown) {
+        if (e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2034") return NextResponse.json({ success: false, error: "Consultant assignment conflicted with another update. Refresh and try again." }, { status: 409 });
+        throw e;
+      }
     }
 
     if (action === "update-admission-details" || action === "update-diagnosis") {
