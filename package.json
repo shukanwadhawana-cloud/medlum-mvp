@@ -85,6 +85,7 @@
     "test:ipd-clinical-workflow": "node scripts/verify-ipd-clinical-workflow.mjs",
     "test:clinical-ai-draft": "node scripts/verify-clinical-ai-draft.mjs",
     "test:pilot-access": "node scripts/verify-pilot-access.mjs",
+    "test:clinic-setup-license": "node scripts/verify-clinic-setup-license-optional.mjs",
     "prebuild": "node scripts/copy-pdf-worker.mjs",
     "test:clinical-assist-ocr": "node scripts/verify-clinical-assist-ocr.mjs",
     "test:admission-bed-categories": "node scripts/verify-admission-bed-categories.mjs",
