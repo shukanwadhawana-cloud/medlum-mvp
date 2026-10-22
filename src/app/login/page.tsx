@@ -202,14 +202,14 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="mt-10 space-y-5">
               {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-xl">{error}</div>}
               <div>
-                <label className="block text-sm font-medium mb-1.5">MedLum Staff ID</label>
+                <label className="block text-sm font-medium mb-1.5">MedLum Staff ID or Gmail</label>
                 <input
                   type="text"
                   required
                   value={staffId}
                   onChange={(e) => setStaffId(e.target.value.toUpperCase())}
                   className="w-full h-12 px-4 rounded-xl border border-gray-200"
-                  placeholder="CL01038020"
+                  placeholder="CL01038020 or owner@hospital.com"
                   autoComplete="username"
                 />
               </div>
