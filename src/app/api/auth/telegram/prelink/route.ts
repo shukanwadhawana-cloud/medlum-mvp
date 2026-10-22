@@ -26,7 +26,15 @@ export async function POST(req: Request) {
     }
 
     let doctor: { id: string; email: string; passwordHash: string; isActive: boolean; clinicName: string } | null = null;
-    if (staffId) {
+    const loginIdentifier = (staffId || email).trim();
+    if (loginIdentifier.includes("@")) {
+      // The sign-in screen accepts either a Staff ID or email in its primary field.
+      // Resolve email here too so first-time Owners can link Telegram before login.
+      doctor = await prisma.doctor.findUnique({
+        where: { email: loginIdentifier.toLowerCase() },
+        select: { id: true, email: true, passwordHash: true, isActive: true, clinicName: true },
+      });
+    } else if (staffId) {
       const resolved = await findDoctorByStaffLoginId(staffId);
       doctor = resolved?.doctor
         ? {
@@ -37,11 +45,6 @@ export async function POST(req: Request) {
             clinicName: resolved.doctor.clinicName,
           }
         : null;
-    } else {
-      doctor = await prisma.doctor.findUnique({
-        where: { email },
-        select: { id: true, email: true, passwordHash: true, isActive: true, clinicName: true },
-      });
     }
 
     if (!doctor || !(await verifyPassword(password, doctor.passwordHash))) {
