@@ -96,9 +96,9 @@ function FacilityGeofenceControls({clinicId}:{clinicId:string}) {
 
  const getGps=async()=>{
   if(typeof window==="undefined"||!window.isSecureContext||!navigator.geolocation)throw new Error("Secure browser location is unavailable. Open MedLum over HTTPS and enable Location Services.");
-  return new Promise<{lat:number;lng:number}>((resolve,reject)=>{
+  return new Promise<{lat:number;lng:number;accuracyMeters:number|null}>((resolve,reject)=>{
    navigator.geolocation.getCurrentPosition(
-    p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude}),
+    p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude,accuracyMeters:Number.isFinite(p.coords.accuracy)?p.coords.accuracy:null}),
     e=>reject(new Error(e.code===1?"Location permission denied. Enable Location Services for Safari/Chrome and retry.":e.code===3?"GPS timed out. Retry outdoors or near a window.":"Your device could not determine its current location.")),
     {enableHighAccuracy:true,timeout:20000,maximumAge:0}
    );
@@ -122,7 +122,7 @@ function FacilityGeofenceControls({clinicId}:{clinicId:string}) {
   setBusy(true);setError("");setMessage("");
   try{
    const gps=await getGps();
-   const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/geofence`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,currentLat:gps.lat,currentLng:gps.lng,radiusMeters:radius})});
+   const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/geofence`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,currentLat:gps.lat,currentLng:gps.lng,accuracyMeters:gps.accuracyMeters,radiusMeters:radius})});
    const d=await r.json();
    if(!r.ok)throw new Error(d.error||"Could not activate this facility geofence");
    setEnabled(Boolean(d.dutyEnabled));setHasCoordinates(Boolean(d.dutyLat!=null&&d.dutyLng!=null));
