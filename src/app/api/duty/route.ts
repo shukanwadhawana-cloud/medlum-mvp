@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { requireActiveClinicMembership, normalizeClinicRole } from "@/lib/clinic-auth";
-import { evaluateGeofence, isDutyAdminRole, type DutyPunchType } from "@/lib/duty";
+import { evaluateGeofence, evaluateGeofenceFix, isDutyAdminRole, validateGpsAccuracy, type DutyPunchType } from "@/lib/duty";
 import { isSaniddhiConfigured, pushPunchToSaniddhi } from "@/lib/saniddhi";
 
 async function membershipCtx(doctorId: string, clinicId?: string) {
@@ -239,16 +239,28 @@ export async function POST(req: Request) {
   const accuracyMeters = body.accuracyMeters != null ? Number(body.accuracyMeters) : null;
   const note = String(body.note || "").slice(0, 500);
 
-  const geo = evaluateGeofence(
-    {
-      enabled: Boolean(target.clinic.dutyEnabled),
-      lat: target.clinic.dutyLat,
-      lng: target.clinic.dutyLng,
-      radiusMeters: target.clinic.dutyRadiusMeters || 200,
-    },
-    lat,
-    lng
-  );
+  const geo = target.clinic.dutyEnabled
+    ? evaluateGeofenceFix(
+        {
+          enabled: true,
+          lat: target.clinic.dutyLat,
+          lng: target.clinic.dutyLng,
+          radiusMeters: target.clinic.dutyRadiusMeters || 200,
+        },
+        lat,
+        lng,
+        accuracyMeters,
+      )
+    : evaluateGeofence(
+        {
+          enabled: false,
+          lat: target.clinic.dutyLat,
+          lng: target.clinic.dutyLng,
+          radiusMeters: target.clinic.dutyRadiusMeters || 200,
+        },
+        lat,
+        lng,
+      );
   if (!geo.ok) {
     return NextResponse.json({ error: geo.error, distanceMeters: geo.distanceMeters }, { status: 400 });
   }
@@ -351,6 +363,7 @@ export async function PATCH(req: Request) {
   const dutyLng = body.dutyLng != null ? Number(body.dutyLng) : null;
   const currentLat = body.currentLat != null ? Number(body.currentLat) : null;
   const currentLng = body.currentLng != null ? Number(body.currentLng) : null;
+  const currentAccuracyMeters = body.currentAccuracyMeters != null ? Number(body.currentAccuracyMeters) : null;
   let dutyRadiusMeters = body.dutyRadiusMeters != null ? Number(body.dutyRadiusMeters) : 200;
   if (!Number.isFinite(dutyRadiusMeters)) dutyRadiusMeters = 200;
   dutyRadiusMeters = Math.max(100, Math.min(300, Math.round(dutyRadiusMeters)));
@@ -362,10 +375,20 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Hospital geofence can only be configured while you are physically at the hospital. Turn on Location Services and use your current GPS location." }, { status: 400 });
   }
   if (dutyEnabled) {
-    const setupCheck = evaluateGeofence(
+    const accuracyCheck = validateGpsAccuracy(currentAccuracyMeters);
+    if (!accuracyCheck.ok) {
+      return NextResponse.json({ error: accuracyCheck.error }, { status: 400 });
+    }
+    const setupCheck = evaluateGeofenceFix(
       { enabled: true, lat: dutyLat, lng: dutyLng, radiusMeters: 300 },
       currentLat,
       currentLng,
+      currentAccuracyMeters,
+    );
+      { enabled: true, lat: dutyLat, lng: dutyLng, radiusMeters: 300 },
+      currentLat,
+      currentLng,
+      currentAccuracyMeters,
     );
     if (!setupCheck.within) {
       return NextResponse.json({ error: setupCheck.error || "You must be within 300 m of the hospital to configure its geofence." }, { status: 403 });
