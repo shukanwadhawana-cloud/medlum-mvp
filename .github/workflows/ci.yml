@@ -621,6 +621,8 @@ jobs:
         run: npm run test:password-reset-runtime
       - name: Run longitudinal IPD case-summary runtime acceptance
         run: npm run test:ipd-case-summary-runtime
+      - name: Run IPD consultant assignment and transfer HTTP acceptance
+        run: npm run test:ipd-consultant-runtime
       - name: Print application logs on failure
         if: failure()
         run: cat /tmp/medlum-next.log
