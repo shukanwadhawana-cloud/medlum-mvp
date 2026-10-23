@@ -139,6 +139,55 @@ try {
   assert.equal(facility.telegram, null, "Facility Telegram integration must remain optional.");
   assert.ok(!JSON.stringify(facility).includes("telegramToken"), "Bot token must never be returned to the caller.");
 
+  // End-to-end facility geofence activation against this synthetic PostgreSQL fixture.
+  // Deliberately overwrite any best-effort geocoder candidate with deterministic test coordinates.
+  const geofenceCenter = { lat: 19.076, lng: 72.8777 };
+  await prisma.clinic.update({
+    where: { id: facility.id },
+    data: {
+      dutyLat: geofenceCenter.lat,
+      dutyLng: geofenceCenter.lng,
+      dutyRadiusMeters: 200,
+      dutyEnabled: false,
+    },
+  });
+  const geofencePath = `/api/owner/facilities/${facility.id}/geofence`;
+  const geofenceInitial = await requestJson(geofencePath, { cookie: platformCookie });
+  assert.equal(geofenceInitial.status, 200, "Master Owner can read new facility geofence status.");
+  assert.equal(geofenceInitial.data?.hasCoordinates, true, "Facility-specific coordinates are persisted.");
+  assert.equal(geofenceInitial.data?.dutyEnabled, false, "Coordinates must not silently enable attendance enforcement.");
+
+  const inaccurateActivation = await requestJson(geofencePath, {
+    method: "POST",
+    cookie: platformCookie,
+    body: {
+      action: "activate-address",
+      currentLat: geofenceCenter.lat,
+      currentLng: geofenceCenter.lng,
+      accuracyMeters: 120,
+      radiusMeters: 200,
+    },
+  });
+  assert.equal(inaccurateActivation.status, 400, "Geofence activation must reject a GPS fix worse than 100 m.");
+  const stillDisabled = await prisma.clinic.findUnique({ where: { id: facility.id }, select: { dutyEnabled: true } });
+  assert.equal(stillDisabled?.dutyEnabled, false, "A rejected activation must not enable the facility geofence.");
+
+  const activateGeofence = await requestJson(geofencePath, {
+    method: "POST",
+    cookie: platformCookie,
+    body: {
+      action: "activate-address",
+      currentLat: geofenceCenter.lat,
+      currentLng: geofenceCenter.lng,
+      accuracyMeters: 20,
+      radiusMeters: 200,
+    },
+  });
+  assert.equal(activateGeofence.status, 200, `Accurate on-site activation should succeed; got ${activateGeofence.status}: ${activateGeofence.raw}`);
+  assert.equal(activateGeofence.data?.status, "ACTIVE", "Successful activation returns ACTIVE.");
+  assert.equal(activateGeofence.data?.dutyEnabled, true, "Successful activation enables this facility only.");
+  assert.equal(activateGeofence.data?.dutyRadiusMeters, 200, "Configured radius is preserved.");
+
   const setupPassword = await requestJson("/api/auth/password-reset/complete", {
     method: "POST",
     body: { token: setupToken, newPassword: ownerPassword, confirmPassword: ownerPassword },
@@ -233,6 +282,88 @@ try {
     assert.ok(staffAfter.data.members.some((x) => x.id === created.id && x.role === created.role),
       `New ${created.role} must appear in this hospital's staff list.`);
   }
+
+  // Verify authenticated attendance enforcement over HTTP, including a second
+  // synthetic clinic with a different centre. All events stay in isolated CI PostgreSQL.
+  const noAccuracyPunch = await requestJson("/api/duty", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { type: "IN", clinicId: facility.id, lat: geofenceCenter.lat, lng: geofenceCenter.lng },
+  });
+  assert.equal(noAccuracyPunch.status, 400, "Geofenced attendance must reject a missing GPS accuracy reading.");
+
+  const poorAccuracyPunch = await requestJson("/api/duty", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { type: "IN", clinicId: facility.id, lat: geofenceCenter.lat, lng: geofenceCenter.lng, accuracyMeters: 150 },
+  });
+  assert.equal(poorAccuracyPunch.status, 400, "Geofenced attendance must reject imprecise GPS readings.");
+
+  const offset150mLat = 150 / 111_195;
+  const uncertainBoundaryPunch = await requestJson("/api/duty", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: {
+      type: "IN",
+      clinicId: facility.id,
+      lat: geofenceCenter.lat + offset150mLat,
+      lng: geofenceCenter.lng,
+      accuracyMeters: 60,
+    },
+  });
+  assert.equal(uncertainBoundaryPunch.status, 400, "Attendance must reject a GPS uncertainty region that crosses the geofence boundary.");
+
+  const acceptedPunch = await requestJson("/api/duty", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { type: "IN", clinicId: facility.id, lat: geofenceCenter.lat, lng: geofenceCenter.lng, accuracyMeters: 25 },
+  });
+  assert.equal(acceptedPunch.status, 200, `Accurate punch-in inside the selected hospital should succeed; got ${acceptedPunch.status}: ${acceptedPunch.raw}`);
+  assert.equal(acceptedPunch.data?.event?.withinGeofence, true, "Accepted punch is recorded within its facility geofence.");
+
+  const secondFacility = await prisma.clinic.create({
+    data: {
+      name: `SYNTHETIC CI Second Geofence Hospital ${suffix}`,
+      address: "2 Synthetic Test Road",
+      phone: "0000000007",
+      email: `ci-second-geofence-${suffix}@example.invalid`,
+      registrationNo: `CI-GEOFENCE-REG-${suffix}`,
+      isActive: true,
+    },
+  });
+  await prisma.clinicMember.create({
+    data: {
+      clinicId: secondFacility.id,
+      doctorId: facilityOwnerId,
+      role: "Owner",
+      designation: "Facility Owner",
+      isActive: true,
+    },
+  });
+  await prisma.clinic.update({
+    where: { id: secondFacility.id },
+    data: { dutyLat: 19.5, dutyLng: geofenceCenter.lng, dutyRadiusMeters: 200, dutyEnabled: true },
+  });
+  const crossFacilityPosition = await requestJson("/api/duty", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { type: "IN", clinicId: secondFacility.id, lat: geofenceCenter.lat, lng: geofenceCenter.lng, accuracyMeters: 25 },
+  });
+  assert.equal(crossFacilityPosition.status, 400, "A coordinate inside hospital A must be rejected by hospital B's independent geofence.");
+
+  const acceptedOut = await requestJson("/api/duty", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { type: "OUT", clinicId: facility.id, lat: geofenceCenter.lat, lng: geofenceCenter.lng, accuracyMeters: 25 },
+  });
+  assert.equal(acceptedOut.status, 200, `Accurate punch-out inside the same hospital should succeed; got ${acceptedOut.status}: ${acceptedOut.raw}`);
+  const verifiedEvents = await prisma.dutyAttendanceEvent.findMany({
+    where: { clinicId: facility.id, memberId: ownerMembership.id },
+    orderBy: { punchedAt: "asc" },
+    select: { type: true, withinGeofence: true },
+  });
+  assert.deepEqual(verifiedEvents.map((event) => event.type), ["IN", "OUT"], "Only the successful IN and OUT are persisted.");
+  assert.ok(verifiedEvents.every((event) => event.withinGeofence), "Persisted punches are marked within their own facility geofence.");
 
   console.log(JSON.stringify({
     passed: true,
