@@ -181,10 +181,12 @@ export default function DutyPage() {
       }
       let currentLat: number | null = null;
       let currentLng: number | null = null;
+      let currentAccuracyMeters: number | null = null;
       if (geoForm.dutyEnabled) {
         const pos = await getPosition();
         currentLat = pos.lat;
         currentLng = pos.lng;
+        currentAccuracyMeters = pos.accuracyMeters;
       }
       const query = selectedClinicId ? `?clinicId=${encodeURIComponent(selectedClinicId)}` : "";
       const res = await fetch(`/api/duty${query}`, {
@@ -199,6 +201,7 @@ export default function DutyPage() {
           dutyRadiusMeters: radius,
           currentLat,
           currentLng,
+          currentAccuracyMeters,
         }),
       });
       const body = await res.json().catch(() => ({}));
