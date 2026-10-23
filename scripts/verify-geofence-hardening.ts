@@ -29,8 +29,8 @@ const outside = evaluateGeofenceFix(fence, center.lat + 0.004, center.lng, 10);
 assert.equal(outside.ok, false, "a point outside the hospital fence is rejected");
 assert.equal(outside.within, false, "outside point cannot be marked within");
 
-const 150mLat = 150 / 111_195;
-const nearBoundary = evaluateGeofenceFix(fence, center.lat + 150mLat, center.lng, 60);
+const offset150mLat = 150 / 111_195;
+const nearBoundary = evaluateGeofenceFix(fence, center.lat + offset150mLat, center.lng, 60);
 assert.equal(nearBoundary.ok, false, "GPS uncertainty crossing the fence boundary is rejected");
 assert.match(nearBoundary.error || "", /uncertainty/i, "boundary uncertainty explains why punch was rejected");
 
