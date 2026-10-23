@@ -375,6 +375,10 @@ try {
     ownerPasswordAndOtpLogin: true,
     staffRolesCreated: createdStaff.map((x) => x.role),
     facilityScopedStaffVisibility: true,
+    geofenceActivationAccuracyGate: true,
+    geofencedPunchInAndOut: true,
+    inaccurateFixAndBoundaryRejection: true,
+    differentHospitalCoordinatesEnforced: true,
     realDataTouched: false,
   }));
 } catch (error) {
