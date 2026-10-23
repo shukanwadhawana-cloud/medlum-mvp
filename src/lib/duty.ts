@@ -68,6 +68,68 @@ export function evaluateGeofence(
   return { ok: true, within: true, distanceMeters: Math.round(d) };
 }
 
+/**
+ * Validate the browser-reported GPS accuracy before using a location for
+ * geofence decisions. Browser GPS remains client-provided and is not
+ * hardware-attested; this prevents missing, invalid, or too-imprecise fixes
+ * from being treated as reliable locations.
+ */
+export const MAX_DUTY_GPS_ACCURACY_METERS = 100;
+
+export function validateGpsAccuracy(
+  accuracyMeters: number | null | undefined,
+): { ok: boolean; error?: string } {
+  if (
+    accuracyMeters == null ||
+    !Number.isFinite(accuracyMeters) ||
+    accuracyMeters <= 0
+  ) {
+    return {
+      ok: false,
+      error: "A valid GPS accuracy reading is required. Enable precise Location Services and try again.",
+    };
+  }
+  if (accuracyMeters > MAX_DUTY_GPS_ACCURACY_METERS) {
+    return {
+      ok: false,
+      error: `GPS accuracy is currently about ${Math.round(accuracyMeters)} m. MedLum requires a fix within ${MAX_DUTY_GPS_ACCURACY_METERS} m; move to an open area and retry.`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Conservative check for an attendance punch or address-based activation.
+ * The full reported uncertainty must fit inside the geofence radius, not just
+ * the reported point. This is a quality check, not GPS anti-spoof attestation.
+ */
+export function evaluateGeofenceFix(
+  cfg: GeofenceConfig,
+  lat: number | null | undefined,
+  lng: number | null | undefined,
+  accuracyMeters: number | null | undefined,
+): { ok: boolean; within: boolean; distanceMeters: number | null; error?: string } {
+  const base = evaluateGeofence(cfg, lat, lng);
+  if (!base.ok || !cfg.enabled) return base;
+
+  const accuracy = validateGpsAccuracy(accuracyMeters);
+  if (!accuracy.ok) {
+    return { ok: false, within: false, distanceMeters: base.distanceMeters, error: accuracy.error };
+  }
+
+  const exactDistance = distanceMeters(cfg.lat as number, cfg.lng as number, lat as number, lng as number);
+  const radius = Math.max(50, Math.min(5000, cfg.radiusMeters || 200));
+  if (exactDistance + (accuracyMeters as number) > radius) {
+    return {
+      ok: false,
+      within: false,
+      distanceMeters: Math.round(exactDistance),
+      error: `Your GPS uncertainty is too large to confirm you are inside this hospital's ${radius} m boundary. Move closer to the saved centre or improve GPS accuracy.`,
+    };
+  }
+  return { ...base, within: true };
+}
+
 export function formatIst(iso: Date | string) {
   const d = typeof iso === "string" ? new Date(iso) : iso;
   return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });

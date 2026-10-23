@@ -95,6 +95,8 @@ jobs:
         run: npm run test:p1-closure
       - name: Verify staff and workforce management
         run: npm run test:staff-workforce
+      - name: Verify duty geofence GPS accuracy and boundary cases
+        run: npm run test:geofence-hardening
       - name: Verify duty and attendance management
         run: npm run test:duty
       - name: Verify role-aware staff access and navigation

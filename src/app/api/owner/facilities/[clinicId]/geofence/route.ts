@@ -5,7 +5,7 @@ import { isMedlumOwnerEmail } from "@/lib/owner";
 import { getClinicSetup } from "@/lib/clinic-products";
 import { geocodeFacilityAddress } from "@/lib/facility-geocoding";
 import { writeAudit } from "@/lib/audit";
-import { evaluateGeofence } from "@/lib/duty";
+import { evaluateGeofenceFix, validateGpsAccuracy } from "@/lib/duty";
 
 export const runtime = "nodejs";
 
@@ -60,7 +60,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ clinicI
     }
     const currentLat = Number(body.currentLat);
     const currentLng = Number(body.currentLng);
-    const check = evaluateGeofence({ enabled: true, lat: clinic.dutyLat, lng: clinic.dutyLng, radiusMeters: 300 }, currentLat, currentLng);
+    const accuracyMeters = body.accuracyMeters != null ? Number(body.accuracyMeters) : null;
+    const accuracyCheck = validateGpsAccuracy(accuracyMeters);
+    if (!accuracyCheck.ok) {
+      return NextResponse.json({ success: false, error: accuracyCheck.error }, { status: 400 });
+    }
+    const check = evaluateGeofenceFix(
+      { enabled: true, lat: clinic.dutyLat, lng: clinic.dutyLng, radiusMeters: 300 },
+      currentLat,
+      currentLng,
+      accuracyMeters,
+    );
     if (!check.ok) return NextResponse.json({ success: false, error: check.error || "You must be within 300 m of this hospital to verify its address coordinates.", distanceMeters: check.distanceMeters }, { status: 403 });
     const radius = Math.max(100, Math.min(300, Math.round(Number(body.radiusMeters) || clinic.dutyRadiusMeters || 200)));
     const updated = await prisma.clinic.update({
@@ -75,8 +85,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ clinicI
   if (action === "activate-gps") {
     const currentLat = Number(body.currentLat);
     const currentLng = Number(body.currentLng);
+    const accuracyMeters = body.accuracyMeters != null ? Number(body.accuracyMeters) : null;
     if (!Number.isFinite(currentLat) || !Number.isFinite(currentLng) || currentLat < -90 || currentLat > 90 || currentLng < -180 || currentLng > 180) {
       return NextResponse.json({ success: false, error: "A valid device GPS fix is required. Allow location access and retry while at the hospital." }, { status: 400 });
+    }
+    const accuracyCheck = validateGpsAccuracy(accuracyMeters);
+    if (!accuracyCheck.ok) {
+      return NextResponse.json({ success: false, error: accuracyCheck.error }, { status: 400 });
     }
     const radius = Math.max(100, Math.min(300, Math.round(Number(body.radiusMeters) || clinic.dutyRadiusMeters || 200)));
     const updated = await prisma.clinic.update({
