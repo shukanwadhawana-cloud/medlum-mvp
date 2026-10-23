@@ -85,6 +85,17 @@ ok(lib.includes("evaluateGeofence"), "evaluateGeofence");
 ok(lib.includes("istDayStartUtc") || lib.includes("Asia/Kolkata"), "IST helpers");
 ok(lib.includes("isDutyAdminRole"), "isDutyAdminRole");
 
+const facilityGeofence = readFileSync("src/app/api/owner/facilities/[clinicId]/geofence/route.ts", "utf8");
+ok(api.includes("evaluateGeofenceFix"), "duty punches require validated GPS fixes when geofencing is enabled");
+ok(api.includes("currentAccuracyMeters"), "duty geofence activation receives current GPS accuracy");
+ok(facilityGeofence.includes("isMedlumOwnerEmail"), "facility geofence management is master-owner gated");
+ok(facilityGeofence.includes("evaluateGeofenceFix"), "address-based activation checks geofence and GPS uncertainty");
+ok(facilityGeofence.includes("validateGpsAccuracy"), "GPS activation rejects missing or imprecise fix metadata");
+ok(facilityGeofence.includes('action === "activate-address"'), "facility has address geocode verification activation");
+ok(facilityGeofence.includes('action === "activate-gps"'), "facility has on-site GPS activation fallback");
+const ownerHospitals = readFileSync("src/app/owner/hospitals/page.tsx", "utf8");
+ok(ownerHospitals.includes("accuracyMeters:gps.accuracyMeters"), "owner activation sends device-reported GPS accuracy");
+
 const adap = readFileSync("src/lib/saniddhi.ts", "utf8");
 ok(adap.includes("SANIDDHI_API_KEY"), "env-based credentials");
 ok(!adap.includes("sk_live"), "no hard-coded secrets");
