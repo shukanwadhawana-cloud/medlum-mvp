@@ -24,6 +24,9 @@ const ids = {
   ownerA: "ci_ca_owner_a",
   doctorResetOtp: "ci_ca_password_reset_otp",
   doctorResetLink: "ci_ca_password_reset_link",
+  consultantOne: "ci_ca_consultant_one",
+  consultantTwo: "ci_ca_consultant_two",
+  consultantPatient: "ci_ca_consultant_patient",
   patientA: "ci_ca_patient_a",
   patientB: "ci_ca_patient_b",
   casePatient: "ci_ca_case_patient",
@@ -64,6 +67,8 @@ async function main() {
     { id: ids.ownerA, name: "Synthetic Password Reset Owner", email: "password-reset-owner@example.invalid", clinicName: "Synthetic CI Clinic A", phone: "0000000005" },
     { id: ids.doctorResetOtp, name: "Synthetic Password Reset OTP User", email: "password-reset-otp@example.invalid", clinicName: "Synthetic CI Clinic B", phone: "0000000006" },
     { id: ids.doctorResetLink, name: "Synthetic Password Reset Link User", email: "password-reset-link@example.invalid", clinicName: "Synthetic CI Clinic A", phone: "0000000007" },
+    { id: ids.consultantOne, name: "Synthetic Consultant One", email: "ipd-consultant-one@example.invalid", clinicName: "Synthetic CI Clinic A", phone: "0000000011" },
+    { id: ids.consultantTwo, name: "Synthetic Consultant Two", email: "ipd-consultant-two@example.invalid", clinicName: "Synthetic CI Clinic A", phone: "0000000012" },
   ];
   for (const doctor of doctors) {
     await prisma.doctor.upsert({
@@ -95,6 +100,17 @@ async function main() {
     update: { role: "Owner", isActive: true },
   });
   await prisma.clinicMember.upsert({
+    where: { clinicId_doctorId: { clinicId: ids.clinicA, doctorId: ids.consultantOne } },
+    create: { clinicId: ids.clinicA, doctorId: ids.consultantOne, role: "Consultant", staffCode: "CI-CONS-001", designation: "Consultant", department: "General Medicine", isActive: true },
+    update: { role: "Consultant", staffCode: "CI-CONS-001", designation: "Consultant", department: "General Medicine", isActive: true },
+  });
+  await prisma.clinicMember.upsert({
+    where: { clinicId_doctorId: { clinicId: ids.clinicA, doctorId: ids.consultantTwo } },
+    create: { clinicId: ids.clinicA, doctorId: ids.consultantTwo, role: "Consultant", staffCode: "CI-CONS-002", designation: "Consultant", department: "Cardiology", isActive: true },
+    update: { role: "Consultant", staffCode: "CI-CONS-002", designation: "Consultant", department: "Cardiology", isActive: true },
+  });
+
+  await prisma.clinicMember.upsert({
     where: { clinicId_doctorId: { clinicId: ids.clinicB, doctorId: ids.doctorResetOtp } },
     create: { clinicId: ids.clinicB, doctorId: ids.doctorResetOtp, role: "Laboratory", staffCode: "CI-RESET-OTP-001", isActive: true },
     update: { role: "Laboratory", isActive: true },
@@ -114,6 +130,31 @@ async function main() {
     where: { id: ids.patientB },
     create: { id: ids.patientB, doctorId: ids.doctorB, clinicId: ids.clinicB, name: "SYNTHETIC QA PATIENT B", age: 36, gender: "Other", phone: "0000000102" },
     update: {},
+  });
+
+  const consultantProfile = {
+    admissionDate: "2026-10-23T09:00:00+05:30",
+    chiefComplaint: "Synthetic consultant-assignment acceptance fixture",
+    workingDiagnosis: "Synthetic runtime test diagnosis",
+    diagnosis: "Synthetic runtime test diagnosis",
+    consultantName: "",
+    consultantSpecialty: "",
+    consultantMemberId: "",
+    wardType: "General Ward",
+    unitType: "Ward",
+    roomNumber: "CI-IPD-CONSULTANT-001",
+  };
+  const consultantPatientNotes = "__MEDLUM_CARE_SETTING__:IPD\n__MEDLUM_PROFILE__:" + JSON.stringify(consultantProfile);
+  await prisma.patient.upsert({
+    where: { id: ids.consultantPatient },
+    create: {
+      id: ids.consultantPatient, doctorId: ids.ownerA, clinicId: ids.clinicA,
+      name: "SYNTHETIC IPD CONSULTANT ASSIGNMENT PATIENT", age: 46, gender: "Other",
+      phone: "0000000911", uhid: "SYNTHETIC-IPD-CONSULTANT-001",
+      registrationNo: "SYNTHETIC-REG-CONSULTANT-001", allergies: "Synthetic allergy fixture",
+      status: "ACTIVE", notes: consultantPatientNotes,
+    },
+    update: { clinicId: ids.clinicA, doctorId: ids.ownerA, status: "ACTIVE", notes: consultantPatientNotes, allergies: "Synthetic allergy fixture" },
   });
 
   // Dedicated, fully synthetic inpatient timeline used only by the ephemeral runtime acceptance job.
