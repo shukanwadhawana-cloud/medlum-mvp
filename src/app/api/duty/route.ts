@@ -385,11 +385,6 @@ export async function PATCH(req: Request) {
       currentLng,
       currentAccuracyMeters,
     );
-      { enabled: true, lat: dutyLat, lng: dutyLng, radiusMeters: 300 },
-      currentLat,
-      currentLng,
-      currentAccuracyMeters,
-    );
     if (!setupCheck.within) {
       return NextResponse.json({ error: setupCheck.error || "You must be within 300 m of the hospital to configure its geofence." }, { status: 403 });
     }
