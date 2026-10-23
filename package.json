@@ -65,6 +65,7 @@
     "test:clinical-assist-live": "node scripts/verify-clinical-assist-live.mjs",
     "test:clinical-assist-runtime": "node scripts/verify-clinical-assist-runtime.mjs",
     "test:duty": "node scripts/verify-duty.mjs",
+    "test:geofence-hardening": "npx --yes tsx scripts/verify-geofence-hardening.ts",
     "test:patient-discovery": "node scripts/verify-patient-discovery.mjs",
     "test:facility-data-migration": "node scripts/verify-facility-data-migration-security.mjs",
     "test:p2-01": "node scripts/verify-p2-01-ipd-discharge.mjs",
