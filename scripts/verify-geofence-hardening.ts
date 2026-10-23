@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {
   distanceMeters,
-  evaluateGeofence,
   evaluateGeofenceFix,
   validateGpsAccuracy,
   type GeofenceConfig,
@@ -44,5 +43,5 @@ assert.equal(missingFix.ok, false, "geofenced attendance requires accuracy metad
 const disabledFence = evaluateGeofenceFix({ ...fence, enabled: false }, center.lat, center.lng, null);
 assert.equal(disabledFence.ok, true, "disabled geofencing preserves existing non-geofence behavior");
 
-assert.ok(distanceMeters(center.lat, center.lng, center.lat + 150mLat, center.lng) > 140);
+assert.ok(distanceMeters(center.lat, center.lng, center.lat + offset150mLat, center.lng) > 140);
 console.log("Geofence GPS accuracy regression tests PASSED");
