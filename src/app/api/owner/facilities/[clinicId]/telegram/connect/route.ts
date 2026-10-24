@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { isMedlumOwnerEmail } from "@/lib/owner";
-import { createFacilityTelegramConnection, ensureFacilityTelegramWebhook } from "@/lib/facility-telegram";
+import { createFacilityTelegramConnection, ensureFacilityTelegramWebhook, getFacilityTelegramWebhookDiagnostics } from "@/lib/facility-telegram";
 
 export const runtime = "nodejs";
 
@@ -44,7 +44,7 @@ export async function GET(
 }
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ clinicId: string }> }
 ) {
   const { clinicId } = await params;
@@ -57,6 +57,37 @@ export async function POST(
   });
   if (!integration?.enabled) {
     return NextResponse.json({ success: false, error: "Facility Telegram is not configured." }, { status: 404 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  if (body.action === "repair-webhook") {
+    try {
+      await ensureFacilityTelegramWebhook(clinicId);
+      const diagnostics = await getFacilityTelegramWebhookDiagnostics(clinicId);
+      return NextResponse.json({
+        success: true,
+        message: diagnostics.webhookUrlMatches
+          ? "Telegram webhook is registered at the correct MedLum facility endpoint."
+          : "Telegram webhook URL still does not match the expected endpoint.",
+        diagnostics,
+      });
+    } catch (error) {
+      console.error("[MedLum Facility Telegram] webhook repair/diagnostics failed", {
+        clinicId,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      const reason = error instanceof Error ? error.message : "unknown";
+      const errorMessage = reason === "TELEGRAM_WEBHOOK_SECRET_MISSING"
+        ? "Telegram webhook security is not configured on the server. Configure TELEGRAM_WEBHOOK_SECRET and redeploy."
+        : reason === "TELEGRAM_WEBHOOK_SECRET_INVALID_FORMAT"
+          ? "TELEGRAM_WEBHOOK_SECRET contains characters Telegram does not allow. Use only letters, numbers, underscores, or hyphens."
+          : reason === "FACILITY_TELEGRAM_NOT_CONFIGURED"
+            ? "This facility has no enabled Telegram bot configuration."
+            : /unauthorized|invalid token/i.test(reason)
+              ? "Telegram rejected this facility's bot token. Restore a valid BotFather token."
+              : "Telegram webhook repair failed. Review the webhook diagnostic error in production logs.";
+      return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+    }
   }
 
   try {
