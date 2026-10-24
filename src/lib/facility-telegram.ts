@@ -170,7 +170,7 @@ export async function getFacilityTelegramWebhookDiagnostics(clinicId: string) {
 export function facilityTelegramWebhookUrl(clinicId: string): string {
   const origin = String(
     process.env.MEDLUM_APP_URL || process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_ENV === "production" ? "https://medlum-mvp.vercel.app" : "")
+    (process.env.VERCEL_ENV === "production" ? "https://medlumhealth.com" : "")
   ).trim().replace(/\/$/, "");
   return `${origin || "http://localhost:3000"}/api/telegram/facility/${encodeURIComponent(clinicId)}`;
 }
