@@ -102,13 +102,15 @@ export async function POST(
     const reason = error instanceof Error ? error.message : "unknown";
     const publicError = reason === "TELEGRAM_WEBHOOK_SECRET_MISSING"
       ? "Telegram webhook security is not configured on the server. Configure TELEGRAM_WEBHOOK_SECRET and redeploy."
-      : reason === "FACILITY_TELEGRAM_NOT_CONFIGURED"
-        ? "This facility has no Telegram bot configured. The existing facility's bot configuration must be restored."
-        : /unauthorized|invalid token/i.test(reason)
-          ? "Telegram rejected the bot token. Re-enter a valid token from BotFather for this facility."
-          : /webhook|url/i.test(reason)
-            ? "Telegram rejected the webhook URL or settings. Confirm MEDLUM_APP_URL points to https://medlumhealth.com, then retry."
-            : "Could not prepare the Telegram connection. Check the facility bot token and server configuration, then retry.";
+      : reason === "TELEGRAM_WEBHOOK_SECRET_INVALID_FORMAT"
+        ? "TELEGRAM_WEBHOOK_SECRET contains characters Telegram does not allow. Use only letters, numbers, underscores, or hyphens."
+        : reason === "FACILITY_TELEGRAM_NOT_CONFIGURED"
+          ? "This facility has no Telegram bot configured. The existing facility's bot configuration must be restored."
+          : /unauthorized|invalid token/i.test(reason)
+            ? "Telegram rejected the bot token. Re-enter a valid token from BotFather for this facility."
+            : reason === "TELEGRAM_WEBHOOK_URL_MISMATCH" || /webhook|url/i.test(reason)
+              ? "Telegram did not confirm the expected webhook URL. Confirm MEDLUM_APP_URL points to https://medlumhealth.com and use Diagnose / repair webhook."
+              : "Could not prepare the Telegram connection. Check the facility bot token and server configuration, then retry.";
     return NextResponse.json({ success: false, error: publicError }, { status: 500 });
   }
 }
