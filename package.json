@@ -60,6 +60,7 @@
     "db:push": "echo 'db push disabled for production safety; use npm run db:migrate:deploy' && exit 1",
     "postinstall": "prisma generate",
     "test:telegram-otp": "node scripts/verify-telegram-otp.mjs",
+    "test:facility-telegram-handshake": "npx --yes tsx scripts/verify-facility-telegram-handshake.ts",
     "test:lab-documents": "node scripts/verify-lab-documents.mjs",
     "test:document-intelligence": "node scripts/verify-document-intelligence.mjs",
     "test:clinical-assist-live": "node scripts/verify-clinical-assist-live.mjs",
