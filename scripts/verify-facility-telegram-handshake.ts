@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
+  facilityTelegramWebhookUrl,
   parseFacilityTelegramStartCommand,
   validateFacilityTelegramStartPayload,
 } from "../src/lib/facility-telegram";
@@ -27,6 +28,27 @@ assert.equal(validateFacilityTelegramStartPayload(`/start ${code}`, null, expiry
 assert.equal(validateFacilityTelegramStartPayload(`/start ${code}`, hash, new Date(now), now).reason, "expired");
 assert.equal(validateFacilityTelegramStartPayload("/start wrong-code", hash, expiry, now).reason, "code_mismatch");
 assert.equal(validateFacilityTelegramStartPayload("/help", hash, expiry, now).reason, "not_start");
+
+// Production must use the canonical domain if deployment URL env vars are absent.
+const savedMedlumAppUrl = process.env.MEDLUM_APP_URL;
+const savedPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const savedVercelEnv = process.env.VERCEL_ENV;
+try {
+  delete process.env.MEDLUM_APP_URL;
+  delete process.env.NEXT_PUBLIC_APP_URL;
+  process.env.VERCEL_ENV = "production";
+  assert.equal(
+    facilityTelegramWebhookUrl("clinic-test"),
+    "https://medlumhealth.com/api/telegram/facility/clinic-test",
+  );
+} finally {
+  if (savedMedlumAppUrl === undefined) delete process.env.MEDLUM_APP_URL;
+  else process.env.MEDLUM_APP_URL = savedMedlumAppUrl;
+  if (savedPublicAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+  else process.env.NEXT_PUBLIC_APP_URL = savedPublicAppUrl;
+  if (savedVercelEnv === undefined) delete process.env.VERCEL_ENV;
+  else process.env.VERCEL_ENV = savedVercelEnv;
+}
 
 const lib = readFileSync("src/lib/facility-telegram.ts", "utf8");
 const webhook = readFileSync("src/app/api/telegram/facility/[clinicId]/route.ts", "utf8");
