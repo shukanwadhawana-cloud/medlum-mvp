@@ -110,7 +110,7 @@ export type FacilityTelegramStartValidation = {
 /** Parse Telegram deep-link payloads including /start@BotName payload forms. */
 export function parseFacilityTelegramStartCommand(text: string): { isStart: boolean; payload: string } {
   const trimmed = String(text || "").trim();
-  const match = trimmed.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\\s+([\\s\\S]*))?$/i);
+  const match = trimmed.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+([\s\S]*))?$/i);
   if (!match) return { isStart: false, payload: "" };
   return { isStart: true, payload: String(match[1] || "").trim() };
 }
