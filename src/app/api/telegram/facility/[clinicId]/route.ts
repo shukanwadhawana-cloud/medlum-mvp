@@ -6,14 +6,21 @@ import { parseFacilityTelegramStartCommand, validateFacilityTelegramStartPayload
 export const runtime = "nodejs";
 
 async function send(token: string, chatId: string, text: string) {
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
-    cache: "no-store",
-  });
-  const payload = (await response.json().catch(() => null)) as any;
-  if (!response.ok || !payload?.ok) throw new Error(String(payload?.description || "Telegram send failed"));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const payload = (await response.json().catch(() => null)) as any;
+    if (!response.ok || !payload?.ok) throw new Error(String(payload?.description || `Telegram send failed (HTTP ${response.status})`));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function POST(
@@ -69,7 +76,7 @@ export async function POST(
       try {
         let guidance = "This MedLum connection link could not be verified. Return to MedLum Owner → Hospitals, select this hospital, and generate a fresh Telegram link.";
         if (validation.reason === "missing_payload") {
-          guidance = "You opened the bot without the one-time hospital link. Return to MedLum Owner → Hospitals, select Sanskriti Hospital, tap Connect Telegram, then open that exact generated link and press Start.";
+          guidance = "You opened the bot without the one-time hospital link. Return to MedLum Owner → Hospitals, select this hospital, tap Connect Telegram, then open that exact generated link and press Start.";
         } else if (validation.reason === "expired") {
           guidance = "This MedLum hospital connection link has expired. Return to MedLum Owner → Hospitals, select this hospital, generate a fresh Telegram link, and press Start within 30 minutes.";
         } else if (validation.reason === "missing_pending_code") {
@@ -83,6 +90,8 @@ export async function POST(
           clinicId,
           reason: error instanceof Error ? error.message.slice(0, 180) : "unknown",
         });
+        // Return a non-2xx response so Telegram retries delivery instead of silently dropping the update.
+        return NextResponse.json({ ok: false, error: "reply_failed" }, { status: 502 });
       }
       return NextResponse.json({ ok: true });
     }
@@ -114,6 +123,7 @@ export async function POST(
         where: { clinicId },
         data: { status: "ERROR" },
       }).catch(() => undefined);
+      return NextResponse.json({ ok: false, error: "reply_failed" }, { status: 502 });
     }
     return NextResponse.json({ ok: true });
   }
@@ -123,6 +133,10 @@ export async function POST(
   if (startCommand.isStart) {
     try {
       await send(decryptSecret(integration.encryptedToken), chatId, "MedLum facility Telegram is connected and ready for notifications.");
+      await prisma.facilityTelegramIntegration.update({
+        where: { clinicId },
+        data: { status: "CONNECTED", lastVerifiedAt: new Date() },
+      });
     } catch (error) {
       console.error("[MedLum Facility Telegram] connected /start reply failed", {
         clinicId,
@@ -132,6 +146,7 @@ export async function POST(
         where: { clinicId },
         data: { status: "ERROR" },
       }).catch(() => undefined);
+      return NextResponse.json({ ok: false, error: "reply_failed" }, { status: 502 });
     }
   }
 
