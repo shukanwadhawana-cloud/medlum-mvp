@@ -85,6 +85,8 @@ jobs:
         run: npm run test:otp-login-invariant
       - name: Verify Telegram OTP security and linking
         run: npm run test:telegram-otp
+      - name: Verify facility Telegram start handshake and webhook repair
+        run: npm run test:facility-telegram-handshake
       - name: Verify secure password reset and staff recovery
         run: npm run test:password-reset
       - name: Verify lab document upload, extraction and retry safety
