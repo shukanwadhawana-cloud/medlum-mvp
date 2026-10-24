@@ -14,6 +14,19 @@ function FacilityControls({facility,onDone}:{facility:Hospital;onDone:()=>void})
  const remove=async()=>{if(window.prompt(`Type "${facility.name}" to permanently delete this facility.`)!==facility.name)return;const reason=window.prompt("Why is this facility being permanently deleted?");if(!reason?.trim())return;setBusy(true);setError("");try{const r=await fetch(`/api/owner/facilities/${facility.id}`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({confirmName:facility.name,reason:reason.trim()})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Unable to delete facility");window.location.href="/owner/hospitals";}catch(e){setError(e instanceof Error?e.message:"Unable to delete facility");}finally{setBusy(false);}};
  return <div className="mt-4 flex flex-col gap-3"><div className="flex flex-wrap gap-2">{facility.isActive&&<><button disabled={busy} onClick={()=>changeStatus("GRACE_PERIOD","Payment grace period")} className="rounded-lg border px-3 py-2 text-sm">Grace period</button><button disabled={busy} onClick={()=>changeStatus("SUSPENDED","Manual Master Owner suspension")} className="rounded-lg border px-3 py-2 text-sm">Suspend access</button><button disabled={busy} onClick={()=>changeStatus("LICENSE_EXPIRED","License expired")} className="rounded-lg border px-3 py-2 text-sm">License expired</button><button disabled={busy} onClick={()=>changeStatus("COMPLIANCE_HOLD","Compliance documentation issue")} className="rounded-lg border px-3 py-2 text-sm">Compliance hold</button><button disabled={busy} onClick={()=>changeStatus("FRAUD_HOLD","Fraud/security concern")} className="rounded-lg border px-3 py-2 text-sm">Fraud hold</button><button disabled={busy} onClick={()=>changeStatus("DEACTIVATED","Manual Master Owner deactivation")} className="rounded-lg border px-3 py-2 text-sm">Deactivate</button></>}{!facility.isActive&&<button disabled={busy} onClick={()=>changeStatus("ACTIVE","Master Owner reactivation")} className="rounded-lg bg-[#c2183a] px-3 py-2 text-sm font-semibold text-white">Reactivate</button>}<button disabled={busy} onClick={remove} className="rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700">Delete empty/test facility</button></div>{message&&<p className="text-sm text-emerald-700">{message}</p>}{error&&<p className="text-sm text-red-700">{error}</p>}</div>}
 
+type FacilityTelegramDiagnostics = {
+ webhookUrlMatches: boolean;
+ expectedWebhookUrl: string;
+ actualWebhookUrl: string | null;
+ pendingUpdateCount: number;
+ lastErrorAt: string | null;
+ lastErrorMessage: string | null;
+ connectionLinkExpired: boolean;
+ hasChat: boolean;
+ status: string;
+ botUsername: string | null;
+};
+
 function HospitalTelegramControls({clinicId}:{clinicId:string}) {
  const [status,setStatus]=useState("LOADING");
  const [configured,setConfigured]=useState(false);
@@ -21,50 +34,102 @@ function HospitalTelegramControls({clinicId}:{clinicId:string}) {
  const [botUsername,setBotUsername]=useState("");
  const [link,setLink]=useState("");
  const [expiresAt,setExpiresAt]=useState("");
- const [busy,setBusy]=useState(false);
+ const [busy,setBusy]=useState("");
  const [error,setError]=useState("");
- useEffect(()=>{
-  let active=true; let inFlight=false;
-  const refresh=async()=>{
-   if(inFlight)return; inFlight=true;
-   try{
-    const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/telegram/connect`,{method:"GET",credentials:"include",cache:"no-store"});
-    const d=await r.json();
-    if(!r.ok)throw new Error(d.error||"Unable to check Telegram status");
-    if(!active)return;
-    setConfigured(Boolean(d.configured)); setConnected(Boolean(d.connected));
-    setStatus(String(d.status||"NOT_CONFIGURED")); setBotUsername(String(d.botUsername||""));
-    if(d.connected){setLink("");setExpiresAt("");setError("");}
-   }catch(e){if(active)setError(e instanceof Error?e.message:"Unable to check Telegram status");}
-   finally{inFlight=false;}
-  };
-  void refresh(); const timer=window.setInterval(()=>void refresh(),3500);
-  return ()=>{active=false;window.clearInterval(timer);};
- },[clinicId]);
- const connect=async()=>{
-  setBusy(true);setError("");setLink("");
+ const [message,setMessage]=useState("");
+ const [diagnostics,setDiagnostics]=useState<FacilityTelegramDiagnostics|null>(null);
+
+ const refresh=useCallback(async()=>{
   try{
-   const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/telegram/connect`,{method:"POST",credentials:"include",cache:"no-store"});
+   const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/telegram/connect`,{method:"GET",credentials:"include",cache:"no-store"});
+   const d=await r.json();
+   if(!r.ok)throw new Error(d.error||"Unable to check Telegram status");
+   setConfigured(Boolean(d.configured));setConnected(Boolean(d.connected));
+   setBotUsername(String(d.botUsername||""));
+   const expiry=String(d.connectionExpiresAt||"");
+   setExpiresAt(expiry);
+   const rawStatus=String(d.status||"NOT_CONFIGURED");
+   setStatus(!d.connected&&rawStatus==="PENDING"&&expiry&&Date.parse(expiry)<=Date.now()?"EXPIRED":rawStatus);
+   if(d.connected){setLink("");setExpiresAt("");setError("");}
+  }catch(e){setError(e instanceof Error?e.message:"Unable to check Telegram status");}
+ },[clinicId]);
+
+ useEffect(()=>{
+  let active=true;
+  const run=async()=>{if(active)await refresh();};
+  void run();
+  const timer=window.setInterval(()=>void run(),5000);
+  return ()=>{active=false;window.clearInterval(timer);};
+ },[refresh]);
+
+ const connect=async()=>{
+  setBusy("connect");setError("");setMessage("");setDiagnostics(null);setLink("");
+  try{
+   const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/telegram/connect`,{method:"POST",credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"connect"})});
    const d=await r.json();
    if(!r.ok)throw new Error(d.error||"Could not prepare Telegram connection");
    setLink(String(d.deepLink||""));setExpiresAt(String(d.expiresAt||""));setBotUsername(String(d.botUsername||""));
    setConnected(false);setStatus("PENDING");
+   setMessage("A fresh one-time link is ready. Open this exact link in the intended hospital owner's Telegram account and tap Start within 30 minutes.");
+   await refresh();
   }catch(e){setError(e instanceof Error?e.message:"Could not prepare Telegram connection");}
-  finally{setBusy(false);}
+  finally{setBusy("");}
  };
- const statusLabel=connected?"CONNECTED":status==="PENDING"?"WAITING FOR TELEGRAM START":status==="ERROR"?"CONNECTION ERROR":status==="NOT_CONFIGURED"?"NOT CONFIGURED":status==="LOADING"?"CHECKING…":status;
+
+ const repairWebhook=async()=>{
+  setBusy("repair");setError("");setMessage("");setDiagnostics(null);
+  try{
+   const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/telegram/connect`,{method:"POST",credentials:"include",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"repair-webhook"})});
+   const d=await r.json();
+   if(!r.ok)throw new Error(d.error||"Could not diagnose Telegram webhook");
+   setDiagnostics(d.diagnostics||null);
+   setMessage(String(d.message||"Webhook diagnostics completed."));
+   await refresh();
+  }catch(e){setError(e instanceof Error?e.message:"Could not diagnose Telegram webhook");}
+  finally{setBusy("");}
+ };
+
+ const sendTest=async()=>{
+  setBusy("test");setError("");setMessage("");
+  try{
+   const r=await fetch(`/api/owner/facilities/${encodeURIComponent(clinicId)}/telegram/test`,{method:"POST",credentials:"include",cache:"no-store"});
+   const d=await r.json();
+   if(!r.ok)throw new Error(d.error||"Test notification could not be sent");
+   setMessage(String(d.message||"Test notification sent to the linked facility chat."));
+   await refresh();
+  }catch(e){setError(e instanceof Error?e.message:"Test notification could not be sent");}
+  finally{setBusy("");}
+ };
+
+ const statusLabel=connected?"CONNECTED":status==="PENDING"?"WAITING FOR TELEGRAM START":status==="EXPIRED"?"LINK EXPIRED — GENERATE A FRESH LINK":status==="ERROR"?"CONNECTION ERROR":status==="NOT_CONFIGURED"?"NOT CONFIGURED":status==="LOADING"?"CHECKING…":status;
+ const badgeClass=connected?"bg-emerald-100 text-emerald-800":status==="ERROR"?"bg-red-100 text-red-800":status==="EXPIRED"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-900";
+
  return <section className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
   <div className="flex flex-wrap items-center justify-between gap-2">
    <h3 className="font-semibold">Facility Telegram</h3>
-   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected?"bg-emerald-100 text-emerald-800":status==="ERROR"?"bg-red-100 text-red-800":"bg-amber-100 text-amber-900"}`}>{statusLabel}</span>
+   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>{statusLabel}</span>
   </div>
+  <p className="mt-2 text-sm text-slate-600">The bot must be connected through the one-time link for this selected hospital. Sending /start by opening the bot manually is not enough.</p>
   {botUsername&&<p className="mt-2 text-sm text-slate-600">Bot: @{botUsername}</p>}
-  {connected
-   ? <p className="mt-2 text-sm text-emerald-800">Connected. The bot has accepted the secure start link and should have sent a confirmation message in Telegram.</p>
-   : configured
-    ? <><p className="mt-2 text-sm text-slate-600">Create a fresh one-time link, open it in the hospital owner’s Telegram account, and tap <strong>Start</strong>. This page checks connection status automatically.</p><button type="button" disabled={busy} onClick={connect} className="mt-3 min-h-11 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy?"Preparing secure link…":link?"Generate a fresh link":"Connect Telegram"}</button></>
-    : <p className="mt-2 text-sm text-amber-900">No enabled Telegram bot configuration was found for this facility. A connection link alone cannot fix a missing bot token.</p>}
-  {link&&<div className="mt-3 rounded-lg border border-slate-200 bg-white p-3"><p className="text-sm font-medium">One-time connection link ready</p><a href={link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center rounded-lg bg-[#c2183a] px-4 py-2 text-sm font-semibold text-white">Open Telegram and tap Start ↗</a>{expiresAt&&<p className="mt-2 text-xs text-slate-500">Link expires: {new Date(expiresAt).toLocaleString()}</p>}<p className="mt-2 break-all text-xs text-slate-500">{link}</p></div>}
+  {connected&&<p className="mt-2 text-sm text-emerald-800">Connection confirmed. Use “Send test notification” to verify outbound delivery to this facility chat.</p>}
+  {!configured&&<p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">No enabled bot token is configured for this facility. A connection link alone cannot fix a missing or invalid BotFather token.</p>}
+  {configured&&<div className="mt-3 flex flex-wrap gap-2">
+   <button type="button" disabled={!!busy} onClick={()=>void connect()} className="min-h-11 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy==="connect"?"Preparing secure link…":status==="EXPIRED"||link?"Generate a fresh link":"Connect / generate link"}</button>
+   <button type="button" disabled={!!busy} onClick={()=>void repairWebhook()} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50">{busy==="repair"?"Checking Telegram…":"Diagnose / repair webhook"}</button>
+   <button type="button" disabled={!!busy||!connected} onClick={()=>void sendTest()} className="min-h-11 rounded-xl bg-[#c2183a] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{busy==="test"?"Sending test…":"Send test notification"}</button>
+  </div>}
+  {link&&<div className="mt-3 rounded-lg border border-slate-200 bg-white p-3"><p className="text-sm font-semibold">Fresh one-time link</p><a href={link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 items-center rounded-lg bg-[#229ED9] px-4 py-2 text-sm font-semibold text-white">Open this link in Telegram ↗</a>{expiresAt&&<p className="mt-2 text-xs text-slate-500">Expires: {new Date(expiresAt).toLocaleString()}</p>}<p className="mt-2 break-all text-xs text-slate-500">{link}</p><p className="mt-2 text-xs text-slate-600">Do not open the bot manually. Tap the link above, then tap Start. If no reply appears, run webhook diagnostics and generate a new link.</p></div>}
+  {diagnostics&&<div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+   <p className="font-semibold">Telegram webhook diagnostics</p>
+   <p className={diagnostics.webhookUrlMatches?"mt-2 text-emerald-700":"mt-2 text-red-700"}>Webhook URL: {diagnostics.webhookUrlMatches?"verified":"does not match expected URL"}</p>
+   <p className="mt-1 text-xs text-slate-600">Expected: {diagnostics.expectedWebhookUrl}</p>
+   <p className="mt-1 break-all text-xs text-slate-600">Telegram currently has: {diagnostics.actualWebhookUrl||"no webhook registered"}</p>
+   <p className="mt-1 text-xs text-slate-600">Pending Telegram updates: {diagnostics.pendingUpdateCount}</p>
+   {diagnostics.lastErrorAt&&<p className="mt-1 text-xs text-slate-600">Last delivery error: {new Date(diagnostics.lastErrorAt).toLocaleString()}</p>}
+   {diagnostics.lastErrorMessage&&<p className="mt-1 rounded bg-red-50 p-2 text-xs text-red-800">{diagnostics.lastErrorMessage}</p>}
+   {diagnostics.connectionLinkExpired&&<p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-900">The previous connection link has expired. Generate a fresh link.</p>}
+  </div>}
+  {message&&<p role="status" className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{message}</p>}
   {error&&<p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
  </section>;
 }
