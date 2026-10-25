@@ -37,9 +37,9 @@ PR #222 added parsing and validation for Telegram `/start` deep links, one-time-
 
 The final live acceptance requires the authorized Master Owner to open MedLum Owner → Hospitals, select the target facility, use **Diagnose / repair webhook**, then generate a fresh connection link, open that exact link in Telegram and press **Start**, and use **Send test notification**. Verify the UI shows the facility as connected and the test notification arrives. This authenticated action was not performed here because no signed-in owner browser session/target facility was available; do not simulate a successful connection or write an unverified Telegram chat ID.
 
-### 2. Durable backups: current PR #227 supersedes PR #224
+### 2. Durable backups: workflow PR #227 merged; operational setup remains
 
-PR #224 was closed as superseded. PR #227 (`security/encrypted-r2-backups-current-main`) is rebased onto current main and implements the scheduled/manual flow that streams PostgreSQL output through age encryption, uploads ciphertext and a portable checksum sidecar to a private R2 bucket, then reads the encrypted object back and verifies the bytes match. It requires the protected GitHub Actions environment `production-backups` to be configured with:
+PR #224 was closed as superseded. PR #227 (`security/encrypted-r2-backups-current-main`) passed current-head CI and full-history scanning and was merged as `65c74356`. It implements scheduled/manual exports that stream PostgreSQL output through age encryption, upload ciphertext and a portable checksum sidecar to a private R2 bucket, then read the encrypted object back and verify the bytes match. The workflow is code, not a completed backup: required GitHub environments/secrets, bucket lifecycle policy, BAA scope and a successful isolated restore drill remain outstanding. It requires the protected GitHub Actions environment `production-backups` to be configured with:
 
 - Secret `PRODUCTION_DATABASE_URL`
 - Secrets `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, scoped to the private backup bucket
@@ -51,11 +51,11 @@ The code is not a backup until those settings exist and a run succeeds. The new 
 
 ### 3. GitHub Actions runner execution
 
-The earlier zero-runner failures were transient: subsequent runs assigned runners and completed. Current main CI and full-history secret scanning passed on `b07233d` before the Telegram key-compatibility and deployment-workflow changes were merged. PR #228 (Telegram key-rotation compatibility) and PR #229 (deployment workflow guardrails) passed CI and secret scanning on their exact heads and were merged; current main is now `2deae7d4`. CI and production verification for that new main SHA are running/awaiting completion. PR #227's current-head CI is also running after a regression-test assertion was corrected. Continue requiring successful checks on the exact SHA; do not treat an in-progress or skipped PACS job as a pass for that capability.
+The earlier zero-runner failures were transient: subsequent runs assigned runners and completed. PR #228 (Telegram key-rotation compatibility) and PR #229 (deployment workflow guardrails) passed CI and secret scanning on their exact heads and were merged; PR #227 (encrypted backup workflow and regression check) also passed CI and secret scanning and was merged as `65c74356`. Current main is now `65c74356`; its full CI, production deploy and exact-SHA verification must finish successfully before claiming the combined release is live. PR #233 is the current-main data-migration security replacement and is awaiting its own exact-head checks. Continue requiring successful checks on the exact SHA; do not treat an in-progress or skipped PACS job as a pass for that capability.
 
 ### 4. Enforce one production promotion path
 
-The separate GitHub deploy/verify workflows are guarded on CI success, but Vercel's connected Git integration may still deploy directly from `main`. PR #229 was merged as commit `2deae7d4`: the workflow now uses Node 24, stops on a failed `vercel pull`, and requires `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` whenever `VERCEL_TOKEN` is configured. Provider-side deployment-source protection remains a separate owner decision; do not disable Git deployments until the guarded CLI path is verified.
+The separate GitHub deploy/verify workflows are guarded on CI success, but Vercel's connected Git integration may still deploy directly from `main`. PR #229 was merged as commit `2deae7d4`: the workflow now uses Node 24, stops on a failed `vercel pull`, and requires `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` whenever `VERCEL_TOKEN` is configured. The combined release including PR #227 is now at main `65c74356` and needs a fresh production deploy/verify run. Provider-side deployment-source protection remains a separate owner decision; do not disable Git deployments until the guarded CLI path is verified.
 
 ### 5. Vercel secret visibility
 
@@ -63,7 +63,7 @@ The Vercel project inspection originally flagged `DATABASE_URL`, `SESSION_SECRET
 
 ### 6. U.S. clinical-data readiness
 
-The connected Neon project is observed on the Free plan with `hipaa=false`, six-hour history retention, and no automatic snapshot schedule. The app's Vercel functions run in `iad1`; Neon is in Singapore (`aws-ap-southeast-1`). Until the provider plan/BAA, data-residency decision, risk analysis, incident response, required agreements and a proven independent restore process are completed, MedLum is **not cleared for unrestricted U.S. clinical-data production**. The last production deployment verified before the latest source merges was `fa037c94`. Main now includes Telegram key-rotation compatibility and the production deploy-workflow hardening (`2deae7d4`); wait for the new main CI, Vercel deployment, and exact-SHA production verification before claiming that release is deployed. Keep external clinical-AI processing disabled pending authorization and provider/legal/clinical review.
+The connected Neon project is observed on the Free plan with `hipaa=false`, six-hour history retention, and no automatic snapshot schedule. The app's Vercel functions run in `iad1`; Neon is in Singapore (`aws-ap-southeast-1`). Until the provider plan/BAA, data-residency decision, risk analysis, incident response, required agreements and a proven independent restore process are completed, MedLum is **not cleared for unrestricted U.S. clinical-data production**. The last production deployment verified before the latest source merges was `fa037c94`. Main now includes Telegram key-rotation compatibility, production deploy-workflow hardening, and the encrypted-backup workflow (`65c74356`); wait for the new main CI, Vercel deployment, and exact-SHA production verification before claiming that release is deployed. Keep external clinical-AI processing disabled pending authorization and provider/legal/clinical review.
 
 ## Go/no-go
 
