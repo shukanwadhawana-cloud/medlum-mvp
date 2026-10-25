@@ -21,7 +21,7 @@ ok(dischargeUi.includes('action("discharge-complete")') && dischargeUi.includes(
 ok(dischargeUi.includes('n.author?.id===doctor?.id') && dischargeUi.includes('n.author?.id!==doctor?.id'), "The UI distinguishes own and other-authored pending summaries");
 ok(ipd.includes("canViewFullClinicalChart(membership.role)"), "Discharge actions require clinical chart permissions");
 ok(ipd.includes("canFinalizeClinicalNote(normalizeClinicRole(membership.role))"), "Final discharge signing is limited to authorized verifier roles");
-ok(ipd.includes("const isAuthorSigner = note.authorDoctorId === session.doctorId") && ipd.includes("AUTHOR_SIGNATURE:${session.doctorId}"), "The discharge author may sign their own submitted summary");
+ok(ipd.includes("const isAuthorSigner = note.authorDoctorId === session.doctorId") && ipd.includes('mode: isAuthorSigner ? "AUTHOR_SIGNATURE" : "VERIFIER"') && ipd.includes("buildClinicalSignaturePayload("), "The discharge author may sign their own submitted summary through the canonical payload helper");
 ok(ipd.includes('note.contentHash !== hashClinicalNote(note.content, note.version)'), "Submitted discharge content integrity is verified before final signature");
 ok(ipd.includes('event: existing ? "DRAFT_SAVED" : "CREATED_DRAFT"') && ipd.includes('event: "SUBMITTED_FOR_VERIFICATION"'), "IPD discharge draft and submitted versions are snapshotted");
 ok(ipd.includes("tx.clinicalNoteVersion.create") && ipd.includes('isolationLevel: "Serializable"'), "IPD discharge version snapshots are transactional and race-safe");
