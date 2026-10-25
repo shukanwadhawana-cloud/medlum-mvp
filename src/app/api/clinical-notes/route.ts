@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
-import { buildClinicalSignaturePayload, canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
+import { canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
+import { buildClinicalSignaturePayload } from "@/lib/clinical-signature-payload";
 import { canViewClinicalChart } from "@/lib/permissions";
 
 const NOTE_TYPES = new Set([
