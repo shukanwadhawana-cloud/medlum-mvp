@@ -228,12 +228,13 @@ function remapIds(row: Record<string, unknown>, idMap: Map<string, string>, tabl
   return out;
 }
 
-async function tableHasId(table: string, id: string) {
+async function existingIds(table: string, ids: string[]) {
+  if (!ids.length) return new Set<string>();
   const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
-    `SELECT "id" FROM "${table}" WHERE "id" = $1 LIMIT 1`,
-    id,
+    `SELECT "id" FROM "${table}" WHERE "id" = ANY($1::text[])`,
+    ids,
   );
-  return rows.length > 0;
+  return new Set(rows.map(row => row.id));
 }
 
 async function insertRow(table: string, row: Record<string, unknown>) {
@@ -349,12 +350,16 @@ export async function importClinicData(
   // Preflight all primary keys before the first write. We never overwrite a target row.
   for (const table of IMPORT_ORDER) {
     if (table === "Doctor" || table === "ClinicMember") continue;
-    for (const row of (records[table] || []) as Record<string, unknown>[]) {
+    const rows = (records[table] || []) as Record<string, unknown>[];
+    const sourceIds: string[] = [];
+    for (const row of rows) {
       const sourceId = typeof row.id === "string" ? row.id : "";
-      if (!sourceId) { errors.push(`${table} record is missing id.`); continue; }
-      const mappedId = idMap.get(sourceId);
-      if (mappedId && mappedId !== sourceId) continue;
-      if (await tableHasId(table, sourceId)) errors.push(`${table} id ${sourceId} already exists; import refuses to overwrite it.`);
+      if (!sourceId) errors.push(`${table} record is missing id.`);
+      else sourceIds.push(sourceId);
+    }
+    const collisions = await existingIds(table, sourceIds);
+    for (const sourceId of collisions) {
+      errors.push(`${table} id ${sourceId} already exists; import refuses to overwrite it.`);
     }
   }
 
