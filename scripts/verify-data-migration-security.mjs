@@ -12,7 +12,7 @@ assert.match(service, /MigrationExportLimitError/);
 assert.match(service, /LIMIT 20001/);
 assert.match(service, /ClinicalNoteVersion/);
 assert.match(service, /content hash does not match its content/);
-assert.match(service, /prisma\.patient\.findMany\(\{ where: \{ clinicId \} \}\)/);
+assert.match(service, /prisma\.patient\.findMany\(\{ where: \{ clinicId \}, take: 20001 \}\)/);
 assert.doesNotMatch(service, /where: \{ OR: \[\{ clinicId \}, \{ doctorId:/);
 assert.match(service, /table: "Appointment", where: c => anyOf\("patientId", c\.patientIds\)/);
 assert.match(service, /table: "ClinicalNote", where: c => \(\{ sql: `"clinicId" = \$1`/);
