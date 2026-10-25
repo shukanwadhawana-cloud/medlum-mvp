@@ -1,36 +1,104 @@
-name: Manual Neon Database Backup
+name: Encrypted Neon Database Backup
 
 on:
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type CREATE_ENCRYPTED_BACKUP to approve a manual encrypted backup"
+        required: true
+        type: string
+  schedule:
+    - cron: "23 2 * * *"
 
 permissions:
   contents: read
 
+concurrency:
+  group: medlum-encrypted-production-backup
+  cancel-in-progress: false
+
 jobs:
   backup:
+    name: Encrypt and upload production database backup
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-
+    timeout-minutes: 45
+    # Scheduled jobs use production-backups (no approval gate, main-only) so
+    # automation can run unattended. Manual dispatch uses a separate protected
+    # environment with required reviewers and the same scoped backup settings.
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && 'production-backups-manual' || 'production-backups' }}
     container:
       image: postgres:18
 
     steps:
-      - name: Create database backup
+      - name: Validate required configuration without printing values
+        shell: bash
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EVENT_NAME: ${{ github.event_name }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          AGE_RECIPIENT: ${{ vars.AGE_RECIPIENT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
-          test -n "$DATABASE_URL"
-          mkdir -p backup
-          pg_dump "$DATABASE_URL" \
-            --format=custom \
-            --no-owner \
-            --no-acl \
-            --file="backup/medlum-$(date -u +%Y%m%d-%H%M%S).dump"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$CONFIRMATION" != "CREATE_ENCRYPTED_BACKUP" ]]; then
+            echo "::error::Manual backup requires the exact confirmation CREATE_ENCRYPTED_BACKUP"
+            exit 1
+          fi
+          test -n "${DATABASE_URL:-}" || { echo "::error::Missing environment secret PRODUCTION_DATABASE_URL"; exit 1; }
+          test -n "${R2_ACCOUNT_ID:-}" || { echo "::error::Missing environment variable R2_ACCOUNT_ID"; exit 1; }
+          test -n "${R2_BUCKET:-}" || { echo "::error::Missing environment variable R2_BUCKET"; exit 1; }
+          test -n "${AGE_RECIPIENT:-}" || { echo "::error::Missing environment variable AGE_RECIPIENT"; exit 1; }
+          test -n "${AWS_ACCESS_KEY_ID:-}" || { echo "::error::Missing environment secret R2_ACCESS_KEY_ID"; exit 1; }
+          test -n "${AWS_SECRET_ACCESS_KEY:-}" || { echo "::error::Missing environment secret R2_SECRET_ACCESS_KEY"; exit 1; }
+          case "$AGE_RECIPIENT" in age1*) ;; *) echo "::error::AGE_RECIPIENT must be an age public recipient beginning with age1"; exit 1 ;; esac
+          case "$R2_ACCOUNT_ID" in *[!a-zA-Z0-9]*) echo "::error::R2_ACCOUNT_ID contains invalid characters"; exit 1 ;; esac
+          case "$R2_BUCKET" in *[!a-z0-9.-]*) echo "::error::R2_BUCKET contains invalid characters"; exit 1 ;; esac
+          case "$DATABASE_URL" in postgresql://*|postgres://*) ;; *) echo "::error::PRODUCTION_DATABASE_URL must be a PostgreSQL URL"; exit 1 ;; esac
+          pg_dump --version
 
-      - name: Upload backup artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: medlum-neon-backup-${{ github.run_id }}
-          path: backup/*.dump
-          retention-days: 7
-          if-no-files-found: error
+      - name: Install encryption and S3-compatible client
+        shell: bash
+        run: |
+          set -euo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends age awscli ca-certificates
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Stream, encrypt, and upload backup
+        shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          AGE_RECIPIENT: ${{ vars.AGE_RECIPIENT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+          set +x
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          backup_name="medlum-$(date -u +%Y%m%dT%H%M%SZ).dump.age"
+          backup_path="$workdir/$backup_name"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          # The database dump is streamed directly through age; plaintext is not written to disk.
+          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl \
+            | age -r "$AGE_RECIPIENT" -o "$backup_path"
+
+          test -s "$backup_path"
+          sha256sum "$backup_path" > "$backup_path.sha256"
+
+          aws --endpoint-url "$endpoint" s3 cp "$backup_path" \
+            "s3://${R2_BUCKET}/medlum/postgres/$backup_name" --only-show-errors
+          aws --endpoint-url "$endpoint" s3 cp "$backup_path.sha256" \
+            "s3://${R2_BUCKET}/medlum/postgres/$backup_name.sha256" --only-show-errors
+
+          echo "Encrypted database backup uploaded: medlum/postgres/$backup_name"
+          echo "SHA-256 checksum sidecar uploaded. Backup contents and credentials were not printed."
