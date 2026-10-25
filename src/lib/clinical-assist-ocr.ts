@@ -222,6 +222,46 @@ async function clientScannedPdfOcr(file: File, onProgress?: OcrProgress): Promis
   }
 }
 
+
+/**
+ * Prepare an image for OCR, then retry the untouched original if preparation or
+ * the prepared scan fails or yields too little text. Everything remains on-device.
+ */
+export async function runClinicalAssistImageOcr(file: File, onProgress?: OcrProgress): Promise<ScanResult> {
+  if (isPdf(file)) return runClinicalAssistOcr(file, onProgress);
+
+  let preparedError: unknown;
+  try {
+    onProgress?.("Preparing photo for OCR…");
+    const prepared = await prepareClinicalAssistImage(file);
+    try {
+      const result = await runClinicalAssistOcr(prepared, onProgress);
+      if (result.text.trim().length < 20) {
+        throw new Error("The prepared image returned too little readable text.");
+      }
+      return result;
+    } catch (error) {
+      preparedError = error;
+      onProgress?.("Preprocessed scan failed; retrying the original image…");
+    }
+  } catch (error) {
+    preparedError = error;
+    onProgress?.("Image preparation failed; trying the original image…");
+  }
+
+  try {
+    const result = await runClinicalAssistOcr(file, onProgress);
+    if (result.text.trim().length < 20) {
+      throw new Error("The original image returned too little readable text.");
+    }
+    return result;
+  } catch (originalError) {
+    const detail = originalError instanceof Error ? originalError.message : String(originalError || "Unknown OCR error");
+    const first = preparedError instanceof Error ? preparedError.message : String(preparedError || "Image preprocessing failed");
+    throw new Error("OCR failed on both the prepared and original image. Prepared image: " + first + ". Original image: " + detail);
+  }
+}
+
 export async function runClinicalAssistOcr(file: File, onProgress?: OcrProgress): Promise<ScanResult> {
   if (file.size <= 0) throw new Error("The selected document is empty.");
   if (file.size > MAX_BYTES) {

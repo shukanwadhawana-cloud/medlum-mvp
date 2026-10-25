@@ -34,5 +34,9 @@ assert(fs.readFileSync("scripts/copy-pdf-worker.mjs", "utf8").includes("node_mod
 assert(ocr.includes("60_000"), "OCR worker initialization must have a timeout");
 assert(ocr.includes("90_000"), "OCR recognition must have a timeout");
 assert(page.includes("(status) => setScanStatus(status)"), "UI must display live OCR engine progress");
+assert(ocr.includes("runClinicalAssistImageOcr"), "image OCR exposes original-file fallback");
+assert(ocr.includes("retrying the original image"), "failed preprocessing or OCR retries the untouched original");
+assert(page.includes("runClinicalAssistImageOcr(file"), "standalone Clinical Assist uses image fallback");
+assert(fs.readFileSync("src/components/LabResultDocumentPanel.tsx", "utf8").includes("runClinicalAssistImageOcr(originalFile"), "lab report panel uses image fallback");
 
 console.log("Clinical Assist OCR CSP and worker-path checks: PASS");

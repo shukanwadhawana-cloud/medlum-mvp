@@ -8,7 +8,7 @@ import AppShell from "@/components/AppShell";
 import { apiAddPatient, apiAddPrescriptionWithEncounter, apiCreateEncounter, apiGetPatientDetail, apiGetPatients } from "@/lib/api";
 import { detectClinicalTerms, normalizeClinicalText, type ClinicalTerm } from "@/lib/clinical/terminology";
 import ClinicalAiDraftPanel, { type AiDraftSections } from "@/components/ClinicalAiDraftPanel";
-import { prepareClinicalAssistImage, runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
+import { runClinicalAssistImageOcr, runClinicalAssistOcr } from "@/lib/clinical-assist-ocr";
 
 type Patient = { id: string; name: string; age: number; gender: string; phone: string; allergies?: string; bp?: string };
 type Field = "chiefComplaint" | "clinicalNotes" | "diagnosis" | "assessment" | "plan" | "medicines" | "advice";
@@ -109,14 +109,10 @@ export default function ClinicalAssistPage() {
       }
       if (file.size > 8 * 1024 * 1024) throw new Error("Document is larger than 8 MB. Choose a smaller PDF or image.");
 
-      let ocrFile = file;
-      if (isImage) {
-        setScanStatus("Preparing photo for OCR…");
-        ocrFile = await prepareClinicalAssistImage(file);
-      }
-
       setScanStatus(isPdf ? "Reading PDF locally…" : "Running OCR on this device…");
-      const best = await runClinicalAssistOcr(ocrFile, (status) => setScanStatus(status));
+      const best = isImage
+        ? await runClinicalAssistImageOcr(file, (status) => setScanStatus(status))
+        : await runClinicalAssistOcr(file, (status) => setScanStatus(status));
       const text = best.text.trim();
       if (text.length < 20) {
         throw new Error("Very little readable text was found. No OCR result was accepted; try a clearer image or a higher-quality scan.");
