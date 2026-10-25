@@ -27,5 +27,5 @@ assert.equal(
   "independent verifier payload uses the same delimiters and canonical field order",
 );
 assert.notEqual(author, verifier, "author and verifier signatures cannot share the same payload");
-assert.ok(!author.includes("\\\\n"), "payload contains newline characters, not literal backslash-n text");
+assert.ok(!author.includes(String.raw`\n`), "payload contains newline characters, not literal backslash-n text");
 console.log("Canonical clinical signature payload runtime checks passed.");
