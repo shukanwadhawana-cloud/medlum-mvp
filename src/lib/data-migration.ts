@@ -155,7 +155,7 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
   if (Buffer.byteLength(JSON.stringify(pkg), "utf8") > MAX_MIGRATION_PACKAGE_BYTES) {
     throw new MigrationExportLimitError("Export exceeds the 20 MB package limit; use the reviewed large-export workflow.");
   }
-  return pkg;;
+  return pkg;
 }
 
 export function validateMigrationPackage(pkg: unknown) {
