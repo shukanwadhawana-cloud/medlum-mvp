@@ -19,12 +19,13 @@ The workflow uses two environments intentionally so scheduled backups are not bl
 - Add environment secret `PRODUCTION_DATABASE_URL` using the existing production database URL; never put it in repository variables or logs.
 - Add environment secrets `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` for the bucket-scoped R2 credentials.
 - Add environment variables `R2_ACCOUNT_ID`, `R2_BUCKET`, and `AGE_RECIPIENT`.
+- Leave `R2_BAA_SCOPE_CONFIRMED` unset until there is written approval for the actual data category and storage destination. Only after the written review confirms the R2 product, account, endpoint/jurisdiction, and applicable BAA requirements, set it to the exact value `CONFIRMED_IN_WRITING`.
 
 ### `production-backups-manual` — manually requested backups
 
 - Restrict deployments to the `main` branch.
 - Require designated reviewer(s) before a manual backup run may access the environment.
-- Copy the same `PRODUCTION_DATABASE_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`, `R2_BUCKET`, and `AGE_RECIPIENT` configuration into this environment.
+- Copy the same `PRODUCTION_DATABASE_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`, `R2_BUCKET`, and `AGE_RECIPIENT` configuration into this environment, plus the same approved `R2_BAA_SCOPE_CONFIRMED` variable.
 - Manual dispatch must include the exact confirmation `CREATE_ENCRYPTED_BACKUP`.
 
 Generate the age key pair on a trusted owner-controlled device. Keep the age private identity in an approved password manager/offline encrypted escrow; never put it in GitHub, the repository, the workflow logs, or the R2 bucket. Ensure a recovery operator can retrieve it if the primary owner is unavailable. Loss of the private identity makes the encrypted backups unrecoverable.
@@ -37,6 +38,7 @@ Generate the age key pair on a trusted owner-controlled device. Keep the age pri
 - Uploads only the encrypted custom-format dump and its SHA-256 checksum sidecar to `s3://<bucket>/medlum/postgres/`.
 - Does not use GitHub Actions artifacts, print connection strings, or print dump contents.
 - Fails closed when any required environment secret or variable is missing or malformed.
+- Fails closed unless `R2_BAA_SCOPE_CONFIRMED` equals `CONFIRMED_IN_WRITING`; this is an owner-controlled attestation and must be set only after written review confirms the destination and applicable BAA scope. Do not set it to make a workflow pass without that evidence.
 - Does not delete old backups. Configure an explicit R2 bucket lifecycle/retention policy after agreeing the retention period and recovery requirements. Verify that lifecycle settings do not expire all copies too early.
 
 The workflow code alone does not establish a backup until the environments, bucket, credentials, encryption recipient, lifecycle policy, and successful run have been verified. Do not claim backup coverage before the first successful upload.
