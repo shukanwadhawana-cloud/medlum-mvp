@@ -127,6 +127,8 @@ jobs:
         run: npm run test:p2-04
       - name: Verify OPD admission bed categories and OCR regression safeguards
         run: npm run test:admission-bed-categories && npm run test:clinical-assist-ocr
+      - name: Verify lab OCR common panels and unit-collision behavior
+        run: npm run test:lab-ocr-behavior
       - name: Verify P2-05 IPD receiving-team handover
         run: npm run test:p2-05
       - name: Verify P2-06 IPD medication dispensing reconciliation
