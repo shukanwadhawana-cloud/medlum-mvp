@@ -84,7 +84,7 @@ jobs:
                 catch { console.log(""); }
               });
             ')"
-            if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${DEPLOYED_SHA:0:7}" = "${EXPECTED_SHA:0:7}" ]; }; then
+            if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
               echo "Canonical production host is serving the exact green commit ($DEPLOYED_SHA); no duplicate CLI deployment needed."
               exit 0
             fi
