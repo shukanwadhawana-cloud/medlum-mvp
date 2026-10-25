@@ -57,9 +57,9 @@ ok(retryPanel.includes("original report is stored with this document"), "panel d
 ok(retryPanel.includes("Select the exact original file that was uploaded") || retryPanel.includes("re-select the exact same file"), "panel explains checksum-validated recovery for an unavailable original file");
 const assistOcr = readFileSync("src/lib/clinical-assist-ocr.ts", "utf8");
 ok(assistOcr.includes("export async function prepareClinicalAssistImage"), "shared on-device image preprocessor exists");
-ok(retryPanel.includes("prepareClinicalAssistImage(originalFile)"), "report panel preprocesses report photos before local OCR");
+ok(retryPanel.includes("runClinicalAssistImageOcr(originalFile"), "report panel uses shared preprocessing and original-image OCR fallback");
 const clinicalAssistPage = readFileSync("src/app/clinical-assist/page.tsx", "utf8");
-ok(clinicalAssistPage.includes("prepareClinicalAssistImage(file)"), "standalone Clinical Assist uses the same image preprocessor");
+ok(clinicalAssistPage.includes("runClinicalAssistImageOcr(file"), "standalone Clinical Assist uses shared preprocessing and original-image OCR fallback");
 ok(ocrLib.includes("primaryFailed || Object.keys(draft).length < 4"), "Clinical Assist fallback runs when primary OCR errors or finds too few values");
 ok(ocrLib.includes("Initial lab OCR pass failed:"), "primary OCR errors are retained as diagnostics instead of skipping fallback");
 
