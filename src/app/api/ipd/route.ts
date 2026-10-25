@@ -566,8 +566,8 @@ export async function POST(req: Request) {
       const signedVersion = note.version + 1;
       const signedContentHash = hashClinicalNote(note.content, signedVersion);
       const finalHash = isAuthorSigner
-        ? hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${note.id}`, signedVersion)
-        : hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nVERIFIER:${session.doctorId}\\nNOTE:${note.id}`, signedVersion);
+        ? hashClinicalNote(`${note.content}\nAUTHOR:${note.authorDoctorId}\nAUTHOR_SIGNATURE:${session.doctorId}\nNOTE:${note.id}`, signedVersion)
+        : hashClinicalNote(`${note.content}\nAUTHOR:${note.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${note.id}`, signedVersion);
       try {
         await prisma.$transaction(async (tx) => {
           const currentPatient = await tx.patient.findFirst({
@@ -710,7 +710,7 @@ export async function POST(req: Request) {
         });
         let finalHash = "";
         if (sign) {
-          finalHash = hashClinicalNote(`${content}\\nAUTHOR:${session.doctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${created.id}`, version);
+          finalHash = hashClinicalNote(`${content}\nAUTHOR:${session.doctorId}\nAUTHOR_SIGNATURE:${session.doctorId}\nNOTE:${created.id}`, version);
           await tx.clinicalNote.update({ where: { id: created.id }, data: { finalHash } });
         }
         await tx.clinicalNoteVersion.create({
