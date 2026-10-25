@@ -102,7 +102,8 @@
     "test:password-reset-runtime": "node scripts/verify-password-reset-runtime.mjs",
     "test:ipd-case-summary-runtime": "node scripts/verify-ipd-case-summary-runtime.mjs",
     "test:ipd-consultant-runtime": "node scripts/verify-ipd-consultant-assignment-runtime.mjs",
-    "test:clinical-qa": "node scripts/verify-clinical-qa.mjs"
+    "test:clinical-qa": "node scripts/verify-clinical-qa.mjs",
+    "test:encrypted-backup-workflow": "node scripts/verify-encrypted-backup-workflow.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
