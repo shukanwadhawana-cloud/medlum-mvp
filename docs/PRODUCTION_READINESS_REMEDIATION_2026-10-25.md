@@ -51,11 +51,11 @@ The code is not a backup until those settings exist and a run succeeds. The new 
 
 ### 3. GitHub Actions runner execution
 
-The earlier zero-runner failures were transient: subsequent runs assigned runners and completed. Current main CI and full-history secret scanning passed on `fa037c94` before the documentation-only follow-up; the new `b07233d` main CI run was still completing P1 integration at the last check. PR #227 and PR #228 now have current-head checks in progress. Continue requiring successful checks on the exact PR head; do not treat an in-progress or skipped PACS job as a pass for that specific capability.
+The earlier zero-runner failures were transient: subsequent runs assigned runners and completed. Current main CI and full-history secret scanning passed on `b07233d` before the Telegram key-compatibility and deployment-workflow changes were merged. PR #228 (Telegram key-rotation compatibility) and PR #229 (deployment workflow guardrails) passed CI and secret scanning on their exact heads and were merged; current main is now `2deae7d4`. CI and production verification for that new main SHA are running/awaiting completion. PR #227's current-head CI is also running after a regression-test assertion was corrected. Continue requiring successful checks on the exact SHA; do not treat an in-progress or skipped PACS job as a pass for that capability.
 
 ### 4. Enforce one production promotion path
 
-The separate GitHub deploy/verify workflows are guarded on CI success, but Vercel's connected Git integration may still deploy directly from `main`. PR #229 hardens the workflow by using Node 24, stopping on a failed `vercel pull`, and requiring `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` whenever `VERCEL_TOKEN` is configured. It is not merged yet and needs exact-head CI. Provider-side deployment-source protection remains a separate owner decision; do not disable Git deployments until the guarded CLI path is verified.
+The separate GitHub deploy/verify workflows are guarded on CI success, but Vercel's connected Git integration may still deploy directly from `main`. PR #229 was merged as commit `2deae7d4`: the workflow now uses Node 24, stops on a failed `vercel pull`, and requires `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` whenever `VERCEL_TOKEN` is configured. Provider-side deployment-source protection remains a separate owner decision; do not disable Git deployments until the guarded CLI path is verified.
 
 ### 5. Vercel secret visibility
 
@@ -63,7 +63,7 @@ The Vercel project inspection originally flagged `DATABASE_URL`, `SESSION_SECRET
 
 ### 6. U.S. clinical-data readiness
 
-The connected Neon project is observed on the Free plan with `hipaa=false`, six-hour history retention, and no automatic snapshot schedule. The app's Vercel functions run in `iad1`; Neon is in Singapore (`aws-ap-southeast-1`). Until the provider plan/BAA, data-residency decision, risk analysis, incident response, required agreements and a proven independent restore process are completed, MedLum is **not cleared for unrestricted U.S. clinical-data production**. The latest Vercel deployment is `READY` at commit `fa037c94`; production verification and pilot smoke workflows passed for that SHA. The later main change `b07233d` is documentation-only, so it does not require an application redeploy. Keep external clinical-AI processing disabled pending authorization and provider/legal/clinical review.
+The connected Neon project is observed on the Free plan with `hipaa=false`, six-hour history retention, and no automatic snapshot schedule. The app's Vercel functions run in `iad1`; Neon is in Singapore (`aws-ap-southeast-1`). Until the provider plan/BAA, data-residency decision, risk analysis, incident response, required agreements and a proven independent restore process are completed, MedLum is **not cleared for unrestricted U.S. clinical-data production**. The last production deployment verified before the latest source merges was `fa037c94`. Main now includes Telegram key-rotation compatibility and the production deploy-workflow hardening (`2deae7d4`); wait for the new main CI, Vercel deployment, and exact-SHA production verification before claiming that release is deployed. Keep external clinical-AI processing disabled pending authorization and provider/legal/clinical review.
 
 ## Go/no-go
 
