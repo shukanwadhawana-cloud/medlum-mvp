@@ -19,6 +19,7 @@ ok(schema.includes("verifiedAt"), "verifiedAt timestamp");
 
 const ocrLib = readFileSync("src/lib/lab-ocr.ts", "utf8");
 ok(ocrLib.includes("DRAFT"), "OCR status DRAFT");
+ok(/Magnesium:\s*\["magnesium"\]/.test(ocrLib), "Magnesium alias does not collide with the mg/dL unit");
 ok(ocrLib.includes('createWorker("eng"'), "Tesseract image OCR enabled");
 ok(ocrLib.includes('pdfjs-dist/legacy/build/pdf.mjs'), "PDF.js PDF extraction enabled");
 ok(ocrLib.includes('@napi-rs/canvas'), "scanned-PDF rasterization dependency wired");
