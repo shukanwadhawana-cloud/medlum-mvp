@@ -65,25 +65,20 @@ jobs:
       - name: Deploy exact green commit to Vercel production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          # Public project identifiers; only the Vercel access token belongs in GitHub Secrets.
+          VERCEL_ORG_ID: team_dU4dKrRORHc1lsVEv9jFCg4m
+          VERCEL_PROJECT_ID: prj_d2yfp86FdBAYSN3wFfFz4aL4iuRq
         run: |
           set -euo pipefail
           if [ -z "${VERCEL_TOKEN:-}" ]; then
-            echo "VERCEL_TOKEN is not configured; relying on the connected Vercel Git integration for production."
-            echo "If production stays on an old SHA, add VERCEL_TOKEN (+ optional VERCEL_ORG_ID / VERCEL_PROJECT_ID) repo secrets."
-          else
-            if [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
-              echo "::error::VERCEL_TOKEN is set, but VERCEL_ORG_ID and VERCEL_PROJECT_ID must also be configured."
-              exit 1
-            fi
-            if [ -n "${VERCEL_ORG_ID:-}" ] && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
-              mkdir -p .vercel
-              printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
-            fi
-            npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-            npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
+            echo "::error::VERCEL_TOKEN is required. Refusing to treat Vercel's native Git deployment as a guarded CLI deployment."
+            echo "Create a Vercel access token and add it as the repository Actions secret VERCEL_TOKEN, then rerun this workflow."
+            exit 1
           fi
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
       - name: Verify production serves exact Git SHA
         env:
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
