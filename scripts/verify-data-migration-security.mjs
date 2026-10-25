@@ -12,6 +12,9 @@ assert.match(service, /MigrationExportLimitError/);
 assert.match(service, /LIMIT 20001/);
 assert.match(service, /ClinicalNoteVersion/);
 assert.match(service, /content hash does not match its content/);
+assert.match(service, /deferredClinicalNoteIds/);
+assert.match(service, /deferredRecordCounts/);
+assert.match(service, /notesWithNonDraftHistory/);
 assert.match(service, /prisma\.patient\.findMany\(\{ where: \{ clinicId \}, take: 20001 \}\)/);
 assert.doesNotMatch(service, /where: \{ OR: \[\{ clinicId \}, \{ doctorId:/);
 assert.match(service, /table: "Appointment", where: c => anyOf\("patientId", c\.patientIds\)/);
@@ -49,6 +52,8 @@ assert.match(exportRoute, /MigrationExportLimitError/);
 assert.match(page, /Validated record counts/);
 assert.match(page, /deferredTables/);
 assert.match(page, /notMigratedItems/);
+assert.match(page, /deferredRecordCounts/);
+assert.match(page, /source signatures require a reviewed preservation workflow/);
 assert.match(page, /Not included in this package/);
 
 console.log("Facility data migration security guardrails verified.");
