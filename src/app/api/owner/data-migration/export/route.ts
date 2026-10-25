@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { isMedlumOwnerEmail } from "@/lib/owner";
-import { exportClinicData } from "@/lib/data-migration";
+import { exportClinicData, MigrationExportLimitError } from "@/lib/data-migration";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +45,9 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
+    if (e instanceof MigrationExportLimitError) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 413, headers: { "Cache-Control": "no-store" } });
+    }
     console.error("owner data export failed", e instanceof Error ? e.message : "unknown");
     return NextResponse.json({ success: false, error: "Export could not be completed" }, { status: 500 });
   }
