@@ -149,7 +149,7 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
     exportedAt: new Date().toISOString(),
     source: { clinicId, clinicName: clinic.name, ownerEmail },
     protection: { ownerEmail, note: "The current MedLum Master Owner is never replaced by imported records." },
-    notMigrated: ["Patients with null clinicId are excluded because their facility ownership cannot be proven", "AuditLog (source audit history is retained at the source)", "FacilityTelegramIntegration (must be rebound to the target facility)", "TelegramIdentity (global identity; never copied)", "TelegramLinkChallenge (one-time credentials are never copied)", "TelemedicineSession credentials/URLs (re-establish live sessions after import)"],
+    notMigrated: ["Patients with null clinicId are excluded because their facility ownership cannot be proven", "AuditLog (source audit history is retained at the source)", "FacilityTelegramIntegration (must be rebound to the target facility)", "TelegramIdentity (global identity; never copied)", "TelegramLinkChallenge (one-time credentials are never copied)", "TelemedicineSession credentials/URLs (re-establish live sessions after import)", "Non-draft clinical notes and their signed/version history (source signatures bind source identity; use reviewed signed-record preservation)"],
     records,
   };
   if (Buffer.byteLength(JSON.stringify(pkg), "utf8") > MAX_MIGRATION_PACKAGE_BYTES) {
@@ -303,6 +303,16 @@ export async function importClinicData(
   const errors: string[] = [];
   const imported: Record<string, number> = {};
   const deferred = [...DEFERRED_IMPORT_TABLES].filter(t => Array.isArray(records[t]) && records[t].length > 0);
+  const clinicalNotes = (records.ClinicalNote || []) as Record<string, unknown>[];
+  const clinicalNoteVersions = (records.ClinicalNoteVersion || []) as Record<string, unknown>[];
+  const notesWithNonDraftHistory = new Set(clinicalNoteVersions.filter(row => row.event !== "DRAFT_SAVED" && typeof row.clinicalNoteId === "string").map(row => row.clinicalNoteId as string));
+  const deferredClinicalNoteIds = new Set(clinicalNotes.filter(row => row.status !== "DRAFT" || (typeof row.id === "string" && notesWithNonDraftHistory.has(row.id))).map(row => String(row.id || "")).filter(Boolean));
+  const deferredRecordCounts = {
+    ClinicalNote: deferredClinicalNoteIds.size,
+    ClinicalNoteVersion: clinicalNoteVersions.filter(row => typeof row.clinicalNoteId === "string" && deferredClinicalNoteIds.has(row.clinicalNoteId)).length,
+  };
+  if (deferredRecordCounts.ClinicalNote > 0) deferred.push("ClinicalNote (non-draft/signed records)");
+  if (deferredRecordCounts.ClinicalNoteVersion > 0) deferred.push("ClinicalNoteVersion (history for deferred non-draft notes)");
 
   // Authentication credentials are deliberately not migrated. Staff must already exist
   // in MedLum or be provisioned through the normal account flow before clinical data import.
@@ -377,7 +387,11 @@ export async function importClinicData(
   // Preflight all primary keys before the first write. We never overwrite a target row.
   for (const table of IMPORT_ORDER) {
     if (table === "Doctor" || table === "ClinicMember") continue;
-    const rows = (records[table] || []) as Record<string, unknown>[];
+    const rows = ((records[table] || []) as Record<string, unknown>[]).filter(row => {
+      if (table === "ClinicalNote") return !deferredClinicalNoteIds.has(String(row.id || ""));
+      if (table === "ClinicalNoteVersion") return !deferredClinicalNoteIds.has(String(row.clinicalNoteId || ""));
+      return true;
+    });
     const sourceIds: string[] = [];
     for (const row of rows) {
       const sourceId = typeof row.id === "string" ? row.id : "";
@@ -396,7 +410,7 @@ export async function importClinicData(
 
   if (!options.execute) {
     return {
-      valid: true, executed: false, errors: [], imported: {}, previewCounts,
+      valid: true, executed: false, errors: [], imported: {}, previewCounts, deferredRecordCounts,
       deferred,
       target: { clinicId: targetClinic.id, clinicName: targetClinic.name },
       message: "Preflight passed. No records were written. Explicit execution is required.",
@@ -421,7 +435,12 @@ export async function importClinicData(
       for (const table of IMPORT_ORDER) {
         if (table === "Doctor" || table === "ClinicMember") continue;
         const pending: Array<{ sourceId: string; row: Record<string, unknown> }> = [];
-        for (const raw of (records[table] || []) as Record<string, unknown>[]) {
+        const importRows = ((records[table] || []) as Record<string, unknown>[]).filter(raw => {
+          if (table === "ClinicalNote") return !deferredClinicalNoteIds.has(String(raw.id || ""));
+          if (table === "ClinicalNoteVersion") return !deferredClinicalNoteIds.has(String(raw.clinicalNoteId || ""));
+          return true;
+        });
+        for (const raw of importRows) {
           const sourceId = typeof raw.id === "string" ? raw.id : "";
           const mapped = remapIds(raw, idMap, table);
           if (Object.prototype.hasOwnProperty.call(mapped, "clinicId")) mapped.clinicId = targetClinicId;
@@ -439,7 +458,7 @@ export async function importClinicData(
           action: "DATA_IMPORT",
           entity: "Clinic",
           entityId: targetClinicId,
-          meta: JSON.stringify({ schemaVersion: MIGRATION_SCHEMA_VERSION, imported, deferred, ownerPreserved: true }),
+          meta: JSON.stringify({ schemaVersion: MIGRATION_SCHEMA_VERSION, imported, deferred, deferredRecordCounts, ownerPreserved: true }),
         },
       });
     }, { maxWait: 10000, timeout: 45000 });
@@ -452,7 +471,7 @@ export async function importClinicData(
   }
 
   return {
-    valid: true, executed: true, errors: [], imported, previewCounts, deferred,
+    valid: true, executed: true, errors: [], imported, previewCounts, deferredRecordCounts, deferred,
     target: { clinicId: targetClinic.id, clinicName: targetClinic.name },
     ownerPreserved: true,
     message: "Import committed atomically. Existing Master Owner remained the source of truth.",
