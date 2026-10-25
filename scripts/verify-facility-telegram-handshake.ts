@@ -61,6 +61,7 @@ assert.match(lib, /current\.url !== expectedUrl/, "webhook URL is verified after
 assert.match(webhook, /x-telegram-bot-api-secret-token/, "webhook validates Telegram's secret header");
 assert.match(webhook, /could not reply to rejected start command/, "failed /start replies are logged");
 assert.match(webhook, /handshake accepted/, "successful connection handshake is logged without chat IDs");
+assert.match(webhook, /chatType !== "private"/, "facility Telegram linking rejects group and non-private chats");
 assert.match(ownerRoute, /repair-webhook/, "Master Owner can repair and diagnose the webhook");
 assert.match(ownerRoute, /isMedlumOwnerEmail/, "webhook diagnostics remain Master Owner protected");
 assert.match(ownerUi, /Diagnose \/ repair webhook/, "owner UI exposes webhook diagnostics");
