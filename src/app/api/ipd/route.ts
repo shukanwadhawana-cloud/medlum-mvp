@@ -6,7 +6,8 @@ import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientPr
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { canViewFullClinicalChart, normalizeClinicRole, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
-import { buildClinicalSignaturePayload, canFinalizeClinicalNote, hashClinicalNote } from "@/lib/clinical-signing";
+import { canFinalizeClinicalNote, hashClinicalNote } from "@/lib/clinical-signing";
+import { buildClinicalSignaturePayload } from "@/lib/clinical-signature-payload";
 
 function metaOf(l: { meta?: string | null } | null | undefined) {
   try { return l?.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
