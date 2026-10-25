@@ -84,7 +84,7 @@ jobs:
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
-          URL="https://medlum-mvp.vercel.app/api/health"
+          URL="https://medlumhealth.com/api/health"
           SHORT="${EXPECTED_SHA:0:7}"
           # Up to ~8 minutes for Vercel build + promote after a green CI
           for i in $(seq 1 32); do
