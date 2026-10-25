@@ -46,6 +46,8 @@ assert.match(service, /globalIds/);
 assert.match(service, /IDs must be unique across the migration package/);
 
 assert.match(importRoute, /const maxBytes = 20 \* 1024 \* 1024/);
+assert.match(importRoute, /MEDLUM_DATA_MIGRATION_IMPORT_ENABLED !== "true"/);
+assert.match(importRoute, /status: 423/);
 assert.match(importRoute, /readBodyLimited/);
 assert.match(importRoute, /reader\.read\(\)/);
 assert.match(importRoute, /status: 413/);
