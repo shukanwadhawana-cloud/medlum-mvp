@@ -149,7 +149,7 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
     exportedAt: new Date().toISOString(),
     source: { clinicId, clinicName: clinic.name, ownerEmail },
     protection: { ownerEmail, note: "The current MedLum Master Owner is never replaced by imported records." },
-    notMigrated: ["Patients with null clinicId are excluded because their facility ownership cannot be proven", "AuditLog (source audit history is retained at the source)", "FacilityTelegramIntegration (must be rebound to the target facility)", "TelegramIdentity (global identity; never copied)", "TelegramLinkChallenge (one-time credentials are never copied)", "TelemedicineSession credentials/URLs (re-establish live sessions after import)", "Non-draft clinical notes and their signed/version history (source signatures bind source identity; use reviewed signed-record preservation)"],
+    notMigrated: ["Patients with null clinicId are excluded because their facility ownership cannot be proven", "AuditLog (source audit history is retained at the source)", "FacilityTelegramIntegration (must be rebound to the target facility)", "TelegramIdentity (global identity; never copied)", "TelegramLinkChallenge (one-time credentials are never copied)", "TelemedicineSession credentials/URLs (re-establish live sessions after import)", "PharmacyItem/BloodInventory/BloodDonor/BloodRequest (physical stock and donor records need facility reconciliation)", "InsuranceProvider/InsurancePolicy/InsuranceClaim (payer records require target-facility reconciliation)", "ABDM consent/care-context/event records (relink and revalidate against the target facility)", "Non-draft clinical notes and their signed/version history (source signatures bind source identity; use reviewed signed-record preservation)"],
     records,
   };
   if (Buffer.byteLength(JSON.stringify(pkg), "utf8") > MAX_MIGRATION_PACKAGE_BYTES) {
@@ -232,16 +232,17 @@ export function validateMigrationPackage(pkg: unknown) {
 const IMPORT_ORDER = [
   "Doctor", "ClinicMember", "Patient", "Appointment", "Encounter", "Prescription",
   "TariffVersion", "TariffItem", "Invoice", "InvoiceItem", "Payment", "LabOrder",
-  "PharmacyItem", "Dispensing", "DiagnosticOrder", "BloodInventory", "BloodDonor",
-  "BloodRequest", "InsuranceProvider", "InsurancePolicy", "InsuranceClaim",
+  "Dispensing", "DiagnosticOrder",
   "WorkforceRecord", "MedicationAdministration", "LabTemplate", "LabTemplateParameter",
-  "AbdmConsent", "AbdmCareContext", "AbdmEvent", "EmergencyCase", "DutyAttendanceEvent",
+  "EmergencyCase", "DutyAttendanceEvent",
   "DutyAttendanceRequest", "ClinicalNote", "ClinicalNoteVersion",
 ];
 
 const DEFERRED_IMPORT_TABLES = new Set([
   "MedicalDocument", "PatientPortalAccount", "FacilityTelegramIntegration",
   "TelegramIdentity", "TelegramLinkChallenge", "TelemedicineParticipant", "TelemedicineSession",
+  "PharmacyItem", "BloodInventory", "BloodDonor", "BloodRequest",
+  "InsuranceProvider", "InsurancePolicy", "InsuranceClaim", "AbdmConsent", "AbdmCareContext", "AbdmEvent",
 ]);
 
 const ID_KEYS = new Set([
