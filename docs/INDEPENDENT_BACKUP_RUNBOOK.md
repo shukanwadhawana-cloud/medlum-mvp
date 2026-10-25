@@ -4,7 +4,11 @@ This runbook describes the external-backup workflow in `.github/workflows/neon-m
 
 ## Destination and access controls
 
-Create a dedicated private Cloudflare R2 bucket for MedLum database backups. Do not reuse a public bucket or grant the access key broad account-wide permissions. Create an R2 API token/access key scoped to the backup bucket with only the object permissions needed to write backup objects (and list/read only if required for operational verification). Store credentials only as GitHub Actions environment secrets.
+Create a dedicated private Cloudflare R2 bucket for MedLum database backups. Do not reuse a public bucket or grant the access key broad account-wide permissions. Create an R2 API token/access key scoped to the backup bucket with Object Read & Write permission for that bucket only. The job reads back the encrypted object and checks both uploaded objects, so the token must support those verification operations. Store credentials only as GitHub Actions environment secrets.
+
+## Healthcare and regulated data restriction
+
+Cloudflare states that it enters into Business Associate Agreements (BAAs) only with Enterprise customers ([Cloudflare US privacy compliance](https://www.cloudflare.com/trust-hub/us-privacy-compliance/)). The workflow encrypts backup payloads client-side before upload, but encryption alone does not establish HIPAA compliance and metadata such as object names/timestamps may still be visible to the storage provider. **Do not upload backups that contain US regulated patient information until Cloudflare confirms in writing that the signed BAA covers the specific R2 product, account, endpoint/jurisdiction and services being used.** If that scope cannot be confirmed, choose a backup destination covered by the applicable BAA instead. This is a deployment gate, not a statement that Cloudflare R2 is currently authorized for PHI.
 
 The workflow uses two environments intentionally so scheduled backups are not blocked by a manual review gate:
 
@@ -39,7 +43,7 @@ The workflow code alone does not establish a backup until the environments, buck
 
 ## Restore drill (required before relying on backups)
 
-1. Select an encrypted backup and verify its checksum against the sidecar.
+1. Download the encrypted object and its `.sha256` sidecar into the same directory. The sidecar contains only the backup basename; run `sha256sum --check <backup-name>.sha256` and require a match before decrypting.
 2. On an isolated, access-controlled non-production host, decrypt using the owner-controlled age private identity and pipe the result into a restore process; do not write a plaintext dump to shared storage.
 3. Restore into a fresh non-production PostgreSQL target. Never point the restore command at production.
 4. Verify schema, Prisma migration history, representative row counts, and application reads using synthetic/approved test data.
