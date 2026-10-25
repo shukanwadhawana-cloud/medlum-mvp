@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 import { findAuthorizedPatient, requireActiveClinicMembership } from "@/lib/clinic-auth";
-import { canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
+import { buildClinicalSignaturePayload, canFinalizeClinicalNote, getClinicalActor, hashClinicalNote } from "@/lib/clinical-signing";
 import { canViewClinicalChart } from "@/lib/permissions";
 
 const NOTE_TYPES = new Set([
@@ -241,7 +241,13 @@ export async function PATCH(req: Request) {
         const signedContentHash = hashClinicalNote(current.content, signedVersion);
         const signedAt = new Date();
         const finalHash = hashClinicalNote(
-          `${current.content}\\nAUTHOR:${current.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${current.id}`,
+          buildClinicalSignaturePayload({
+            content: current.content,
+            authorDoctorId: current.authorDoctorId,
+            signerDoctorId: session.doctorId,
+            noteId: current.id,
+            mode: "AUTHOR_SIGNATURE",
+          }),
           signedVersion,
         );
         const updated = await tx.clinicalNote.updateMany({
@@ -284,8 +290,14 @@ export async function PATCH(req: Request) {
         if (current.contentHash !== hash) return { status: 409, body: { success: false, error: "Clinical note integrity check failed; the note must not be signed." } };
 
         const finalHash = hashClinicalNote(
-          `${current.content}\nAUTHOR:${current.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${current.id}`,
-          current.version,
+          buildClinicalSignaturePayload({
+            content: current.content,
+            authorDoctorId: current.authorDoctorId,
+            signerDoctorId: session.doctorId,
+            noteId: current.id,
+            mode: "VERIFIER",
+          }),
+          signedVersion,
         );
         const verifiedAt = new Date();
         const updated = await tx.clinicalNote.updateMany({
