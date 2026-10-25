@@ -28,6 +28,8 @@ const checks = [
   ["Author and verifier paths use the canonical signature payload helper", route.split("buildClinicalSignaturePayload(").length === 3 && ipdRoute.split("buildClinicalSignaturePayload(").length === 3],
   ["Canonical payload builder uses actual newline delimiters", signaturePayload.includes('return `${input.content}\\nAUTHOR:${input.authorDoctorId}\\n${signerLabel}:${input.signerDoctorId}\\nNOTE:${input.noteId}`;')],
   ["Independent-verifier final hash uses the finalized note version", route.includes('mode: "VERIFIER",\n          }),\n          signedVersion,')],
+  ["Independent-verifier final signing advances the immutable note version", route.slice(route.indexOf('if (action === "finalize")')).includes("const signedVersion = current.version + 1") && route.slice(route.indexOf('if (action === "finalize")')).includes("version: signedVersion, contentHash: signedContentHash")],
+  ["Independent-verifier final signing stores a version-history event", route.slice(route.indexOf('if (action === "finalize")')).includes('event: "FINAL_SIGNED"') && route.slice(route.indexOf('if (action === "finalize")')).includes("tx.clinicalNoteVersion.create")],
   ["Finalization is race-safe", route.includes("Serializable") && route.includes("verifierDoctorId: null") && route.includes("version: current.version")],
   ["Final notes cannot be edited", route.includes('current.status !== "DRAFT"') && route.includes("Submitted or final notes cannot be edited")],
   ["Audit trail records final sign", route.includes('action: "FINAL_SIGN"')],
