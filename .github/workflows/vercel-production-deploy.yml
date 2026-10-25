@@ -105,7 +105,6 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://medlumhealth.com/api/health"
-          SHORT="${EXPECTED_SHA:0:7}"
           # Up to ~8 minutes for Vercel build + promote after a green CI
           for i in $(seq 1 32); do
             BODY="$(curl -fsS --max-time 20 "$URL" || true)"
@@ -114,7 +113,7 @@ jobs:
               process.stdin.on("data",d=>s+=d);
               process.stdin.on("end",()=>{try{console.log(JSON.parse(s).gitSha||"")}catch{console.log("")}})
             ')"
-            if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${DEPLOYED_SHA:0:7}" = "$SHORT" ]; }; then
+            if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
               echo "Vercel production is serving the triggering commit ($DEPLOYED_SHA)."
               exit 0
             fi
