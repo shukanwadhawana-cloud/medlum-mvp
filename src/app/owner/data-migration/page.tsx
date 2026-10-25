@@ -99,7 +99,7 @@ export default function OwnerDataMigrationPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold">1. Select facility</h2>
         <label htmlFor="migration-clinic" className="mt-3 block text-sm font-medium">Hospital / clinic</label>
-        <select id="migration-clinic" value={selectedClinic} onChange={e => { setSelectedClinic(e.target.value); setReadyToImport(false); setPackageData(null); setMessage(""); }} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={clinics.length === 0}>
+        <select id="migration-clinic" value={selectedClinic} onChange={e => { setSelectedClinic(e.target.value); setReadyToImport(false); setPackageData(null); setPreviewCounts({}); setDeferredTables([]); setNotMigratedItems([]); setMessage(""); }} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" disabled={clinics.length === 0}>
           {clinics.map(clinic => <option key={clinic.id} value={clinic.id}>{clinic.name}{clinic.isActive ? "" : " (inactive)"}</option>)}
         </select>
         {clinics.length === 0 && <p className="mt-2 text-sm text-slate-600">No facilities are available in the owner workspace.</p>}
