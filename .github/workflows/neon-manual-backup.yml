@@ -41,6 +41,7 @@ jobs:
           R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ vars.R2_BUCKET }}
           AGE_RECIPIENT: ${{ vars.AGE_RECIPIENT }}
+          R2_BAA_SCOPE_CONFIRMED: ${{ vars.R2_BAA_SCOPE_CONFIRMED }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
@@ -49,6 +50,7 @@ jobs:
             echo "::error::Manual backup requires the exact confirmation CREATE_ENCRYPTED_BACKUP"
             exit 1
           fi
+          test "${R2_BAA_SCOPE_CONFIRMED:-}" = "CONFIRMED_IN_WRITING" || { echo "::error::Backup blocked: R2 data-use/BAA scope has not been explicitly approved in writing. Set R2_BAA_SCOPE_CONFIRMED only after written review confirms the actual data category, R2 product, account, endpoint/jurisdiction, and applicable BAA requirements."; exit 1; }
           test -n "${DATABASE_URL:-}" || { echo "::error::Missing environment secret PRODUCTION_DATABASE_URL"; exit 1; }
           test -n "${R2_ACCOUNT_ID:-}" || { echo "::error::Missing environment variable R2_ACCOUNT_ID"; exit 1; }
           test -n "${R2_BUCKET:-}" || { echo "::error::Missing environment variable R2_BUCKET"; exit 1; }
