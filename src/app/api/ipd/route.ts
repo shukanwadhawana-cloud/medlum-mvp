@@ -6,7 +6,7 @@ import { cleanPatientNotes, encodePatientNotes, parseCareSetting, parsePatientPr
 import { requireClinicalModule } from "@/lib/clinic-products";
 import { canViewFullClinicalChart, normalizeClinicRole, requireActiveClinicMembership } from "@/lib/clinic-auth";
 import { canAccessModule } from "@/lib/permissions";
-import { canFinalizeClinicalNote, hashClinicalNote } from "@/lib/clinical-signing";
+import { buildClinicalSignaturePayload, canFinalizeClinicalNote, hashClinicalNote } from "@/lib/clinical-signing";
 
 function metaOf(l: { meta?: string | null } | null | undefined) {
   try { return l?.meta ? JSON.parse(l.meta) : {}; } catch { return {}; }
@@ -565,9 +565,16 @@ export async function POST(req: Request) {
       // number occupied by the submitted draft (the DB enforces uniqueness).
       const signedVersion = note.version + 1;
       const signedContentHash = hashClinicalNote(note.content, signedVersion);
-      const finalHash = isAuthorSigner
-        ? hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${note.id}`, signedVersion)
-        : hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nVERIFIER:${session.doctorId}\\nNOTE:${note.id}`, signedVersion);
+      const finalHash = hashClinicalNote(
+        buildClinicalSignaturePayload({
+          content: note.content,
+          authorDoctorId: note.authorDoctorId,
+          signerDoctorId: session.doctorId,
+          noteId: note.id,
+          mode: isAuthorSigner ? "AUTHOR_SIGNATURE" : "VERIFIER",
+        }),
+        signedVersion,
+      );
       try {
         await prisma.$transaction(async (tx) => {
           const currentPatient = await tx.patient.findFirst({
@@ -710,7 +717,16 @@ export async function POST(req: Request) {
         });
         let finalHash = "";
         if (sign) {
-          finalHash = hashClinicalNote(`${content}\\nAUTHOR:${session.doctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${created.id}`, version);
+          finalHash = hashClinicalNote(
+            buildClinicalSignaturePayload({
+              content,
+              authorDoctorId: session.doctorId,
+              signerDoctorId: session.doctorId,
+              noteId: created.id,
+              mode: "AUTHOR_SIGNATURE",
+            }),
+            version,
+          );
           await tx.clinicalNote.update({ where: { id: created.id }, data: { finalHash } });
         }
         await tx.clinicalNoteVersion.create({
