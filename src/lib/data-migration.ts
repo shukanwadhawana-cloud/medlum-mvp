@@ -195,6 +195,17 @@ export function validateMigrationPackage(pkg: unknown) {
       for (const key of sensitiveKeys) {
         if (Object.prototype.hasOwnProperty.call(row, key)) errors.push(`${table} row ${index + 1} contains a forbidden credential/storage field: ${key}`);
       }
+      if (table === "ClinicalNote") {
+        const version = row.version;
+        const noteContent = row.content;
+        const contentHash = row.contentHash;
+        if (typeof version !== "number" || !Number.isInteger(version) || version < 1 || typeof noteContent !== "string" || typeof contentHash !== "string" || !contentHash) {
+          errors.push(table + " row " + (index + 1) + " is missing valid version/content/hash fields");
+        } else {
+          const expectedHash = createHash("sha256").update("v" + version + ":\\n" + noteContent).digest("hex");
+          if (contentHash !== expectedHash) errors.push(table + " row " + (index + 1) + " content hash does not match its content");
+        }
+      }
       if (table === "ClinicalNoteVersion") {
         const version = row.version;
         const noteContent = row.content;
