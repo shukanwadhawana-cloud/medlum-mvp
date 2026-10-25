@@ -7,6 +7,9 @@ const exportRoute = readFileSync("src/app/api/owner/data-migration/export/route.
 const page = readFileSync("src/app/owner/data-migration/page.tsx", "utf8");
 
 assert.match(service, /MIGRATION_SCHEMA_VERSION = 2/);
+assert.match(service, /MAX_MIGRATION_TABLE_ROWS = 20000/);
+assert.match(service, /MigrationExportLimitError/);
+assert.match(service, /LIMIT 20001/);
 assert.match(service, /ClinicalNoteVersion/);
 assert.match(service, /content hash does not match its content/);
 assert.match(service, /prisma\.patient\.findMany\(\{ where: \{ clinicId \} \}\)/);
@@ -36,6 +39,7 @@ assert.match(exportRoute, /isMedlumOwnerEmail\(session\.email\)/);
 assert.match(exportRoute, /Cache-Control.*no-store/);
 assert.match(exportRoute, /const maxBytes = 20 \* 1024 \* 1024/);
 assert.match(exportRoute, /status: 413/);
+assert.match(exportRoute, /MigrationExportLimitError/);
 assert.match(page, /Validated record counts/);
 assert.match(page, /deferredTables/);
 assert.match(page, /notMigratedItems/);
