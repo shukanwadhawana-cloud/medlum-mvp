@@ -17,6 +17,7 @@ export default function OwnerDataMigrationPage() {
   const [packageData, setPackageData] = useState<unknown>(null);
   const [previewCounts, setPreviewCounts] = useState<Record<string, number>>({});
   const [deferredTables, setDeferredTables] = useState<string[]>([]);
+  const [notMigratedItems, setNotMigratedItems] = useState<string[]>([]);
   const [readyToImport, setReadyToImport] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -46,10 +47,11 @@ export default function OwnerDataMigrationPage() {
       if (!r.ok || !j.valid) throw new Error((j.errors || ["Migration package preflight failed"]).join(" "));
       setPreviewCounts(j.previewCounts || {});
       setDeferredTables(Array.isArray(j.deferred) ? j.deferred : []);
+      setNotMigratedItems(Array.isArray(json.notMigrated) ? json.notMigrated.filter((item: unknown): item is string => typeof item === "string") : []);
       setReadyToImport(true);
       setMessage("Package preflight passed. No records were written. Review the record counts and deferred items before confirming import.");
     } catch (e) {
-      setPackageData(null); setPreviewCounts({}); setDeferredTables([]);
+      setPackageData(null); setPreviewCounts({}); setDeferredTables([]); setNotMigratedItems([]);
       setError(e instanceof Error ? e.message : "Could not validate package");
     } finally { setValidating(false); }
   }
@@ -68,6 +70,7 @@ export default function OwnerDataMigrationPage() {
       setPackageData(null);
       setPreviewCounts({});
       setDeferredTables([]);
+      setNotMigratedItems([]);
       setMessage("Migration completed. Existing Master Owner was preserved. Sensitive authentication, audit and external-integration records remain intentionally deferred.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
@@ -120,6 +123,7 @@ export default function OwnerDataMigrationPage() {
             {Object.entries(previewCounts).sort(([a], [b]) => a.localeCompare(b)).map(([table, count]) => <li key={table} className="flex justify-between gap-3"><span>{table}</span><span className="font-medium tabular-nums">{count.toLocaleString()}</span></li>)}
           </ul>
           {deferredTables.length > 0 && <p className="mt-3 text-sm text-amber-800">Deferred for separate onboarding: {deferredTables.join(", ")}.</p>}
+          {notMigratedItems.length > 0 && <div className="mt-3"><p className="text-sm font-medium text-amber-900">Not included in this package</p><ul className="mt-1 list-disc pl-5 text-sm text-amber-800">{notMigratedItems.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></div>}
         </div>}
         {readyToImport && packageData !== null && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">Preflight passed. No records have been written.</p>
