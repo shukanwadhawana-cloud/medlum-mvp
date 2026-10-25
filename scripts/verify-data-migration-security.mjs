@@ -32,6 +32,8 @@ assert.match(importRoute, /status: 413/);
 assert.doesNotMatch(importRoute, /prisma\.auditLog\.create/);
 assert.match(exportRoute, /isMedlumOwnerEmail\(session\.email\)/);
 assert.match(exportRoute, /Cache-Control.*no-store/);
+assert.match(exportRoute, /const maxBytes = 20 \* 1024 \* 1024/);
+assert.match(exportRoute, /status: 413/);
 assert.match(page, /Validated record counts/);
 assert.match(page, /deferredTables/);
 
