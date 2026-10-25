@@ -266,8 +266,9 @@ export async function importClinicData(
   const sourceClinicId = typeof sourceClinic?.id === "string" ? sourceClinic.id : "";
   if (!sourceClinicId) return { valid: false, executed: false, errors: ["Migration package is missing its source Clinic record."], imported: {}, deferred: [] as string[] };
 
-  const targetClinic = await prisma.clinic.findUnique({ where: { id: targetClinicId }, select: { id: true, name: true } });
+  const targetClinic = await prisma.clinic.findUnique({ where: { id: targetClinicId }, select: { id: true, name: true, isActive: true } });
   if (!targetClinic) return { valid: false, executed: false, errors: ["Target facility not found."], imported: {}, deferred: [] as string[] };
+  if (!targetClinic.isActive) return { valid: false, executed: false, errors: ["Target facility is inactive; reactivate it through the normal owner workflow before importing."], imported: {}, deferred: [] as string[] };
 
   const owner = await prisma.doctor.findUnique({ where: { email: ownerEmail }, select: { id: true, email: true } });
   if (!owner) return { valid: false, executed: false, errors: ["Current Master Owner account could not be resolved."], imported: {}, deferred: [] as string[] };
