@@ -10,6 +10,20 @@ export function canFinalizeClinicalNote(role: ClinicRole) {
   return CLINICAL_VERIFIER_ROLES.includes(role);
 }
 
+
+export type ClinicalSignatureMode = "AUTHOR_SIGNATURE" | "VERIFIER";
+
+export function buildClinicalSignaturePayload(input: {
+  content: string;
+  authorDoctorId: string;
+  signerDoctorId: string;
+  noteId: string;
+  mode: ClinicalSignatureMode;
+}) {
+  const signerLabel = input.mode === "AUTHOR_SIGNATURE" ? "AUTHOR_SIGNATURE" : "VERIFIER";
+  return `${input.content}\nAUTHOR:${input.authorDoctorId}\n${signerLabel}:${input.signerDoctorId}\nNOTE:${input.noteId}`;
+}
+
 export function hashClinicalNote(content: string, version: number) {
   return createHash("sha256").update(`v${version}:\n${content}`).digest("hex");
 }
