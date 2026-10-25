@@ -104,9 +104,11 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
   const clinic = await prisma.clinic.findUnique({ where: { id: clinicId }, select: { id: true, name: true, address: true, phone: true, email: true, website: true, registrationNo: true, isActive: true, createdAt: true, updatedAt: true } });
   if (!clinic) throw new Error("Clinic not found");
 
-  const memberRows = await prisma.clinicMember.findMany({ where: { clinicId }, select: { id: true, clinicId: true, doctorId: true, role: true, staffCode: true, designation: true, department: true, isActive: true, deactivatedAt: true, createdAt: true, updatedAt: true } });
+  const memberRows = await prisma.clinicMember.findMany({ where: { clinicId }, select: { id: true, clinicId: true, doctorId: true, role: true, staffCode: true, designation: true, department: true, isActive: true, deactivatedAt: true, createdAt: true, updatedAt: true }, take: 20001 });
+  if (memberRows.length > MAX_MIGRATION_TABLE_ROWS) throw new MigrationExportLimitError("ClinicMember exceeds the 20,000-row export limit.");
   const doctorIds = [...new Set(memberRows.map(m => m.doctorId))];
-  const patientRows = await prisma.patient.findMany({ where: { clinicId } });
+  const patientRows = await prisma.patient.findMany({ where: { clinicId }, take: 20001 });
+  if (patientRows.length > MAX_MIGRATION_TABLE_ROWS) throw new MigrationExportLimitError("Patient exceeds the 20,000-row export limit.");
   const patientIds = patientRows.map(p => p.id);
   const base: ScopeContext = { clinicId, doctorIds, patientIds, appointmentIds: [], encounterIds: [], prescriptionIds: [], invoiceIds: [], labOrderIds: [], diagnosticOrderIds: [], tariffVersionIds: [], labTemplateIds: [], insuranceProviderIds: [], insurancePolicyIds: [], bloodInventoryIds: [], sessionIds: [], memberIds: memberRows.map(m => m.id) };
 
@@ -124,14 +126,17 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
   base.sessionIds = await ids("TelemedicineSession", specs.find(s => s.table === "TelemedicineSession")!.where(base));
 
   const records: Record<string, unknown[]> = { Clinic: [clinic], ClinicMember: memberRows, Patient: patientRows };
+  assertExportLimits(records);
   for (const spec of specs) {
     if (["Clinic", "ClinicMember", "Patient"].includes(spec.table)) continue;
     const where = spec.where(base);
     const rows = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(
-      `SELECT * FROM "${spec.table}" WHERE ${where.sql}`,
+      `SELECT * FROM "${spec.table}" WHERE ${where.sql} LIMIT 20001`,
       ...where.params,
     );
+    if (rows.length > MAX_MIGRATION_TABLE_ROWS) throw new MigrationExportLimitError(spec.table + " exceeds the 20,000-row export limit.");
     records[spec.table] = rows.map(r => withoutSensitive(r, spec.sensitive));
+    assertExportLimits(records);
   }
   // Doctor accounts are global identities; export only the fields required to map existing accounts safely.
   records.Doctor = (records.Doctor || []).map(r => {
@@ -139,7 +144,7 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
     return { id: row.id, email: row.email, name: row.name };
   });
 
-  return {
+  const pkg = {
     schemaVersion: MIGRATION_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     source: { clinicId, clinicName: clinic.name, ownerEmail },
@@ -147,6 +152,10 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
     notMigrated: ["Patients with null clinicId are excluded because their facility ownership cannot be proven", "AuditLog (source audit history is retained at the source)", "FacilityTelegramIntegration (must be rebound to the target facility)", "TelegramIdentity (global identity; never copied)", "TelegramLinkChallenge (one-time credentials are never copied)", "TelemedicineSession credentials/URLs (re-establish live sessions after import)"],
     records,
   };
+  if (Buffer.byteLength(JSON.stringify(pkg), "utf8") > MAX_MIGRATION_PACKAGE_BYTES) {
+    throw new MigrationExportLimitError("Export exceeds the 20 MB package limit; use the reviewed large-export workflow.");
+  }
+  return pkg;;
 }
 
 export function validateMigrationPackage(pkg: unknown) {
