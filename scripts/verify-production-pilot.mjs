@@ -20,6 +20,21 @@ assert(healthBody.status === "ok", "Health status is not ok");
 assert(healthBody.service === "medlum", "Health service identifier mismatch");
 assert(typeof healthBody.timestamp === "string", "Health timestamp missing");
 
+// Production workflows supply the exact validated commit. Other local/scripted
+// checks can omit EXPECTED_SHA and retain the original smoke-test behaviour.
+const expectedSha = process.env.EXPECTED_SHA?.trim().toLowerCase();
+if (expectedSha) {
+  assert(/^[0-9a-f]{40}$/.test(expectedSha), "EXPECTED_SHA must be a full 40-character Git SHA");
+  const deployedSha = String(healthBody.gitSha || "").trim().toLowerCase();
+  const shaMatches =
+    deployedSha === expectedSha ||
+    (deployedSha.length === 7 && deployedSha === expectedSha.slice(0, 7));
+  assert(
+    shaMatches,
+    `Production SHA mismatch: expected ${expectedSha.slice(0, 7)}, got ${deployedSha || "missing"}`,
+  );
+}
+
 const login = await request("/login");
 assert([200, 301, 302, 307, 308].includes(login.status), `Login route returned ${login.status}`);
 
@@ -41,4 +56,4 @@ const hsts = login.headers.get("strict-transport-security");
 assert(hsts && hsts.includes("max-age="), "Production HSTS header missing");
 
 console.log(`Phase 16 production pilot smoke verification passed for ${baseUrl}.`);
-console.log("Validated: health, login reachability, unauthenticated patient API protection, and production security headers.");
+console.log("Validated: health, expected commit (when supplied), login reachability, unauthenticated patient API protection, and production security headers.");
