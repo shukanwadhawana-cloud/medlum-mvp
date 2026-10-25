@@ -32,7 +32,8 @@ assert.match(service, /sensitiveKeys/);
 assert.match(service, /duplicate id/);
 
 assert.match(importRoute, /const maxBytes = 20 \* 1024 \* 1024/);
-assert.match(importRoute, /await req\.text\(\)/);
+assert.match(importRoute, /readBodyLimited/);
+assert.match(importRoute, /reader\.read\(\)/);
 assert.match(importRoute, /status: 413/);
 assert.doesNotMatch(importRoute, /prisma\.auditLog\.create/);
 assert.match(exportRoute, /isMedlumOwnerEmail\(session\.email\)/);
