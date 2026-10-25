@@ -127,7 +127,7 @@ export default function OwnerDataMigrationPage() {
           </ul>
           {deferredTables.length > 0 && <p className="mt-3 text-sm text-amber-800">Deferred for separate onboarding: {deferredTables.join(", ")}.</p>}
           {(deferredRecordCounts.ClinicalNote > 0 || deferredRecordCounts.ClinicalNoteVersion > 0) && <p className="mt-2 text-sm text-amber-900">Signed/non-draft clinical notes deferred: {(deferredRecordCounts.ClinicalNote || 0).toLocaleString()}; related note versions deferred: {(deferredRecordCounts.ClinicalNoteVersion || 0).toLocaleString()}. Their source signatures require a reviewed preservation workflow.</p>}
-          {notMigratedItems.length > 0 && <div className="mt-3"><p className="text-sm font-medium text-amber-900">Not included in this package</p><ul className="mt-1 list-disc pl-5 text-sm text-amber-800">{notMigratedItems.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></div>}
+          {notMigratedItems.length > 0 && <div className="mt-3"><p className="text-sm font-medium text-amber-900">Not automatically migrated</p><ul className="mt-1 list-disc pl-5 text-sm text-amber-800">{notMigratedItems.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul></div>}
         </div>}
         {readyToImport && packageData !== null && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">Preflight passed. No records have been written.</p>
