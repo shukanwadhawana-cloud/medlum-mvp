@@ -33,6 +33,8 @@ assert.match(service, /TariffItem: \{ tariffVersionId: "TariffVersion" \}/);
 assert.match(service, /tx\.auditLog\.create/);
 assert.match(service, /sensitiveKeys/);
 assert.match(service, /duplicate id/);
+assert.match(service, /globalIds/);
+assert.match(service, /IDs must be unique across the migration package/);
 
 assert.match(importRoute, /const maxBytes = 20 \* 1024 \* 1024/);
 assert.match(importRoute, /readBodyLimited/);
