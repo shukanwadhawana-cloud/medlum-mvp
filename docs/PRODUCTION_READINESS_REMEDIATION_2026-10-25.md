@@ -1,70 +1,88 @@
-# Workflow Failure Audit and Pending Integration Register — 2026-10-25
+# Production Readiness and Integration Register — 2026-10-25
 
-This register separates actual code defects from workflow infrastructure failures and integrations that are still awaiting owner/provider setup. It is not a certification or a clinical-safety attestation.
+This is an evidence-based operational checkpoint for MedLum Healthcare. It is not a certification, legal opinion, or clinical-safety attestation. Snapshot baseline: main commit `e97ae8f2cae0682efaf2a228fa6e112e63eeee61`; re-check the current main SHA and run status before each release.
 
-## Executive result
+## Executive status
 
-- The repeated October 24–25 CI failures **did not execute their steps**. The failed jobs reported runner ID `0`, zero steps and no actionable logs. Retrying them reproduced the same pattern. These are not failed test assertions and do not show that Gitleaks detected a secret. Do not change correct application code to silence these results.
-- The facility Telegram handshake change from PR #222 was merged as main commit `6a6205fe525bb65597d0b6ea3920a02debc5c68b`. Vercel reports that exact commit as `READY` on the production alias, and the live health endpoint returned the same SHA at `2026-10-25T03:12:04Z`. The pilot workflow changes in this PR add a stricter exact-SHA gate; they do not implement the Telegram fix.
-- Read-only smoke checks against `https://medlumhealth.com` passed for the health endpoint and login page. An unauthenticated request to `/api/patients` returned HTTP 401 as expected.
-- Vercel's native Git integration produced a production deployment even while the repository's separate GitHub Deploy/Verify/Pilot workflows were skipped because CI was not green. This is a release-policy gap. Do not disable direct Git deployments until the guarded deployment mechanism and its required credentials are verified.
-- The R2 backup implementation already has a separate open PR #224. This PR deliberately does not duplicate or replace its workflow.
+**Software hardening has advanced; unrestricted U.S. clinical-data readiness remains NO-GO.** Code and tests cannot substitute for provider contracts, security governance, owner-level integrations, an actual independent backup, and a successful isolated restore.
 
-## Audit of failed and skipped workflows
+- The facility data-migration hardening PR #235 is merged as `e97ae8f2cae0682efaf2a228fa6e112e63eeee61`. Its exact-head MedLum CI and full-history secret scan passed before merge. A new main CI run was started on that SHA; see [main CI run 40204503922](https://github.com/shukanwadhawana-cloud/medlum-mvp/actions/runs/40204503922) for its final result before promotion.
+- The Vercel project `medlumhealthcare` reported a READY production deployment for the same SHA. At the time of the audit, the corresponding GitHub main CI run was still in progress. This is evidence that native Vercel Git integration can promote independently of the gated GitHub workflow, and is a production-release-control gap tracked in [issue #234](https://github.com/shukanwadhawana-cloud/medlum-mvp/issues/234).
+- The encrypted R2 backup workflow and runbook are already on main at `65c74356d753caacaea7672c570d2f243ee63c16`. Redundant PR #231 has been closed as superseded; its workflow and runbook blobs were identical to main and main additionally contains the backup regression test/CI wiring. This proves code is present, **not** that a real backup was created or can be restored.
+- Safe REA-assisted engineering guardrails are merged in [`AGENTS.md`](../blob/main/AGENTS.md) and [`docs/REA_ENGINEERING_WORKFLOW.md`](REA_ENGINEERING_WORKFLOW.md). REA is a developer-time investigative aid, not a production dependency. No REA runtime installation or autonomous investigation is claimed by this register.
+- Vercel’s environment listing (queried without decrypting values) showed the previously flagged `DATABASE_URL`, `SESSION_SECRET`, and `OCR_SERVICE_SECRET` as `type: sensitive`, `visibility: secret`, with no listed security issues. No values were displayed.
 
-| Workflow / run family | Evidence | Classification | Action |
-|---|---|---|---|
-| MedLum CI on main, run `40127218369` (latest observed attempt 3) | All four test/build jobs completed as failure before step 1; runner ID 0; zero steps | Runner/Actions execution failure; no test result | Do not rewrite tests. Restore GitHub Actions runner availability and rerun CI on the current main SHA. |
-| Secret History Scan on main, run `40127218356` (latest observed attempt 3) | Scan job failed with runner ID 0 and zero steps | Scan did not execute; no evidence of a secret finding | Do not relax Gitleaks or update its allowlist. Restore runner and rerun full-history scan. |
-| Desktop Packaging on main, run `40127218414` | Verification job failed before any steps; build matrix was skipped | Runner/Actions execution failure, not packaging assertion | Keep the packaging checks intact; rerun once runners work. |
-| PR #222 Telegram handshake CI/Gitleaks runs (`40125491770`, `40125491850`, `40126897544`, `40126897505`, `40126906013`, `40126905986`, `40126067500`, `40126067584`) | Jobs repeatedly reported runner ID 0 or no runner and zero steps | Repeated infrastructure-level failure | The code was already merged and the live production commit is verified. Do not make corrective code changes based on these runs; the dedicated Telegram regression test still needs an actual successful execution. |
-| PR #223 CI/Gitleaks runs (`40127203670`, `40127203702`; subsequent branch attempts also show runner ID 0) | No steps ran | Same infrastructure blocker | Keep PR unmerged until checks can actually execute. |
-| Production Pilot / Vercel Deploy / Vercel Verify runs following red CI | Workflow conclusion was `skipped` due to explicit successful-CI guard | Expected workflow dependency behavior | No workflow-code correction needed for the skip itself. The independent Vercel Git deployment path must be reviewed because it deployed despite the skipped guarded workflows. |
+## Verified code and automated test evidence
 
-Prior to this incident, the CI suite and full-history secret scan both passed on main commit `634bf576243d008f4b9bf0063b8c26de3413c7ce` (October 23). The current failed records do not establish regressions against those tests because the runners never executed them.
+### Tenant-scoped facility data migration
 
-## Source-level corrections included in this PR
+PR [#235](https://github.com/shukanwadhawana-cloud/medlum-mvp/pull/235) passed exact-head CI run [40184110454](https://github.com/shukanwadhawana-cloud/medlum-mvp/actions/runs/40184110454) and full-history secret scan [40184110407](https://github.com/shukanwadhawana-cloud/medlum-mvp/actions/runs/40184110407) before merge.
 
-- Production pilot uses Node.js 24, matching the app's declared engine.
-- Before running the live smoke checks, the pilot workflow waits for the canonical health endpoint to report the exact commit that passed CI; the smoke script independently checks `EXPECTED_SHA` when provided.
-- The backup workflow is intentionally left unchanged here. Encrypted R2 backups belong in the dedicated PR #224, avoiding two competing implementations for the same workflow.
+The merged path adds owner-only export/import routes, streamed 20 MB request limits, per-table row caps, schema/type/unique-ID and source-hash validation, source-package foreign-key checks, existing-row collision preflight, server-derived target facility mapping, sensitive field exclusions, a transactional audit record, and generic error responses. Non-draft/signed clinical notes and their associated signed/version history are deferred rather than silently copied with invalid source signatures. Import writes are fail-closed: setting `MEDLUM_DATA_MIGRATION_IMPORT_ENABLED=true` is required for execute mode; otherwise execution returns a locked response and preflight remains non-writing. **Do not enable this flag or use production records until a reviewed, synthetic, isolated migration rehearsal passes.**
 
-## Integrations that remain genuinely pending
+The source-level regression check is `npm run test:data-migration-security`; it passed in the PR’s exact-head CI. Full main CI and downstream release checks must pass on the current SHA before treating the merge as release-verified.
 
-### 1. Facility Telegram: code is deployed; owner-level handshake remains unverified
+### REA-assisted engineering
 
-PR #222 added parsing and validation for Telegram `/start` deep links, one-time-link expiry guidance, webhook URL diagnostics/repair, and a test-notification control. The code is in production at the SHA above. Vercel's available runtime-log window did not show Telegram handshake events, and the selected route error query found no runtime error clusters; neither result proves that Telegram has registered the correct webhook or that a facility chat is linked.
+REA installation and execution should occur only on a developer-controlled machine using synthetic fixtures. The repo instructions cover Telegram handshake, consultant assignment/transfer, clinical-note signing/cancellation, OCR/report identity, backup/restore, and tenant isolation. Do not send real PHI, production exports/logs, credentials, cookies, decrypted variables, or real clinical images/documents to REA or an external model. Every finding still requires source inspection, a reproduced synthetic case, regression tests, human review, and exact-SHA release evidence.
 
-The final live acceptance requires the authorized Master Owner to open MedLum Owner → Hospitals, select the target facility, use **Diagnose / repair webhook**, then generate a fresh connection link, open that exact link in Telegram and press **Start**, and use **Send test notification**. Verify the UI shows the facility as connected and the test notification arrives. This authenticated action was not performed here because no signed-in owner browser session/target facility was available; do not simulate a successful connection or write an unverified Telegram chat ID.
+### Telegram / clinical / imaging
 
-### 2. Durable backups: workflow PR #227 merged; operational setup remains
+- **Facility Telegram handshake:** code and regression safeguards are deployed in the codebase, including atomic binding protections. The specific hospital-owner connection is not yet verified end to end. An authorized owner must diagnose/repair the webhook if required, issue a fresh connection link, open it in the correct Telegram chat, press Start, and receive the MedLum test notification. Do not infer a link from passing unit tests or write an unverified chat ID.
+- **Consultant assignment/transfer and clinical-note workflows:** the repository has dedicated regression/runtime checks (including the owner facility onboarding and consultant assignment/transfer acceptance tests), but those tests do not replace a live authorized hospital workflow acceptance. Review duplicate or stale PRs against current main before merging; do not merge old variants merely because their branches are green.
+- **OCR / Clinical Assist:** synthetic runtime acceptance covers authenticated routing and checksum-linked draft behavior. OCR output remains an unverified draft; no clinical result should be auto-finalized from OCR. External clinical AI remains disabled unless facility authorization, provider terms, retention/data-transfer controls, and legal/clinical review are approved.
+- **PACS:** synthetic PACS jobs are skipped/not accepted as a production workflow in the checks reviewed here. Keep PACS disabled until a separate, documented end-to-end acceptance is completed.
 
-PR #224 was closed as superseded. PR #227 (`security/encrypted-r2-backups-current-main`) passed current-head CI and full-history scanning and was merged as `65c74356`. It implements scheduled/manual exports that stream PostgreSQL output through age encryption, upload ciphertext and a portable checksum sidecar to a private R2 bucket, then read the encrypted object back and verify the bytes match. The workflow is code, not a completed backup: required GitHub environments/secrets, bucket lifecycle policy, BAA scope and a successful isolated restore drill remain outstanding. It requires the protected GitHub Actions environment `production-backups` to be configured with:
+## Operational gates still open
 
-- Secret `PRODUCTION_DATABASE_URL`
-- Secrets `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, scoped to the private backup bucket
-- Variables `R2_ACCOUNT_ID`, `R2_BUCKET`, and `AGE_RECIPIENT` (public age recipient only)
-- Required reviewers and a main-branch restriction
-- An owner-held, recoverable age private identity, kept outside GitHub and R2
+### 1. One guarded production promotion path — BLOCKED
 
-The code is not a backup until those settings exist and a run succeeds. The new workflow PR must pass CI on its exact head before merge. Then configure the environments, run the backup, verify the encrypted object/checksum, and restore into an isolated non-production database. Validate migration history, row counts, application reads, and external R2 document objects. Never restore over production. Do not upload US regulated patient backups to R2 until the applicable written BAA scope for the Cloudflare account and R2 service is confirmed; if that scope is not available, use a destination with the required agreement.
+GitHub workflow [`.github/workflows/vercel-production-deploy.yml`](../blob/main/.github/workflows/vercel-production-deploy.yml) is configured to deploy the exact main SHA only after successful exact-SHA CI and to check the deployed health SHA. However, it currently permits a fallback when `VERCEL_TOKEN` is absent, relying on Vercel’s native Git integration. Project/deployment inspection confirms that the connected Git integration can produce a READY production deployment while the corresponding GitHub CI is still in progress.
 
-### 3. GitHub Actions runner execution
+Required before declaring the release gate complete:
+1. Confirm the GitHub Actions secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` exist and are correctly scoped **without displaying their values**.
+2. Prove the actual guarded GitHub Actions CLI path on a non-production/preview deployment and its exact-SHA verification.
+3. Configure Vercel’s production deployment-source policy to block direct Git/integration-origin production promotion while retaining the approved CLI/workflow source; do this only after item 2 succeeds.
+4. Run a safe rollback/recovery test, then verify production `/api/health` exposes the intended full SHA, `/login` is reachable, and unauthenticated `/api/patients` returns 401.
+5. Do not mark issue #234 resolved until these acceptance criteria are met. Do not disable native production deployment before the guarded CLI path is proven.
 
-The earlier zero-runner failures were transient: subsequent runs assigned runners and completed. PR #228 (Telegram key-rotation compatibility) and PR #229 (deployment workflow guardrails) passed CI and secret scanning on their exact heads and were merged; PR #227 (encrypted backup workflow and regression check) also passed CI and secret scanning and was merged as `65c74356`. Current main `65c74356` now has successful MedLum CI, full-history secret scan, desktop packaging, Vercel production deploy, exact-SHA production verification, and production-pilot smoke validation. PR #233 is the current-main data-migration security replacement and is awaiting its own exact-head checks. Continue requiring successful checks on the exact SHA; do not treat an in-progress or skipped PACS job as a pass for that capability.
+### 2. Real independent encrypted backup and restore — NOT YET OPERATIONAL
 
-### 4. Enforce one production promotion path
+The workflow `.github/workflows/neon-manual-backup.yml` is on main. It streams a PostgreSQL custom-format dump through `age`, writes only encrypted output to the runner workspace, uploads ciphertext and a portable SHA-256 sidecar to R2, reads back the ciphertext and compares hashes, and verifies both objects exist. The runbook is [`docs/INDEPENDENT_BACKUP_RUNBOOK.md`](INDEPENDENT_BACKUP_RUNBOOK.md).
 
-The separate GitHub deploy/verify workflows are guarded on CI success, but Vercel's connected Git integration may still deploy directly from `main`. PR #229 was merged as commit `2deae7d4`: the workflow now uses Node 24, stops on a failed `vercel pull`, and requires `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` whenever `VERCEL_TOKEN` is configured. The combined release including PR #227 is now at main `65c74356` and needs a fresh production deploy/verify run. Provider-side deployment-source protection remains a separate owner decision tracked in [issue #234](https://github.com/shukanwadhawana-cloud/medlum-mvp/issues/234). Vercel's Git integration deployed the main SHA while CI was pending, so this control gap remains even though the final exact-SHA verification passed. Do not disable Git deployments until the guarded CLI path is verified.
+Required owner/provider setup and proof:
+- Environment `production-backups` for the scheduled main-only job (do not require a human reviewer for unattended scheduled runs).
+- Separate `production-backups-manual` environment with required reviewers and exact manual confirmation.
+- Environment secret `PRODUCTION_DATABASE_URL`; secrets `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`; variables `R2_ACCOUNT_ID`, `R2_BUCKET`, `AGE_RECIPIENT` (public recipient only).
+- Private bucket with scoped read/write access, lifecycle/retention policy, monitoring/alerting, and a recoverable owner-held age private key kept separately from GitHub and R2.
+- A successful backup workflow run, evidence the expected encrypted objects and checksums exist, then a full isolated restore drill into a new non-production database. Verify schema and Prisma migration history, critical table row counts, application reads using synthetic/approved data, and separately stored object/document binaries. Record restore time and recovery-point age. Never restore over production.
 
-### 5. Vercel secret visibility
+Cloudflare’s R2 service and account must be confirmed in writing to be covered by the applicable signed BAA before uploading U.S. regulated patient backups. Encryption by itself is not HIPAA compliance. If BAA scope is unavailable, use a destination contractually covered for the intended data.
 
-The Vercel project inspection originally flagged `DATABASE_URL`, `SESSION_SECRET`, and `OCR_SERVICE_SECRET` as readable. These existing variables were safely upserted with their existing values and Production target using Vercel's supported environment API. A fresh read-only scan now shows `type: sensitive`, `visibility: secret`, and no security issues for all three. No values were printed in the report. This fixes the Vercel visibility classification; it does not prove that credentials have never been exposed in any other system.
+### 3. Protected production migrations — OWNER CONFIGURATION REQUIRED
 
-### 6. U.S. clinical-data readiness
+The workflow `Production Database Migrations` is intentionally manual and fail-closed. Configure the `production-migrations` GitHub Actions environment with required reviewers, main/approved-branch restrictions, secret `PRODUCTION_DATABASE_URL`, and `PRODUCTION_MIGRATIONS_ENABLED=true`. Perform a read-only status run first. Applying migrations requires the separate explicit deploy choice/confirmation and reviewed migration SQL, a verified recovery path, and an approved release plan. No production migration was performed as part of this audit.
 
-The connected Neon project is observed on the Free plan with `hipaa=false`, six-hour history retention, and no automatic snapshot schedule. The app's Vercel functions run in `iad1`; Neon is in Singapore (`aws-ap-southeast-1`). Until the provider plan/BAA, data-residency decision, risk analysis, incident response, required agreements and a proven independent restore process are completed, MedLum is **not cleared for unrestricted U.S. clinical-data production**. Production health now reports exact main SHA `65c74356` with `status: ok`; the login page is reachable and unauthenticated `/api/patients` returns HTTP 401. This is read-only smoke evidence for the live deployment. However, Vercel's connected Git integration deployed `65c74356` while the matching GitHub CI run was still in progress. The GitHub deploy workflow correctly refused a stale deployment run for the previous SHA after `main` advanced. Therefore provider-side production deployment-source protection is still an open release-control gap: disable direct Git-triggered production promotion or require equivalent provider approval only after the guarded CLI path and required GitHub secrets have been verified. Do not change that provider setting blindly. Keep external clinical-AI processing disabled pending authorization and provider/legal/clinical review.
+### 4. U.S. data and HIPAA readiness — NO-GO
 
-## Go/no-go
+The most recent recorded provider audit (2026-10-22) observed Neon on the Free plan, Neon HIPAA configuration flag `false`, a six-hour history/PITR window, no automatic snapshot schedule, database region Singapore (`aws-ap-southeast-1`), and Vercel functions in `iad1`. Those are dated observations, not an assertion that current settings cannot have changed; re-check provider dashboards directly before a new release. No signed BAA or applicable service scope was verified.
 
-**Code deployment verified; GitHub workflow validation and several owner/provider integrations remain blocked.** The correct response to yesterday's red records is to restore execution and rerun the existing checks, not change code without a failing step or assertion. No production migration, live database write, Telegram chat binding, or real-data backup export was performed in this audit.
+Before handling real U.S. regulated clinical data, the accountable owner must complete and document:
+- Eligible provider plans, signed BAAs and services/regions covered by each agreement; approved data-residency/transfer architecture and explicit plan/cost decision.
+- HIPAA Security Rule risk analysis and risk-management plan, safeguards and role/access reviews, audit log/retention, incident response, breach handling, business continuity and disaster recovery.
+- Independent encrypted backups and a successful isolated restore, document/object storage recovery, and tested restore procedures.
+- Vendor/AI privacy, consent/authorization, retention, subprocessors and cross-border-transfer review; clinical governance and human oversight; applicable FDA/ONC scope and state-specific legal review with qualified counsel where relevant.
+- Security review of repository visibility/access, GitHub collaborators, Vercel/Neon permissions, production credentials, secret rotation/history, and incident response plan.
+- A controlled pilot using synthetic data before any authorized real-patient pilot. Green CI, a successful health check, encrypted storage, or a `hipaa` settings flag alone is not proof of compliance.
+
+**Important:** the repository is currently public according to the GitHub repository metadata observed during this audit. I have not changed its visibility because that is an owner-impacting access decision. Review whether the source should be private and assess collaborator/fork access; do not assume changing visibility retroactively erases existing forks or clones.
+
+## Release decision
+
+- **Code hygiene/testing:** substantially hardened; verify current main CI and deployment workflows on the exact current SHA.
+- **Production hosted app:** a READY Vercel deployment exists at the checkpoint, but promotion policy has an unresolved native-Git bypass.
+- **Backup/recovery:** implementation is merged; operational backup/restore is unverified.
+- **Telegram live linkage:** owner-authorized hospital acceptance remains pending.
+- **U.S. clinical data:** **NO-GO** until provider agreements, risk/governance controls, data-residency decision, independent backup/restore and controlled acceptance are all verified.
+
+No production data export/import, production database migration, restore-over-production, real Telegram chat binding, or real-data R2 backup was performed as part of this work.
