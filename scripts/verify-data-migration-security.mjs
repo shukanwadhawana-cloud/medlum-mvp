@@ -36,5 +36,7 @@ assert.match(exportRoute, /const maxBytes = 20 \* 1024 \* 1024/);
 assert.match(exportRoute, /status: 413/);
 assert.match(page, /Validated record counts/);
 assert.match(page, /deferredTables/);
+assert.match(page, /notMigratedItems/);
+assert.match(page, /Not included in this package/);
 
 console.log("Facility data migration security guardrails verified.");
