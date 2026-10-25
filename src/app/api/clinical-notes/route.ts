@@ -283,16 +283,33 @@ export async function PATCH(req: Request) {
         const hash = hashClinicalNote(current.content, current.version);
         if (current.contentHash !== hash) return { status: 409, body: { success: false, error: "Clinical note integrity check failed; the note must not be signed." } };
 
+        // Final signing creates a new immutable note version, just as author signing does.
+        const signedVersion = current.version + 1;
+        const signedContentHash = hashClinicalNote(current.content, signedVersion);
+
         const finalHash = hashClinicalNote(
           `${current.content}\nAUTHOR:${current.authorDoctorId}\nVERIFIER:${session.doctorId}\nNOTE:${current.id}`,
-          current.version,
+          signedVersion,
         );
         const verifiedAt = new Date();
         const updated = await tx.clinicalNote.updateMany({
-          where: { id, clinicId: membership.clinicId, status: "PENDING_VERIFICATION", verifierDoctorId: null, version: current.version },
-          data: { status: "FINAL", verifierDoctorId: session.doctorId, verifiedAt, finalizedAt: verifiedAt, finalHash },
+          where: { id, clinicId: membership.clinicId, status: "PENDING_VERIFICATION", verifierDoctorId: null, version: current.version, contentHash: current.contentHash },
+          data: { status: "FINAL", version: signedVersion, contentHash: signedContentHash, verifierDoctorId: session.doctorId, verifiedAt, finalizedAt: verifiedAt, finalHash },
         });
         if (updated.count !== 1) return { status: 409, body: { success: false, error: "This note was finalized by another verifier or changed concurrently." } };
+
+        await tx.clinicalNoteVersion.create({ data: {
+          clinicalNoteId: id,
+          clinicId: membership.clinicId,
+          version: signedVersion,
+          title: "Final-signed",
+          noteType: current.noteType,
+          content: current.content,
+          contentHash: signedContentHash,
+          event: "FINAL_SIGNED",
+          createdByDoctorId: session.doctorId,
+          createdAt: verifiedAt,
+        } });
 
         await tx.auditLog.create({
           data: {
@@ -306,8 +323,9 @@ export async function PATCH(req: Request) {
               noteType: current.noteType,
               authorDoctorId: current.authorDoctorId,
               verifierDoctorId: session.doctorId,
-              version: current.version,
-              contentHash: current.contentHash,
+              previousVersion: current.version,
+              version: signedVersion,
+              contentHash: signedContentHash,
               finalHash,
               at: verifiedAt.toISOString(),
             }),
