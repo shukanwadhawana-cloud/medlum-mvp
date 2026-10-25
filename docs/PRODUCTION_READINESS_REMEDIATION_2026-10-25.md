@@ -57,9 +57,9 @@ Inspect repository/account Actions availability, hosted-runner minutes and spend
 
 The separate GitHub deploy/verify workflows are guarded on CI success, but Vercel's connected Git integration can deploy directly from `main`. Before changing Vercel's production deployment-source policy, verify the guarded CLI path and its required repository secrets (`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`) through the authorized GitHub settings. Then configure provider-side protection so production promotion requires the reviewed green-SHA release path. Do not disable Git deployments blindly; that could leave no working release path.
 
-### 5. Vercel secret visibility
+### 5. Vercel secret visibility — rechecked 2026-10-25
 
-The Vercel project inspection flagged `DATABASE_URL`, `SESSION_SECRET`, and `OCR_SERVICE_SECRET` as `visibility: config` with `readable-secret` issues. The available connector edit operation does not expose Vercel's required `visibility: secret` field; attempts to change only the variable type were rejected. No values were retrieved, overwritten or deleted. Correct these existing entries through Vercel project settings/API while preserving their values and Production target, then re-check the security warnings.
+The Vercel project environment-variable listing now reports `DATABASE_URL`, `SESSION_SECRET`, and `OCR_SERVICE_SECRET` as `type: sensitive`, `visibility: secret`, with no security issues. A subsequent scan of all listed project environment variables returned no remaining `securityIssues`. This verifies the provider's current classification state only; it is not a general proof that secrets have never been exposed. Do not print or copy their values into logs, issues, or agent prompts. If independent evidence shows a value was exposed, rotate it with the owning provider and update dependent services in a coordinated maintenance window.
 
 ### 6. U.S. clinical-data readiness
 
