@@ -51,6 +51,9 @@ export async function POST(req: NextRequest) {
     const targetClinicId = typeof parsed.targetClinicId === "string" ? parsed.targetClinicId.trim() : "";
     const execute = parsed.execute === true;
     const pkg = parsed.package;
+    if (execute && process.env.MEDLUM_DATA_MIGRATION_IMPORT_ENABLED !== "true") {
+      return NextResponse.json({ success: false, valid: false, error: "Import execution is disabled until the controlled migration rehearsal is approved." }, { status: 423, headers: { "Cache-Control": "no-store" } });
+    }
 
     if (!targetClinicId) {
       return NextResponse.json({ success: false, error: "Target facility is required" }, { status: 400 });
