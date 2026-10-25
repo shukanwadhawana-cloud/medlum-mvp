@@ -121,7 +121,7 @@ export default function OwnerDataMigrationPage() {
         <input id="migration-file" type="file" accept=".json,application/json" disabled={!selectedClinic || validating || importing} onChange={e => { const file = e.target.files?.[0]; if (file) void validate(file); e.currentTarget.value = ""; }} className="mt-2 block w-full text-sm" />
         {validating && <p className="mt-3 text-sm text-slate-600">Validating package…</p>}
         {readyToImport && Object.keys(previewCounts).length > 0 && <div className="mt-4 rounded-xl border border-slate-200 p-4">
-          <h3 className="text-sm font-semibold">Validated record counts</h3>
+          <h3 className="text-sm font-semibold">Records in package (includes deferred rows)</h3>
           <ul className="mt-2 grid gap-1 text-sm text-slate-700 sm:grid-cols-2">
             {Object.entries(previewCounts).sort(([a], [b]) => a.localeCompare(b)).map(([table, count]) => <li key={table} className="flex justify-between gap-3"><span>{table}</span><span className="font-medium tabular-nums">{count.toLocaleString()}</span></li>)}
           </ul>
