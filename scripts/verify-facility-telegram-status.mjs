@@ -21,7 +21,7 @@ const checks = [
   ["panel mounted on clinic page", clinicPage.includes("FacilityTelegramPanel")],
   ["no TELEGRAM_BOT_TOKEN in panel", !panel.includes("TELEGRAM_BOT_TOKEN")],
   ["no new Telegram model", !schema.includes("model TelegramUser") && schema.includes("FacilityTelegramIntegration")],
-  ["no notification router", !fs.existsSync(`${root}/src/lib/telegram-notifications.ts")],
+  ["no notification router", !fs.existsSync(`${root}/src/lib/telegram-notifications.ts`)],
   ["no Prisma migration in this feature path", true],
 ];
 
