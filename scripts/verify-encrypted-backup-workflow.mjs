@@ -15,6 +15,8 @@ for (const required of [
   "R2_ACCESS_KEY_ID",
   "R2_SECRET_ACCESS_KEY",
   "AGE_RECIPIENT",
+  "R2_BAA_SCOPE_CONFIRMED",
+  "CONFIRMED_IN_WRITING",
 ]) {
   assert.ok(workflow.includes(required), `Backup workflow missing required safeguard: ${required}`);
 }
