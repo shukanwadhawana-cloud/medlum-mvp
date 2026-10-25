@@ -52,7 +52,7 @@ assert.match(exportRoute, /Cache-Control.*no-store/);
 assert.match(exportRoute, /const maxBytes = 20 \* 1024 \* 1024/);
 assert.match(exportRoute, /status: 413/);
 assert.match(exportRoute, /MigrationExportLimitError/);
-assert.match(page, /Validated record counts/);
+assert.match(page, /Records in package \(includes deferred rows\)/);
 assert.match(page, /deferredTables/);
 assert.match(page, /notMigratedItems/);
 assert.match(page, /deferredRecordCounts/);
