@@ -51,6 +51,10 @@ has(schema,"verifierDoctorId","clinical verifier field");
 has(schema,'status            String    @default("DRAFT")',"clinical note status");
 
 console.log("IPD clinical workflow verification passed.");
+has(ipdApi,'hashClinicalNote(`${content}\\nAUTHOR:${session.doctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${created.id}`, version)',"direct author-sign final hash uses canonical newline-delimited fields");
+has(ipdApi,'hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nVERIFIER:${session.doctorId}\\nNOTE:${note.id}`, signedVersion)',"second-clinician final hash uses canonical newline-delimited fields");
+has(ipdApi,'hashClinicalNote(`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${note.id}`, signedVersion)',"author final hash uses canonical newline-delimited fields");
+
 
 
 // Clinical Notes signing and phone-width regression checks.
