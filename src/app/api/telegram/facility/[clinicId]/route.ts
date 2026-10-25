@@ -90,14 +90,19 @@ export async function POST(
           clinicId,
           reason: error instanceof Error ? error.message.slice(0, 180) : "unknown",
         });
-        // Return a non-2xx response so Telegram retries delivery instead of silently dropping the update.
         return NextResponse.json({ ok: false, error: "reply_failed" }, { status: 502 });
       }
       return NextResponse.json({ ok: true });
     }
 
-    await prisma.facilityTelegramIntegration.update({
-      where: { clinicId },
+    // Atomic compare-and-set: only one concurrent webhook can claim the pending code.
+    const claimed = await prisma.facilityTelegramIntegration.updateMany({
+      where: {
+        clinicId,
+        status: "PENDING",
+        connectionCodeHash: integration.connectionCodeHash,
+        chatId: "",
+      },
       data: {
         chatId,
         status: "CONNECTED",
@@ -106,6 +111,13 @@ export async function POST(
         lastVerifiedAt: new Date(),
       },
     });
+    if (claimed.count !== 1) {
+      console.warn("[MedLum Facility Telegram] handshake claim lost (duplicate or concurrent update)", {
+        clinicId,
+        claimed: claimed.count,
+      });
+      return NextResponse.json({ ok: true });
+    }
 
     console.info("[MedLum Facility Telegram] handshake accepted", { clinicId });
     try {
