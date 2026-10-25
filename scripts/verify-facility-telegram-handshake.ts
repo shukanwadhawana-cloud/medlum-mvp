@@ -67,4 +67,20 @@ assert.match(ownerUi, /Diagnose \/ repair webhook/, "owner UI exposes webhook di
 assert.match(ownerUi, /Send test notification/, "owner UI can verify outbound delivery");
 assert.match(ownerUi, /LINK EXPIRED/, "expired connection links are visible");
 
+// Replay of the same payload after the pending hash is cleared (post-bind) must fail closed.
+assert.equal(
+  validateFacilityTelegramStartPayload(`/start ${code}`, null, expiry, now).reason,
+  "missing_pending_code",
+  "reused start after code clear is rejected",
+);
+
+// Facility mismatch is enforced by path clinicId + pending hash scoped to that row (static contract).
+assert.match(webhook, /updateMany/, "handshake uses atomic updateMany claim");
+assert.match(webhook, /handshake claim lost/, "duplicate concurrent claims are logged without binding twice");
+assert.match(webhook, /connectionCodeHash: integration\.connectionCodeHash/, "claim is scoped to the pending hash");
+assert.match(webhook, /status: "PENDING"/, "claim requires PENDING status");
+
+// Webhook secret must be required and compared in constant application path (presence checked).
+assert.match(webhook, /if \(!expected \|\| supplied !== expected\)/, "missing or mismatched secret returns 401");
+
 console.log("Facility Telegram start-handshake regression tests PASSED");
