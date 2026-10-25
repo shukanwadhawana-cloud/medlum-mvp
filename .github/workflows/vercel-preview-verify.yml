@@ -1,0 +1,126 @@
+name: MedLum Vercel Preview Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: medlum-vercel-preview-verify
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main branch and green CI for the exact SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$GH_REF" != "refs/heads/main" ]; then
+            echo "::error::Preview validation must be dispatched from main."
+            exit 1
+          fi
+          MAIN_SHA="$(gh api "repos/$GH_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$MAIN_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::Refusing stale preview run. main=$MAIN_SHA expected=$EXPECTED_SHA"
+            exit 1
+          fi
+          gh api "repos/$GH_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$EXPECTED_SHA&per_page=20" \
+            | EXPECTED_SHA="$EXPECTED_SHA" node -e '
+              let s = "";
+              process.stdin.on("data", d => s += d);
+              process.stdin.on("end", () => {
+                const data = JSON.parse(s);
+                const ok = (data.workflow_runs || []).some(
+                  r => r.head_sha === process.env.EXPECTED_SHA &&
+                       r.status === "completed" &&
+                       r.conclusion === "success"
+                );
+                if (!ok) {
+                  console.error("No successful MedLum CI run exists for exact SHA " + process.env.EXPECTED_SHA);
+                  process.exit(1);
+                }
+                console.log("Green MedLum CI confirmed for " + process.env.EXPECTED_SHA);
+              });
+            '
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Deploy reviewed commit to Vercel Preview
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_CLI_VERSION: 65.2.0
+          VERCEL_ORG_ID: team_dU4dKrRORHc1lsVEv9jFCg4m
+          VERCEL_PROJECT_ID: prj_d2yfp86FdBAYSN3wFfFz4aL4iuRq
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "::error::VERCEL_TOKEN is required for preview validation. Add it as a repository Actions secret; do not paste it into logs or source."
+            exit 1
+          fi
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" pull --yes --environment=preview
+          DEPLOY_OUTPUT="$(npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy --yes --scope doc-shukan)"
+          printf '%s\n' "$DEPLOY_OUTPUT"
+          PREVIEW_URL="$(printf '%s\n' "$DEPLOY_OUTPUT" | grep -Eo 'https://[A-Za-z0-9.-]+\.vercel\.app' | tail -n 1 || true)"
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "::error::Vercel CLI did not return a recognizable preview URL."
+            exit 1
+          fi
+          PREVIEW_URL="$PREVIEW_URL" node -e '
+            const u = new URL(process.env.PREVIEW_URL);
+            if (u.protocol !== "https:" || !u.hostname.endsWith(".vercel.app") || u.username || u.password) {
+              console.error("Refusing unexpected preview URL.");
+              process.exit(1);
+            }
+          '
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Vercel preview verification"
+            echo "- Commit: `$GITHUB_SHA`"
+            echo "- Preview URL: $PREVIEW_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify protected preview health returns exact SHA
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_CLI_VERSION: 65.2.0
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          BODY="$(npx --yes "vercel@${VERCEL_CLI_VERSION}" curl /api/health --deployment "$PREVIEW_URL" -- --fail --silent)"
+          printf '%s\n' "$BODY"
+          printf '%s' "$BODY" | EXPECTED_SHA="$EXPECTED_SHA" node -e '
+            let s = "";
+            process.stdin.on("data", d => s += d);
+            process.stdin.on("end", () => {
+              try {
+                const data = JSON.parse(s);
+                if (data.status !== "ok" || data.gitSha !== process.env.EXPECTED_SHA) {
+                  console.error("Preview health does not match the exact CI commit. Returned SHA: " + String(data.gitSha || "missing"));
+                  process.exit(1);
+                }
+                console.log("Preview health is OK and serves exact commit " + data.gitSha);
+              } catch (error) {
+                console.error("Could not parse preview health JSON: " + error.message);
+                process.exit(1);
+              }
+            });
+          '

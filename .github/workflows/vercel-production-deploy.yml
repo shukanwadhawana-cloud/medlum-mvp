@@ -59,6 +59,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -68,6 +69,7 @@ jobs:
           # Public project identifiers; only the Vercel access token belongs in GitHub Secrets.
           VERCEL_ORG_ID: team_dU4dKrRORHc1lsVEv9jFCg4m
           VERCEL_PROJECT_ID: prj_d2yfp86FdBAYSN3wFfFz4aL4iuRq
+          VERCEL_CLI_VERSION: 65.2.0
         run: |
           set -euo pipefail
           if [ -z "${VERCEL_TOKEN:-}" ]; then
@@ -77,15 +79,14 @@ jobs:
           fi
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
-          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" pull --yes --environment=production
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy --prod --yes --scope doc-shukan
       - name: Verify production serves exact Git SHA
         env:
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
-          URL="https://medlum-mvp.vercel.app/api/health"
-          SHORT="${EXPECTED_SHA:0:7}"
+          URL="https://medlumhealth.com/api/health"
           # Up to ~8 minutes for Vercel build + promote after a green CI
           for i in $(seq 1 32); do
             BODY="$(curl -fsS --max-time 20 "$URL" || true)"
@@ -94,7 +95,7 @@ jobs:
               process.stdin.on("data",d=>s+=d);
               process.stdin.on("end",()=>{try{console.log(JSON.parse(s).gitSha||"")}catch{console.log("")}})
             ')"
-            if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${DEPLOYED_SHA:0:7}" = "$SHORT" ]; }; then
+            if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
               echo "Vercel production is serving the triggering commit ($DEPLOYED_SHA)."
               exit 0
             fi
