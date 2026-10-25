@@ -62,11 +62,11 @@ const specs: ModelSpec[] = [
   { table: "TariffItem", where: c => anyOf("tariffVersionId", c.tariffVersionIds) },
   { table: "LabTemplate", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
   { table: "LabTemplateParameter", where: c => anyOf("templateId", c.labTemplateIds) },
-  { table: "AbdmConsent", where: c => ({ sql: `("clinicId" = $1 OR "patientId" = ANY($2::text[]))`, params: [c.clinicId, c.patientIds] }) },
-  { table: "AbdmCareContext", where: c => ({ sql: `("clinicId" = $1 OR "patientId" = ANY($2::text[]))`, params: [c.clinicId, c.patientIds] }) },
+  { table: "AbdmConsent", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
+  { table: "AbdmCareContext", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
   { table: "AbdmEvent", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
-  { table: "EmergencyCase", where: c => ({ sql: `("clinicId" = $1 OR "patientId" = ANY($2::text[]) OR "doctorId" = ANY($3::text[]))`, params: [c.clinicId, c.patientIds, c.doctorIds] }) },
-  { table: "MedicalDocument", where: c => ({ sql: `("clinicId" = $1 OR "patientId" = ANY($2::text[]))`, params: [c.clinicId, c.patientIds] }), sensitive: ["storageKey"] },
+  { table: "EmergencyCase", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
+  { table: "MedicalDocument", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }), sensitive: ["storageKey"] },
   { table: "DutyAttendanceEvent", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
   { table: "DutyAttendanceRequest", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
 ];
@@ -129,7 +129,7 @@ export async function exportClinicData(clinicId: string, ownerEmail: string) {
     exportedAt: new Date().toISOString(),
     source: { clinicId, clinicName: clinic.name, ownerEmail },
     protection: { ownerEmail, note: "The current MedLum Master Owner is never replaced by imported records." },
-    notMigrated: ["AuditLog (source audit history is retained at the source)", "FacilityTelegramIntegration (must be rebound to the target facility)", "TelegramIdentity (global identity; never copied)", "TelegramLinkChallenge (one-time credentials are never copied)", "TelemedicineSession credentials/URLs (re-establish live sessions after import)"],
+    notMigrated: ["Patients with null clinicId are excluded because their facility ownership cannot be proven", "AuditLog (source audit history is retained at the source)", "FacilityTelegramIntegration (must be rebound to the target facility)", "TelegramIdentity (global identity; never copied)", "TelegramLinkChallenge (one-time credentials are never copied)", "TelemedicineSession credentials/URLs (re-establish live sessions after import)"],
     records,
   };
 }
@@ -138,14 +138,39 @@ export function validateMigrationPackage(pkg: unknown) {
   if (!pkg || typeof pkg !== "object") throw new Error("Import package must be a JSON object");
   const p = pkg as Record<string, unknown>;
   if (p.schemaVersion !== MIGRATION_SCHEMA_VERSION) throw new Error("Unsupported migration package version");
-  if (!p.records || typeof p.records !== "object") throw new Error("Migration package has no records");
+  if (!p.records || typeof p.records !== "object" || Array.isArray(p.records)) throw new Error("Migration package has no records object");
   const records = p.records as Record<string, unknown>;
   const allowed = new Set(specs.map(s => s.table));
   const errors: string[] = [];
+  const sensitiveKeys = new Set(["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey", "joinTokenHash", "meetingUrl"]);
   for (const [table, rows] of Object.entries(records)) {
     if (!allowed.has(table)) errors.push(`Unsupported table: ${table}`);
-    if (!Array.isArray(rows)) errors.push(`Records for ${table} must be an array`);
-    if (Array.isArray(rows) && rows.length > 20000) errors.push(`${table} exceeds the per-table import limit (20,000)`);
+    if (!Array.isArray(rows)) {
+      errors.push(`Records for ${table} must be an array`);
+      continue;
+    }
+    if (rows.length > 20000) errors.push(`${table} exceeds the per-table import limit (20,000)`);
+    const seenIds = new Set<string>();
+    rows.forEach((raw, index) => {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        errors.push(`${table} row ${index + 1} must be an object`);
+        return;
+      }
+      const row = raw as Record<string, unknown>;
+      if (typeof row.id !== "string" || !row.id.trim()) {
+        errors.push(`${table} row ${index + 1} must have a non-empty string id`);
+      } else if (seenIds.has(row.id)) {
+        errors.push(`${table} contains duplicate id ${row.id}`);
+      } else {
+        seenIds.add(row.id);
+      }
+      for (const key of sensitiveKeys) {
+        if (Object.prototype.hasOwnProperty.call(row, key)) errors.push(`${table} row ${index + 1} contains a forbidden credential/storage field: ${key}`);
+      }
+    });
+  }
+  if (!Array.isArray(records.Clinic) || records.Clinic.length !== 1) {
+    errors.push("Migration package must contain exactly one source Clinic record");
   }
   const size = Buffer.byteLength(JSON.stringify(pkg), "utf8");
   if (size > 20 * 1024 * 1024) errors.push("Import package exceeds 20 MB");
