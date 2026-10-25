@@ -62,17 +62,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Deploy exact green commit to Vercel production
+      - name: Confirm native Vercel Git deployment or deploy exact green commit
         env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          HEALTH_URL: https://medlumhealth.com/api/health
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           # Public project identifiers; only the Vercel access token belongs in GitHub Secrets.
           VERCEL_ORG_ID: team_dU4dKrRORHc1lsVEv9jFCg4m
           VERCEL_PROJECT_ID: prj_d2yfp86FdBAYSN3wFfFz4aL4iuRq
         run: |
           set -euo pipefail
+          # Vercel's connected Git integration deploys main automatically. Accept it only
+          # when the canonical production health endpoint proves the exact green SHA.
+          for i in $(seq 1 32); do
+            BODY="$(curl -fsS --max-time 20 "$HEALTH_URL" || true)"
+            DEPLOYED_SHA="$(printf '%s' "$BODY" | node -e '
+              let s = "";
+              process.stdin.on("data", d => s += d);
+              process.stdin.on("end", () => {
+                try { console.log(JSON.parse(s).gitSha || ""); }
+                catch { console.log(""); }
+              });
+            ')"
+            if [ -n "$DEPLOYED_SHA" ] && { [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ] || [ "${DEPLOYED_SHA:0:7}" = "${EXPECTED_SHA:0:7}" ]; }; then
+              echo "Canonical production host is serving the exact green commit ($DEPLOYED_SHA); no duplicate CLI deployment needed."
+              exit 0
+            fi
+            echo "Waiting for native Git deployment of $EXPECTED_SHA (currently ${DEPLOYED_SHA:-none}) attempt $i/32."
+            sleep 15
+          done
           if [ -z "${VERCEL_TOKEN:-}" ]; then
-            echo "::error::VERCEL_TOKEN is required. Refusing to treat Vercel's native Git deployment as a guarded CLI deployment."
-            echo "Create a Vercel access token and add it as the repository Actions secret VERCEL_TOKEN, then rerun this workflow."
+            echo "::error::Canonical production did not serve the exact green SHA and VERCEL_TOKEN is not configured. Native deployment cannot be verified; refusing an unverified release."
             exit 1
           fi
           mkdir -p .vercel
