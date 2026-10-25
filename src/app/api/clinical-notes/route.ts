@@ -298,7 +298,7 @@ export async function PATCH(req: Request) {
             noteId: current.id,
             mode: "VERIFIER",
           }),
-          signedVersion,
+          current.version,
         );
         const verifiedAt = new Date();
         const updated = await tx.clinicalNote.updateMany({
