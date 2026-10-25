@@ -7,6 +7,27 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+async function readBodyLimited(req: NextRequest, maxBytes: number): Promise<string | null> {
+  const reader = req.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session || !isMedlumOwnerEmail(session.email)) {
@@ -19,9 +40,9 @@ export async function POST(req: NextRequest) {
     if (Number.isFinite(contentLength) && contentLength > maxBytes) {
       return NextResponse.json({ success: false, valid: false, errors: ["Migration package exceeds 20 MB."] }, { status: 413 });
     }
-    const rawBody = await req.text();
-    if (Buffer.byteLength(rawBody, "utf8") > maxBytes) {
-      return NextResponse.json({ success: false, valid: false, errors: ["Migration package exceeds 20 MB."] }, { status: 413 });
+    const rawBody = await readBodyLimited(req, maxBytes);
+    if (rawBody === null) {
+      return NextResponse.json({ success: false, valid: false, errors: ["Migration package exceeds 20 MB."] }, { status: 413, headers: { "Cache-Control": "no-store" } });
     }
     let body: unknown;
     try { body = JSON.parse(rawBody); }
