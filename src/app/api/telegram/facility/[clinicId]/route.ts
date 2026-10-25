@@ -42,6 +42,15 @@ export async function POST(
 
   const update = (await req.json().catch(() => null)) as any;
   const message = update?.message;
+  const chatType = String(message?.chat?.type || "");
+  if (message && chatType !== "private") {
+    console.warn("[MedLum Facility Telegram] non-private chat rejected", {
+      clinicId,
+      updateId: Number.isFinite(Number(update?.update_id)) ? Number(update.update_id) : null,
+      chatType: chatType || "unknown",
+    });
+    return NextResponse.json({ ok: true });
+  }
   const chatId = String(message?.chat?.id || "");
   const command = String(message?.text || "").trim();
   const startCommand = parseFacilityTelegramStartCommand(command);
