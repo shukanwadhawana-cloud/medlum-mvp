@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 
-export const MIGRATION_SCHEMA_VERSION = 1;
+export const MIGRATION_SCHEMA_VERSION = 2;
 
 type ScopeContext = {
   clinicId: string;
