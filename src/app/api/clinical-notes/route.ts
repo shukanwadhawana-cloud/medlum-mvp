@@ -241,7 +241,7 @@ export async function PATCH(req: Request) {
         const signedContentHash = hashClinicalNote(current.content, signedVersion);
         const signedAt = new Date();
         const finalHash = hashClinicalNote(
-          `${current.content}\\nAUTHOR:${current.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${current.id}`,
+          `${current.content}\nAUTHOR:${current.authorDoctorId}\nAUTHOR_SIGNATURE:${session.doctorId}\nNOTE:${current.id}`,
           signedVersion,
         );
         const updated = await tx.clinicalNote.updateMany({
