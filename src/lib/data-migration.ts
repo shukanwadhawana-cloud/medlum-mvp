@@ -194,17 +194,20 @@ const DEFERRED_IMPORT_TABLES = new Set([
 ]);
 
 const ID_KEYS = new Set([
-  "id", "clinicId", "doctorId", "patientId", "appointmentId", "encounterId",
+  "clinicId", "doctorId", "patientId", "appointmentId", "encounterId",
   "prescriptionId", "invoiceId", "labOrderId", "diagnosticOrderId", "inventoryId",
-  "providerId", "policyId", "memberId", "administeringMemberId", "tariffVersionId",
-  "tariffItemId", "templateId", "sessionId", "claimId", "documentId",
+  "providerId", "policyId", "administeringMemberId", "tariffVersionId",
+  "tariffItemId", "templateId", "sessionId", "claimId", "documentId", "uploadedBy",
+  "authorDoctorId", "verifierDoctorId", "createdBy", "cancelledBy", "deletedBy",
+  "reviewerDoctorId", "adminDoctorId",
 ]);
 
-function remapIds(row: Record<string, unknown>, idMap: Map<string, string>) {
+function remapIds(row: Record<string, unknown>, idMap: Map<string, string>, table?: string) {
   const out = { ...row };
   for (const key of Object.keys(out)) {
     const value = out[key];
-    if (typeof value === "string" && idMap.has(value) && (ID_KEYS.has(key) || key.endsWith("Id"))) {
+    const isForeignKey = ID_KEYS.has(key) || (table === "WorkforceRecord" && key === "memberId");
+    if (typeof value === "string" && idMap.has(value) && isForeignKey) {
       out[key] = idMap.get(value);
     }
   }
@@ -276,6 +279,57 @@ export async function importClinicData(
 
   if (errors.length) return { valid: false, executed: false, errors, imported: {}, deferred };
 
+  // Validate foreign keys against the source package before writing anything. A row
+  // must never retain a foreign key to an unrelated record in the target database.
+  const sourceIdsByTable = new Map<string, Set<string>>();
+  for (const [table, rows] of Object.entries(records)) {
+    if (!Array.isArray(rows)) continue;
+    sourceIdsByTable.set(table, new Set(
+      rows.map(row => (row as Record<string, unknown>).id).filter((id): id is string => typeof id === "string" && id.length > 0),
+    ));
+  }
+  const foreignKeyTargets: Record<string, Record<string, string>> = {
+    ClinicMember: { doctorId: "Doctor" },
+    Patient: { doctorId: "Doctor", deletedBy: "Doctor" },
+    Appointment: { doctorId: "Doctor", patientId: "Patient" },
+    Encounter: { doctorId: "Doctor", patientId: "Patient", appointmentId: "Appointment", cancelledBy: "Doctor" },
+    Prescription: { doctorId: "Doctor", patientId: "Patient", encounterId: "Encounter", cancelledBy: "Doctor" },
+    Invoice: { doctorId: "Doctor", patientId: "Patient" },
+    InvoiceItem: { invoiceId: "Invoice" },
+    Payment: { invoiceId: "Invoice", doctorId: "Doctor", patientId: "Patient" },
+    LabOrder: { doctorId: "Doctor", patientId: "Patient", encounterId: "Encounter" },
+    PharmacyItem: { doctorId: "Doctor" },
+    Dispensing: { doctorId: "Doctor", patientId: "Patient", prescriptionId: "Prescription" },
+    DiagnosticOrder: { doctorId: "Doctor", patientId: "Patient", encounterId: "Encounter" },
+    BloodRequest: { patientId: "Patient", doctorId: "Doctor", inventoryId: "BloodInventory" },
+    InsurancePolicy: { patientId: "Patient", providerId: "InsuranceProvider" },
+    InsuranceClaim: { patientId: "Patient", policyId: "InsurancePolicy", invoiceId: "Invoice" },
+    WorkforceRecord: { memberId: "ClinicMember", createdBy: "Doctor" },
+    MedicationAdministration: { patientId: "Patient", prescriptionId: "Prescription", encounterId: "Encounter", administeringMemberId: "ClinicMember" },
+    LabTemplateParameter: { templateId: "LabTemplate" },
+    AbdmConsent: { patientId: "Patient", doctorId: "Doctor" },
+    AbdmCareContext: { patientId: "Patient", doctorId: "Doctor" },
+    EmergencyCase: { patientId: "Patient", doctorId: "Doctor" },
+    DutyAttendanceEvent: { memberId: "ClinicMember", doctorId: "Doctor", adminDoctorId: "Doctor" },
+    DutyAttendanceRequest: { memberId: "ClinicMember", doctorId: "Doctor", reviewerDoctorId: "Doctor" },
+    ClinicalNote: { patientId: "Patient", encounterId: "Encounter", authorDoctorId: "Doctor", verifierDoctorId: "Doctor" },
+  };
+  for (const [table, fields] of Object.entries(foreignKeyTargets)) {
+    const rows = records[table];
+    if (!Array.isArray(rows)) continue;
+    rows.forEach((raw, index) => {
+      const row = raw as Record<string, unknown>;
+      for (const [field, targetTable] of Object.entries(fields)) {
+        const value = row[field];
+        if (value === null || value === undefined || value === "") continue;
+        if (typeof value !== "string" || !sourceIdsByTable.get(targetTable)?.has(value)) {
+          errors.push(`${table} row ${index + 1} references a missing source ${targetTable} record through ${field}.`);
+        }
+      }
+    });
+  }
+  if (errors.length) return { valid: false, executed: false, errors, imported: {}, deferred };
+
   // Preflight all primary keys before the first write. We never overwrite a target row.
   for (const table of IMPORT_ORDER) {
     if (table === "Doctor" || table === "ClinicMember") continue;
@@ -290,9 +344,11 @@ export async function importClinicData(
 
   if (errors.length) return { valid: false, executed: false, errors, imported: {}, deferred };
 
+  const previewCounts = Object.fromEntries(Object.entries(records).filter(([, rows]) => Array.isArray(rows) && rows.length > 0).map(([table, rows]) => [table, rows.length]));
+
   if (!options.execute) {
     return {
-      valid: true, executed: false, errors: [], imported: {},
+      valid: true, executed: false, errors: [], imported: {}, previewCounts,
       deferred,
       target: { clinicId: targetClinic.id, clinicName: targetClinic.name },
       message: "Preflight passed. No records were written. Explicit execution is required.",
@@ -308,7 +364,7 @@ export async function importClinicData(
         if (!sourceId || !doctorId) throw new Error(`ClinicMember ${sourceId || "unknown"} references an unresolved doctor.`);
         const existing = await tx.clinicMember.findUnique({ where: { clinicId_doctorId: { clinicId: targetClinicId, doctorId } }, select: { id: true } });
         if (existing) { idMap.set(sourceId, existing.id); continue; }
-        const mapped = remapIds({ ...row, clinicId: targetClinicId, doctorId }, idMap);
+        const mapped = remapIds({ ...row, clinicId: targetClinicId, doctorId }, idMap, "ClinicMember");
         await insertRowWithClient(tx, "ClinicMember", mapped);
         idMap.set(sourceId, sourceId);
         imported.ClinicMember = (imported.ClinicMember || 0) + 1;
@@ -318,7 +374,7 @@ export async function importClinicData(
         if (table === "Doctor" || table === "ClinicMember") continue;
         for (const raw of (records[table] || []) as Record<string, unknown>[]) {
           const sourceId = typeof raw.id === "string" ? raw.id : "";
-          const mapped = remapIds(raw, idMap);
+          const mapped = remapIds(raw, idMap, table);
           if (Object.prototype.hasOwnProperty.call(mapped, "clinicId")) mapped.clinicId = targetClinicId;
           if (table === "MedicalDocument") continue;
           await insertRowWithClient(tx, table, mapped);
@@ -326,6 +382,17 @@ export async function importClinicData(
           imported[table] = (imported[table] || 0) + 1;
         }
       }
+      // Keep the audit event in the same transaction as the import: the caller must
+      // never receive a failed response after data committed without an audit record.
+      await tx.auditLog.create({
+        data: {
+          doctorId: owner.id,
+          action: "DATA_IMPORT",
+          entity: "Clinic",
+          entityId: targetClinicId,
+          meta: JSON.stringify({ schemaVersion: MIGRATION_SCHEMA_VERSION, imported, deferred, ownerPreserved: true }),
+        },
+      });
     }, { maxWait: 10000, timeout: 25000 });
   } catch (error) {
     return {
@@ -336,7 +403,7 @@ export async function importClinicData(
   }
 
   return {
-    valid: true, executed: true, errors: [], imported, deferred,
+    valid: true, executed: true, errors: [], imported, previewCounts, deferred,
     target: { clinicId: targetClinic.id, clinicName: targetClinic.name },
     ownerPreserved: true,
     message: "Import committed atomically. Existing Master Owner remained the source of truth.",
@@ -347,7 +414,7 @@ export async function importClinicData(
 // whole migration rolls back on any foreign-key, uniqueness, or type error.
 async function insertRowWithClient(client: Prisma.TransactionClient, table: string, row: Record<string, unknown>) {
   const safeRow = { ...row };
-  for (const key of ["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey"]) delete safeRow[key];
+  for (const key of ["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey", "joinTokenHash", "meetingUrl"]) delete safeRow[key];
   const keys = Object.keys(safeRow).filter(k => safeRow[k] !== undefined);
   if (!keys.length) return;
   const cols = keys.map(k => `"${k.replace(/"/g, '""')}"`).join(", ");
