@@ -47,7 +47,6 @@ const cases: Array<{ name: string; input: string; expected: Record<string, strin
     input: "PT/INR 1.12",
     expected: { "PT/INR": "1.12" },
   },
-];
 
   {
     name: "renal-function panel maps urea and creatinine separately",
@@ -85,6 +84,8 @@ const cases: Array<{ name: string; input: string; expected: Record<string, strin
     input: "Magnesium 2.0 mg/dL\nCreatinine 0.8 mg/dL",
     expected: { Magnesium: "2.0 mg/dL", Creatinine: "0.8 mg/dL" },
   },
+];
+
 for (const testCase of cases) {
   assert.deepEqual(extractCandidates(testCase.input), testCase.expected, testCase.name);
   console.log("OK:", testCase.name);
