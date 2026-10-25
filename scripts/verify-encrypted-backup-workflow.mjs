@@ -43,6 +43,6 @@ assert.ok(workflow.includes("s3api head-object"));
 // The runbook must prohibit production restores and document the applicable BAA gate.
 assert.ok(runbook.includes("BAA"));
 assert.ok(runbook.includes("Never point the restore command at production"));
-assert.ok(runbook.includes("isolated non-production"));
+assert.ok(runbook.includes("isolated, access-controlled non-production"));
 
 console.log("Encrypted backup workflow safeguards verified.");
