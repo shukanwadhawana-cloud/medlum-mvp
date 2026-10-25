@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    console.error("owner data migration import failed", error instanceof Error ? error.message : "unknown");
+    console.error("owner data migration import failed", error instanceof Error ? error.name : "unknown");
     return NextResponse.json({
       success: false,
       valid: false,
