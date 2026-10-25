@@ -27,6 +27,7 @@ const checks = [
   ["Final note integrity is hashed", route.includes("contentHash") && route.includes("finalHash") && helper.includes("createHash")],
   ["Author and verifier paths use the canonical signature payload helper", route.split("buildClinicalSignaturePayload(").length === 3 && ipdRoute.split("buildClinicalSignaturePayload(").length === 3],
   ["Canonical payload builder uses actual newline delimiters", signaturePayload.includes('return `${input.content}\\nAUTHOR:${input.authorDoctorId}\\n${signerLabel}:${input.signerDoctorId}\\nNOTE:${input.noteId}`;')],
+  ["Independent-verifier final hash uses the finalized note version", route.includes('mode: "VERIFIER",\n          }),\n          signedVersion,')],
   ["Finalization is race-safe", route.includes("Serializable") && route.includes("verifierDoctorId: null") && route.includes("version: current.version")],
   ["Final notes cannot be edited", route.includes('current.status !== "DRAFT"') && route.includes("Submitted or final notes cannot be edited")],
   ["Audit trail records final sign", route.includes('action: "FINAL_SIGN"')],
