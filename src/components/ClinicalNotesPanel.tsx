@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiCreateEncounter, apiGetClinicalNotes } from "@/lib/api";
 import { formatIst } from "@/lib/time";
+import LongitudinalCaseSummary from "@/components/LongitudinalCaseSummary";
 
 const NOTE_TYPES = [
   "Progress Note",
@@ -312,6 +313,7 @@ export function ClinicalNotesPanel({
       </section>
 
       <aside className="space-y-3 xl:sticky xl:top-3 self-start">
+        <LongitudinalCaseSummary patientId={patientId} encounters={encounters} labs={labs} diagnostics={diagnostics} prescriptions={prescriptions} notes={savedClinicalNotes} profile={profile} onSaved={async () => { await refreshSavedClinicalNotes(); await onSaved(); }} />
         <section className="overflow-hidden rounded-xl border bg-white">
           <div className="border-b bg-[#f8f6fa] px-3 py-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600">Pull from patient chart</h3>
