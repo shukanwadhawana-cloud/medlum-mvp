@@ -107,6 +107,8 @@ jobs:
         run: npm run test:p1-security-regression
       - name: Facility data migration security
         run: npm run test:facility-data-migration
+      - name: Verify owner data migration tenant scope and safety
+        run: npm run test:data-migration-security
       - name: Verify patient discovery facility scope
         run: npm run test:patient-discovery
       - name: Verify server-side workflow permissions
