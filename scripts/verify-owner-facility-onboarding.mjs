@@ -73,9 +73,10 @@ assert(
   "Facility creation must recognize the configured production session secret as an encryption fallback",
 );
 assert(
-  secretCrypto.includes("process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET") &&
-    secretCrypto.includes('update("medlum:telegram:" + fallback)'),
-  "Telegram encryption must derive a domain-separated fallback key while preserving the legacy NEXTAUTH_SECRET priority",
+  secretCrypto.includes('update("medlum:telegram:" + nextAuth)') &&
+    secretCrypto.includes('update("medlum:telegram:" + session)') &&
+    secretCrypto.includes("for (const candidate of keys())"),
+  "Telegram encryption must derive domain-separated fallback keys and preserve decryption after adding a dedicated key",
 );
 assert(
   provision.includes('fetch("https://api.telegram.org/bot" + telegramToken + "/getMe"'),
