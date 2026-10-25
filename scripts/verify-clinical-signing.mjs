@@ -12,6 +12,7 @@ const patientUi = read("src/app/patients/[id]/page.tsx");
 const ipdUi = read("src/app/ipd/[id]/page.tsx");
 const ipdRoute = read("src/app/api/ipd/route.ts");
 const legacyRoute = read("src/app/api/clinical-notes/legacy/route.ts");
+const signaturePayload = read("src/lib/clinical-signature-payload.ts");
 
 const checks = [
   ["ClinicalNote Prisma model exists", /model ClinicalNote\s*\{/.test(schema)],
@@ -24,6 +25,8 @@ const checks = [
   ["Self-verification is blocked for second-verifier action", route.includes("current.authorDoctorId === session.doctorId")],
   ["Final signer role is restricted", helper.includes("CLINICAL_VERIFIER_ROLES") && route.includes("canFinalizeClinicalNote")],
   ["Final note integrity is hashed", route.includes("contentHash") && route.includes("finalHash") && helper.includes("createHash")],
+  ["Author and verifier paths use the canonical signature payload helper", route.split("buildClinicalSignaturePayload(").length === 3 && ipdRoute.split("buildClinicalSignaturePayload(").length === 3],
+  ["Canonical payload builder uses actual newline delimiters", signaturePayload.includes('return `${input.content}\\nAUTHOR:${input.authorDoctorId}\\n${signerLabel}:${input.signerDoctorId}\\nNOTE:${input.noteId}`;')],
   ["Finalization is race-safe", route.includes("Serializable") && route.includes("verifierDoctorId: null") && route.includes("version: current.version")],
   ["Final notes cannot be edited", route.includes('current.status !== "DRAFT"') && route.includes("Submitted or final notes cannot be edited")],
   ["Audit trail records final sign", route.includes('action: "FINAL_SIGN"')],
