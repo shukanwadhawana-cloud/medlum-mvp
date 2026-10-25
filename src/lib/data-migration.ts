@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 
@@ -55,6 +56,7 @@ const specs: ModelSpec[] = [
   { table: "InsuranceClaim", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
   { table: "WorkforceRecord", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
   { table: "ClinicalNote", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
+  { table: "ClinicalNoteVersion", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }) },
   { table: "TelemedicineSession", where: c => ({ sql: `("clinicId" = $1 OR ("clinicId" IS NULL AND ("patientId" = ANY($2::text[]) OR "appointmentId" = ANY($3::text[]))))`, params: [c.clinicId, c.patientIds, c.appointmentIds] }), sensitive: ["joinTokenHash", "meetingUrl"] },
   { table: "TelemedicineParticipant", where: c => anyOf("sessionId", c.sessionIds), sensitive: ["tokenHash"] },
   { table: "PatientPortalAccount", where: c => ({ sql: `"clinicId" = $1`, params: [c.clinicId] }), sensitive: ["passwordHash"] },
@@ -185,7 +187,7 @@ const IMPORT_ORDER = [
   "BloodRequest", "InsuranceProvider", "InsurancePolicy", "InsuranceClaim",
   "WorkforceRecord", "MedicationAdministration", "LabTemplate", "LabTemplateParameter",
   "AbdmConsent", "AbdmCareContext", "AbdmEvent", "EmergencyCase", "DutyAttendanceEvent",
-  "DutyAttendanceRequest", "ClinicalNote",
+  "DutyAttendanceRequest", "ClinicalNote", "ClinicalNoteVersion",
 ];
 
 const DEFERRED_IMPORT_TABLES = new Set([
@@ -197,7 +199,7 @@ const ID_KEYS = new Set([
   "clinicId", "doctorId", "patientId", "appointmentId", "encounterId",
   "prescriptionId", "invoiceId", "labOrderId", "diagnosticOrderId", "inventoryId",
   "providerId", "policyId", "administeringMemberId", "tariffVersionId",
-  "tariffItemId", "templateId", "sessionId", "claimId", "documentId", "uploadedBy",
+  "tariffItemId", "templateId", "sessionId", "claimId", "documentId", "clinicalNoteId", "createdByDoctorId", "uploadedBy",
   "authorDoctorId", "verifierDoctorId", "createdBy", "cancelledBy", "deletedBy",
   "reviewerDoctorId", "adminDoctorId",
 ]);
@@ -313,6 +315,7 @@ export async function importClinicData(
     DutyAttendanceEvent: { memberId: "ClinicMember", doctorId: "Doctor", adminDoctorId: "Doctor" },
     DutyAttendanceRequest: { memberId: "ClinicMember", doctorId: "Doctor", reviewerDoctorId: "Doctor" },
     ClinicalNote: { patientId: "Patient", encounterId: "Encounter", authorDoctorId: "Doctor", verifierDoctorId: "Doctor" },
+    ClinicalNoteVersion: { clinicalNoteId: "ClinicalNote", createdByDoctorId: "Doctor" },
   };
   for (const [table, fields] of Object.entries(foreignKeyTargets)) {
     const rows = records[table];
