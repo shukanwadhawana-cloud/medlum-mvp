@@ -21,6 +21,8 @@ assert.match(service, /joinTokenHash/);
 assert.match(service, /meetingUrl/);
 assert.match(service, /sourceIdsByTable/);
 assert.match(service, /references a missing source/);
+assert.match(service, /Target facility is inactive/);
+assert.match(service, /async function existingIds/);
 assert.match(service, /TariffItem: \{ tariffVersionId: "TariffVersion" \}/);
 assert.match(service, /tx\.auditLog\.create/);
 assert.match(service, /sensitiveKeys/);
