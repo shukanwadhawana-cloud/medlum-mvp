@@ -108,3 +108,16 @@ const signatureHashDelimiterFailures = signatureHashDelimiterChecks.filter(([, o
 for (const [label, ok] of signatureHashDelimiterChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
 if (signatureHashDelimiterFailures.length) process.exit(1);
 console.log("Clinical signature hash delimiter regression checks: GREEN");
+
+const verifierFinalization = route.slice(route.indexOf('if (action === "finalize")'));
+const verifierVersionChecks = [
+  ["Independent final signing increments the immutable note version", verifierFinalization.includes("const signedVersion = current.version + 1")],
+  ["Independent final hash is computed with the signed version", verifierFinalization.includes("signedVersion,") && verifierFinalization.includes("const finalHash = hashClinicalNote(")],
+  ["Final note stores the signed version and versioned content hash", verifierFinalization.includes('data: { status: "FINAL", version: signedVersion, contentHash: signedContentHash')],
+  ["Independent final signing writes a version-history event", verifierFinalization.includes("tx.clinicalNoteVersion.create") && verifierFinalization.includes('event: "FINAL_SIGNED"')],
+  ["Audit log preserves previous and final version metadata", verifierFinalization.includes("previousVersion: current.version") && verifierFinalization.includes("version: signedVersion") && verifierFinalization.includes("contentHash: signedContentHash")],
+];
+const verifierVersionFailures = verifierVersionChecks.filter(([, ok]) => !ok);
+for (const [label, ok] of verifierVersionChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
+if (verifierVersionFailures.length) process.exit(1);
+console.log("Independent verifier version-history checks: GREEN");
