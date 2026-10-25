@@ -166,6 +166,7 @@ export function validateMigrationPackage(pkg: unknown) {
   const records = p.records as Record<string, unknown>;
   const allowed = new Set(specs.map(s => s.table));
   const errors: string[] = [];
+  const globalIds = new Map<string, string>();
   const sensitiveKeys = new Set(["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey", "joinTokenHash", "meetingUrl"]);
   for (const [table, rows] of Object.entries(records)) {
     if (!allowed.has(table)) errors.push(`Unsupported table: ${table}`);
@@ -187,6 +188,9 @@ export function validateMigrationPackage(pkg: unknown) {
         errors.push(`${table} contains duplicate id ${row.id}`);
       } else {
         seenIds.add(row.id);
+        const previousTable = globalIds.get(row.id);
+        if (previousTable && previousTable !== table) errors.push(`id ${row.id} appears in both ${previousTable} and ${table}; IDs must be unique across the migration package`);
+        else globalIds.set(row.id, table);
       }
       for (const key of sensitiveKeys) {
         if (Object.prototype.hasOwnProperty.call(row, key)) errors.push(`${table} row ${index + 1} contains a forbidden credential/storage field: ${key}`);
