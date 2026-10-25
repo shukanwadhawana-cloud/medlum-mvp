@@ -474,7 +474,7 @@ async function insertRowsWithClient(client: Prisma.TransactionClient, table: str
     const selects = group.keys.map(k => `"${k.replace(/"/g, '""')}"`).join(", ");
     for (let offset = 0; offset < group.rows.length; offset += 200) {
       const batch = group.rows.slice(offset, offset + 200);
-      await client.$queryRawUnsafe(
+      await client.$executeRawUnsafe(
         `INSERT INTO "${table}" (${cols}) SELECT ${selects} FROM jsonb_populate_recordset(NULL::"${table}", $1::jsonb)`,
         JSON.stringify(batch),
       );
