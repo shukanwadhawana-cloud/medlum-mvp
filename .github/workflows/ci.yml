@@ -89,6 +89,8 @@ jobs:
         run: npm run test:telegram-otp
       - name: Verify facility Telegram start handshake and webhook repair
         run: npm run test:facility-telegram-handshake
+      - name: Verify facility Telegram status and routing contracts
+        run: npm run test:facility-telegram-status
       - name: Verify secure password reset and staff recovery
         run: npm run test:password-reset
       - name: Verify lab document upload, extraction and retry safety
