@@ -96,3 +96,15 @@ const cancellationHistoryFailures = cancellationHistoryChecks.filter(([, ok]) =>
 for (const [label, ok] of cancellationHistoryChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
 if (cancellationHistoryFailures.length) process.exit(1);
 console.log("IPD cancellation de-duplication and attribution checks: GREEN");
+
+const signatureHashDelimiterChecks = [
+  ["IPD author-sign final hash uses newline separators", ipdRoute.includes('`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${note.id}`')],
+  ["IPD independent-sign final hash uses newline separators", ipdRoute.includes('`${note.content}\\nAUTHOR:${note.authorDoctorId}\\nVERIFIER:${session.doctorId}\\nNOTE:${note.id}`')],
+  ["IPD immediate author-sign final hash uses newline separators", ipdRoute.includes('`${content}\\nAUTHOR:${session.doctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${created.id}`')],
+  ["clinical-notes author-sign final hash uses newline separators", route.includes('`${current.content}\\nAUTHOR:${current.authorDoctorId}\\nAUTHOR_SIGNATURE:${session.doctorId}\\nNOTE:${current.id}`')],
+  ["clinical-notes independent-sign final hash uses newline separators", route.includes('`${current.content}\\nAUTHOR:${current.authorDoctorId}\\nVERIFIER:${session.doctorId}\\nNOTE:${current.id}`')],
+];
+const signatureHashDelimiterFailures = signatureHashDelimiterChecks.filter(([, ok]) => !ok);
+for (const [label, ok] of signatureHashDelimiterChecks) console.log(`${ok ? "PASS" : "FAIL"}: ${label}`);
+if (signatureHashDelimiterFailures.length) process.exit(1);
+console.log("Clinical signature hash delimiter regression checks: GREEN");
