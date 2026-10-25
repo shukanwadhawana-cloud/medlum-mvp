@@ -409,22 +409,23 @@ export async function importClinicData(
         const existing = await tx.clinicMember.findUnique({ where: { clinicId_doctorId: { clinicId: targetClinicId, doctorId } }, select: { id: true } });
         if (existing) { idMap.set(sourceId, existing.id); continue; }
         const mapped = remapIds({ ...row, clinicId: targetClinicId, doctorId }, idMap, "ClinicMember");
-        await insertRowWithClient(tx, "ClinicMember", mapped);
+        await insertRowsWithClient(tx, "ClinicMember", [mapped]);
         idMap.set(sourceId, sourceId);
         imported.ClinicMember = (imported.ClinicMember || 0) + 1;
       }
 
       for (const table of IMPORT_ORDER) {
         if (table === "Doctor" || table === "ClinicMember") continue;
+        const pending: Array<{ sourceId: string; row: Record<string, unknown> }> = [];
         for (const raw of (records[table] || []) as Record<string, unknown>[]) {
           const sourceId = typeof raw.id === "string" ? raw.id : "";
           const mapped = remapIds(raw, idMap, table);
           if (Object.prototype.hasOwnProperty.call(mapped, "clinicId")) mapped.clinicId = targetClinicId;
-          if (table === "MedicalDocument") continue;
-          await insertRowWithClient(tx, table, mapped);
-          if (sourceId) idMap.set(sourceId, sourceId);
-          imported[table] = (imported[table] || 0) + 1;
+          pending.push({ sourceId, row: mapped });
         }
+        await insertRowsWithClient(tx, table, pending.map(item => item.row));
+        for (const item of pending) if (item.sourceId) idMap.set(item.sourceId, item.sourceId);
+        if (pending.length) imported[table] = (imported[table] || 0) + pending.length;
       }
       // Keep the audit event in the same transaction as the import: the caller must
       // never receive a failed response after data committed without an audit record.
@@ -437,7 +438,7 @@ export async function importClinicData(
           meta: JSON.stringify({ schemaVersion: MIGRATION_SCHEMA_VERSION, imported, deferred, ownerPreserved: true }),
         },
       });
-    }, { maxWait: 10000, timeout: 25000 });
+    }, { maxWait: 10000, timeout: 45000 });
   } catch (error) {
     return {
       valid: false, executed: false,
@@ -456,15 +457,27 @@ export async function importClinicData(
 
 // Same insert primitive as insertRow, but bound to the transaction client so the
 // whole migration rolls back on any foreign-key, uniqueness, or type error.
-async function insertRowWithClient(client: Prisma.TransactionClient, table: string, row: Record<string, unknown>) {
-  const safeRow = { ...row };
-  for (const key of ["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey", "joinTokenHash", "meetingUrl"]) delete safeRow[key];
-  const keys = Object.keys(safeRow).filter(k => safeRow[k] !== undefined);
-  if (!keys.length) return;
-  const cols = keys.map(k => `"${k.replace(/"/g, '""')}"`).join(", ");
-  const selects = keys.map(k => `(jsonb_populate_record(NULL::"${table}", $1::jsonb))."${k.replace(/"/g, '""')}"`).join(", ");
-  await client.$queryRawUnsafe(
-    `INSERT INTO "${table}" (${cols}) SELECT ${selects}`,
-    JSON.stringify(safeRow),
-  );
+async function insertRowsWithClient(client: Prisma.TransactionClient, table: string, rows: Record<string, unknown>[]) {
+  const groups = new Map<string, { keys: string[]; rows: Record<string, unknown>[] }>();
+  for (const row of rows) {
+    const safeRow = { ...row };
+    for (const key of ["passwordHash", "encryptedToken", "connectionCodeHash", "tokenHash", "storageKey", "joinTokenHash", "meetingUrl"]) delete safeRow[key];
+    const keys = Object.keys(safeRow).filter(k => safeRow[k] !== undefined).sort();
+    if (!keys.length) continue;
+    const groupKey = keys.join("\\0");
+    const group = groups.get(groupKey) || { keys, rows: [] };
+    group.rows.push(safeRow);
+    groups.set(groupKey, group);
+  }
+  for (const group of groups.values()) {
+    const cols = group.keys.map(k => `"${k.replace(/"/g, '""')}"`).join(", ");
+    const selects = group.keys.map(k => `"${k.replace(/"/g, '""')}"`).join(", ");
+    for (let offset = 0; offset < group.rows.length; offset += 200) {
+      const batch = group.rows.slice(offset, offset + 200);
+      await client.$queryRawUnsafe(
+        `INSERT INTO "${table}" (${cols}) SELECT ${selects} FROM jsonb_populate_recordset(NULL::"${table}", $1::jsonb)`,
+        JSON.stringify(batch),
+      );
+    }
+  }
 }
