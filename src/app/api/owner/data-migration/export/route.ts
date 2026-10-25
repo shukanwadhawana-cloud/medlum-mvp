@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     if (e instanceof MigrationExportLimitError) {
       return NextResponse.json({ success: false, error: e.message }, { status: 413, headers: { "Cache-Control": "no-store" } });
     }
-    console.error("owner data export failed", e instanceof Error ? e.message : "unknown");
+    console.error("owner data export failed", e instanceof Error ? e.name : "unknown");
     return NextResponse.json({ success: false, error: "Export could not be completed" }, { status: 500 });
   }
 }
