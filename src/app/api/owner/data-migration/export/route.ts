@@ -21,6 +21,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const pkg = await exportClinicData(clinicId, session.email);
+    const body = JSON.stringify(pkg);
+    const maxBytes = 20 * 1024 * 1024;
+    if (Buffer.byteLength(body, "utf8") > maxBytes) {
+      return NextResponse.json({ success: false, error: "Export exceeds the 20 MB package limit; use the reviewed large-export workflow." }, { status: 413, headers: { "Cache-Control": "no-store" } });
+    }
     await prisma.auditLog.create({
       data: {
         doctorId: session.doctorId,
@@ -30,7 +35,6 @@ export async function GET(req: NextRequest) {
         meta: JSON.stringify({ clinicName: clinic.name, schemaVersion: pkg.schemaVersion }),
       },
     });
-    const body = JSON.stringify(pkg);
     const safeName = clinic.name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "hospital";
     return new NextResponse(body, {
       status: 200,
