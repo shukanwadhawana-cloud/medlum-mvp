@@ -59,6 +59,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -68,6 +69,7 @@ jobs:
           # Public project identifiers; only the Vercel access token belongs in GitHub Secrets.
           VERCEL_ORG_ID: team_dU4dKrRORHc1lsVEv9jFCg4m
           VERCEL_PROJECT_ID: prj_d2yfp86FdBAYSN3wFfFz4aL4iuRq
+          VERCEL_CLI_VERSION: 65.2.0
         run: |
           set -euo pipefail
           if [ -z "${VERCEL_TOKEN:-}" ]; then
@@ -77,8 +79,8 @@ jobs:
           fi
           mkdir -p .vercel
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
-          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" --scope doc-shukan
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" pull --yes --environment=production
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy --prod --yes --scope doc-shukan
       - name: Verify production serves exact Git SHA
         env:
           EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
