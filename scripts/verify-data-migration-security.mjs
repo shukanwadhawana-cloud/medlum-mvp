@@ -54,6 +54,6 @@ assert.match(page, /deferredTables/);
 assert.match(page, /notMigratedItems/);
 assert.match(page, /deferredRecordCounts/);
 assert.match(page, /source signatures require a reviewed preservation workflow/);
-assert.match(page, /Not included in this package/);
+assert.match(page, /Not automatically migrated/);
 
 console.log("Facility data migration security guardrails verified.");
