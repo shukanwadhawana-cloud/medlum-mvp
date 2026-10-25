@@ -7,6 +7,8 @@ const exportRoute = readFileSync("src/app/api/owner/data-migration/export/route.
 const page = readFileSync("src/app/owner/data-migration/page.tsx", "utf8");
 
 assert.match(service, /MIGRATION_SCHEMA_VERSION = 2/);
+assert.match(service, /ClinicalNoteVersion/);
+assert.match(service, /content hash does not match its content/);
 assert.match(service, /prisma\.patient\.findMany\(\{ where: \{ clinicId \} \}\)/);
 assert.doesNotMatch(service, /where: \{ OR: \[\{ clinicId \}, \{ doctorId:/);
 assert.match(service, /table: "Appointment", where: c => anyOf\("patientId", c\.patientIds\)/);
@@ -19,6 +21,7 @@ assert.match(service, /joinTokenHash/);
 assert.match(service, /meetingUrl/);
 assert.match(service, /sourceIdsByTable/);
 assert.match(service, /references a missing source/);
+assert.match(service, /TariffItem: \{ tariffVersionId: "TariffVersion" \}/);
 assert.match(service, /tx\.auditLog\.create/);
 assert.match(service, /sensitiveKeys/);
 assert.match(service, /duplicate id/);
