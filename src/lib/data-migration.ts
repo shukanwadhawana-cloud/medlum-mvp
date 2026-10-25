@@ -4,6 +4,18 @@ import type { Prisma } from "@prisma/client";
 
 export const MIGRATION_SCHEMA_VERSION = 2;
 
+export class MigrationExportLimitError extends Error {
+  constructor(message: string) { super(message); this.name = "MigrationExportLimitError"; }
+}
+
+const MAX_MIGRATION_PACKAGE_BYTES = 20 * 1024 * 1024;
+const MAX_MIGRATION_TABLE_ROWS = 20000;
+function assertExportLimits(records: Record<string, unknown[]>) {
+  if (Buffer.byteLength(JSON.stringify(records), "utf8") > MAX_MIGRATION_PACKAGE_BYTES) {
+    throw new MigrationExportLimitError("Export exceeds the 20 MB package limit; use the reviewed large-export workflow.");
+  }
+}
+
 type ScopeContext = {
   clinicId: string;
   doctorIds: string[];
@@ -81,9 +93,10 @@ function withoutSensitive(row: Record<string, unknown>, sensitive: string[] = []
 
 async function ids(table: string, where: { sql: string; params: unknown[] }): Promise<string[]> {
   const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
-    `SELECT "id" FROM "${table}" WHERE ${where.sql}`,
+    `SELECT "id" FROM "${table}" WHERE ${where.sql} LIMIT 20001`,
     ...where.params,
   );
+  if (rows.length > MAX_MIGRATION_TABLE_ROWS) throw new MigrationExportLimitError(table + " exceeds the 20,000-row export limit.");
   return rows.map(r => r.id);
 }
 
