@@ -176,7 +176,7 @@ export function validateMigrationPackage(pkg: unknown) {
         if (typeof version !== "number" || !Number.isInteger(version) || version < 1 || typeof noteContent !== "string" || typeof contentHash !== "string") {
           errors.push(table + " row " + (index + 1) + " is missing valid version/content/hash fields");
         } else {
-          const expectedHash = createHash("sha256").update("v" + version + ":\\n" + noteContent).digest("hex");
+          const expectedHash = createHash("sha256").update("v" + version + ":\n" + noteContent).digest("hex");
           if (contentHash !== expectedHash) errors.push(table + " row " + (index + 1) + " content hash does not match its content");
         }
       }
