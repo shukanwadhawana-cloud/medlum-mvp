@@ -79,7 +79,7 @@
     "test:p2-07": "node scripts/verify-p2-07-mar.mjs",
     "test:p2-08": "node scripts/verify-p2-08-ipd-consultant-assignment.mjs",
     "test:issue-100": "node scripts/verify-issue-100-clinical-workflows.mjs",
-    "test:clinical-signing": "node scripts/verify-clinical-signing.mjs",
+    "test:clinical-signing": "node scripts/verify-clinical-signing.mjs && npx --yes tsx scripts/verify-clinical-signature-payload.ts",
     "test:record-confirmation": "node scripts/verify-record-confirmation.mjs",
     "test:ipd-save-error-handling": "node scripts/verify-ipd-save-error-handling.mjs",
     "test:staff-workforce": "node scripts/verify-staff-workforce.mjs",
