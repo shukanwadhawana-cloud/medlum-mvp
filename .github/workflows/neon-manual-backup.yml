@@ -93,12 +93,30 @@ jobs:
             | age -r "$AGE_RECIPIENT" -o "$backup_path"
 
           test -s "$backup_path"
-          sha256sum "$backup_path" > "$backup_path.sha256"
+          # Keep the checksum sidecar portable: it must reference only the
+          # object basename, not the temporary runner-specific directory.
+          (
+            cd "$workdir"
+            sha256sum "$backup_name" > "$backup_name.sha256"
+            sha256sum --check "$backup_name.sha256"
+          )
 
           aws --endpoint-url "$endpoint" s3 cp "$backup_path" \
             "s3://${R2_BUCKET}/medlum/postgres/$backup_name" --only-show-errors
           aws --endpoint-url "$endpoint" s3 cp "$backup_path.sha256" \
             "s3://${R2_BUCKET}/medlum/postgres/$backup_name.sha256" --only-show-errors
 
-          echo "Encrypted database backup uploaded: medlum/postgres/$backup_name"
+          # Read back ciphertext and compare hashes. This proves the object is
+          # retrievable and byte-identical without decrypting or exposing PHI.
+          local_sha="$(sha256sum "$backup_path" | awk '{print $1}')"
+          remote_sha="$(aws --endpoint-url "$endpoint" s3 cp "s3://${R2_BUCKET}/medlum/postgres/$backup_name" - --only-show-errors | sha256sum | awk '{print $1}')"
+          test -n "$remote_sha"
+          if [[ "$local_sha" != "$remote_sha" ]]; then
+            echo "::error::Uploaded encrypted backup checksum did not match read-back bytes."
+            exit 1
+          fi
+          aws --endpoint-url "$endpoint" s3api head-object --bucket "$R2_BUCKET" --key "medlum/postgres/$backup_name" >/dev/null
+          aws --endpoint-url "$endpoint" s3api head-object --bucket "$R2_BUCKET" --key "medlum/postgres/$backup_name.sha256" >/dev/null
+
+          echo "Encrypted database backup uploaded and read-back verified: medlum/postgres/$backup_name"
           echo "SHA-256 checksum sidecar uploaded. Backup contents and credentials were not printed."
