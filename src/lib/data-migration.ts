@@ -469,14 +469,14 @@ export async function importClinicData(
           action: "DATA_IMPORT",
           entity: "Clinic",
           entityId: targetClinicId,
-          meta: JSON.stringify({ schemaVersion: MIGRATION_SCHEMA_VERSION, imported, deferred, deferredRecordCounts, ownerPreserved: true }),
+          meta: JSON.stringify({ schemaVersion: MIGRATION_SCHEMA_VERSION, sourceClinicId, targetClinicId, sourceExportedAt: (pkg as { exportedAt?: unknown }).exportedAt, imported, deferred, deferredRecordCounts, ownerPreserved: true }),
         },
       });
     }, { maxWait: 10000, timeout: 45000 });
   } catch (error) {
     return {
       valid: false, executed: false,
-      errors: [error instanceof Error ? error.message : "Import failed; transaction rolled back."],
+      errors: ["Import failed and the transaction was rolled back. Review the package and server-side diagnostics before retrying."],
       imported: {}, deferred,
     };
   }
