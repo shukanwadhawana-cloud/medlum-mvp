@@ -48,6 +48,7 @@ for (const [expected, description] of [
   ["medlum-android-debug-apk", "Android APK artifact upload"],
   ["npx cap add ios", "iOS project generation"],
   ["xcodebuild", "native Xcode build"],
+  ["-workspace ios/App/App.xcworkspace", "CocoaPods-aware Xcode workspace build"],
   ["Debug-iphonesimulator", "iOS Simulator app output"],
   ["medlum-ios-simulator-app", "iOS Simulator artifact upload"],
   ["medlum-ios-xcode-project", "iOS Xcode project artifact upload"],
@@ -72,4 +73,4 @@ for (const expected of [
   assert.ok(docs.includes(expected), `Mobile packaging docs missing: ${expected}`);
 }
 
-console.log("Phase 12 mobile packaging verification passed: HTTPS URL binding, Android APK, iOS Simulator build, optional signed IPA, and release prerequisites.");
+console.log("Phase 12 mobile packaging verification passed: HTTPS URL binding, Android APK, iOS Simulator workspace build, optional signed IPA, and release prerequisites.");

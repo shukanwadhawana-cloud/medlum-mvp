@@ -29,10 +29,8 @@ jobs:
     name: Verify mobile packaging configuration
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
       - name: Install dependencies
@@ -41,9 +39,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           const appUrl = new URL(process.env.CAPACITOR_SERVER_URL);
-          if (appUrl.protocol !== 'https:') {
-            throw new Error('CAPACITOR_SERVER_URL must use HTTPS.');
-          }
+          if (appUrl.protocol !== 'https:') throw new Error('CAPACITOR_SERVER_URL must use HTTPS.');
           console.log(`Native app target: ${appUrl.origin}`);
           NODE
       - name: Verify mobile packaging contract
@@ -54,45 +50,30 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
       - name: Install dependencies
         run: npm install --include=dev --ignore-scripts
-      - name: Validate app URL
-        run: |
-          node --input-type=module <<'NODE'
-          const appUrl = new URL(process.env.CAPACITOR_SERVER_URL);
-          if (appUrl.protocol !== 'https:') throw new Error('CAPACITOR_SERVER_URL must use HTTPS.');
-          NODE
       - name: Prepare non-clinical local fallback for Capacitor sync
         run: |
-          mkdir -p out
-          cat > out/index.html <<'HTML'
-          <!doctype html>
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { URL } from 'node:url';
+          const url = new URL(process.env.CAPACITOR_SERVER_URL);
+          if (url.protocol !== 'https:') throw new Error('CAPACITOR_SERVER_URL must use HTTPS.');
+          fs.mkdirSync('out', { recursive: true });
+          fs.writeFileSync('out/index.html', `<!doctype html>
           <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <meta name="robots" content="noindex">
-              <title>MedLum Health</title>
-            </head>
-            <body>
-              <main>
-                <h1>MedLum Health</h1>
-                <p>Connect to the internet to open the secure MedLum platform.</p>
-              </main>
-            </body>
-          </html>
-          HTML
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>MedLum Health</title></head>
+            <body><main><h1>MedLum Health</h1><p>Connect to the internet to open the secure MedLum platform.</p></main></body>
+          </html>\n`);
+          NODE
       - name: Add Android native project
         run: npx cap add android
       - name: Sync remote MedLum origin into Android shell
@@ -101,14 +82,11 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          const path = 'android/app/src/main/assets/capacitor.config.json';
-          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const config = JSON.parse(fs.readFileSync('android/app/src/main/assets/capacitor.config.json', 'utf8'));
           if (config.server?.url !== process.env.CAPACITOR_SERVER_URL) {
             throw new Error(`Capacitor target mismatch: ${config.server?.url ?? '(missing)'}`);
           }
-          if (!config.server.url.startsWith('https://')) {
-            throw new Error('Refusing to package a non-HTTPS production URL.');
-          }
+          if (!config.server.url.startsWith('https://')) throw new Error('Refusing to package a non-HTTPS URL.');
           console.log(`Android shell targets ${config.server.url}`);
           NODE
       - name: Build installable debug APK
@@ -127,40 +105,26 @@ jobs:
     needs: verify
     runs-on: macos-14
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
       - name: Install dependencies
         run: npm install --include=dev --ignore-scripts
-      - name: Validate app URL
-        run: |
-          node --input-type=module <<'NODE'
-          const appUrl = new URL(process.env.CAPACITOR_SERVER_URL);
-          if (appUrl.protocol !== 'https:') throw new Error('CAPACITOR_SERVER_URL must use HTTPS.');
-          NODE
       - name: Prepare non-clinical local fallback for Capacitor sync
         run: |
-          mkdir -p out
-          cat > out/index.html <<'HTML'
-          <!doctype html>
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { URL } from 'node:url';
+          const url = new URL(process.env.CAPACITOR_SERVER_URL);
+          if (url.protocol !== 'https:') throw new Error('CAPACITOR_SERVER_URL must use HTTPS.');
+          fs.mkdirSync('out', { recursive: true });
+          fs.writeFileSync('out/index.html', `<!doctype html>
           <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <meta name="robots" content="noindex">
-              <title>MedLum Health</title>
-            </head>
-            <body>
-              <main>
-                <h1>MedLum Health</h1>
-                <p>Connect to the internet to open the secure MedLum platform.</p>
-              </main>
-            </body>
-          </html>
-          HTML
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>MedLum Health</title></head>
+            <body><main><h1>MedLum Health</h1><p>Connect to the internet to open the secure MedLum platform.</p></main></body>
+          </html>\n`);
+          NODE
       - name: Add iOS native project
         run: npx cap add ios
       - name: Sync remote MedLum origin into iOS shell
@@ -168,7 +132,7 @@ jobs:
       - name: Build iOS Simulator app
         run: |
           xcodebuild \
-            -project ios/App/App.xcodeproj \
+            -workspace ios/App/App.xcworkspace \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
@@ -176,7 +140,7 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/MedLumDerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             build
-      - name: Package iOS Simulator app
+      - name: Package iOS Simulator app and Xcode project
         run: |
           ditto -c -k --sequesterRsrc --keepParent \
             "$RUNNER_TEMP/MedLumDerivedData/Build/Products/Debug-iphonesimulator/App.app" \
@@ -210,20 +174,16 @@ jobs:
       IOS_TEAM_ID: ${{ vars.MEDLUM_IOS_TEAM_ID }}
       IOS_EXPORT_METHOD: ${{ vars.MEDLUM_IOS_EXPORT_METHOD || 'app-store-connect' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
       - name: Validate signing setup
+        shell: bash
         run: |
           set -euo pipefail
           for name in IOS_CERTIFICATE_P12_BASE64 IOS_CERTIFICATE_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 IOS_TEAM_ID; do
-            if [ -z "${!name:-}" ]; then
-              echo "Missing required iOS signing configuration: $name" >&2
-              exit 1
-            fi
+            if [ -z "${!name:-}" ]; then echo "Missing iOS signing configuration: $name" >&2; exit 1; fi
           done
           case "$IOS_EXPORT_METHOD" in
             app-store-connect|ad-hoc|development|enterprise) ;;
@@ -233,19 +193,14 @@ jobs:
         run: npm install --include=dev --ignore-scripts
       - name: Prepare mobile web directory
         run: |
-          mkdir -p out
-          cat > out/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <meta name="robots" content="noindex">
-              <title>MedLum Health</title>
-            </head>
-            <body><main><h1>MedLum Health</h1><p>Connect to the internet to open the secure MedLum platform.</p></main></body>
-          </html>
-          HTML
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { URL } from 'node:url';
+          const url = new URL(process.env.CAPACITOR_SERVER_URL);
+          if (url.protocol !== 'https:') throw new Error('CAPACITOR_SERVER_URL must use HTTPS.');
+          fs.mkdirSync('out', { recursive: true });
+          fs.writeFileSync('out/index.html', '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>MedLum Health</title></head><body><main><h1>MedLum Health</h1><p>Connect online to open the secure MedLum platform.</p></main></body></html>');
+          NODE
       - name: Add and sync iOS native project
         run: npx cap add ios && npx cap sync ios
       - name: Import Apple signing identity and provisioning profile
@@ -258,31 +213,21 @@ jobs:
           python3 - <<'PY'
           import base64, os
           from pathlib import Path
-          Path(os.environ["RUNNER_TEMP"] + "/distribution.p12").write_bytes(
-              base64.b64decode(os.environ["IOS_CERTIFICATE_P12_BASE64"])
-          )
-          Path(os.environ["RUNNER_TEMP"] + "/profile.mobileprovision").write_bytes(
-              base64.b64decode(os.environ["IOS_PROVISIONING_PROFILE_BASE64"])
-          )
+          Path(os.environ["RUNNER_TEMP"] + "/distribution.p12").write_bytes(base64.b64decode(os.environ["IOS_CERTIFICATE_P12_BASE64"]))
+          Path(os.environ["RUNNER_TEMP"] + "/profile.mobileprovision").write_bytes(base64.b64decode(os.environ["IOS_PROVISIONING_PROFILE_BASE64"]))
           PY
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$RUNNER_TEMP/distribution.p12" \
-            -k "$KEYCHAIN_PATH" -P "$IOS_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: -s \
-            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -d user -s "$KEYCHAIN_PATH"
-          security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" \
-            > "$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" > "$RUNNER_TEMP/profile.plist"
           PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")"
           PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist")"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp "$RUNNER_TEMP/profile.mobileprovision" \
-            "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           {
             echo "IOS_PROFILE_UUID=$PROFILE_UUID"
             echo "IOS_PROFILE_NAME=$PROFILE_NAME"
@@ -291,7 +236,7 @@ jobs:
       - name: Archive signed iOS app
         run: |
           xcodebuild archive \
-            -project ios/App/App.xcodeproj \
+            -workspace ios/App/App.xcworkspace \
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
@@ -309,9 +254,7 @@ jobs:
               "method": os.environ["IOS_EXPORT_METHOD"],
               "teamID": os.environ["IOS_TEAM_ID"],
               "signingStyle": "manual",
-              "provisioningProfiles": {
-                  "com.medlum.app": os.environ["IOS_PROFILE_NAME"]
-              },
+              "provisioningProfiles": {"com.medlum.app": os.environ["IOS_PROFILE_NAME"]},
               "stripSwiftSymbols": True,
           }
           with open(os.environ["RUNNER_TEMP"] + "/ExportOptions.plist", "wb") as file:
@@ -333,6 +276,4 @@ jobs:
       - name: Remove temporary signing keychain
         if: always()
         run: |
-          if [ -n "${IOS_KEYCHAIN_PATH:-}" ]; then
-            security delete-keychain "$IOS_KEYCHAIN_PATH" || true
-          fi
+          if [ -n "${IOS_KEYCHAIN_PATH:-}" ]; then security delete-keychain "$IOS_KEYCHAIN_PATH" || true; fi
