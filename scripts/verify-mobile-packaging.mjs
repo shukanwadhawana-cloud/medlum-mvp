@@ -63,7 +63,7 @@ assert.ok(
 
 const docs = read("docs/PHASE_12_MOBILE_PACKAGING.md");
 for (const expected of [
-  "debug APK",
+  "debug-signed APK",
   "iOS Simulator",
   "MEDLUM_IOS_SIGNING_ENABLED",
   "MEDLUM_IOS_CERTIFICATE_P12_BASE64",
