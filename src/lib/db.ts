@@ -80,10 +80,12 @@ export async function withDatabaseRecovery<T>(
   throw lastError;
 }
 
-function createPrismaClient() {
-  return new PrismaClient({
+function createPrismaClient(): PrismaClient {
+  const client = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  }).$extends({
+  });
+
+  const extendedClient = client.$extends({
     query: {
       $allOperations({ operation, args, query }) {
         if (!RETRYABLE_READ_OPERATIONS.has(operation)) {
@@ -94,12 +96,14 @@ function createPrismaClient() {
       },
     },
   });
+
+  // Preserve the standard PrismaClient public type for existing transaction
+  // helpers while retaining the runtime read-retry extension.
+  return extendedClient as unknown as PrismaClient;
 }
 
-type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
-
 const globalForPrisma = globalThis as unknown as {
-  prisma: ExtendedPrismaClient | undefined;
+  prisma: PrismaClient | undefined;
 };
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
