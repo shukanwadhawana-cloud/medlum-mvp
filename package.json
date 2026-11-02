@@ -93,7 +93,7 @@
     "test:secret-crypto": "npx --yes tsx scripts/verify-secret-crypto.ts",
     "test:owner-facility-onboarding-runtime": "node scripts/verify-owner-facility-onboarding-runtime.mjs",
     "test:clinic-setup-license": "node scripts/verify-clinic-setup-license-optional.mjs",
-    "prebuild": "node scripts/copy-pdf-worker.mjs",
+    "prebuild": "node scripts/copy-pdf-worker.mjs && node scripts/verify-production-db-resilience.mjs",
     "test:clinical-assist-ocr": "node scripts/verify-clinical-assist-ocr.mjs",
     "test:admission-bed-categories": "node scripts/verify-admission-bed-categories.mjs",
     "test:lab-ocr-behavior": "npx --yes tsx scripts/verify-lab-ocr-behavior.ts",
