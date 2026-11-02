@@ -105,7 +105,8 @@
     "test:ipd-consultant-runtime": "node scripts/verify-ipd-consultant-assignment-runtime.mjs",
     "test:clinical-qa": "node scripts/verify-clinical-qa.mjs",
     "test:encrypted-backup-workflow": "node scripts/verify-encrypted-backup-workflow.mjs",
-    "test:data-migration-security": "node scripts/verify-data-migration-security.mjs"
+    "test:data-migration-security": "node scripts/verify-data-migration-security.mjs",
+    "test:production-db-resilience": "node scripts/verify-production-db-resilience.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
