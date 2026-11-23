@@ -353,3 +353,35 @@ main .shadow-sm { box-shadow: var(--ml-shadow) !important; }
 .medlum-index-hero a.medlum-primary { background: #fff; color: #8f1730; border: 1px solid #e7c3cc; box-shadow: none; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
 .medlum-index-hero a.medlum-primary:hover,
 .medlum-index-hero a.medlum-primary:focus-visible { background: #c2183a; color: #fff; border-color: #c2183a; }
+
+
+/* Main workspace owns vertical scrolling; the document stays within the viewport. */
+.medlum-app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.medlum-app > .medlum-topbar {
+  position: relative;
+  z-index: 40;
+  flex: 0 0 auto;
+}
+
+.medlum-app > main.medlum-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.medlum-app > main.medlum-main:focus {
+  outline: none;
+}
