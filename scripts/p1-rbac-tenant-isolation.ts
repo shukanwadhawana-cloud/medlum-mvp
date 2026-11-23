@@ -212,6 +212,7 @@ const specialUnauth = new Set([
   "telegram/webhook/route.ts",
   "telegram/facility/[clinicId]/route.ts",
   "telemedicine/join/route.ts",
+  "health/route.ts", // public readiness probe: service/database status only; no patient or clinical data
 ]);
 function walkRoutes(dir: string, acc: string[] = []): string[] {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {

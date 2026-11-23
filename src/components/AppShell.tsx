@@ -106,7 +106,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
 
   return (
-    <div className="medlum-app min-h-screen bg-[var(--ml-canvas)] text-[var(--ml-ink)]">
+    <div className="medlum-app flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--ml-canvas)] text-[var(--ml-ink)]">
       <header className="medlum-topbar">
         <div className="medlum-topbar-inner max-w-7xl">
           <Link href="/dashboard" className="medlum-brand">
@@ -126,7 +126,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <main className="medlum-main">{children}</main>
+      <main id="medlum-main-content" className="medlum-main min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain" tabIndex={0} aria-label="Main workspace">{children}</main>
 
       {mobileModulesOpen && (
         <div className="fixed inset-0 z-[60] md:hidden" role="dialog" aria-modal="true" aria-label="All MedLum modules">

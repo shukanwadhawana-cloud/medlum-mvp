@@ -3,8 +3,8 @@ import path from "node:path";
 
 const root = process.cwd();
 const required = [
-  ["src/components/AppShell.tsx", ["hidden md:flex", "md:hidden", "safe-area-bottom", "max-w-7xl"]],
-  ["src/app/globals.css", ["min-width: 320px", "scrollbar-none", "safe-area-bottom", "telemedicine-video-frame"]],
+  ["src/components/AppShell.tsx", ["hidden md:flex", "md:hidden", "safe-area-bottom", "max-w-7xl", "h-dvh", "medlum-main-content", "overflow-y-auto"]],
+  ["src/app/globals.css", ["min-width: 320px", "scrollbar-none", "safe-area-bottom", "telemedicine-video-frame", "Main workspace owns vertical scrolling", ".medlum-app > main.medlum-main", "height: 100dvh", "overscroll-behavior-y: contain"]],
   ["src/app/layout.tsx", ["viewportFit: \"cover\"", "manifest: \"/manifest.webmanifest\""]],
   ["src/app/manifest.webmanifest", ["\"display\": \"standalone\"", "\"start_url\": \"/dashboard\""]],
   ["src/app/telemedicine/[id]/page.tsx", ["telemedicine-video-frame"]],

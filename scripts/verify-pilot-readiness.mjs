@@ -28,8 +28,18 @@ if (env.includes("NEXT_PUBLIC_EKA_CLIENT_SECRET") || env.includes("NEXT_PUBLIC_E
 }
 
 const health = read("src/app/api/health/route.ts");
-for (const token of ['status: "ok"', 'service: "medlum"', "timestamp: new Date().toISOString()"])
+for (const token of [
+  'status: ready ? "ok" : "degraded"',
+  'service: "medlum"',
+  "ready,",
+  "checks: { database }",
+  "timestamp: new Date().toISOString()",
+]) {
   if (!health.includes(token)) throw new Error(`Health endpoint missing: ${token}`);
+}
+if (!health.includes('{ status: ready ? 200 : 503 }')) {
+  throw new Error("Health endpoint must return HTTP 200 only when its database readiness check passes");
+}
 
 const shell = read("src/components/AppShell.tsx");
 if (shell.includes('{ href: "/dashboard", label: "Home"')) throw new Error("Duplicate Home navigation must not return beside MedLum");
